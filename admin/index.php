@@ -346,6 +346,9 @@ foreach ($importantExtensions as $ext => $name) {
                     <p class="text-gray-600 mt-1">Welcome, <?php echo htmlspecialchars($_SESSION['admin_user_name'] ?? 'Admin'); ?></p>
                 </div>
                 <div class="flex items-center gap-2">
+                    <a href="../index.php" class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded">
+                        View Network
+                    </a>
                     <a href="../edit/index.php" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded">
                         Edit Content
                     </a>
@@ -684,10 +687,6 @@ foreach ($importantExtensions as $ext => $name) {
             </div>
         </div>
 
-        <!-- Footer Links -->
-        <div class="text-center mt-6">
-            <a href="../index.php" class="text-blue-500 hover:underline">← Back to Telaris</a>
-        </div>
     </div>
     
     <script>

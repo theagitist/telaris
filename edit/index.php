@@ -249,6 +249,26 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                 // Store nodes for sorting
                 allNodes = nodes;
                 
+                // Check if this is the initial load and we should set default tab
+                const urlParams = new URLSearchParams(window.location.search);
+                if (!urlParams.has('tab')) {
+                    // No tab specified in URL, set default based on whether nodes exist
+                    const defaultTab = nodes.length > 0 ? 'list' : 'add';
+                    // Update URL without reload first
+                    urlParams.set('tab', defaultTab);
+                    window.history.replaceState({}, '', '?' + urlParams.toString());
+                    // Show the tab - if it's 'list', showTab will call loadNodes again, but that's okay
+                    // If it's 'add', we just show it and don't display nodes
+                    showTab(defaultTab);
+                    // For list tab, showTab will handle loading, for add tab we're done
+                    if (defaultTab === 'list') {
+                        // showTab already called loadNodes, which will call applySorting
+                        return;
+                    }
+                    // For add tab, we don't need to display nodes
+                    return;
+                }
+                
                 // Apply sorting if sort controls exist
                 const sortBy = document.getElementById('sort-by');
                 if (sortBy) {
@@ -740,15 +760,23 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
         
         // Initialize tab on page load
         document.addEventListener('DOMContentLoaded', function() {
-            const tab = new URLSearchParams(window.location.search).get('tab') || 'add';
-            showTab(tab);
+            // Don't set tab here - let loadNodes determine default based on whether nodes exist
+            // Only set tab if explicitly specified in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('tab')) {
+                showTab(urlParams.get('tab'));
+            }
+            // Otherwise, wait for loadNodes to set default based on node count
         });
         
-        // Fallback: If DOMContentLoaded already fired, call loadNodes immediately
+        // Fallback: If DOMContentLoaded already fired
         if (document.readyState !== 'loading') {
             setTimeout(() => {
-                const tab = new URLSearchParams(window.location.search).get('tab') || 'add';
-                showTab(tab);
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.has('tab')) {
+                    showTab(urlParams.get('tab'));
+                }
+                // Otherwise, wait for loadNodes to set default based on node count
             }, 100);
         }
     </script>
