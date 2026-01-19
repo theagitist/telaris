@@ -666,40 +666,86 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 });
                 
                 // Create nodes from API data
-                // Track positions to ensure uniqueness
+                // Goal: positions should be well distributed, visible, and centered in the viewport.
                 const usedPositions = [];
-                
-                this.nodeData.forEach((nodeData, i) => {
+                const rawPositions = [];
+
+                // Camera-based bounds at z≈0 for initial layout
+                const cameraZ = this.camera.position.z;
+                const halfHeight = Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5)) * cameraZ;
+                const halfWidth = halfHeight * this.camera.aspect;
+                const margin = 0.72; // keep away from edges
+
+                const layoutBounds = {
+                    xMax: halfWidth * margin,
+                    yMax: halfHeight * margin,
+                    // Increase z-range for more depth variation while keeping nodes comfortably in view
+                    zMax: cameraZ * 0.35
+                };
+
+                for (let i = 0; i < this.nodeData.length; i++) {
+                    const pos = this.generateRandomPosition(usedPositions, i, layoutBounds);
+                    usedPositions.push(pos);
+                    rawPositions.push(new THREE.Vector3(pos.x, pos.y, pos.z));
+                }
+
+                // Recentre around origin to prevent drift
+                const centroid = new THREE.Vector3(0, 0, 0);
+                rawPositions.forEach(p => centroid.add(p));
+                if (rawPositions.length > 0) {
+                    centroid.multiplyScalar(1 / rawPositions.length);
+                }
+                rawPositions.forEach(p => p.sub(centroid));
+
+                // Find actual maximum extent in each axis after centering
+                let maxAbsX = 0, maxAbsY = 0, maxAbsZ = 0;
+                rawPositions.forEach(p => {
+                    maxAbsX = Math.max(maxAbsX, Math.abs(p.x));
+                    maxAbsY = Math.max(maxAbsY, Math.abs(p.y));
+                    maxAbsZ = Math.max(maxAbsZ, Math.abs(p.z));
+                });
+
+                // Ensure we have valid extents (handle edge case of all nodes at same position)
+                if (maxAbsX === 0) maxAbsX = 1;
+                if (maxAbsY === 0) maxAbsY = 1;
+                if (maxAbsZ === 0) maxAbsZ = 1;
+
+                // Scale each axis independently to fit within safe bounds
+                // This guarantees all nodes are within [-safeX, safeX], [-safeY, safeY], [-safeZ, safeZ]
+                const marginFactor = 0.85; // keep a margin from edges to ensure visibility
+                const safeX = layoutBounds.xMax * marginFactor;
+                const safeY = layoutBounds.yMax * marginFactor;
+                const safeZ = layoutBounds.zMax * marginFactor;
+
+                const scaleX = safeX / maxAbsX;
+                const scaleY = safeY / maxAbsY;
+                const scaleZ = safeZ / maxAbsZ;
+
+                rawPositions.forEach(p => {
+                    // Scale each axis independently to ensure all nodes fit within safe bounds
+                    p.x *= scaleX;
+                    p.y *= scaleY;
+                    p.z *= scaleZ;
+                });
+
+                for (let i = 0; i < this.nodeData.length; i++) {
+                    const nodeData = this.nodeData[i];
                     const anim = nodeData.animation;
-                    
-                    // Generate random position for this node (ignoring database position)
-                    // Random position within a sphere of radius 10, ensuring uniqueness
-                    // Each node gets a different seed offset (i) to ensure different positions
-                    // Base seed uses Date.now() so each page load gets different positions
-                    const randomPos = this.generateRandomPosition(usedPositions, i);
-                    usedPositions.push(randomPos);
-                    
+                    const randomPos = rawPositions[i];
+
                     // Generate random pastel color for this node
-                    // Each node gets a different seed offset (i) to ensure different colors
-                    // Base seed uses Date.now() so each page load gets different colors
                     const pastelColor = this.generateRandomPastelColor(i);
-                    
-                    // Create color from HSL for potential future use
+
+                    // Create color from HSL
                     const threeColor = new THREE.Color().setHSL(
                         pastelColor.hue,
                         pastelColor.saturation,
                         pastelColor.lightness
                     );
-                    
-                    // Convert HSL to RGB for CSS
-                    const rgb = threeColor;
-                    const r = Math.round(rgb.r * 255);
-                    const g = Math.round(rgb.g * 255);
-                    const b = Math.round(rgb.b * 255);
-                    
+
                     // Create star node with material
                     const nodeName = nodeData.name || `Node ${i + 1}`;
-                    
+
                     // Create material for the star with the pastel color
                     const starMaterial = new THREE.MeshStandardMaterial({
                         color: threeColor,
@@ -708,11 +754,11 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                         metalness: 0.3,
                         roughness: 0.7
                     });
-                    
+
                     // Create the star shape
                     const node = this.createStarNode(starMaterial);
-                    node.position.set(randomPos.x, randomPos.y, randomPos.z);
-                    
+                    node.position.copy(randomPos);
+
                     // Add animation properties from database
                     node.userData = {
                         id: nodeData.id || i, // Database ID
@@ -721,7 +767,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                         description: nodeData.description || null,
                         keywords: nodeData.keywords || [], // Keywords array
                         url: nodeData.url || null, // URL to open when clicked
-                        originalPosition: new THREE.Vector3(randomPos.x, randomPos.y, randomPos.z), // Random base position
+                        originalPosition: randomPos.clone(), // Random base position (centered + scaled)
                         speed: anim.speed / 4, // 1/4 speed
                         baseSpeed: anim.speed / 4,
                         phase: anim.phase,
@@ -732,7 +778,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
 
                     this.nodes.push(node);
                     this.scene.add(node);
-                });
+                }
             }
 
             // Calculate number of shared keywords between two nodes
@@ -915,33 +961,42 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 };
             }
 
-            // Generate a random 3D position within a sphere
-            // Ensures uniqueness by checking against existing positions
-            generateRandomPosition(existingPositions = [], seedOffset = 0) {
+            // Generate a random 3D position within camera-based bounds.
+            // Ensures uniqueness by checking against existing positions.
+            generateRandomPosition(existingPositions = [], seedOffset = 0, bounds = null) {
                 // Seed the random generator with current time + offset for uniqueness per page load
                 // Each page load gets a different base seed, ensuring different positions
                 const baseSeed = Date.now() + Math.random() * 1000000;
                 const seed = baseSeed + seedOffset;
                 
-                const minDistance = 0.5; // Minimum distance between nodes
+                const minDistance = 1.4; // Minimum distance between nodes (stars are large)
                 let attempts = 0;
                 const maxAttempts = 100;
+
+                // Default bounds if not provided (more generous Z for depth variation)
+                const b = bounds ?? { xMax: 8, yMax: 6, zMax: 6 };
                 
                 while (attempts < maxAttempts) {
-                    // Generate random position within a sphere of radius 10
-                    // Using spherical coordinates for even distribution
+                    // Generate random position within an ellipsoid aligned to viewport
                     // Use a new seed for each attempt to ensure different positions
                     const attemptSeed = seed + attempts * 1000;
                     const attemptRng = this.seededRandom(attemptSeed);
-                    
-                    const radius = attemptRng() * 10; // Random radius from 0 to 10
-                    const theta = attemptRng() * Math.PI * 2; // Random angle around z-axis (0 to 2π)
-                    const phi = Math.acos(2 * attemptRng() - 1); // Random angle from z-axis (0 to π)
-                    
+
+                    // Rejection sample in ellipse for better screen distribution
+                    let x = 0, y = 0;
+                    let guard = 0;
+                    do {
+                        x = (attemptRng() * 2 - 1) * b.xMax;
+                        y = (attemptRng() * 2 - 1) * b.yMax;
+                        guard++;
+                    } while (((x * x) / (b.xMax * b.xMax) + (y * y) / (b.yMax * b.yMax) > 1) && guard < 20);
+
+                    const z = (attemptRng() * 2 - 1) * b.zMax;
+
                     const newPos = {
-                        x: radius * Math.sin(phi) * Math.cos(theta),
-                        y: radius * Math.sin(phi) * Math.sin(theta),
-                        z: radius * Math.cos(phi)
+                        x,
+                        y,
+                        z
                     };
                     
                     // Check if this position is too close to any existing position
@@ -969,13 +1024,13 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 // (shouldn't happen unless there are too many nodes)
                 const finalSeed = seed + attempts * 1000;
                 const finalRng = this.seededRandom(finalSeed);
-                const radius = finalRng() * 10;
-                const theta = finalRng() * Math.PI * 2;
-                const phi = Math.acos(2 * finalRng() - 1);
+                const x = (finalRng() * 2 - 1) * b.xMax;
+                const y = (finalRng() * 2 - 1) * b.yMax;
+                const z = (finalRng() * 2 - 1) * b.zMax;
                 return {
-                    x: radius * Math.sin(phi) * Math.cos(theta),
-                    y: radius * Math.sin(phi) * Math.sin(theta),
-                    z: radius * Math.cos(phi)
+                    x,
+                    y,
+                    z
                 };
             }
 
