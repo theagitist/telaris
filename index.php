@@ -808,6 +808,8 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
 
                 console.log(`Creating connections for ${this.nodes.length} nodes`);
 
+                let connectionIndex = 0; // Track connection index for unique colors
+
                 // Check all pairs of nodes
                 for (let i = 0; i < this.nodes.length; i++) {
                     for (let j = i + 1; j < this.nodes.length; j++) {
@@ -841,13 +843,25 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                                 8          // radial segments
                             );
                             
-                            // Create material with brighter color for better visibility
+                            // Generate random pastel color for this connection
+                            // Use connection index + node indices as seed for unique colors
+                            const colorSeed = connectionIndex * 1000 + i * 100 + j;
+                            const pastelColor = this.generateRandomPastelColor(colorSeed);
+                            const threeColor = new THREE.Color().setHSL(
+                                pastelColor.hue,
+                                pastelColor.saturation,
+                                pastelColor.lightness
+                            );
+                            
+                            // Create material with pastel color and reduced opacity for lighter appearance
                             const material = new THREE.MeshBasicMaterial({
-                                color: 0xffffff, // White for better visibility
+                                color: threeColor,
                                 transparent: true,
-                                opacity: 0.8,
+                                opacity: 0.35, // Reduced from 0.8 for lighter appearance
                                 side: THREE.DoubleSide // Ensure both sides are visible
                             });
+                            
+                            connectionIndex++; // Increment for next connection
                             
                             // Create mesh
                             const cylinder = new THREE.Mesh(geometry, material);
