@@ -163,6 +163,7 @@ Stores API keys for authentication.
 - Clickable nodes - clicking a node with a URL opens it in a new window
 - Cursor changes to pointer when hovering over nodes with URLs
 - Orbit controls for camera navigation (drag to rotate, scroll to zoom)
+- Idle auto-rotation - the scene slowly rotates when the user is inactive
 - Real-time data loading from API
 
 ### Backend

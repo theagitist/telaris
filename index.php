@@ -125,6 +125,10 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 this.raycaster = new THREE.Raycaster();
                 this.mouse = new THREE.Vector2();
                 this.tooltip = document.getElementById('node-tooltip');
+
+                // Idle rotation (auto-rotate when user is inactive)
+                this.lastInteractionAt = performance.now();
+                this.idleRotateDelayMs = 4500; // wait ~4.5s of inactivity before rotating
                 
                 this.init();
             }
@@ -135,6 +139,10 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 const worldPos = new THREE.Vector3();
                 node.getWorldPosition(worldPos);
                 return worldPos;
+            }
+
+            markInteraction() {
+                this.lastInteractionAt = performance.now();
             }
 
             init() {
@@ -156,6 +164,13 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 this.controls.dampingFactor = 0.05;
                 this.controls.minDistance = 5;
                 this.controls.maxDistance = 30;
+                this.controls.autoRotate = false;
+                this.controls.autoRotateSpeed = 0.35; // subtle, not distracting
+
+                // Any interaction with controls counts as activity (stops idle rotation)
+                this.controls.addEventListener('start', () => this.markInteraction());
+                this.controls.addEventListener('end', () => this.markInteraction());
+                this.controls.addEventListener('change', () => this.markInteraction());
 
                 // Create ambient light
                 const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
@@ -298,6 +313,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 
                 // Track mousedown to distinguish clicks from drags
                 this.renderer.domElement.addEventListener('mousedown', (event) => {
+                    this.markInteraction();
                     const rect = this.renderer.domElement.getBoundingClientRect();
                     mouseDownPos = {
                         x: event.clientX - rect.left,
@@ -308,6 +324,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 
                 // Combined mousemove handler for drag detection and cursor changes
                 this.renderer.domElement.addEventListener('mousemove', (event) => {
+                    this.markInteraction();
                     // Get canvas bounding rect to account for any offset
                     const rect = this.renderer.domElement.getBoundingClientRect();
                     
@@ -380,6 +397,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 
                 // Hide tooltip when mouse leaves the canvas
                 this.renderer.domElement.addEventListener('mouseleave', () => {
+                    this.markInteraction();
                     if (this.tooltip) {
                         this.tooltip.classList.add('hidden');
                     }
@@ -388,9 +406,14 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 
                 // Reset drag tracking on mouseup
                 this.renderer.domElement.addEventListener('mouseup', () => {
+                    this.markInteraction();
                     mouseDownPos = null;
                     mouseDownTime = 0;
                 });
+
+                // Other interactions that should cancel idle rotation
+                this.renderer.domElement.addEventListener('wheel', () => this.markInteraction(), { passive: true });
+                window.addEventListener('keydown', () => this.markInteraction(), { passive: true });
                 
                 // Helper function to get node from event coordinates
                 const getNodeFromEvent = (event) => {
@@ -498,6 +521,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     
                     // Track touch start
                     this.renderer.domElement.addEventListener('touchstart', (event) => {
+                        this.markInteraction();
                         const touch = event.touches[0];
                         if (!touch) return;
                         
@@ -519,6 +543,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     
                     // Track touch move - if user drags, it's not a tap
                     this.renderer.domElement.addEventListener('touchmove', (event) => {
+                        this.markInteraction();
                         if (!touchStartPos || !touchStartNode) return;
                         
                         const touch = event.touches[0];
@@ -536,6 +561,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     
                     // Handle touch end - this is where we detect taps
                     this.renderer.domElement.addEventListener('touchend', (event) => {
+                        this.markInteraction();
                         const touch = event.changedTouches[0];
                         if (!touch || !touchStartPos) {
                             touchStartPos = null;
@@ -1110,6 +1136,10 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
             animate() {
                 requestAnimationFrame(() => this.animate());
                 
+                // Enable subtle auto-rotation when idle; stop immediately on interaction
+                const idleForMs = performance.now() - this.lastInteractionAt;
+                this.controls.autoRotate = idleForMs > this.idleRotateDelayMs;
+
                 this.updateNodes();
                 this.updateConnections();
                 
