@@ -1,0 +1,45 @@
+# PHP
+*.log
+*.cache
+vendor/
+composer.lock
+composer.phar
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Environment and config
+.env
+.env.local
+config.local.php
+config.php
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Node modules (if any)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build files
+dist/
+build/
