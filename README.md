@@ -157,7 +157,8 @@ Stores API keys for authentication.
 ### Frontend
 - 3D visualization with organic animations
 - Large star-shaped node icons (4x scaled)
-- Light, semi-transparent pastel connections between nodes based on shared keywords
+- Light, semi-transparent vivid pastel connections between nodes based on shared keywords
+- Vivid pastel-colored node icons for enhanced visual appeal
 - Interactive hover labels showing node names
 - Clickable nodes - clicking a node with a URL opens it in a new window
 - Cursor changes to pointer when hovering over nodes with URLs

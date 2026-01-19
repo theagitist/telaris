@@ -958,20 +958,21 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
             }
 
             // Generate random pastel color (HSL)
-            // Pastel colors have high lightness (0.7-0.9) and moderate saturation (0.4-0.7)
+            // Pastel colors with higher saturation for more vivid appearance
+            // Still light enough to be pastel, but more intense than before
             generateRandomPastelColor(seedOffset = 0) {
                 const baseSeed = Date.now() + Math.random() * 1000000;
                 const seed = baseSeed + seedOffset;
                 const rng = this.seededRandom(seed);
                 
-                // Pastel color range:
+                // Pastel color range (more vivid):
                 // Hue: 0 to 1 (full spectrum)
-                // Saturation: 0.4 to 0.7 (moderate, not too vibrant)
-                // Lightness: 0.7 to 0.9 (light, pastel-like)
+                // Saturation: 0.6 to 0.85 (higher saturation for more vivid colors)
+                // Lightness: 0.65 to 0.85 (slightly lower for more intensity, still pastel)
                 return {
                     hue: rng(), // 0 to 1
-                    saturation: 0.4 + rng() * 0.3, // 0.4 to 0.7
-                    lightness: 0.7 + rng() * 0.2 // 0.7 to 0.9
+                    saturation: 0.6 + rng() * 0.25, // 0.6 to 0.85
+                    lightness: 0.65 + rng() * 0.2 // 0.65 to 0.85
                 };
             }
 
