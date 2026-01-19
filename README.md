@@ -177,6 +177,18 @@ Stores API keys for authentication.
 - Secure password hashing (bcrypt with automatic salting)
 - API key authentication for API endpoints
 
+### Node Editor Interface
+- Tabbed interface for adding new nodes and listing existing nodes
+- Inline editing - edit nodes directly in the list at their position
+- Advanced sorting options:
+  - Sort by name, date created, or keywords
+  - Ascending or descending order
+- Fuzzy search functionality:
+  - Real-time search as you type
+  - Searches across node name, description, URL, and keywords
+  - Works seamlessly with sorting
+- Date created display - shows when each node was created
+
 ## Security
 
 - **Password Security**: All passwords are hashed using PHP's `password_hash()` with `PASSWORD_DEFAULT` (bcrypt), which includes automatic salting. Each password gets a unique salt.

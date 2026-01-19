@@ -147,6 +147,14 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                             <option value="desc">Descending</option>
                         </select>
                     </div>
+                    <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+                        <label for="search-nodes" class="text-sm font-medium text-gray-700">Search:</label>
+                        <input type="text" 
+                               id="search-nodes" 
+                               placeholder="Search nodes..." 
+                               oninput="applySorting()"
+                               class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    </div>
                 </div>
                 
                 <div id="nodes-list" class="space-y-3">
@@ -380,19 +388,46 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
         // Store all nodes for sorting
         let allNodes = [];
 
-        // Apply sorting to displayed nodes
+        // Apply sorting and filtering to displayed nodes
         function applySorting() {
             const sortBy = document.getElementById('sort-by');
             const sortOrder = document.getElementById('sort-order');
+            const searchInput = document.getElementById('search-nodes');
             
             if (!sortBy || !sortOrder || !allNodes || allNodes.length === 0) {
                 return;
             }
             
+            // Get search query
+            const searchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
+            
+            // Filter nodes based on search query
+            let filteredNodes = [...allNodes];
+            if (searchQuery) {
+                filteredNodes = allNodes.filter(node => {
+                    // Search in name
+                    const nameMatch = (node.name || '').toLowerCase().includes(searchQuery);
+                    
+                    // Search in description
+                    const descriptionMatch = (node.description || '').toLowerCase().includes(searchQuery);
+                    
+                    // Search in URL
+                    const urlMatch = (node.url || '').toLowerCase().includes(searchQuery);
+                    
+                    // Search in keywords
+                    const keywordsMatch = node.keywords && node.keywords.length > 0
+                        ? node.keywords.some(k => k.toLowerCase().includes(searchQuery))
+                        : false;
+                    
+                    return nameMatch || descriptionMatch || urlMatch || keywordsMatch;
+                });
+            }
+            
+            // Apply sorting to filtered nodes
             const sortByValue = sortBy.value;
             const sortOrderValue = sortOrder.value;
             
-            const sortedNodes = [...allNodes].sort((a, b) => {
+            const sortedNodes = filteredNodes.sort((a, b) => {
                 let aVal, bVal;
                 
                 switch(sortByValue) {
