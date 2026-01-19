@@ -157,8 +157,18 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                     </div>
                 </div>
                 
-                <div id="nodes-list" class="space-y-3">
-                    <p class="text-gray-500" id="loading-message">Loading nodes...</p>
+                <div id="nodes-list" class="space-y-0">
+                    <!-- Header row -->
+                    <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
+                        <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
+                            <div class="col-span-3">Name</div>
+                            <div class="col-span-2">URL</div>
+                            <div class="col-span-3">Keywords</div>
+                            <div class="col-span-2">Created</div>
+                            <div class="col-span-2 text-right">Actions</div>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 p-4" id="loading-message">Loading nodes...</p>
                 </div>
             </div>
         </div>
@@ -189,7 +199,12 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
             }
 
             // Show loading state
-            listDiv.innerHTML = '<p class="text-gray-500">Loading nodes...</p>';
+            const loadingMsg = listDiv.querySelector('#loading-message');
+            if (loadingMsg) {
+                loadingMsg.textContent = 'Loading nodes...';
+            } else {
+                listDiv.innerHTML = '<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10"><div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700"><div class="col-span-3">Name</div><div class="col-span-2">URL</div><div class="col-span-3">Keywords</div><div class="col-span-2">Created</div><div class="col-span-2 text-right">Actions</div></div></div><p class="text-gray-500 p-4" id="loading-message">Loading nodes...</p>';
+            }
 
             // Check if API key exists
             if (!API_KEY) {
@@ -300,7 +315,12 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
             }
             
             if (nodes.length === 0) {
-                listDiv.innerHTML = '<p class="text-gray-500">No nodes found.</p>';
+                // Remove header if no nodes
+                const headerRow = listDiv.querySelector('.bg-gray-100');
+                if (headerRow) {
+                    headerRow.remove();
+                }
+                listDiv.innerHTML = '<p class="text-gray-500 p-4">No nodes found.</p>';
                 return;
             }
 
@@ -364,26 +384,33 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                         `;
                     }
                     
-                    // Show normal display
+                    // Show normal display - compact spreadsheet-like layout
+                    const createdDate = node.created_at ? new Date(node.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A';
+                    const descriptionTruncated = node.description ? (node.description.length > 80 ? escapeHtml(node.description.substring(0, 80)) + '...' : escapeHtml(node.description)) : '';
+                    const keywordsDisplay = node.keywords && node.keywords.length > 0 
+                        ? node.keywords.map(k => escapeHtml(k)).join(', ')
+                        : 'No keywords';
                     return `
-                <div class="border border-gray-300 rounded p-4 hover:bg-gray-50">
-                    <div class="flex items-start justify-between">
-                        <div class="flex-1">
-                            <h3 class="font-semibold text-gray-800">${escapeHtml(node.name)}</h3>
-                            ${node.description ? `<p class="text-sm text-gray-600 mt-1">${escapeHtml(node.description)}</p>` : ''}
-                            ${node.url ? `<p class="text-sm text-blue-600 mt-1"><a href="${escapeHtml(node.url)}" target="_blank" rel="noopener noreferrer" class="underline">${escapeHtml(node.url)}</a></p>` : ''}
-                            <div class="mt-2 flex flex-wrap gap-2">
-                                ${node.keywords && node.keywords.length > 0 
-                                    ? node.keywords.map(k => `<span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">${escapeHtml(k)}</span>`).join('')
-                                    : '<span class="text-xs text-gray-400">No keywords</span>'}
-                            </div>
-                            ${node.created_at ? `<p class="text-xs text-gray-500 mt-2">Created: ${new Date(node.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>` : ''}
+                <div class="border-b border-gray-300 hover:bg-gray-50 py-2">
+                    <div class="grid grid-cols-12 gap-3 items-center text-sm">
+                        <div class="col-span-3">
+                            <div class="font-semibold text-gray-800 truncate" title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</div>
+                            ${descriptionTruncated ? `<div class="text-xs text-gray-500 truncate mt-0.5" title="${escapeHtml(node.description || '')}">${descriptionTruncated}</div>` : ''}
                         </div>
-                        <div class="flex gap-2 ml-4">
-                            <button onclick="editNode(${node.id})" class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded">
+                        <div class="col-span-2">
+                            ${node.url ? `<a href="${escapeHtml(node.url)}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline text-xs truncate block" title="${escapeHtml(node.url)}">${escapeHtml(node.url)}</a>` : '<span class="text-xs text-gray-400">—</span>'}
+                        </div>
+                        <div class="col-span-3">
+                            <div class="text-xs text-gray-600 truncate" title="${keywordsDisplay}">${keywordsDisplay}</div>
+                        </div>
+                        <div class="col-span-2 text-xs text-gray-500">
+                            ${createdDate}
+                        </div>
+                        <div class="col-span-2 flex gap-2 justify-end">
+                            <button onclick="editNode(${node.id})" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">
                                 Edit
                             </button>
-                            <button onclick="deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded">
+                            <button onclick="deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">
                                 Delete
                             </button>
                         </div>
@@ -392,7 +419,26 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                     `;
                 }).filter(html => html.length > 0).join('');
                 
-                listDiv.innerHTML = html;
+                // Preserve header if it exists, otherwise create it
+                const headerRow = listDiv.querySelector('.bg-gray-100');
+                let headerHTML = '';
+                if (headerRow) {
+                    headerHTML = headerRow.outerHTML;
+                } else {
+                    // Create header if it doesn't exist
+                    headerHTML = `<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
+                        <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
+                            <div class="col-span-3">Name</div>
+                            <div class="col-span-2">URL</div>
+                            <div class="col-span-3">Keywords</div>
+                            <div class="col-span-2">Created</div>
+                            <div class="col-span-2 text-right">Actions</div>
+                        </div>
+                    </div>`;
+                }
+                
+                // Set innerHTML with header + nodes
+                listDiv.innerHTML = headerHTML + html;
             } catch (error) {
                 listDiv.innerHTML = '<p class="text-red-600">Error displaying nodes: ' + escapeHtml(error.message) + '</p>';
             }
