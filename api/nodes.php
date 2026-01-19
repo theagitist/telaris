@@ -104,7 +104,8 @@ function formatNode(array $node, PDO $pdo): array {
         'description' => $node['description'] ?? null,
         'url' => $node['url'] ?? null,
         'keywords' => $keywords,
-        'animation' => $animation
+        'animation' => $animation,
+        'created_at' => $node['created_at'] ?? null
     ];
 }
 
@@ -116,7 +117,7 @@ try {
         'GET' => (function() use ($pdo): void {
             // Get all nodes with their keywords using MySQL 8 JSON columns
             $stmt = $pdo->query("
-                SELECT id, name, description, url, animation
+                SELECT id, name, description, url, animation, created_at
                 FROM nodes 
                 ORDER BY id
             ");

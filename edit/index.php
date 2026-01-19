@@ -60,94 +60,98 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
         <!-- Messages -->
         <div id="message" class="hidden mb-5 p-4 rounded"></div>
 
-        <!-- Add/Edit Node Form -->
-        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-            <h2 class="text-gray-800 text-2xl font-semibold mb-4" id="form-title">Add New Node</h2>
-            <form id="node-form" class="space-y-4" novalidate>
-                <input type="hidden" id="node-id" name="id">
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="node-name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
-                        <input type="text" 
-                               id="node-name" 
-                               name="name" 
-                               required 
-                               class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    </div>
+        <!-- Tabs -->
+        <div class="bg-white rounded-lg shadow-md mb-6">
+            <div class="border-b border-gray-200">
+                <nav class="flex">
+                    <button onclick="showTab('add')" 
+                            id="tab-add"
+                            class="px-6 py-3 font-medium text-sm border-b-2 border-blue-500 text-blue-600">
+                        Add New Node
+                    </button>
+                    <button onclick="showTab('list')" 
+                            id="tab-list"
+                            class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+                        List Existing Nodes
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Add New Node Tab -->
+            <div id="content-add" class="p-6">
+                <form id="node-form" class="space-y-4" novalidate>
                     
-                    <div>
-                        <label for="node-keywords" class="block mb-1.5 text-gray-800 font-medium">Keywords</label>
-                        <input type="text" 
-                               id="node-keywords" 
-                               name="keywords" 
-                               placeholder="comma-separated"
-                               class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span class="text-xs text-gray-500 mt-1 block">Separate keywords with commas</span>
-                    </div>
-                </div>
-
-                <div>
-                    <label for="node-description" class="block mb-1.5 text-gray-800 font-medium">Description</label>
-                    <textarea id="node-description" 
-                              name="description" 
-                              rows="3"
-                              class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
-                </div>
-
-                <div>
-                    <label for="node-url" class="block mb-1.5 text-gray-800 font-medium">URL</label>
-                    <input type="url" 
-                           id="node-url" 
-                           name="url" 
-                           placeholder="https://example.com"
-                           class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">URL to open when the node is clicked (optional)</span>
-                </div>
-
-                <!-- Animation fields - hidden, not editable by users -->
-                <div id="advanced-fields" class="grid grid-cols-1 gap-4 hidden">
-                    <div>
-                        <label class="block mb-1.5 text-gray-800 font-medium">Animation</label>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label for="anim-radius" class="block text-xs text-gray-600 mb-1">Radius</label>
-                                <input type="number" 
-                                       id="anim-radius" 
-                                       step="0.1" 
-                                       value="5.0"
-                                       disabled
-                                       class="w-full p-2 border border-gray-300 rounded text-sm">
-                            </div>
-                            <div>
-                                <label for="anim-speed" class="block text-xs text-gray-600 mb-1">Speed</label>
-                                <input type="number" 
-                                       id="anim-speed" 
-                                       step="0.0001" 
-                                       value="0.0025"
-                                       disabled
-                                       class="w-full p-2 border border-gray-300 rounded text-sm">
-                            </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="node-name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
+                            <input type="text" 
+                                   id="node-name" 
+                                   name="name" 
+                                   required 
+                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label for="node-keywords" class="block mb-1.5 text-gray-800 font-medium">Keywords</label>
+                            <input type="text" 
+                                   id="node-keywords" 
+                                   name="keywords" 
+                                   placeholder="comma-separated"
+                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            <span class="text-xs text-gray-500 mt-1 block">Separate keywords with commas</span>
                         </div>
                     </div>
-                </div>
 
-                <div class="flex gap-3">
-                    <button type="submit" id="submit-btn" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                        Add Node
-                    </button>
-                    <button type="button" id="cancel-btn" class="hidden bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                        Cancel
-                    </button>
-                </div>
-            </form>
-        </div>
+                    <div>
+                        <label for="node-description" class="block mb-1.5 text-gray-800 font-medium">Description</label>
+                        <textarea id="node-description" 
+                                  name="description" 
+                                  rows="3"
+                                  class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
+                    </div>
 
-        <!-- Nodes List -->
-        <div class="bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-gray-800 text-2xl font-semibold mb-4">Existing Nodes</h2>
-            <div id="nodes-list" class="space-y-3">
-                <p class="text-gray-500" id="loading-message">Loading nodes...</p>
+                    <div>
+                        <label for="node-url" class="block mb-1.5 text-gray-800 font-medium">URL</label>
+                        <input type="url" 
+                               id="node-url" 
+                               name="url" 
+                               placeholder="https://example.com"
+                               class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <span class="text-xs text-gray-500 mt-1 block">URL to open when the node is clicked (optional)</span>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
+                            Add Node
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- List Existing Nodes Tab -->
+            <div id="content-list" class="p-6 hidden">
+                <!-- Sorting Controls -->
+                <div class="mb-6 flex flex-wrap items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                    <div class="flex items-center gap-2">
+                        <label for="sort-by" class="text-sm font-medium text-gray-700">Sort by:</label>
+                        <select id="sort-by" onchange="applySorting()" class="p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            <option value="name">Name</option>
+                            <option value="created_at">Date Created</option>
+                            <option value="keywords">Keywords</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label for="sort-order" class="text-sm font-medium text-gray-700">Order:</label>
+                        <select id="sort-order" onchange="applySorting()" class="p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            <option value="asc">Ascending</option>
+                            <option value="desc">Descending</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="nodes-list" class="space-y-3">
+                    <p class="text-gray-500" id="loading-message">Loading nodes...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -234,7 +238,16 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                     throw new Error('Invalid response format: expected array, got ' + typeof nodes);
                 }
                 
-                displayNodes(nodes);
+                // Store nodes for sorting
+                allNodes = nodes;
+                
+                // Apply sorting if sort controls exist
+                const sortBy = document.getElementById('sort-by');
+                if (sortBy) {
+                    applySorting();
+                } else {
+                    displayNodes(nodes);
+                }
             } catch (error) {
                 const errorMsg = error.message || 'Unknown error';
                 if (listDiv) {
@@ -268,6 +281,62 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                     if (!node || !node.id) {
                         return '';
                     }
+                    
+                    // Check if this node is being edited
+                    if (editingNodeId === node.id) {
+                        // Show inline edit form
+                        return `
+                <div class="border-2 border-blue-500 rounded p-4 bg-blue-50">
+                    <h3 class="font-semibold text-gray-800 mb-4">Edit Node</h3>
+                    <form class="space-y-4" onsubmit="saveInlineEdit(event, ${node.id})">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Name *</label>
+                                <input type="text" 
+                                       id="edit-name-${node.id}" 
+                                       value="${escapeHtml(node.name)}" 
+                                       required 
+                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
+                                <input type="text" 
+                                       id="edit-keywords-${node.id}" 
+                                       value="${node.keywords ? escapeHtml(node.keywords.join(', ')) : ''}" 
+                                       placeholder="comma-separated"
+                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                <span class="text-xs text-gray-500 mt-1 block">Separate keywords with commas</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Description</label>
+                            <textarea id="edit-description-${node.id}" 
+                                      rows="3"
+                                      class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">${escapeHtml(node.description || '')}</textarea>
+                        </div>
+                        <div>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">URL</label>
+                            <input type="url" 
+                                   id="edit-url-${node.id}" 
+                                   value="${escapeHtml(node.url || '')}" 
+                                   placeholder="https://example.com"
+                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            <span class="text-xs text-gray-500 mt-1 block">URL to open when the node is clicked (optional)</span>
+                        </div>
+                        <div class="flex gap-3">
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded text-sm cursor-pointer">
+                                Save
+                            </button>
+                            <button type="button" onclick="cancelInlineEdit()" class="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded text-sm cursor-pointer">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                        `;
+                    }
+                    
+                    // Show normal display
                     return `
                 <div class="border border-gray-300 rounded p-4 hover:bg-gray-50">
                     <div class="flex items-start justify-between">
@@ -280,6 +349,7 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                                     ? node.keywords.map(k => `<span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">${escapeHtml(k)}</span>`).join('')
                                     : '<span class="text-xs text-gray-400">No keywords</span>'}
                             </div>
+                            ${node.created_at ? `<p class="text-xs text-gray-500 mt-2">Created: ${new Date(node.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>` : ''}
                         </div>
                         <div class="flex gap-2 ml-4">
                             <button onclick="editNode(${node.id})" class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded">
@@ -307,6 +377,48 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
             return div.innerHTML;
         }
 
+        // Store all nodes for sorting
+        let allNodes = [];
+
+        // Apply sorting to displayed nodes
+        function applySorting() {
+            const sortBy = document.getElementById('sort-by');
+            const sortOrder = document.getElementById('sort-order');
+            
+            if (!sortBy || !sortOrder || !allNodes || allNodes.length === 0) {
+                return;
+            }
+            
+            const sortByValue = sortBy.value;
+            const sortOrderValue = sortOrder.value;
+            
+            const sortedNodes = [...allNodes].sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(sortByValue) {
+                    case 'name':
+                        aVal = (a.name || '').toLowerCase();
+                        bVal = (b.name || '').toLowerCase();
+                        break;
+                    case 'created_at':
+                        aVal = a.created_at ? new Date(a.created_at).getTime() : 0;
+                        bVal = b.created_at ? new Date(b.created_at).getTime() : 0;
+                        break;
+                    case 'keywords':
+                        aVal = a.keywords && a.keywords.length > 0 ? a.keywords.join(', ').toLowerCase() : '';
+                        bVal = b.keywords && b.keywords.length > 0 ? b.keywords.join(', ').toLowerCase() : '';
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                if (aVal < bVal) return sortOrderValue === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortOrderValue === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            displayNodes(sortedNodes);
+        }
 
         // Generate random animation values
         function generateRandomAnimation() {
@@ -319,8 +431,43 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
             };
         }
 
-        // Edit node
+        // Edit node - show inline form
         async function editNode(id) {
+            try {
+                // Switch to list tab if not already there
+                showTab('list');
+                
+                editingNodeId = id;
+                // Reload nodes to show inline edit form
+                await loadNodes();
+                
+                // Scroll to the edited node
+                const editedNodeElement = document.querySelector(`#edit-name-${id}`);
+                if (editedNodeElement) {
+                    editedNodeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    editedNodeElement.focus();
+                }
+            } catch (error) {
+                showMessage('Error loading node for editing', 'error');
+            }
+        }
+        
+        // Save inline edit
+        async function saveInlineEdit(event, nodeId) {
+            event.preventDefault();
+            
+            const nodeName = document.getElementById(`edit-name-${nodeId}`).value.trim();
+            if (!nodeName) {
+                showMessage('Node name is required', 'error');
+                return;
+            }
+            
+            if (!API_KEY) {
+                showMessage('API key is missing. Please contact an administrator.', 'error');
+                return;
+            }
+            
+            // Get current node data to preserve animation
             try {
                 const response = await fetch(API_BASE, {
                     headers: {
@@ -333,34 +480,65 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                 }
                 
                 const nodes = await response.json();
-                const node = nodes.find(n => n.id === id);
+                const node = nodes.find(n => n.id === nodeId);
                 
                 if (!node) {
                     throw new Error('Node not found');
                 }
-
-                // Populate form
-                document.getElementById('node-id').value = node.id;
-                document.getElementById('node-name').value = node.name;
-                document.getElementById('node-description').value = node.description || '';
-                document.getElementById('node-url').value = node.url || '';
-                document.getElementById('node-keywords').value = node.keywords ? node.keywords.join(', ') : '';
                 
-                document.getElementById('anim-radius').value = node.animation.radius;
-                document.getElementById('anim-speed').value = node.animation.speed;
-
-                // Update UI
-                document.getElementById('form-title').textContent = 'Edit Node';
-                document.getElementById('submit-btn').textContent = 'Update Node';
-                document.getElementById('cancel-btn').classList.remove('hidden');
-                // Note: advanced-fields (animation) remain hidden - not editable
-                editingNodeId = id;
-
-                // Scroll to form
-                document.getElementById('node-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                const formData = {
+                    id: nodeId,
+                    name: nodeName,
+                    description: document.getElementById(`edit-description-${nodeId}`).value.trim() || null,
+                    url: document.getElementById(`edit-url-${nodeId}`).value.trim() || null,
+                    keywords: document.getElementById(`edit-keywords-${nodeId}`).value
+                        .split(',')
+                        .map(k => k.trim())
+                        .filter(k => k.length > 0),
+                    animation: node.animation // Preserve existing animation
+                };
+                
+                const updateResponse = await fetch(API_BASE, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const responseText = await updateResponse.text();
+                
+                if (!updateResponse.ok) {
+                    let errorMessage = `HTTP ${updateResponse.status}: ${updateResponse.statusText}`;
+                    try {
+                        const errorData = JSON.parse(responseText);
+                        errorMessage = errorData.error || errorData.message || errorMessage;
+                    } catch (e) {
+                        errorMessage = responseText.substring(0, 200) || errorMessage;
+                    }
+                    throw new Error(errorMessage);
+                }
+                
+                // Parse successful response
+                try {
+                    JSON.parse(responseText);
+                } catch (e) {
+                    throw new Error('Invalid response from server');
+                }
+                
+                showMessage('Node updated successfully');
+                editingNodeId = null;
+                loadNodes();
             } catch (error) {
-                showMessage('Error loading node for editing', 'error');
+                showMessage('Error saving node: ' + error.message, 'error');
             }
+        }
+        
+        // Cancel inline edit
+        function cancelInlineEdit() {
+            editingNodeId = null;
+            loadNodes();
         }
 
         // Delete node
@@ -389,19 +567,14 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
             }
         }
 
-        // Cancel edit
+        // Reset add form
         function cancelEdit() {
             document.getElementById('node-form').reset();
-            document.getElementById('node-id').value = '';
-            document.getElementById('form-title').textContent = 'Add New Node';
-            document.getElementById('submit-btn').textContent = 'Add Node';
-            document.getElementById('cancel-btn').classList.add('hidden');
-            editingNodeId = null;
         }
 
         // Wait for DOM to be ready
         document.addEventListener('DOMContentLoaded', () => {
-            // Handle form submission
+            // Handle form submission (only for adding new nodes)
             const nodeForm = document.getElementById('node-form');
             if (nodeForm) {
                 nodeForm.addEventListener('submit', async (e) => {
@@ -420,25 +593,8 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                     return;
                 }
 
-                const nodeId = document.getElementById('node-id').value;
-                const isEdit = nodeId && nodeId !== '';
-
-                // Generate automatic values for new nodes, use form values for editing
-                let animation;
-                
-                if (isEdit) {
-                    // When editing, use form values
-                    animation = {
-                        radius: parseFloat(document.getElementById('anim-radius').value) || 5.0,
-                        theta: 0,
-                        phi: 0,
-                        speed: parseFloat(document.getElementById('anim-speed').value) || 0.0025,
-                        phase: 0
-                    };
-                } else {
-                    // When creating, generate automatic values
-                    animation = generateRandomAnimation();
-                }
+                // This form is only for adding new nodes
+                const animation = generateRandomAnimation();
                 
                 const urlValue = document.getElementById('node-url').value.trim();
                 const formData = {
@@ -454,14 +610,8 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
 
                 try {
                     const url = API_BASE;
-                    const method = isEdit ? 'PUT' : 'POST';
-                    
-                    if (isEdit) {
-                        formData.id = parseInt(nodeId);
-                    }
-                    
                     const response = await fetch(url, {
-                        method: method,
+                        method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-API-Key': API_KEY
@@ -490,19 +640,14 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                         throw new Error('Invalid response from server');
                     }
 
-                    showMessage(isEdit ? 'Node updated successfully' : 'Node created successfully');
+                    showMessage('Node created successfully');
                     cancelEdit();
-                    loadNodes();
+                    // Switch to list tab to see the new node
+                    showTab('list');
                 } catch (error) {
                     showMessage('Error saving node: ' + error.message, 'error');
                 }
                 });
-            }
-
-            // Cancel button
-            const cancelBtn = document.getElementById('cancel-btn');
-            if (cancelBtn) {
-                cancelBtn.addEventListener('click', cancelEdit);
             }
 
             // Load nodes on page load
@@ -521,12 +666,54 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
             }
         });
         
+        // Tab functionality
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.getElementById('content-add').classList.add('hidden');
+            document.getElementById('content-list').classList.add('hidden');
+            
+            // Remove active styling from all tabs
+            const tabs = ['add', 'list'];
+            tabs.forEach(tab => {
+                const tabElement = document.getElementById('tab-' + tab);
+                if (tabElement) {
+                    tabElement.classList.remove('border-blue-500', 'text-blue-600');
+                    tabElement.classList.add('border-transparent', 'text-gray-500');
+                }
+            });
+            
+            // Show selected tab content
+            document.getElementById('content-' + tabName).classList.remove('hidden');
+            
+            // Add active styling to selected tab
+            const activeTab = document.getElementById('tab-' + tabName);
+            if (activeTab) {
+                activeTab.classList.remove('border-transparent', 'text-gray-500');
+                activeTab.classList.add('border-blue-500', 'text-blue-600');
+            }
+            
+            // If switching to list tab, ensure nodes are loaded
+            if (tabName === 'list') {
+                loadNodes();
+            }
+            
+            // Update URL without reload
+            const url = new URL(window.location);
+            url.searchParams.set('tab', tabName);
+            window.history.pushState({}, '', url);
+        }
+        
+        // Initialize tab on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const tab = new URLSearchParams(window.location.search).get('tab') || 'add';
+            showTab(tab);
+        });
+        
         // Fallback: If DOMContentLoaded already fired, call loadNodes immediately
         if (document.readyState !== 'loading') {
             setTimeout(() => {
-                if (typeof loadNodes === 'function') {
-                    loadNodes().catch(() => {});
-                }
+                const tab = new URLSearchParams(window.location.search).get('tab') || 'add';
+                showTab(tab);
             }, 100);
         }
     </script>
