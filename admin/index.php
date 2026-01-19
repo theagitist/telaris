@@ -345,12 +345,17 @@ foreach ($importantExtensions as $ext => $name) {
                     <h1 class="text-gray-800 text-3xl font-semibold">Admin Console</h1>
                     <p class="text-gray-600 mt-1">Welcome, <?php echo htmlspecialchars($_SESSION['admin_user_name'] ?? 'Admin'); ?></p>
                 </div>
-                <form method="POST" action="" class="inline">
-                    <input type="hidden" name="action" value="logout">
-                    <button type="submit" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded">
-                        Logout
-                    </button>
-                </form>
+                <div class="flex items-center gap-2">
+                    <a href="../edit/index.php" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded">
+                        Edit Content
+                    </a>
+                    <form method="POST" action="" class="inline">
+                        <input type="hidden" name="action" value="logout">
+                        <button type="submit" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded">
+                            Logout
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
 

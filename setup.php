@@ -479,6 +479,29 @@ if (isset($_GET['continue_setup']) && $_GET['continue_setup'] == '1') {
 // Check if user wants to reconfigure
 $reconfigure = isset($_GET['reconfigure']) && $_GET['reconfigure'] == '1';
 
+// If config.php exists and connection is valid, redirect to admin (unless reconfiguring or in middle of setup)
+if (!$reconfigure && !isset($_GET['step']) && !isset($_GET['success']) && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $configPath = dirname(__DIR__) . '/config.php';
+    if (file_exists($configPath)) {
+        $existingConfig = extractConfigValues();
+        if ($existingConfig) {
+            $dbHost = $existingConfig['DB_HOST'] ?? 'localhost';
+            $dbPort = $existingConfig['DB_PORT'] ?? '3306';
+            $dbName = $existingConfig['DB_NAME'] ?? 'telaris';
+            $dbUser = $existingConfig['DB_USER'] ?? 'telaris';
+            $dbPass = $existingConfig['DB_PASS'] ?? '';
+            
+            // Test connection
+            $connectionError = testConnection($dbHost, $dbPort, $dbName, $dbUser, $dbPass);
+            if ($connectionError === null) {
+                // Connection is valid, redirect to admin
+                header('Location: index.php');
+                exit();
+            }
+        }
+    }
+}
+
 // Get existing config values if config.php exists
 $existingConfig = extractConfigValues();
 $showWebsiteForm = false;
