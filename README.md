@@ -190,6 +190,16 @@ Stores API keys for authentication.
   - Searches across node name, description, URL, and keywords
   - Works seamlessly with sorting
 - Date created display - shows when each node was created
+- Admin Console button - visible only to admin users (type 2)
+
+### Admin Console Interface
+- User management with compact spreadsheet-like layout matching the node editor style
+- Clickable column headers for sorting user list:
+  - Sort by Name, Email, Type, Created, or Last Login
+  - Visual indicators (↑/↓) show the current sort column and direction
+- Create, edit, and delete users
+- API key management
+- PHP information display
 
 ## Security
 

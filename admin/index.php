@@ -505,53 +505,87 @@ foreach ($importantExtensions as $ext => $name) {
                     <?php if (empty($users)): ?>
                         <p class="text-gray-600">No users found.</p>
                     <?php else: ?>
-                        <div class="space-y-4">
+                        <div id="users-list" class="space-y-0">
+                            <!-- Header row -->
+                            <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
+                                <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
+                                    <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortUsersByColumn('name')">
+                                        Name<span id="sort-indicator-name"></span>
+                                    </div>
+                                    <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortUsersByColumn('email')">
+                                        Email<span id="sort-indicator-email"></span>
+                                    </div>
+                                    <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortUsersByColumn('type')">
+                                        Type<span id="sort-indicator-type"></span>
+                                    </div>
+                                    <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortUsersByColumn('date_created')">
+                                        Created<span id="sort-indicator-date_created"></span>
+                                    </div>
+                                    <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortUsersByColumn('date_last_login')">
+                                        Last Login<span id="sort-indicator-date_last_login"></span>
+                                    </div>
+                                    <div class="col-span-2 text-right">Actions</div>
+                                </div>
+                            </div>
+                            
+                            <!-- User rows will be populated by JavaScript -->
                             <?php foreach ($users as $user): ?>
-                                <div class="p-4 border border-gray-300 rounded bg-white">
-                                    <div class="flex items-start justify-between mb-2">
-                                        <div class="flex-1">
-                                            <h3 class="font-semibold text-gray-800">
-                                                <?php echo htmlspecialchars($user['firstname'] . ' ' . $user['lastname']); ?>
-                                                <?php
-                                                $typeLabels = [0 => 'Regular', 1 => 'Editor', 2 => 'Admin'];
-                                                $typeColors = [0 => 'bg-gray-400', 1 => 'bg-blue-400', 2 => 'bg-purple-400'];
-                                                $userType = (int)$user['type'];
-                                                ?>
-                                                <span class="ml-2 text-xs <?php echo $typeColors[$userType]; ?> text-white px-2 py-1 rounded">
-                                                    <?php echo $typeLabels[$userType]; ?>
-                                                </span>
-                                                <?php if ($user['id'] === ($_SESSION['admin_user_id'] ?? '')): ?>
-                                                    <span class="ml-2 text-xs bg-green-400 text-white px-2 py-1 rounded">You</span>
+                                <?php
+                                $typeLabels = [0 => 'Regular', 1 => 'Editor', 2 => 'Admin'];
+                                $typeColors = [0 => 'bg-gray-400', 1 => 'bg-blue-400', 2 => 'bg-purple-400'];
+                                $userType = (int)$user['type'];
+                                $fullName = htmlspecialchars($user['firstname'] . ' ' . $user['lastname']);
+                                $email = htmlspecialchars($user['email']);
+                                $createdDate = date('Y-m-d H:i:s', strtotime($user['date_created']));
+                                $lastLogin = $user['date_last_login'] ? date('Y-m-d H:i:s', strtotime($user['date_last_login'])) : 'Never';
+                                $isCurrentUser = $user['id'] === ($_SESSION['admin_user_id'] ?? '');
+                                ?>
+                                <div class="border-b border-gray-300 hover:bg-gray-50 py-2 user-row" 
+                                     data-user-id="<?php echo htmlspecialchars($user['id']); ?>"
+                                     data-name="<?php echo htmlspecialchars(strtolower($user['firstname'] . ' ' . $user['lastname'])); ?>"
+                                     data-email="<?php echo htmlspecialchars(strtolower($user['email'])); ?>"
+                                     data-type="<?php echo $userType; ?>"
+                                     data-date-created="<?php echo strtotime($user['date_created']); ?>"
+                                     data-date-last-login="<?php echo $user['date_last_login'] ? strtotime($user['date_last_login']) : '0'; ?>">
+                                    <div class="grid grid-cols-12 gap-3 items-center text-sm">
+                                        <div class="col-span-3">
+                                            <div class="font-semibold text-gray-800 truncate" title="<?php echo $fullName; ?>">
+                                                <?php echo $fullName; ?>
+                                                <?php if ($isCurrentUser): ?>
+                                                    <span class="ml-1 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">You</span>
                                                 <?php endif; ?>
-                                            </h3>
-                                            <p class="text-sm text-gray-600 mt-1">
-                                                <strong>Email:</strong> <?php echo htmlspecialchars($user['email']); ?>
-                                            </p>
+                                            </div>
                                         </div>
-                                        <div class="flex gap-2">
+                                        <div class="col-span-2">
+                                            <div class="text-xs text-gray-600 truncate" title="<?php echo $email; ?>"><?php echo $email; ?></div>
+                                        </div>
+                                        <div class="col-span-2">
+                                            <span class="text-xs <?php echo $typeColors[$userType]; ?> text-white px-2 py-1 rounded">
+                                                <?php echo $typeLabels[$userType]; ?>
+                                            </span>
+                                        </div>
+                                        <div class="col-span-2 text-xs text-gray-500">
+                                            <?php echo date('M d, Y', strtotime($user['date_created'])); ?>
+                                        </div>
+                                        <div class="col-span-1 text-xs text-gray-500">
+                                            <?php echo $lastLogin === 'Never' ? 'Never' : date('M d, Y', strtotime($user['date_last_login'])); ?>
+                                        </div>
+                                        <div class="col-span-2 flex gap-2 justify-end">
                                             <a href="index.php?tab=users&edit_user=<?php echo urlencode($user['id']); ?>" 
-                                               class="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded">
+                                               class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">
                                                 Edit
                                             </a>
-                                            <?php if ($user['id'] !== ($_SESSION['admin_user_id'] ?? '')): ?>
+                                            <?php if (!$isCurrentUser): ?>
                                                 <form method="POST" action="" class="inline" 
                                                       onsubmit="return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
                                                     <input type="hidden" name="action" value="delete_user">
                                                     <input type="hidden" name="id" value="<?php echo htmlspecialchars($user['id']); ?>">
-                                                    <button type="submit" class="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded">
+                                                    <button type="submit" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">
                                                         Delete
                                                     </button>
                                                 </form>
                                             <?php endif; ?>
                                         </div>
-                                    </div>
-                                    <div class="mt-2 text-xs text-gray-500 space-y-1">
-                                        <p><strong>Created:</strong> <?php echo date('Y-m-d H:i:s', strtotime($user['date_created'])); ?></p>
-                                        <?php if ($user['date_last_login']): ?>
-                                            <p><strong>Last Login:</strong> <?php echo date('Y-m-d H:i:s', strtotime($user['date_last_login'])); ?></p>
-                                        <?php else: ?>
-                                            <p><strong>Last Login:</strong> Never</p>
-                                        <?php endif; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -750,6 +784,93 @@ foreach ($importantExtensions as $ext => $name) {
                 button.classList.remove('bg-green-500');
                 button.classList.add('bg-blue-500');
             }, 2000);
+        }
+        
+        // User list sorting
+        let currentUserSortColumn = null;
+        let currentUserSortOrder = 'asc';
+        
+        function sortUsersByColumn(column) {
+            if (currentUserSortColumn === column) {
+                // Toggle order if clicking same column
+                currentUserSortOrder = currentUserSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                // New column, default to ascending
+                currentUserSortColumn = column;
+                currentUserSortOrder = 'asc';
+            }
+            updateUserSortIndicators();
+            applyUserSorting();
+        }
+        
+        function updateUserSortIndicators() {
+            // Reset all indicators
+            ['name', 'email', 'type', 'date_created', 'date_last_login'].forEach(col => {
+                const indicator = document.getElementById('sort-indicator-' + col);
+                if (indicator) {
+                    indicator.innerHTML = '';
+                }
+            });
+            
+            // Set indicator for current sort column
+            if (currentUserSortColumn) {
+                const indicator = document.getElementById('sort-indicator-' + currentUserSortColumn);
+                if (indicator) {
+                    indicator.innerHTML = currentUserSortOrder === 'asc' ? ' ↑' : ' ↓';
+                }
+            }
+        }
+        
+        function applyUserSorting() {
+            const usersList = document.getElementById('users-list');
+            if (!usersList) {
+                return;
+            }
+            
+            const userRows = Array.from(usersList.querySelectorAll('.user-row'));
+            if (userRows.length === 0) {
+                return;
+            }
+            
+            // Sort user rows
+            const sortedRows = userRows.sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(currentUserSortColumn) {
+                    case 'name':
+                        aVal = a.dataset.name || '';
+                        bVal = b.dataset.name || '';
+                        break;
+                    case 'email':
+                        aVal = a.dataset.email || '';
+                        bVal = b.dataset.email || '';
+                        break;
+                    case 'type':
+                        aVal = parseInt(a.dataset.type) || 0;
+                        bVal = parseInt(b.dataset.type) || 0;
+                        break;
+                    case 'date_created':
+                        aVal = parseInt(a.dataset.dateCreated) || 0;
+                        bVal = parseInt(b.dataset.dateCreated) || 0;
+                        break;
+                    case 'date_last_login':
+                        aVal = parseInt(a.dataset.dateLastLogin) || 0;
+                        bVal = parseInt(b.dataset.dateLastLogin) || 0;
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                if (aVal < bVal) return currentUserSortOrder === 'asc' ? -1 : 1;
+                if (aVal > bVal) return currentUserSortOrder === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            // Re-append sorted rows (preserve header)
+            const headerRow = usersList.querySelector('.bg-gray-100');
+            sortedRows.forEach(row => {
+                usersList.appendChild(row);
+            });
         }
     </script>
 </body>

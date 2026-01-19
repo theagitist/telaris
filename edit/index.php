@@ -16,7 +16,7 @@ $apiKey = getDefaultApiKey($pdo);
 
 $userName = $_SESSION['admin_user_name'] ?? 'User';
 $userType = (int)($_SESSION['admin_user_type'] ?? 0);
-$isAdmin = $userType === USER_TYPE_ADMIN;
+$isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 ?>
 <!DOCTYPE html>
 <html lang="en">
