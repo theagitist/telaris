@@ -130,23 +130,8 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
 
             <!-- List Existing Nodes Tab -->
             <div id="content-list" class="p-6 hidden">
-                <!-- Sorting Controls -->
+                <!-- Search Controls -->
                 <div class="mb-6 flex flex-wrap items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                    <div class="flex items-center gap-2">
-                        <label for="sort-by" class="text-sm font-medium text-gray-700">Sort by:</label>
-                        <select id="sort-by" onchange="applySorting()" class="p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            <option value="name">Name</option>
-                            <option value="created_at">Date Created</option>
-                            <option value="keywords">Keywords</option>
-                        </select>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <label for="sort-order" class="text-sm font-medium text-gray-700">Order:</label>
-                        <select id="sort-order" onchange="applySorting()" class="p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            <option value="asc">Ascending</option>
-                            <option value="desc">Descending</option>
-                        </select>
-                    </div>
                     <div class="flex items-center gap-2 flex-1 min-w-[200px]">
                         <label for="search-nodes" class="text-sm font-medium text-gray-700">Search:</label>
                         <input type="text" 
@@ -161,10 +146,16 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                     <!-- Header row -->
                     <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
                         <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
-                            <div class="col-span-3">Name</div>
-                            <div class="col-span-2">URL</div>
-                            <div class="col-span-3">Keywords</div>
-                            <div class="col-span-2">Created</div>
+                            <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">
+                                Name<span id="sort-indicator-name"></span>
+                            </div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')">URL<span id="sort-indicator-url"></span></div>
+                            <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">
+                                Keywords<span id="sort-indicator-keywords"></span>
+                            </div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">
+                                Created<span id="sort-indicator-created_at"></span>
+                            </div>
                             <div class="col-span-2 text-right">Actions</div>
                         </div>
                     </div>
@@ -203,7 +194,7 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
             if (loadingMsg) {
                 loadingMsg.textContent = 'Loading nodes...';
             } else {
-                listDiv.innerHTML = '<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10"><div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700"><div class="col-span-3">Name</div><div class="col-span-2">URL</div><div class="col-span-3">Keywords</div><div class="col-span-2">Created</div><div class="col-span-2 text-right">Actions</div></div></div><p class="text-gray-500 p-4" id="loading-message">Loading nodes...</p>';
+                listDiv.innerHTML = '<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10"><div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700"><div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'name\')">Name<span id="sort-indicator-name"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'url\')">URL<span id="sort-indicator-url"></span></div><div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'keywords\')">Keywords<span id="sort-indicator-keywords"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'created_at\')">Created<span id="sort-indicator-created_at"></span></div><div class="col-span-2 text-right">Actions</div></div></div><p class="text-gray-500 p-4" id="loading-message">Loading nodes...</p>';
             }
 
             // Check if API key exists
@@ -428,17 +419,25 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                     // Create header if it doesn't exist
                     headerHTML = `<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
                         <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
-                            <div class="col-span-3">Name</div>
-                            <div class="col-span-2">URL</div>
-                            <div class="col-span-3">Keywords</div>
-                            <div class="col-span-2">Created</div>
+                            <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">
+                                Name<span id="sort-indicator-name"></span>
+                            </div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')">URL<span id="sort-indicator-url"></span></div>
+                            <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">
+                                Keywords<span id="sort-indicator-keywords"></span>
+                            </div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">
+                                Created<span id="sort-indicator-created_at"></span>
+                            </div>
                             <div class="col-span-2 text-right">Actions</div>
                         </div>
                     </div>`;
+                    updateSortIndicators();
                 }
                 
                 // Set innerHTML with header + nodes
                 listDiv.innerHTML = headerHTML + html;
+                updateSortIndicators();
             } catch (error) {
                 listDiv.innerHTML = '<p class="text-red-600">Error displaying nodes: ' + escapeHtml(error.message) + '</p>';
             }
@@ -454,13 +453,48 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
         // Store all nodes for sorting
         let allNodes = [];
 
+        // Sort state
+        let currentSortColumn = null;
+        let currentSortOrder = 'asc'; // 'asc' or 'desc'
+        
+        // Sort by column header click
+        function sortByColumn(column) {
+            if (currentSortColumn === column) {
+                // Toggle order if clicking same column
+                currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                // New column, default to ascending
+                currentSortColumn = column;
+                currentSortOrder = 'asc';
+            }
+            updateSortIndicators();
+            applySorting();
+        }
+        
+        // Update sort indicators in header
+        function updateSortIndicators() {
+            // Reset all indicators
+            ['name', 'url', 'keywords', 'created_at'].forEach(col => {
+                const indicator = document.getElementById('sort-indicator-' + col);
+                if (indicator) {
+                    indicator.innerHTML = '';
+                }
+            });
+            
+            // Set indicator for current sort column
+            if (currentSortColumn) {
+                const indicator = document.getElementById('sort-indicator-' + currentSortColumn);
+                if (indicator) {
+                    indicator.innerHTML = currentSortOrder === 'asc' ? ' ↑' : ' ↓';
+                }
+            }
+        }
+        
         // Apply sorting and filtering to displayed nodes
         function applySorting() {
-            const sortBy = document.getElementById('sort-by');
-            const sortOrder = document.getElementById('sort-order');
             const searchInput = document.getElementById('search-nodes');
             
-            if (!sortBy || !sortOrder || !allNodes || allNodes.length === 0) {
+            if (!allNodes || allNodes.length === 0) {
                 return;
             }
             
@@ -489,34 +523,38 @@ $isAdmin = $userType === USER_TYPE_ADMIN;
                 });
             }
             
-            // Apply sorting to filtered nodes
-            const sortByValue = sortBy.value;
-            const sortOrderValue = sortOrder.value;
-            
-            const sortedNodes = filteredNodes.sort((a, b) => {
-                let aVal, bVal;
-                
-                switch(sortByValue) {
-                    case 'name':
-                        aVal = (a.name || '').toLowerCase();
-                        bVal = (b.name || '').toLowerCase();
-                        break;
-                    case 'created_at':
-                        aVal = a.created_at ? new Date(a.created_at).getTime() : 0;
-                        bVal = b.created_at ? new Date(b.created_at).getTime() : 0;
-                        break;
-                    case 'keywords':
-                        aVal = a.keywords && a.keywords.length > 0 ? a.keywords.join(', ').toLowerCase() : '';
-                        bVal = b.keywords && b.keywords.length > 0 ? b.keywords.join(', ').toLowerCase() : '';
-                        break;
-                    default:
-                        return 0;
-                }
-                
-                if (aVal < bVal) return sortOrderValue === 'asc' ? -1 : 1;
-                if (aVal > bVal) return sortOrderValue === 'asc' ? 1 : -1;
-                return 0;
-            });
+            // Apply sorting to filtered nodes if a column is selected
+            let sortedNodes = filteredNodes;
+            if (currentSortColumn) {
+                sortedNodes = filteredNodes.sort((a, b) => {
+                    let aVal, bVal;
+                    
+                    switch(currentSortColumn) {
+                        case 'name':
+                            aVal = (a.name || '').toLowerCase();
+                            bVal = (b.name || '').toLowerCase();
+                            break;
+                        case 'created_at':
+                            aVal = a.created_at ? new Date(a.created_at).getTime() : 0;
+                            bVal = b.created_at ? new Date(b.created_at).getTime() : 0;
+                            break;
+                        case 'url':
+                            aVal = (a.url || '').toLowerCase();
+                            bVal = (b.url || '').toLowerCase();
+                            break;
+                        case 'keywords':
+                            aVal = a.keywords && a.keywords.length > 0 ? a.keywords.join(', ').toLowerCase() : '';
+                            bVal = b.keywords && b.keywords.length > 0 ? b.keywords.join(', ').toLowerCase() : '';
+                            break;
+                        default:
+                            return 0;
+                    }
+                    
+                    if (aVal < bVal) return currentSortOrder === 'asc' ? -1 : 1;
+                    if (aVal > bVal) return currentSortOrder === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
             
             displayNodes(sortedNodes);
         }

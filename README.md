@@ -180,9 +180,11 @@ Stores API keys for authentication.
 ### Node Editor Interface
 - Tabbed interface for adding new nodes and listing existing nodes
 - Inline editing - edit nodes directly in the list at their position
-- Advanced sorting options:
-  - Sort by name, date created, or keywords
-  - Ascending or descending order
+- Compact spreadsheet-like layout - efficient use of vertical space with all node information visible in columns
+- Clickable column headers for sorting:
+  - Click any column header (Name, URL, Keywords, Created) to sort by that column
+  - Click again to toggle between ascending and descending order
+  - Visual indicators (↑/↓) show the current sort column and direction
 - Fuzzy search functionality:
   - Real-time search as you type
   - Searches across node name, description, URL, and keywords
