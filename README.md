@@ -294,6 +294,19 @@ This will return the application to an unconfigured state, allowing you to run `
 - **Zoom**: Use mouse wheel to zoom in/out
 - **Pan**: (If enabled) Right-click and drag or use middle mouse button
 
+## Version History
+
+### Version 1.0.8
+- Fixed login redirect to preserve destination (edit vs admin) after authentication
+- Improved connection line visibility and positioning
+- Connection lines now properly connect at the center of each node
+- Thinner connection lines (1px minimum, 7px maximum based on shared keywords)
+
+### Version 1.0.7
+- Added context-aware login redirects
+- Improved node editor and admin console interfaces
+- Enhanced connection visualization
+
 ## License
 
 See LICENSE file for details.

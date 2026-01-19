@@ -51,7 +51,16 @@ function isEditorOrAdminLoggedIn(): bool {
  */
 function requireAdminLogin(): void {
     if (!isAdminLoggedIn()) {
-        header('Location: /login.php');
+        // Determine base path for login redirect
+        // If script is in admin directory, go up one level to root
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        $basePath = '';
+        if (strpos($scriptName, '/admin/') !== false || strpos($scriptName, 'admin/') !== false) {
+            $basePath = '../';
+        }
+        
+        // Always redirect to admin after login for admin pages
+        header('Location: ' . $basePath . 'login.php?redirect=admin');
         exit();
     }
 }

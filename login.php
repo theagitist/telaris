@@ -7,7 +7,10 @@ header('Content-Type: text/html; charset=UTF-8');
 require_once 'auth.php';
 
 // Get redirect target from query parameter or default to admin
-$redirect = $_GET['redirect'] ?? 'admin';
+// Also check POST in case form was submitted (for error display)
+$redirect = $_GET['redirect'] ?? $_POST['redirect'] ?? 'admin';
+// Ensure redirect is either 'edit' or 'admin'
+$redirect = ($redirect === 'edit') ? 'edit' : 'admin';
 
 // If already logged in as admin, redirect based on target
 if (isAdminLoggedIn()) {
