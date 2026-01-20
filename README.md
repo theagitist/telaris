@@ -296,6 +296,9 @@ This will return the application to an unconfigured state, allowing you to run `
 
 ## Version History
 
+### Version 1.0.9
+- Removed legacy root-level `setup.php` entrypoint; `admin/setup.php` is now the only setup script
+
 ### Version 1.0.8
 - Fixed login redirect to preserve destination (edit vs admin) after authentication
 - Improved connection line visibility and positioning
