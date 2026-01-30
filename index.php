@@ -618,34 +618,92 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
             }
 
             createStarNode(material) {
-                // Create a star shape using a group
                 const starGroup = new THREE.Group();
-                
-                // Central bright sphere (4x larger: 0.06 * 4 = 0.24)
                 const centerGeometry = new THREE.SphereGeometry(0.24, 8, 8);
                 const center = new THREE.Mesh(centerGeometry, material);
                 starGroup.add(center);
-                
-                // Create 8 spikes/rays for the star using octahedron (4x larger: 0.1 * 4 = 0.4)
                 const spikeGeometry = new THREE.OctahedronGeometry(0.4, 0);
                 const spikeMaterial = material.clone();
                 spikeMaterial.emissiveIntensity = material.emissiveIntensity * 1.2;
-                
-                // Create spikes pointing in different directions (4x larger: 0.08 * 4 = 0.32)
                 const directions = [
                     [0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0],
-                    [0, 0, 1], [0, 0, -1], 
+                    [0, 0, 1], [0, 0, -1],
                     [0.7, 0.7, 0], [-0.7, 0.7, 0], [0.7, -0.7, 0], [-0.7, -0.7, 0]
                 ];
-                
-                directions.forEach((dir, i) => {
+                directions.forEach((dir) => {
                     const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
                     spike.position.set(dir[0] * 0.32, dir[1] * 0.32, dir[2] * 0.32);
                     spike.scale.set(0.3, 0.3, 0.3);
                     starGroup.add(spike);
                 });
-                
                 return starGroup;
+            }
+
+            createMoonNode(material) {
+                const group = new THREE.Group();
+                const geo = new THREE.SphereGeometry(0.28, 16, 16);
+                group.add(new THREE.Mesh(geo, material));
+                return group;
+            }
+
+            createFivePointStarNode(material) {
+                // Sun: outer circle with inner circle “bite” so only a thin C-shaped sliver remains (Flaticon-style)
+                const group = new THREE.Group();
+                const R = 0.28, r = 0.11;
+                const shape = new THREE.Shape();
+                for (let i = 0; i < 10; i++) {
+                    const angle = (i / 5) * Math.PI - Math.PI / 2;
+                    const radius = (i % 2 === 0) ? R : r;
+                    const x = Math.cos(angle) * radius;
+                    const y = Math.sin(angle) * radius;
+                    if (i === 0) shape.moveTo(x, y);
+                    else shape.lineTo(x, y);
+                }
+                shape.closePath();
+                const starMat = material.clone();
+                starMat.side = THREE.DoubleSide;
+                const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.06, bevelEnabled: false });
+                const mesh = new THREE.Mesh(geo, starMat);
+                group.add(mesh);
+                return group;
+            }
+
+            createAsteroidNode(material) {
+                const group = new THREE.Group();
+                const geo = new THREE.IcosahedronGeometry(0.22, 1);
+                group.add(new THREE.Mesh(geo, material));
+                return group;
+            }
+
+            createSparkleNode(material) {
+                const group = new THREE.Group();
+                const coreGeo = new THREE.TetrahedronGeometry(0.2, 0);
+                group.add(new THREE.Mesh(coreGeo, material));
+                const rayMat = material.clone();
+                rayMat.emissiveIntensity = material.emissiveIntensity * 1.3;
+                const rayGeo = new THREE.ConeGeometry(0.06, 0.22, 5);
+                const up = new THREE.Vector3(0, 1, 0);
+                const dirs = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+                dirs.forEach(([x, y, z]) => {
+                    const ray = new THREE.Mesh(rayGeo, rayMat);
+                    const out = new THREE.Vector3(x, y, z).normalize();
+                    ray.position.copy(out).multiplyScalar(0.18);
+                    ray.quaternion.setFromUnitVectors(up, out);
+                    group.add(ray);
+                });
+                return group;
+            }
+
+            createNodeIcon(material, index) {
+                const icons = [
+                    () => this.createStarNode(material),
+                    () => this.createMoonNode(material),
+                    () => this.createFivePointStarNode(material),
+                    () => this.createAsteroidNode(material),
+                    () => this.createSparkleNode(material)
+                ];
+                const choice = (index * 1103515245 + 12345) >>> 0;
+                return icons[choice % 5]();
             }
 
             createNodes() {
@@ -705,10 +763,10 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 const margin = 0.72; // keep away from edges
 
                 const layoutBounds = {
-                    xMax: halfWidth * margin,
+                    xMax: halfWidth * margin * 1.35,
                     yMax: halfHeight * margin,
-                    // Increase z-range for more depth variation while keeping nodes comfortably in view
-                    zMax: cameraZ * 0.35
+                    // More distribution on Z axis for depth
+                    zMax: cameraZ * 0.52
                 };
 
                 for (let i = 0; i < this.nodeData.length; i++) {
@@ -738,11 +796,13 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 if (maxAbsY === 0) maxAbsY = 1;
                 if (maxAbsZ === 0) maxAbsZ = 1;
 
-                // Scale each axis independently to fit within safe bounds
-                // This guarantees all nodes are within [-safeX, safeX], [-safeY, safeY], [-safeZ, safeZ]
-                const marginFactor = 0.85; // keep a margin from edges to ensure visibility
-                const safeX = layoutBounds.xMax * marginFactor;
-                const safeY = layoutBounds.yMax * marginFactor;
+                // Safe bounds: use perspective frustum so all nodes are visible at load.
+                // Visible X/Y shrink for points closer to camera (larger z); use extent at z = zMax.
+                const marginFactor = 1.0;
+                const distAtClosestZ = Math.max(0.1, cameraZ - layoutBounds.zMax);
+                const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5));
+                const safeX = distAtClosestZ * tanHalfFov * this.camera.aspect * marginFactor;
+                const safeY = distAtClosestZ * tanHalfFov * marginFactor;
                 const safeZ = layoutBounds.zMax * marginFactor;
 
                 const scaleX = safeX / maxAbsX;
@@ -756,65 +816,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     p.z *= scaleZ;
                 });
 
-                // Pull nodes with more keywords in common closer together (layout by affinity)
-                const getSharedByIndex = (i, j) => {
-                    const k1 = (this.nodeData[i] && this.nodeData[i].keywords) || [];
-                    const k2 = (this.nodeData[j] && this.nodeData[j].keywords) || [];
-                    return k1.filter(k => k2.includes(k)).length;
-                };
-                let maxShared = 0;
-                for (let i = 0; i < this.nodeData.length; i++) {
-                    for (let j = i + 1; j < this.nodeData.length; j++) {
-                        const c = getSharedByIndex(i, j);
-                        if (c > maxShared) maxShared = c;
-                    }
-                }
-                if (maxShared > 0) {
-                    const pullIterations = 12;
-                    const pullStrength = 0.25; // how much to move toward each other per iteration (scaled by affinity)
-                    const minDistance = 6.5; // minimum distance between nodes
-                    for (let iter = 0; iter < pullIterations; iter++) {
-                        for (let i = 0; i < this.nodeData.length; i++) {
-                            for (let j = i + 1; j < this.nodeData.length; j++) {
-                                const shared = getSharedByIndex(i, j);
-                                if (shared === 0) continue;
-                                const pct = shared / maxShared;
-                                const posI = rawPositions[i];
-                                const posJ = rawPositions[j];
-                                const diff = new THREE.Vector3().subVectors(posJ, posI);
-                                const dist = diff.length();
-                                if (dist < 0.001) continue;
-                                if (dist <= minDistance) continue; // already at or below minimum, don't pull closer
-                                diff.normalize();
-                                const desiredMove = pullStrength * pct * dist * 0.5;
-                                const maxMove = (dist - minDistance) * 0.5; // don't get closer than minDistance
-                                const move = Math.min(desiredMove, maxMove);
-                                posI.add(diff.clone().multiplyScalar(move));
-                                posJ.sub(diff.clone().multiplyScalar(move));
-                            }
-                        }
-                        // Re-center after each iteration to prevent drift
-                        const cent = new THREE.Vector3(0, 0, 0);
-                        rawPositions.forEach(p => cent.add(p));
-                        if (rawPositions.length > 0) cent.multiplyScalar(1 / rawPositions.length);
-                        rawPositions.forEach(p => p.sub(cent));
-                    }
-                    // Re-scale to fit safe bounds after pulling
-                    let maxAbsX = 0, maxAbsY = 0, maxAbsZ = 0;
-                    rawPositions.forEach(p => {
-                        maxAbsX = Math.max(maxAbsX, Math.abs(p.x));
-                        maxAbsY = Math.max(maxAbsY, Math.abs(p.y));
-                        maxAbsZ = Math.max(maxAbsZ, Math.abs(p.z));
-                    });
-                    if (maxAbsX === 0) maxAbsX = 1;
-                    if (maxAbsY === 0) maxAbsY = 1;
-                    if (maxAbsZ === 0) maxAbsZ = 1;
-                    rawPositions.forEach(p => {
-                        p.x *= safeX / maxAbsX;
-                        p.y *= safeY / maxAbsY;
-                        p.z *= safeZ / maxAbsZ;
-                    });
-                }
+                // No pull step: keep random distribution so connected nodes stay spread out (longer lines, less crammed)
 
                 for (let i = 0; i < this.nodeData.length; i++) {
                     const nodeData = this.nodeData[i];
@@ -831,7 +833,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                         pastelColor.lightness
                     );
 
-                    // Create star node with material
+                    // Create node with material
                     const nodeName = nodeData.name || `Node ${i + 1}`;
 
                     // Create material for the star with the pastel color
@@ -840,11 +842,13 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                         emissive: threeColor,
                         emissiveIntensity: 0.5,
                         metalness: 0.3,
-                        roughness: 0.7
+                        roughness: 0.7,
+                        transparent: true,
+                        opacity: 0.94
                     });
 
-                    // Create the star shape
-                    const node = this.createStarNode(starMaterial);
+                    // Create a random constellation-themed icon (star, moon, five-point star, asteroid, sparkle)
+                    const node = this.createNodeIcon(starMaterial, i);
                     node.position.copy(randomPos);
 
                     // Add animation properties from database
@@ -906,10 +910,10 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 }
 
                 // Thickness bands by strength (0–25%, 26–50%, 51–75%, 76–100%) – all relatively thin
-                const THINNEST = 0.006;
-                const MEDIUM_THIN = 0.012;
-                const MEDIUM_THICK = 0.018;
-                const THICKEST = 0.024;
+                const THINNEST = 0.004;
+                const MEDIUM_THIN = 0.008;
+                const MEDIUM_THICK = 0.012;
+                const THICKEST = 0.016;
 
                 let connectionIndex = 0; // Track connection index for unique colors
 
@@ -932,16 +936,16 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                             else if (pct <= 0.75) thickness = MEDIUM_THICK;
                             else thickness = THICKEST;
                             
-                            // Transparency by strength: fewer keywords in common = more transparent, more = more solid (gamma-style)
+                            // Opacity by strength: 4 bands; lowest band barely visible
                             let opacity;
                             if (pct <= 0.25) {
-                                opacity = 0.06;
+                                opacity = 0.012;
                             } else if (pct <= 0.5) {
-                                opacity = 0.2;
+                                opacity = 0.18;
                             } else if (pct <= 0.75) {
-                                opacity = 0.45;
+                                opacity = 0.48;
                             } else {
-                                opacity = 0.82;
+                                opacity = 0.58;
                             }
                             
                             // Get positions of both nodes
@@ -952,46 +956,32 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                             const direction = new THREE.Vector3().subVectors(pos2, pos1);
                             const distance = direction.length();
                             
-                            // Create cylinder geometry for the connection line
                             const geometry = new THREE.CylinderGeometry(
-                                thickness, // top radius
-                                thickness, // bottom radius
-                                distance,  // height
-                                8          // radial segments
+                                thickness,
+                                thickness,
+                                distance,
+                                8
                             );
-                            
-                            // Random pastel hue/saturation; fixed lightness so all lines same brightness; opacity by strength
                             const colorSeed = connectionIndex * 1000 + i * 100 + j;
                             const pastelColor = this.generateRandomPastelColor(colorSeed);
                             const threeColor = new THREE.Color().setHSL(
                                 pastelColor.hue,
                                 pastelColor.saturation,
-                                0.68  // fixed lightness so all lines same brightness
+                                0.68
                             );
-                            
                             const material = new THREE.MeshBasicMaterial({
                                 color: threeColor,
                                 transparent: true,
                                 opacity,
                                 side: THREE.DoubleSide
                             });
-                            
-                            connectionIndex++; // Increment for next connection
-                            
-                            // Create mesh
+                            connectionIndex++;
                             const cylinder = new THREE.Mesh(geometry, material);
-                            
-                            // Position and orient the cylinder
-                            // Cylinder is created along Y-axis, so we need to rotate it
                             const midpoint = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
                             cylinder.position.copy(midpoint);
-                            
-                            // Rotate to align with direction
                             const up = new THREE.Vector3(0, 1, 0);
-                            const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction.normalize());
+                            const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction.clone().normalize());
                             cylinder.quaternion.copy(quaternion);
-                            
-                            // Store connection info including original distance for scaling
                             this.connections.push({
                                 mesh: cylinder,
                                 node1: node1,
@@ -999,7 +989,6 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                                 sharedCount: sharedCount,
                                 originalDistance: distance
                             });
-                            
                             this.scene.add(cylinder);
                             console.log(`Created connection between nodes ${i} and ${j} with ${sharedCount} shared keywords, thickness: ${thickness}, distance: ${distance}`);
                         }
@@ -1042,23 +1031,16 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     }
                     
                     conn.mesh.visible = true;
-                    
-                    // Update cylinder position
                     const midpoint = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
                     conn.mesh.position.copy(midpoint);
-                    
-                    // Update cylinder height (scale along Y-axis, which is the cylinder's length)
-                    // Use stored original distance if available, otherwise use geometry height
-                    const originalDistance = conn.originalDistance || conn.mesh.geometry.parameters.height;
-                    if (originalDistance > 0) {
-                        conn.mesh.scale.y = distance / originalDistance;
-                    }
-                    
-                    // Update rotation to align with new direction
                     const up = new THREE.Vector3(0, 1, 0);
                     const normalizedDirection = direction.clone().normalize();
                     const quaternion = new THREE.Quaternion().setFromUnitVectors(up, normalizedDirection);
                     conn.mesh.quaternion.copy(quaternion);
+                    const originalDistance = conn.originalDistance || conn.mesh.geometry?.parameters?.height;
+                    if (originalDistance > 0) {
+                        conn.mesh.scale.y = distance / originalDistance;
+                    }
                 });
             }
 
@@ -1099,7 +1081,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 const baseSeed = Date.now() + Math.random() * 1000000;
                 const seed = baseSeed + seedOffset;
                 
-                const minDistance = 1.4; // Minimum distance between nodes (stars are large)
+                const minDistance = 1.4; // Minimum distance between nodes
                 let attempts = 0;
                 const maxAttempts = 100;
 
@@ -1211,7 +1193,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     node.position.y = basePos.y + floatY + twitchY;
                     node.position.z = basePos.z + floatZ + twitchZ;
                     
-                    // Pulsing scale for breathing effect on star nodes
+                    // Pulsing scale for breathing effect on nodes
                     let scaleMultiplier = 1.0;
                     if (data.animationState === 'twitch') {
                         scaleMultiplier = 1 + Math.sin(time * 20 + data.phase) * 0.15; // Fast pulsing
