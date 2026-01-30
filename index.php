@@ -166,6 +166,8 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 this.controls.maxDistance = 30;
                 this.controls.autoRotate = false;
                 this.controls.autoRotateSpeed = 0.35; // subtle, not distracting
+                // Look at a point below center so the graph appears higher on screen
+                this.controls.target.set(0, -1.8, 0);
 
                 // Any interaction with controls counts as activity (stops idle rotation)
                 this.controls.addEventListener('start', () => this.markInteraction());
