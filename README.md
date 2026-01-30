@@ -228,15 +228,25 @@ telaris.polivoxia.ca/
 │   └── nodes.php         # Nodes API
 ├── edit/                  # Node editor interface
 │   └── index.php         # Node management UI (supports URL editing)
-├── js/                    # JavaScript libraries
+├── inc/                   # PHP includes (bootstrap, view, database layer)
+│   ├── bootstrap.php     # Config check, DB, auth, project info
+│   ├── db.php            # All database access (connection + queries)
+│   └── main-view.php     # Main HTML shell and 3D canvas markup
+├── js/                    # Frontend (ES modules + Tailwind)
+│   ├── api.js            # API fetch helper (uses API key)
+│   ├── main.js           # Entry point; initializes 3D network
+│   ├── telaris-network.js # 3D scene, nodes, connections, tooltips, controls
+│   ├── telaris-node-icons.js # Constellation-themed node mesh creation
 │   └── tailwind.min.js   # Tailwind CSS
 ├── auth.php              # User authentication (root)
+├── config_default.php    # Configuration template (with empty database values)
+├── config.php            # Generated configuration (created by admin/setup.php, in .gitignore)
+├── frame.php             # New-window frame for node links (toolbar + iframe/redirect)
+├── index.php             # Main entry; loads bootstrap + main view
 ├── login.php             # Login page with context-aware redirects
 ├── logout.php            # Logout handler (root)
-├── config_default.php    # Configuration template (with empty database values)
-├── config.php            # Generated configuration file (created by admin/setup.php, in .gitignore)
-├── index.php             # Main 3D visualization (with configuration check, redirects to admin/setup.php if not configured)
-└── README.md             # This file
+├── README.md             # This file
+└── VERSION               # Current version (e.g. 2.0.0)
 ```
 
 ## Browser Support
@@ -295,6 +305,11 @@ This will return the application to an unconfigured state, allowing you to run `
 - **Pan**: (If enabled) Right-click and drag or use middle mouse button
 
 ## Version History
+
+### Version 2.0.0
+- **Modular structure**: Main app split into `inc/bootstrap.php`, `inc/main-view.php`; slim `index.php` only loads these.
+- **Database layer**: All DB access moved to `inc/db.php` (connection, project info, API keys, users, nodes, keywords, connections, CLI helpers). Config and API/admin/edit/setup/cli use `inc/db.php` only.
+- **Frontend modules**: 3D logic in ES modules: `js/main.js`, `js/telaris-network.js`, `js/telaris-node-icons.js`, `js/api.js`. Three.js loaded via import map.
 
 ### Version 1.0.9
 - Removed legacy root-level `setup.php` entrypoint; `admin/setup.php` is now the only setup script
