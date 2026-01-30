@@ -1273,13 +1273,39 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 const currentTime = Date.now();
                 const hasTooltip = (node) => this.mainTooltipNode === node || this.persistentTooltipNodeToDiv.has(node);
 
+                // Distance-based darkening: farther nodes look darker
+                const tempPos = new THREE.Vector3();
+                const distances = this.nodes.map(n => {
+                    n.getWorldPosition(tempPos);
+                    return tempPos.distanceTo(this.camera.position);
+                });
+                const minD = Math.min(...distances);
+                const maxD = Math.max(...distances);
+                const rangeD = Math.max(0.001, maxD - minD);
+
                 this.nodes.forEach((node, index) => {
                     const data = node.userData;
+                    // Brightness 1 at front, 0.15 at back (steeper gradient = more noticeable depth)
+                    const t = (distances[index] - minD) / rangeD;
+                    const brightness = 1 - t * 0.85;
+
                     node.traverse((obj) => {
                         if (obj.material) {
                             const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-                            const opacity = hasTooltip(node) ? 1 : 0.94;
-                            mats.forEach(m => { m.opacity = opacity; });
+                            mats.forEach(m => {
+                                const opacity = hasTooltip(node) ? 1 : 0.94;
+                                m.opacity = opacity;
+                                if (data.colorR !== undefined) {
+                                    m.color.setRGB(
+                                        (data.colorR / 255) * brightness,
+                                        (data.colorG / 255) * brightness,
+                                        (data.colorB / 255) * brightness
+                                    );
+                                    m.emissive.copy(m.color);
+                                    if (m._baseEmissiveIntensity === undefined) m._baseEmissiveIntensity = m.emissiveIntensity;
+                                    m.emissiveIntensity = m._baseEmissiveIntensity * brightness;
+                                }
+                            });
                         }
                     });
                     
