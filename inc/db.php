@@ -90,58 +90,12 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
 }
 
 /**
- * Ensure project_info table exists with one row per locale; migrate from old schema or project_info_labels and drop project_info_labels.
+ * Ensure project_info table exists with one row per locale (en, es, pt).
  */
 function db_ensure_project_info_table(): void {
     $pdo = getDB();
     $stmt = $pdo->query("SHOW TABLES LIKE 'project_info'");
-    $projectInfoExists = $stmt->fetch() !== false;
-    $hasNewSchema = false;
-    if ($projectInfoExists) {
-        try {
-            $cols = $pdo->query("SHOW COLUMNS FROM project_info")->fetchAll(PDO::FETCH_COLUMN);
-            $hasNewSchema = in_array('locale', $cols, true);
-        } catch (PDOException $e) {
-            // ignore
-        }
-    }
-    if ($hasNewSchema) {
-        $count = (int) $pdo->query("SELECT COUNT(*) FROM project_info")->fetchColumn();
-        if ($count === 0) {
-            db_insert_default_project_info_rows($pdo);
-        } else {
-            // Ensure all supported locales exist (e.g. if only 'en' was ever inserted)
-            $existing = $pdo->query("SELECT locale FROM project_info")->fetchAll(PDO::FETCH_COLUMN);
-            $missing = array_diff(PROJECT_INFO_LOCALES, $existing);
-            if ($missing !== []) {
-                $defaults = db_default_project_info_rows();
-                $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text) VALUES (:locale, :name, :description, :iframe_back_text, :alert_message, :edit_button_text, :loading_text)");
-                foreach ($missing as $locale) {
-                    $d = $defaults[$locale];
-                    $stmt->execute([
-                        ':locale' => $locale,
-                        ':name' => $d['name'],
-                        ':description' => $d['description'],
-                        ':iframe_back_text' => $d['iframe_back_text'],
-                        ':alert_message' => $d['alert_message'],
-                        ':edit_button_text' => $d['edit_button_text'],
-                        ':loading_text' => $d['loading_text'],
-                    ]);
-                }
-            }
-        }
-        $cols = $pdo->query("SHOW COLUMNS FROM project_info")->fetchAll(PDO::FETCH_COLUMN);
-        if (!in_array('edit_button_text', $cols, true)) {
-            $pdo->exec("ALTER TABLE project_info ADD COLUMN edit_button_text VARCHAR(200) NOT NULL DEFAULT 'Edit'");
-        }
-        if (!in_array('loading_text', $cols, true)) {
-            $pdo->exec("ALTER TABLE project_info ADD COLUMN loading_text VARCHAR(200) NOT NULL DEFAULT 'Loading'");
-        }
-        db_drop_project_info_labels_if_exists($pdo);
-        return;
-    }
-    // If project_info does not exist, create it with default rows (no migration from old tables)
-    if (!$projectInfoExists) {
+    if ($stmt->fetch() === false) {
         $pdo->exec("
             CREATE TABLE project_info (
                 locale VARCHAR(10) NOT NULL PRIMARY KEY,
@@ -154,74 +108,23 @@ function db_ensure_project_info_table(): void {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
         db_insert_default_project_info_rows($pdo);
-        db_drop_project_info_labels_if_exists($pdo);
         return;
     }
-    $data = db_default_project_info_rows();
-    if ($projectInfoExists) {
-        try {
-            $row = $pdo->query("SELECT * FROM project_info WHERE id = 1 LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-            $row = $row ? array_change_key_case($row, CASE_LOWER) : [];
-            $data['en'] = [
-                'name' => (string) ($row['name'] ?? $data['en']['name']),
-                'description' => (string) ($row['description'] ?? $data['en']['description']),
-                'iframe_back_text' => (string) ($row['iframe_back_text'] ?? $data['en']['iframe_back_text']),
-                'alert_message' => (string) ($row['alert_message'] ?? $data['en']['alert_message']),
-                'edit_button_text' => (string) ($row['edit_button_text'] ?? $data['en']['edit_button_text']),
-                'loading_text' => (string) ($row['loading_text'] ?? $data['en']['loading_text']),
-            ];
-            $data['es'] = [
-                'name' => (string) ($row['name_es'] ?? $data['es']['name']),
-                'description' => (string) ($row['description_es'] ?? $data['es']['description']),
-                'iframe_back_text' => (string) ($row['iframe_back_text_es'] ?? $data['es']['iframe_back_text']),
-                'alert_message' => (string) ($row['alert_message_es'] ?? $data['es']['alert_message']),
-                'edit_button_text' => (string) ($row['edit_button_text_es'] ?? $data['es']['edit_button_text']),
-                'loading_text' => (string) ($row['loading_text_es'] ?? $data['es']['loading_text']),
-            ];
-            $data['pt'] = [
-                'name' => (string) ($row['name_pt'] ?? $data['pt']['name']),
-                'description' => (string) ($row['description_pt'] ?? $data['pt']['description']),
-                'iframe_back_text' => (string) ($row['iframe_back_text_pt'] ?? $data['pt']['iframe_back_text']),
-                'alert_message' => (string) ($row['alert_message_pt'] ?? $data['pt']['alert_message']),
-                'edit_button_text' => (string) ($row['edit_button_text_pt'] ?? $data['pt']['edit_button_text']),
-                'loading_text' => (string) ($row['loading_text_pt'] ?? $data['pt']['loading_text']),
-            ];
-        } catch (PDOException $e) {
-            // keep defaults
-        }
+    $count = (int) $pdo->query("SELECT COUNT(*) FROM project_info")->fetchColumn();
+    if ($count === 0) {
+        db_insert_default_project_info_rows($pdo);
+        return;
     }
-    $labelsExists = false;
-    try {
-        $labelsExists = $pdo->query("SHOW TABLES LIKE 'project_info_labels'")->fetch() !== false;
-    } catch (PDOException $e) {
-        // ignore
+    $existing = $pdo->query("SELECT locale FROM project_info")->fetchAll(PDO::FETCH_COLUMN);
+    $missing = array_diff(PROJECT_INFO_LOCALES, $existing);
+    if ($missing === []) {
+        return;
     }
-    if ($labelsExists) {
-        $rows = $pdo->query("SELECT label_key, locale, value FROM project_info_labels")->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($rows as $r) {
-            $key = $r['label_key'] ?? '';
-            $locale = $r['locale'] ?? 'en';
-            $val = (string) ($r['value'] ?? '');
-            if (isset($data[$locale][$key])) {
-                $data[$locale][$key] = $val !== '' ? $val : $data[$locale][$key];
-            }
-        }
-    }
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS project_info_new (
-            locale VARCHAR(10) NOT NULL PRIMARY KEY,
-            name VARCHAR(2000) NOT NULL DEFAULT '',
-            description VARCHAR(2000) NOT NULL DEFAULT '',
-            iframe_back_text VARCHAR(2000) NOT NULL DEFAULT '',
-            alert_message VARCHAR(2000) NOT NULL DEFAULT '',
-            edit_button_text VARCHAR(200) NOT NULL DEFAULT 'Edit',
-            loading_text VARCHAR(200) NOT NULL DEFAULT 'Loading'
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    ");
-    $ins = $pdo->prepare("INSERT INTO project_info_new (locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text) VALUES (:locale, :name, :description, :iframe_back_text, :alert_message, :edit_button_text, :loading_text)");
-    foreach (PROJECT_INFO_LOCALES as $locale) {
-        $d = $data[$locale];
-        $ins->execute([
+    $defaults = db_default_project_info_rows();
+    $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text) VALUES (:locale, :name, :description, :iframe_back_text, :alert_message, :edit_button_text, :loading_text)");
+    foreach ($missing as $locale) {
+        $d = $defaults[$locale];
+        $stmt->execute([
             ':locale' => $locale,
             ':name' => $d['name'],
             ':description' => $d['description'],
@@ -230,19 +133,6 @@ function db_ensure_project_info_table(): void {
             ':edit_button_text' => $d['edit_button_text'],
             ':loading_text' => $d['loading_text'],
         ]);
-    }
-    if ($projectInfoExists) {
-        $pdo->exec("DROP TABLE IF EXISTS project_info");
-    }
-    $pdo->exec("RENAME TABLE project_info_new TO project_info");
-    db_drop_project_info_labels_if_exists($pdo);
-}
-
-function db_drop_project_info_labels_if_exists(PDO $pdo): void {
-    try {
-        $pdo->exec("DROP TABLE IF EXISTS project_info_labels");
-    } catch (PDOException $e) {
-        // ignore
     }
 }
 

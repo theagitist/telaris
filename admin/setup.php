@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS node_keywords (
     INDEX idx_keyword_id (keyword_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Table for project information only (one row per locale: en, es, pt). No project_info_labels table.
+-- Table for project information (one row per locale: en, es, pt).
 CREATE TABLE IF NOT EXISTS project_info (
     locale VARCHAR(10) NOT NULL PRIMARY KEY,
     name VARCHAR(2000) NOT NULL DEFAULT '',
@@ -322,7 +322,7 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
         $defaultApiKey = generateDefaultApiKey($pdo);
         $details['default_api_key'] = $defaultApiKey;
         
-        // Use only project_info (one row per locale). Do not create or use project_info_labels.
+        // project_info: one row per locale (en, es, pt).
         // Localized Edit button: en "Edit", es "Editar", pt "Editar". Loading text: en "Loading", es "Cargando", pt "Carregando"
         try {
             require_once dirname(__DIR__) . '/inc/db.php';
