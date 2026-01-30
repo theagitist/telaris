@@ -870,16 +870,15 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 const usedPositions = [];
                 const rawPositions = [];
 
-                // Camera-based bounds at z≈0 for initial layout
+                // Camera-based bounds: use full viewport so all distributions utilize as much screen as possible
                 const cameraZ = this.camera.position.z;
                 const halfHeight = Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5)) * cameraZ;
                 const halfWidth = halfHeight * this.camera.aspect;
-                const margin = 0.72; // keep away from edges
+                const layoutMargin = 0.98;
 
                 const layoutBounds = {
-                    xMax: halfWidth * margin * 1.35,
-                    yMax: halfHeight * margin,
-                    // More distribution on Z axis for depth
+                    xMax: halfWidth * layoutMargin,
+                    yMax: halfHeight * layoutMargin,
                     zMax: cameraZ * 0.52
                 };
 
@@ -905,10 +904,21 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     maxAbsZ = Math.max(maxAbsZ, Math.abs(p.z));
                 });
 
-                // Ensure we have valid extents (handle edge case of all nodes at same position)
-                if (maxAbsX === 0) maxAbsX = 1;
-                if (maxAbsY === 0) maxAbsY = 1;
-                if (maxAbsZ === 0) maxAbsZ = 1;
+                const extentEpsilon = 0.01;
+                const n = rawPositions.length;
+                // When one axis has no spread, force positions to span [-1, 1] so scaling uses full screen
+                if (maxAbsX < extentEpsilon && n > 1) {
+                    rawPositions.forEach((p, i) => { p.x = (2 * i / (n - 1)) - 1; });
+                    maxAbsX = 1;
+                } else if (maxAbsX < extentEpsilon) maxAbsX = 1;
+                if (maxAbsY < extentEpsilon && n > 1) {
+                    rawPositions.forEach((p, i) => { p.y = (2 * i / (n - 1)) - 1; });
+                    maxAbsY = 1;
+                } else if (maxAbsY < extentEpsilon) maxAbsY = 1;
+                if (maxAbsZ < extentEpsilon && n > 1) {
+                    rawPositions.forEach((p, i) => { p.z = (2 * i / (n - 1)) - 1; });
+                    maxAbsZ = 1;
+                } else if (maxAbsZ < extentEpsilon) maxAbsZ = 1;
 
                 // Safe bounds: use perspective frustum so all nodes are visible at load.
                 // Use distance to front of *scaled* cloud (safeZ) so X/Y bounds match what's visible at that plane.
@@ -916,9 +926,11 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 const safeZ = layoutBounds.zMax * marginFactor;
                 const distAtClosestZ = Math.max(0.1, cameraZ - safeZ);
                 const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5));
-                const safeX = distAtClosestZ * tanHalfFov * this.camera.aspect * marginFactor;
-                // Y: extra headroom (0.82) so nodes + animation stay on screen at top/bottom
-                const safeY = Math.max(1, distAtClosestZ * tanHalfFov * marginFactor * 0.82);
+                // Leave clear headroom for float (±0.3) and twitch (±0.15) so no node goes off-screen
+                const fillX = 0.88;
+                const fillY = 0.84;
+                const safeX = distAtClosestZ * tanHalfFov * this.camera.aspect * fillX;
+                const safeY = Math.max(1, distAtClosestZ * tanHalfFov * fillY);
 
                 const scaleX = safeX / maxAbsX;
                 const scaleY = safeY / maxAbsY;
@@ -1199,28 +1211,20 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 const baseSeed = Date.now() + Math.random() * 1000000;
                 const seed = baseSeed + seedOffset;
                 
-                const minDistance = 1.4; // Minimum distance between nodes
+                const minDistance = 2.8; // Minimum distance between nodes (larger = less crammed)
                 let attempts = 0;
-                const maxAttempts = 100;
+                const maxAttempts = 250;
 
                 // Default bounds if not provided (more generous Z for depth variation)
                 const b = bounds ?? { xMax: 8, yMax: 6, zMax: 6 };
                 
                 while (attempts < maxAttempts) {
-                    // Generate random position within an ellipsoid aligned to viewport
-                    // Use a new seed for each attempt to ensure different positions
+                    // Uniform in full box so nodes spread evenly across X and Y (not clustered in center)
                     const attemptSeed = seed + attempts * 1000;
                     const attemptRng = this.seededRandom(attemptSeed);
 
-                    // Rejection sample in ellipse for better screen distribution
-                    let x = 0, y = 0;
-                    let guard = 0;
-                    do {
-                        x = (attemptRng() * 2 - 1) * b.xMax;
-                        y = (attemptRng() * 2 - 1) * b.yMax;
-                        guard++;
-                    } while (((x * x) / (b.xMax * b.xMax) + (y * y) / (b.yMax * b.yMax) > 1) && guard < 20);
-
+                    const x = (attemptRng() * 2 - 1) * b.xMax;
+                    const y = (attemptRng() * 2 - 1) * b.yMax;
                     const z = (attemptRng() * 2 - 1) * b.zMax;
 
                     const newPos = {
