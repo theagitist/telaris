@@ -397,24 +397,42 @@ const USE_MORE_COLOR_VARIETY = true;
                     mouseDownTime = 0;
                 });
 
-                // Wheel: mouse = zoom only; trackpad = scroll rotate, pinch zoom (deltaMode: 0 = trackpad, 1 = mouse)
+                // Wheel: mouse = zoom only; trackpad = scroll rotate, pinch zoom only.
+                // Mouse: deltaMode === 1 (line) or deltaMode === 0 with no horizontal (deltaX === 0); trackpad scroll has deltaX.
                 const rotateSpeed = 0.002;
                 const minPhi = 0.05;
                 const maxPhi = Math.PI - 0.05;
                 const tempOffset = new THREE.Vector3();
                 const tempSpherical = new THREE.Spherical();
+                const zoomFromWheel = () => {
+                    event.preventDefault();
+                    tempOffset.subVectors(this.camera.position, this.controls.target);
+                    tempSpherical.setFromVector3(tempOffset);
+                    const zoomScale = event.deltaMode === 1 ? 0.02 * this.controls.zoomSpeed : 0.002 * this.controls.zoomSpeed;
+                    tempSpherical.radius += event.deltaY * zoomScale;
+                    tempSpherical.radius = Math.max(this.controls.minDistance, Math.min(this.controls.maxDistance, tempSpherical.radius));
+                    tempOffset.setFromSpherical(tempSpherical);
+                    this.camera.position.copy(this.controls.target).add(tempOffset);
+                    this.camera.lookAt(this.controls.target);
+                    const c = this.controls;
+                    if (c.internalState && c.internalState.spherical) {
+                        c.internalState.spherical.copy(tempSpherical);
+                    } else if (c.spherical) {
+                        c.spherical.copy(tempSpherical);
+                    }
+                };
                 this.renderer.domElement.addEventListener('wheel', (event) => {
                     this.markInteraction();
-                    const isMouseWheel = event.deltaMode === 1; // DOM_DELTA_LINE = mouse wheel
-                    if (isMouseWheel) {
-                        // mouse: let OrbitControls handle wheel for zoom; rotation is click-and-drag
-                        return;
-                    }
-                    // trackpad: pinch = zoom, two-finger scroll = rotate
                     const isPinch = event.ctrlKey;
                     if (isPinch) {
-                        return; // OrbitControls zooms
+                        return; // OrbitControls zooms on trackpad pinch
                     }
+                    const isMouseWheel = event.deltaMode === 1 || (event.deltaMode === 0 && Math.abs(event.deltaX) === 0);
+                    if (isMouseWheel) {
+                        zoomFromWheel();
+                        return;
+                    }
+                    // Trackpad two-finger scroll (deltaMode 0 with horizontal component): rotate only
                     if (Math.abs(event.deltaX) > 0 || Math.abs(event.deltaY) > 0) {
                         event.preventDefault();
                         event.stopPropagation();
