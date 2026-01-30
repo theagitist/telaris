@@ -69,7 +69,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
         <div id="canvas-container" class="w-screen h-screen relative" style="position: relative;">
         <canvas class="block" style="position: relative; z-index: 1;"></canvas>
         <div id="persistent-tooltips" class="absolute inset-0 pointer-events-none z-[150]" style="font-family: inherit;"></div>
-        <div id="node-tooltip" class="absolute bg-black bg-opacity-75 text-white px-3 py-2 rounded text-sm pointer-events-none z-[200]" style="font-family: inherit; opacity: 0; visibility: hidden;"></div>
+        <div id="node-tooltip" class="absolute px-3 py-2 rounded text-sm pointer-events-none z-[200]" style="font-family: inherit; opacity: 0; visibility: hidden;"></div>
     </div>
     <div id="info" class="absolute top-5 left-5 text-white z-[100] text-sm opacity-80 pointer-events-none">
         <h2 class="text-lg font-semibold mb-1">Telaris</h2>
@@ -152,6 +152,18 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 const worldPos = new THREE.Vector3();
                 node.getWorldPosition(worldPos);
                 return worldPos;
+            }
+
+            getNodeTooltipStyles(node) {
+                const d = node.userData;
+                if (!d || d.colorR === undefined) return { background: 'rgba(0,0,0,0.35)', color: 'rgb(255,255,255)' };
+                const r = d.colorR, g = d.colorG, b = d.colorB;
+                const darken = 0.5;
+                const dr = Math.round(r * darken), dg = Math.round(g * darken), db = Math.round(b * darken);
+                return {
+                    background: `rgba(${dr},${dg},${db},0.35)`,
+                    color: `rgb(${r},${g},${b})`
+                };
             }
 
             markInteraction() {
@@ -392,24 +404,25 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                                 }
                                 this.mainTooltipNode = hoveredNode;
                                 this.tooltip.textContent = hoveredNode.userData.name;
+                                const tipStyles = this.getNodeTooltipStyles(hoveredNode);
+                                this.tooltip.style.background = tipStyles.background;
+                                this.tooltip.style.color = tipStyles.color;
                                 this.tooltip.style.visibility = 'visible';
                                 this.tooltip.style.display = 'block';
                                 this.tooltip.style.opacity = '0';
-                                const offsetX = 15;
-                                const offsetY = 15;
-                                let tooltipX = event.clientX - rect.left + offsetX;
-                                let tooltipY = event.clientY - rect.top + offsetY;
-                                const tooltipRect = this.tooltip.getBoundingClientRect();
-                                if (tooltipX + tooltipRect.width > rect.width) {
-                                    tooltipX = event.clientX - rect.left - tooltipRect.width - offsetX;
-                                }
-                                if (tooltipY + tooltipRect.height > rect.height) {
-                                    tooltipY = event.clientY - rect.top - tooltipRect.height - offsetY;
-                                }
-                                if (tooltipX < 0) tooltipX = 0;
-                                if (tooltipY < 0) tooltipY = 0;
+                                const projected = new THREE.Vector3();
+                                hoveredNode.getWorldPosition(projected);
+                                const distanceToCamera = projected.distanceTo(this.camera.position);
+                                projected.project(this.camera);
+                                const container = this.renderer.domElement.parentElement;
+                                const containerRect = container ? container.getBoundingClientRect() : rect;
+                                const tooltipGap = -12;
+                                const tooltipYOffset = 34 + Math.max(0, (18 - distanceToCamera) * 1.5);
+                                const tooltipX = (rect.left - containerRect.left) + (projected.x * 0.5 + 0.5) * rect.width;
+                                const tooltipY = (rect.top - containerRect.top) + (0.5 - projected.y * 0.5) * rect.height + tooltipYOffset;
                                 this.tooltip.style.left = tooltipX + 'px';
                                 this.tooltip.style.top = tooltipY + 'px';
+                                this.tooltip.style.transform = `translate(-50%, -50%) translate(${tooltipGap}px, 0)`;
                                 requestAnimationFrame(() => {
                                     requestAnimationFrame(() => {
                                         this.tooltip.style.opacity = '1';
@@ -492,7 +505,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     return tempPos.distanceTo(this.camera.position) <= threshold;
                 };
                 
-                // Helper function to show tooltip for a node at screen position (x, y)
+                // Helper function to show tooltip for a node (positioned at node with 3px gap, same as hover/persistent)
                 const showTooltipForNode = (node, x, y) => {
                     if (this.tooltip && node && node.userData && node.userData.name) {
                         if (this.tooltipHideTimeout) {
@@ -500,25 +513,26 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                             this.tooltipHideTimeout = null;
                         }
                         this.tooltip.textContent = node.userData.name;
+                        const tipStyles = this.getNodeTooltipStyles(node);
+                        this.tooltip.style.background = tipStyles.background;
+                        this.tooltip.style.color = tipStyles.color;
                         this.tooltip.style.visibility = 'visible';
                         this.tooltip.style.display = 'block';
                         this.tooltip.style.opacity = '0';
                         const rect = this.renderer.domElement.getBoundingClientRect();
-                        const offsetX = 15;
-                        const offsetY = 15;
-                        let tooltipX = x - rect.left + offsetX;
-                        let tooltipY = y - rect.top + offsetY;
-                        const tooltipRect = this.tooltip.getBoundingClientRect();
-                        if (tooltipX + tooltipRect.width > rect.width) {
-                            tooltipX = x - rect.left - tooltipRect.width - offsetX;
-                        }
-                        if (tooltipY + tooltipRect.height > rect.height) {
-                            tooltipY = y - rect.top - tooltipRect.height - offsetY;
-                        }
-                        if (tooltipX < 0) tooltipX = 0;
-                        if (tooltipY < 0) tooltipY = 0;
+                        const container = this.renderer.domElement.parentElement;
+                        const containerRect = container ? container.getBoundingClientRect() : rect;
+                        const projected = new THREE.Vector3();
+                        node.getWorldPosition(projected);
+                        const distanceToCamera = projected.distanceTo(this.camera.position);
+                        projected.project(this.camera);
+                        const tooltipGap = -12;
+                        const tooltipYOffset = 34 + Math.max(0, (18 - distanceToCamera) * 1.5);
+                        const tooltipX = (rect.left - containerRect.left) + (projected.x * 0.5 + 0.5) * rect.width;
+                        const tooltipY = (rect.top - containerRect.top) + (0.5 - projected.y * 0.5) * rect.height + tooltipYOffset;
                         this.tooltip.style.left = tooltipX + 'px';
                         this.tooltip.style.top = tooltipY + 'px';
+                        this.tooltip.style.transform = `translate(-50%, -50%) translate(${tooltipGap}px, 0)`;
                         requestAnimationFrame(() => {
                             requestAnimationFrame(() => {
                                 this.tooltip.style.opacity = '1';
@@ -899,6 +913,8 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     const node = this.createNodeIcon(starMaterial, i);
                     node.position.copy(randomPos);
 
+                    // Store RGB for tooltip styling (background 5%, text 100%)
+                    const r = Math.round(threeColor.r * 255), g = Math.round(threeColor.g * 255), b = Math.round(threeColor.b * 255);
                     // Add animation properties from database
                     node.userData = {
                         id: nodeData.id || i, // Database ID
@@ -913,7 +929,8 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                         phase: anim.phase,
                         animationState: 'normal',
                         stateTimer: Math.random() * 3000 + 2000,
-                        stateChangeTime: Date.now()
+                        stateChangeTime: Date.now(),
+                        colorR: r, colorG: g, colorB: b // For tooltip background (5%) and text (100%)
                     };
 
                     this.nodes.push(node);
@@ -1197,9 +1214,17 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
             updateNodes() {
                 const time = Date.now() * 0.001 / 4; // 1/4 speed
                 const currentTime = Date.now();
-                
+                const hasTooltip = (node) => this.mainTooltipNode === node || this.persistentTooltipNodeToDiv.has(node);
+
                 this.nodes.forEach((node, index) => {
                     const data = node.userData;
+                    node.traverse((obj) => {
+                        if (obj.material) {
+                            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                            const opacity = hasTooltip(node) ? 1 : 0.94;
+                            mats.forEach(m => { m.opacity = opacity; });
+                        }
+                    });
                     
                     // Check if it's time to change animation state
                     if (currentTime - data.stateChangeTime > data.stateTimer) {
@@ -1268,7 +1293,10 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 if (!this.persistentTooltipsContainer || this.nodes.length === 0) return;
                 const frontNodes = this.getFront10PercentNodes();
                 const toShow = frontNodes.filter(n => n !== this.mainTooltipNode && n.userData && n.userData.name);
-                const rect = this.renderer.domElement.getBoundingClientRect();
+                const canvasRect = this.renderer.domElement.getBoundingClientRect();
+                const container = this.persistentTooltipsContainer.parentElement;
+                const containerRect = container ? container.getBoundingClientRect() : canvasRect;
+                const rect = canvasRect;
                 const projected = new THREE.Vector3();
                 const nodeToDiv = this.persistentTooltipNodeToDiv;
 
@@ -1277,7 +1305,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                         if (el.style.visibility === 'hidden' && !el._fadeOutTimeout) return el;
                     }
                     const el = document.createElement('div');
-                    el.className = 'persistent-tooltip-item absolute bg-black bg-opacity-75 text-white px-2 py-1 rounded text-xs pointer-events-none whitespace-nowrap';
+                    el.className = 'persistent-tooltip-item absolute px-1 py-0.5 rounded text-xs pointer-events-none whitespace-nowrap';
                     el.style.opacity = '0';
                     el.style.visibility = 'hidden';
                     this.persistentTooltipsContainer.appendChild(el);
@@ -1297,6 +1325,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
 
                 toShow.forEach((node) => {
                     node.getWorldPosition(projected);
+                    const distanceToCamera = projected.distanceTo(this.camera.position);
                     projected.project(this.camera);
                     const ndcX = projected.x;
                     const ndcY = projected.y;
@@ -1305,21 +1334,31 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                         if (div) startPersistentFadeOut(div, node);
                         return;
                     }
-                    const left = (ndcX * 0.5 + 0.5) * rect.width;
-                    const top = (0.5 - ndcY * 0.5) * rect.height;
+                    const yOffset = 34 + Math.max(0, (18 - distanceToCamera) * 1.5);
+                    const left = (rect.left - containerRect.left) + (ndcX * 0.5 + 0.5) * rect.width;
+                    const top = (rect.top - containerRect.top) + (0.5 - ndcY * 0.5) * rect.height + yOffset;
+                    const gap = -12;
                     let el = nodeToDiv.get(node);
                     if (el) {
                         el.textContent = node.userData.name;
-                        el.style.left = (left + 8) + 'px';
-                        el.style.top = (top + 8) + 'px';
+                        el.style.left = left + 'px';
+                        el.style.top = top + 'px';
+                        el.style.transform = `translate(-50%, -50%) translate(${gap}px, 0)`;
+                        const styles = this.getNodeTooltipStyles(node);
+                        el.style.background = styles.background;
+                        el.style.color = styles.color;
                         el.style.opacity = '1';
                         return;
                     }
                     el = getAvailableDiv();
                     nodeToDiv.set(node, el);
                     el.textContent = node.userData.name;
-                    el.style.left = (left + 8) + 'px';
-                    el.style.top = (top + 8) + 'px';
+                    el.style.left = left + 'px';
+                    el.style.top = top + 'px';
+                    el.style.transform = `translate(-50%, -50%) translate(${gap}px, 0)`;
+                    const styles = this.getNodeTooltipStyles(node);
+                    el.style.background = styles.background;
+                    el.style.color = styles.color;
                     el.style.visibility = 'visible';
                     el.style.opacity = '0';
                     const elToFade = el;
