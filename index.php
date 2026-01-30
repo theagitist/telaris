@@ -286,6 +286,7 @@ try {
                 this.controls.dampingFactor = 0.05;
                 this.controls.minDistance = 5;
                 this.controls.maxDistance = 30;
+                this.controls.zoomSpeed = 4.0; // pinch zoom speed similar to scroll rotation
                 this.controls.autoRotate = false;
                 this.controls.autoRotateSpeed = 0.35; // subtle, not distracting
                 // Look at a point below center so the graph appears higher on screen
@@ -536,8 +537,39 @@ try {
                     mouseDownTime = 0;
                 });
 
-                // Other interactions that should cancel idle rotation
-                this.renderer.domElement.addEventListener('wheel', () => this.markInteraction(), { passive: true });
+                // Wheel: rotate on scroll; zoom only on pinch (capture so we run before OrbitControls)
+                const rotateSpeed = 0.002;
+                const minPhi = 0.05;
+                const maxPhi = Math.PI - 0.05;
+                const tempOffset = new THREE.Vector3();
+                const tempSpherical = new THREE.Spherical();
+                this.renderer.domElement.addEventListener('wheel', (event) => {
+                    this.markInteraction();
+                    const isPinch = event.ctrlKey; // trackpad pinch zoom sets ctrlKey
+                    if (isPinch) {
+                        // let OrbitControls handle zoom only for pinch
+                        return;
+                    }
+                    // scroll: rotate only, consume event so OrbitControls does not zoom
+                    if (Math.abs(event.deltaX) > 0 || Math.abs(event.deltaY) > 0) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        tempOffset.subVectors(this.camera.position, this.controls.target);
+                        tempSpherical.setFromVector3(tempOffset);
+                        tempSpherical.theta += event.deltaX * rotateSpeed;
+                        tempSpherical.phi += event.deltaY * rotateSpeed;
+                        tempSpherical.phi = Math.max(minPhi, Math.min(maxPhi, tempSpherical.phi));
+                        tempOffset.setFromSpherical(tempSpherical);
+                        this.camera.position.copy(this.controls.target).add(tempOffset);
+                        this.camera.lookAt(this.controls.target);
+                        const c = this.controls;
+                        if (c.internalState && c.internalState.spherical) {
+                            c.internalState.spherical.copy(tempSpherical);
+                        } else if (c.spherical) {
+                            c.spherical.copy(tempSpherical);
+                        }
+                    }
+                }, { passive: false, capture: true });
                 window.addEventListener('keydown', () => this.markInteraction(), { passive: true });
                 
                 // Helper function to get node from event coordinates
