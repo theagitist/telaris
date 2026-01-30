@@ -47,13 +47,28 @@ try {
 // Check if user is logged in as editor or admin
 require_once __DIR__ . '/auth.php';
 $isEditorOrAdmin = isEditorOrAdminLoggedIn();
+
+// Load project name and tagline from database for header and frame bar
+$projectName = 'Telaris';
+$projectTagline = 'Weaving memory';
+try {
+    $info = $pdo->query("SELECT name, description FROM project_info WHERE id = 1 LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+    if ($info && !empty($info['name'])) {
+        $projectName = $info['name'];
+    }
+    if ($info && isset($info['description']) && (string)$info['description'] !== '') {
+        $projectTagline = $info['description'];
+    }
+} catch (PDOException $e) {
+    // keep defaults
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telaris</title>
+    <title><?php echo htmlspecialchars($projectName); ?></title>
     <meta name="description" content="Interactive 3D knowledge visualization">
     <script src="js/tailwind.min.js"></script>
     <style>
@@ -92,8 +107,8 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
         <div id="node-tooltip" class="absolute px-3 py-2 rounded text-sm pointer-events-none z-[200]" style="font-family: inherit; opacity: 0; visibility: hidden;"></div>
     </div>
     <div id="info" class="absolute top-5 left-5 text-white z-[100] text-sm opacity-80 pointer-events-none">
-        <h2 class="text-lg font-semibold mb-1">Telaris</h2>
-        <p>Weaving memory</p>
+        <h2 class="text-lg font-semibold mb-1"><?php echo htmlspecialchars($projectName); ?></h2>
+        <p><?php echo htmlspecialchars($projectTagline); ?></p>
     </div>
     <?php if ($isEditorOrAdmin): ?>
     <div class="absolute top-5 right-5 z-[100]">
@@ -102,6 +117,10 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
         </a>
     </div>
     <?php endif; ?>
+
+    <script>
+        window.TELARIS_APP_NAME = <?php echo json_encode($projectName); ?>;
+    </script>
     <script type="importmap">
         {
             "imports": {
@@ -185,6 +204,17 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     background: `rgba(${dr},${dg},${db},0.35)`,
                     color: `rgb(${r},${g},${b})`
                 };
+            }
+
+            /** Open link in a new window with top toolbar (frame.php); toolbar uses the node's color. */
+            openInFrame(node, url) {
+                const d = node && node.userData;
+                const r = (d && d.colorR !== undefined) ? d.colorR : 60;
+                const g = (d && d.colorG !== undefined) ? d.colorG : 60;
+                const b = (d && d.colorB !== undefined) ? d.colorB : 80;
+                const app = typeof window.TELARIS_APP_NAME === 'string' ? window.TELARIS_APP_NAME : 'Telaris';
+                const frameUrl = 'frame.php?url=' + encodeURIComponent(url) + '&r=' + r + '&g=' + g + '&b=' + b + '&app=' + encodeURIComponent(app);
+                window.open(frameUrl, '_blank', 'noopener,noreferrer');
             }
 
             markInteraction() {
@@ -593,9 +623,9 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     }
                 };
                 
-                // Handle click events on nodes (desktop)
+                // Handle click events on nodes (desktop) — use capture so we run before OrbitControls
                 this.renderer.domElement.addEventListener('click', (event) => {
-                    // Skip for touch devices - handled by touchstart
+                    // Skip for touch devices - handled by touchend
                     if (isTouchDevice) {
                         return;
                     }
@@ -614,20 +644,20 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                         }
                     }
                     
-                    // Only handle if it's a click, not a drag (OrbitControls handles drags)
                     if (isDrag) {
                         return;
                     }
                     
                     const clickedNode = getNodeFromEvent(event);
                     
-                    // Desktop behavior: click directly opens URL
+                    // Open URL in in-app frame (top bar + iframe), never in a new window
                     if (clickedNode && clickedNode.userData && clickedNode.userData.url) {
                         event.preventDefault();
                         event.stopPropagation();
-                        window.open(clickedNode.userData.url, '_blank', 'noopener,noreferrer');
+                        event.stopImmediatePropagation();
+                        this.openInFrame(clickedNode, clickedNode.userData.url);
                     }
-                });
+                }, true);
                 
                 // Handle touch events on nodes (mobile)
                 if (isTouchDevice) {
@@ -697,26 +727,20 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                         
                         if (isTap && touchStartNode) {
                             const clickedNode = touchStartNode;
-                            
-                            // Check if this is the second tap on the same node (regardless of time)
-                            if (lastTappedNode === clickedNode) {
-                                // Second tap on same node - open URL
-                                if (clickedNode.userData && clickedNode.userData.url) {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    window.open(clickedNode.userData.url, '_blank', 'noopener,noreferrer');
-                                    lastTappedNode = null;
-                                    this.mainTooltipNode = null;
-                                    touchStartPos = null;
-                                    touchStartNode = null;
-                                    return;
-                                }
-                            } else {
-                                // First tap or tap on different node - always show tooltip for the tapped node
-                                lastTappedNode = clickedNode;
-                                this.mainTooltipNode = clickedNode;
-                                showTooltipForNode(clickedNode, touchStartPos.screenX, touchStartPos.screenY);
+                            // Mobile: first tap opens URL if node has one; otherwise show tooltip
+                            if (clickedNode.userData && clickedNode.userData.url) {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                this.openInFrame(clickedNode, clickedNode.userData.url);
+                                lastTappedNode = null;
+                                this.mainTooltipNode = null;
+                                touchStartPos = null;
+                                touchStartNode = null;
+                                return;
                             }
+                            lastTappedNode = clickedNode;
+                            this.mainTooltipNode = clickedNode;
+                            showTooltipForNode(clickedNode, touchStartPos.screenX, touchStartPos.screenY);
                         } else if (isTap && !touchStartNode) {
                             // Tapped on empty space - hide tooltip and reset
                             lastTappedNode = null;
