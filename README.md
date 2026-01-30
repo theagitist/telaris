@@ -133,12 +133,14 @@ Junction table for many-to-many relationship between nodes and keywords.
 **Note**: Connections between nodes are calculated automatically based on shared keywords. Nodes that share one or more keywords will be connected in the visualization.
 
 ### project_info
-Singleton table storing project metadata (only one row with id=1).
-- `id` INT PRIMARY KEY DEFAULT 1 - Always 1
-- `name` VARCHAR(255) NOT NULL DEFAULT 'Telaris' - Project name
-- `description` TEXT NOT NULL - Project description (default value set via INSERT, not in schema)
-- `updated_at` TIMESTAMP - Last update timestamp
-- CHECK constraint: id = 1
+Stores project metadata with one row per locale (en, es, pt).
+- `locale` VARCHAR(10) NOT NULL PRIMARY KEY - Locale code (en, es, pt)
+- `name` VARCHAR(2000) NOT NULL DEFAULT '' - Project name
+- `description` VARCHAR(2000) NOT NULL DEFAULT '' - Project description / tagline
+- `iframe_back_text` VARCHAR(2000) NOT NULL DEFAULT '' - Button text for iframe back link
+- `alert_message` VARCHAR(2000) NOT NULL DEFAULT '' - Message shown when closing node link window
+- `edit_button_text` VARCHAR(200) NOT NULL DEFAULT 'Edit' - Label for Edit button
+- `loading_text` VARCHAR(200) NOT NULL DEFAULT 'Loading' - Loading indicator text
 
 ### api_keys
 Stores API keys for authentication.
@@ -247,7 +249,7 @@ telaris.polivoxia.ca/
 │   ├── login.php         # Login page with context-aware redirects
 │   └── logout.php        # Logout handler
 ├── README.md             # This file
-└── VERSION               # Current version (e.g. 2.0.0)
+└── VERSION               # Current version (e.g. 2.0.1)
 ```
 
 ## Browser Support
@@ -306,6 +308,12 @@ This will return the application to an unconfigured state, allowing you to run `
 - **Pan**: (If enabled) Right-click and drag or use middle mouse button
 
 ## Version History
+
+### Version 2.0.1
+- **Favicon**: Sun icon on black background added as favicon across all pages.
+- **Mouse wheel zoom**: Mouse wheel zooms; trackpad zoom remains pinch-only, two-finger scroll rotates.
+- **Admin UI**: User list uses HTML table for reliable header/content alignment; sorting reorders full rows.
+- **Database**: Removed all backwards-compatibility and migration code; `project_info` is one row per locale (en, es, pt) only.
 
 ### Version 2.0.0
 - **Modular structure**: Main app split into `inc/bootstrap.php`, `inc/main-view.php`; slim `index.php` only loads these.
