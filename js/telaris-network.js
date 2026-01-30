@@ -3,7 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { apiFetch } from './api.js';
 import { createNodeIcon } from './telaris-node-icons.js';
 
-
+// Set to false to revert to previous (less varied) node and line colors
+const USE_MORE_COLOR_VARIETY = true;
 
         class TelarisNetwork {
             constructor() {
@@ -773,8 +774,8 @@ import { createNodeIcon } from './telaris-node-icons.js';
                     const anim = nodeData.animation;
                     const randomPos = rawPositions[i];
 
-                    // Generate random pastel color for this node
-                    const pastelColor = this.generateRandomPastelColor(i);
+                    // Evenly distributed hues so no color (e.g. green) is over-represented
+                    const pastelColor = this.generateRandomPastelColor(i, { total: this.nodeData.length });
 
                     // Create color from HSL
                     const threeColor = new THREE.Color().setHSL(
@@ -915,12 +916,12 @@ import { createNodeIcon } from './telaris-node-icons.js';
                                 distance,
                                 8
                             );
-                            const colorSeed = connectionIndex * 1000 + i * 100 + j;
-                            const pastelColor = this.generateRandomPastelColor(colorSeed);
+                            const pastelColor = this.generateRandomPastelColor(connectionIndex, { connectionIndex });
+                            const lineLightness = USE_MORE_COLOR_VARIETY ? pastelColor.lightness : 0.68;
                             const threeColor = new THREE.Color().setHSL(
                                 pastelColor.hue,
                                 pastelColor.saturation,
-                                0.68
+                                lineLightness
                             );
                             const material = new THREE.MeshBasicMaterial({
                                 color: threeColor,
@@ -1007,22 +1008,31 @@ import { createNodeIcon } from './telaris-node-icons.js';
                 };
             }
 
-            // Generate random pastel color (HSL)
-            // Pastel colors with higher saturation for more vivid appearance
-            // Still light enough to be pastel, but more intense than before
-            generateRandomPastelColor(seedOffset = 0) {
+            // Generate pastel color (HSL). Use equalHueOptions for even distribution around the color wheel.
+            // equalHueOptions: { total: N } for nodes (hue = (index+0.5)/N), or { connectionIndex: k } for lines (golden-ratio spread).
+            generateRandomPastelColor(seedOffset = 0, equalHueOptions = null) {
                 const baseSeed = Date.now() + Math.random() * 1000000;
                 const seed = baseSeed + seedOffset;
                 const rng = this.seededRandom(seed);
-                
-                // Pastel color range (more vivid):
-                // Hue: 0 to 1 (full spectrum)
-                // Saturation: 0.6 to 0.85 (higher saturation for more vivid colors)
-                // Lightness: 0.65 to 0.85 (slightly lower for more intensity, still pastel)
+                let hue;
+                if (equalHueOptions && equalHueOptions.total != null) {
+                    hue = (seedOffset + 0.5) / equalHueOptions.total; // nodes: evenly spaced hues
+                } else if (equalHueOptions && equalHueOptions.connectionIndex != null) {
+                    hue = (equalHueOptions.connectionIndex * 0.618033988749) % 1; // lines: golden-ratio spread
+                } else {
+                    hue = rng();
+                }
+                if (USE_MORE_COLOR_VARIETY) {
+                    return {
+                        hue,
+                        saturation: 0.55 + rng() * 0.28,  // 0.55 to 0.83
+                        lightness: 0.62 + rng() * 0.23    // 0.62 to 0.85
+                    };
+                }
                 return {
-                    hue: rng(), // 0 to 1
-                    saturation: 0.6 + rng() * 0.25, // 0.6 to 0.85
-                    lightness: 0.65 + rng() * 0.2 // 0.65 to 0.85
+                    hue,
+                    saturation: 0.6 + rng() * 0.25,   // 0.6 to 0.85
+                    lightness: 0.65 + rng() * 0.2    // 0.65 to 0.85
                 };
             }
 
