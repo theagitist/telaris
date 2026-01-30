@@ -1,11 +1,11 @@
 <?php
 /**
  * Main view: HTML shell for the 3D network.
- * Expects: $projectName, $projectTagline, $isEditorOrAdmin (set by bootstrap).
+ * Expects: $projectName, $projectTagline, $isEditorOrAdmin, $currentLocale, $projectEditButtonText, $projectLoadingText (set by bootstrap).
  */
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?php echo htmlspecialchars($currentLocale ?? 'en'); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -85,7 +85,7 @@
 </head>
 <body class="overflow-hidden bg-black font-sans">
     <div id="loading-overlay" aria-live="polite" aria-busy="true">
-        <p class="loading-text">Loading.</p>
+        <p class="loading-text"><?php echo htmlspecialchars($projectLoadingText ?? 'Loading'); ?></p>
         <svg class="loading-star" viewBox="0 0 40 40" aria-hidden="true">
             <path class="track" d="M20 4 L24.1 14.3 L35.2 15.1 L26.7 22.2 L29.4 32.9 L20 27 L10.6 32.9 L13.3 22.2 L4.8 15.1 L15.9 14.3 Z" fill="none" stroke="var(--loading-color-dim, rgba(255,255,255,0.25))" stroke-width="2" stroke-linejoin="round"/>
             <path class="fill" pathLength="100" d="M20 4 L24.1 14.3 L35.2 15.1 L26.7 22.2 L29.4 32.9 L20 27 L10.6 32.9 L13.3 22.2 L4.8 15.1 L15.9 14.3 Z" fill="none" stroke="var(--loading-color, #fff)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -135,7 +135,7 @@
     <?php if ($isEditorOrAdmin): ?>
     <div class="absolute top-5 right-5 z-[100]">
         <a href="edit/index.php" class="text-white text-sm opacity-80 hover:opacity-100 underline pointer-events-auto">
-            Edit
+            <?php echo htmlspecialchars($projectEditButtonText ?? 'Edit'); ?>
         </a>
     </div>
     <?php endif; ?>

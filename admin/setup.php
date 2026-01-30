@@ -124,15 +124,15 @@ CREATE TABLE IF NOT EXISTS node_keywords (
     INDEX idx_keyword_id (keyword_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Table for project information (singleton table)
+-- Table for project information only (one row per locale: en, es, pt). No project_info_labels table.
 CREATE TABLE IF NOT EXISTS project_info (
-    id INT PRIMARY KEY DEFAULT 1,
-    name VARCHAR(255) NOT NULL DEFAULT 'Telaris',
-    description TEXT NOT NULL,
-    iframe_back_text VARCHAR(255) NOT NULL DEFAULT 'Go back',
-    alert_message TEXT NOT NULL DEFAULT 'Close this window when you''re done to go back.',
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CHECK (id = 1)
+    locale VARCHAR(10) NOT NULL PRIMARY KEY,
+    name VARCHAR(2000) NOT NULL DEFAULT '',
+    description VARCHAR(2000) NOT NULL DEFAULT '',
+    iframe_back_text VARCHAR(2000) NOT NULL DEFAULT '',
+    alert_message VARCHAR(2000) NOT NULL DEFAULT '',
+    edit_button_text VARCHAR(200) NOT NULL DEFAULT 'Edit',
+    loading_text VARCHAR(200) NOT NULL DEFAULT 'Loading'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table for API keys
@@ -322,21 +322,23 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
         $defaultApiKey = generateDefaultApiKey($pdo);
         $details['default_api_key'] = $defaultApiKey;
         
-        // Initialize project_info with website name and tagline
+        // Use only project_info (one row per locale). Do not create or use project_info_labels.
+        // Localized Edit button: en "Edit", es "Editar", pt "Editar". Loading text: en "Loading", es "Cargando", pt "Carregando"
         try {
-            $projectStmt = $pdo->prepare("
-                INSERT INTO project_info (id, name, description) 
-                VALUES (1, :name, :description)
-                ON DUPLICATE KEY UPDATE name = :name_update, description = :description_update
-            ");
-            $projectStmt->execute([
-                ':name' => $websiteName,
-                ':description' => $websiteTagline,
-                ':name_update' => $websiteName,
-                ':description_update' => $websiteTagline
-            ]);
-        } catch (PDOException $e) {
-            // Ignore if project_info table doesn't exist yet or other error
+            require_once dirname(__DIR__) . '/inc/db.php';
+            db_ensure_project_info_table();
+            db_insert_default_project_info_rows($pdo, $websiteName, $websiteTagline);
+        } catch (Throwable $e) {
+            $defaults = [
+                'en' => ['name' => $websiteName, 'description' => $websiteTagline, 'iframe_back_text' => 'Go back', 'alert_message' => "Close this window when you're done to go back.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading'],
+                'es' => ['name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 'alert_message' => 'Cierra esta ventana cuando termines para volver.', 'edit_button_text' => 'Editar', 'loading_text' => 'Cargando'],
+                'pt' => ['name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 'alert_message' => 'Feche esta janela quando terminar para voltar.', 'edit_button_text' => 'Editar', 'loading_text' => 'Carregando'],
+            ];
+            $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text) VALUES (:locale, :name, :description, :iframe_back_text, :alert_message, :edit_button_text, :loading_text) ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description), iframe_back_text = VALUES(iframe_back_text), alert_message = VALUES(alert_message), edit_button_text = VALUES(edit_button_text), loading_text = VALUES(loading_text)");
+            foreach (['en', 'es', 'pt'] as $locale) {
+                $d = $defaults[$locale];
+                $stmt->execute([':locale' => $locale, ':name' => $d['name'], ':description' => $d['description'], ':iframe_back_text' => $d['iframe_back_text'], ':alert_message' => $d['alert_message'], ':edit_button_text' => $d['edit_button_text'], ':loading_text' => $d['loading_text']]);
+            }
         }
         
         $details['success'] = true;
@@ -553,10 +555,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     $_SESSION['website_name'] = $websiteName;
     $_SESSION['website_tagline'] = $websiteTagline;
     
-    // Update project_info table with website info
+    // Update project_info table with website info and ensure all locale/default columns exist
     try {
         require_once dirname(__DIR__) . '/config.php';
         db_upsert_project_info($websiteName, $websiteTagline);
+        db_ensure_project_info_columns();
     } catch (Exception $e) {
         // Ignore errors, continue to admin user creation
     }
@@ -868,6 +871,7 @@ if (!$showForm && !$showWebsiteForm && file_exists($configPath)) {
             $projectDescription = $_SESSION['website_tagline'] ?? 'Weaving memory';
             
             db_upsert_project_info($projectName, $projectDescription);
+            db_ensure_project_info_columns();
             
             if (!isset($message)) {
                 $message = "Setup complete! Project information initialized.";
