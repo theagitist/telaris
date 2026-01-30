@@ -73,14 +73,60 @@ function db_has_project_table(): bool {
 }
 
 /**
- * @return array{name: string, description: string}|null
+ * Ensure project_info has iframe_back_text and alert_message columns (migration for existing installs).
+ */
+function db_ensure_project_info_columns(): void {
+    $pdo = getDB();
+    foreach (
+        [
+            "ALTER TABLE project_info ADD COLUMN iframe_back_text VARCHAR(255) NOT NULL DEFAULT 'Go back'",
+            "ALTER TABLE project_info ADD COLUMN alert_message TEXT NOT NULL DEFAULT 'Close this window when you''re done to go back.'"
+        ] as $sql
+    ) {
+        try {
+            $pdo->exec($sql);
+        } catch (PDOException $e) {
+            if (strpos($e->getMessage(), 'Duplicate column') === false) {
+                throw $e;
+            }
+        }
+    }
+}
+
+/**
+ * Read the description field only from project_info (id=1).
+ * Use this when you need the project description/tagline from table project_info, field description.
+ */
+function db_get_project_description(): string {
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->query("SELECT description FROM project_info WHERE id = 1 LIMIT 1");
+        $row = $stmt->fetch(PDO::FETCH_NUM);
+        return $row !== false && isset($row[0]) ? (string) $row[0] : '';
+    } catch (PDOException $e) {
+        return '';
+    }
+}
+
+/**
+ * @return array{name: string, description: string, iframe_back_text: string, alert_message: string}|null
  */
 function db_get_project_info(): ?array {
     try {
+        db_ensure_project_info_columns();
         $pdo = getDB();
-        $stmt = $pdo->query("SELECT name, description FROM project_info WHERE id = 1 LIMIT 1");
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ?: null;
+        $stmt = $pdo->query("SELECT name, description, iframe_back_text, alert_message FROM project_info WHERE id = 1 LIMIT 1");
+        $row = $stmt->fetch(PDO::FETCH_BOTH);
+        if (!$row) {
+            return null;
+        }
+        // Use column order (0=name, 1=description, 2=iframe_back_text, 3=alert_message) so value is correct regardless of key casing
+        return [
+            'name' => (string)($row[0] ?? $row['name'] ?? 'Telaris'),
+            'description' => (string)($row[1] ?? $row['description'] ?? ''),
+            'iframe_back_text' => (string)($row[2] ?? $row['iframe_back_text'] ?? 'Go back'),
+            'alert_message' => (string)($row[3] ?? $row['alert_message'] ?? "Close this window when you're done to go back."),
+        ];
     } catch (PDOException $e) {
         return null;
     }
@@ -101,6 +147,33 @@ function db_upsert_project_info(string $name, string $description): void {
         ':description' => $description,
         ':name_update' => $name,
         ':description_update' => $description
+    ]);
+}
+
+/**
+ * Update all project settings (name, tagline, iframe button text, alert message).
+ */
+function db_update_project_settings(string $name, string $description, string $iframe_back_text, string $alert_message): void {
+    db_ensure_project_info_columns();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        INSERT INTO project_info (id, name, description, iframe_back_text, alert_message)
+        VALUES (1, :name, :description, :iframe_back_text, :alert_message)
+        ON DUPLICATE KEY UPDATE
+            name = :name_update,
+            description = :description_update,
+            iframe_back_text = :iframe_back_text_update,
+            alert_message = :alert_message_update
+    ");
+    $stmt->execute([
+        ':name' => $name,
+        ':description' => $description,
+        ':iframe_back_text' => $iframe_back_text,
+        ':alert_message' => $alert_message,
+        ':name_update' => $name,
+        ':description_update' => $description,
+        ':iframe_back_text_update' => $iframe_back_text,
+        ':alert_message_update' => $alert_message
     ]);
 }
 

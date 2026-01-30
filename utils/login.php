@@ -4,7 +4,7 @@ declare(strict_types=1);
 // Set Content-Type header to ensure proper rendering
 header('Content-Type: text/html; charset=UTF-8');
 
-require_once 'auth.php';
+require_once __DIR__ . '/auth.php';
 
 // Get redirect target from query parameter or default to admin
 // Also check POST in case form was submitted (for error display)
@@ -15,9 +15,9 @@ $redirect = ($redirect === 'edit') ? 'edit' : 'admin';
 // If already logged in as admin, redirect based on target
 if (isAdminLoggedIn()) {
     if ($redirect === 'edit') {
-        header('Location: edit/index.php');
+        header('Location: ../edit/index.php');
     } else {
-        header('Location: admin/index.php');
+        header('Location: ../admin/index.php');
     }
     exit();
 }
@@ -25,7 +25,7 @@ if (isAdminLoggedIn()) {
 // If already logged in as editor, redirect to edit or show message
 if (isEditorLoggedIn()) {
     if ($redirect === 'edit') {
-        header('Location: edit/index.php');
+        header('Location: ../edit/index.php');
         exit();
     } else {
         $editorMessage = true;
@@ -56,15 +56,15 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
             if ((int)$user['type'] === USER_TYPE_ADMIN) {
                 // Admin: redirect based on target
                 if ($redirectTarget === 'edit') {
-                    header('Location: edit/index.php');
+                    header('Location: ../edit/index.php');
                 } else {
-                    header('Location: admin/index.php');
+                    header('Location: ../admin/index.php');
                 }
                 exit();
             } elseif ((int)$user['type'] === USER_TYPE_EDITOR) {
                 // Editor: redirect to edit page or show message
                 if ($redirectTarget === 'edit') {
-                    header('Location: edit/index.php');
+                    header('Location: ../edit/index.php');
                     exit();
                 } else {
                     $editorMessage = true;
@@ -82,7 +82,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Telaris</title>
-    <script src="js/tailwind.min.js"></script>
+    <script src="../js/tailwind.min.js"></script>
 </head>
 <body class="font-sans bg-gray-100 min-h-screen flex items-center justify-center px-5">
     <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
@@ -102,7 +102,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                 <p class="font-semibold">Editor Account</p>
                 <p class="text-sm mt-1">You are logged in as an editor. Editors can edit nodes but cannot access the admin console. Only administrators can access the admin console.</p>
                 <p class="mt-3">
-                    <a href="edit/index.php" class="text-yellow-800 hover:underline text-sm font-medium mr-3">Go to Editor</a>
+                    <a href="../edit/index.php" class="text-yellow-800 hover:underline text-sm font-medium mr-3">Go to Editor</a>
                     <a href="logout.php" class="text-yellow-800 hover:underline text-sm font-medium">Logout</a>
                 </p>
             </div>
@@ -139,7 +139,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
         </form>
         
         <div class="mt-6 text-center">
-            <a href="index.php" class="text-blue-500 hover:underline text-sm">← Back to Telaris</a>
+            <a href="../index.php" class="text-blue-500 hover:underline text-sm">← Back to Telaris</a>
         </div>
     </div>
 </body>

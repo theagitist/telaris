@@ -4,7 +4,7 @@ declare(strict_types=1);
 // Set Content-Type header
 header('Content-Type: text/html; charset=UTF-8');
 
-require_once '../auth.php';
+require_once '../utils/auth.php';
 requireEditorOrAdminLogin();
 
 require_once '../config.php';
@@ -13,6 +13,25 @@ $pdo = getDB();
 
 // Get default API key for API calls (using function from config.php)
 $apiKey = getDefaultApiKey($pdo);
+
+$projectInfo = db_get_project_info();
+$projectName = $projectInfo !== null ? (string)($projectInfo['name'] ?? 'Telaris') : 'Telaris';
+$projectTagline = db_get_project_description(); // Read directly from project_info.description
+$projectIframeBackText = $projectInfo !== null ? (string)($projectInfo['iframe_back_text'] ?? 'Go back') : 'Go back';
+$projectAlertMessage = $projectInfo !== null ? (string)($projectInfo['alert_message'] ?? "Close this window when you're done to go back.") : "Close this window when you're done to go back.";
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_settings') {
+    $projectName = trim((string) ($_POST['project_name'] ?? ''));
+    $projectTagline = trim((string) ($_POST['project_tagline'] ?? ''));
+    $projectIframeBackText = trim((string) ($_POST['iframe_back_text'] ?? 'Go back'));
+    $projectAlertMessage = trim((string) ($_POST['alert_message'] ?? "Close this window when you're done to go back."));
+    if ($projectName !== '' && $projectIframeBackText !== '' && $projectAlertMessage !== '') {
+        db_update_project_settings($projectName, $projectTagline, $projectIframeBackText, $projectAlertMessage);
+        header('Location: index.php?tab=settings&saved=1');
+        exit;
+    }
+    $settingsError = 'App name, iframe button text, and alert message are required.';
+}
 
 $userName = $_SESSION['admin_user_name'] ?? 'User';
 $userType = (int)($_SESSION['admin_user_type'] ?? 0);
@@ -44,7 +63,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         Admin Console
                     </a>
                     <?php endif; ?>
-                    <a href="../logout.php" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded">
+                    <a href="../utils/logout.php" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded">
                         Logout
                     </a>
                 </div>
@@ -55,6 +74,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <div class="mb-5 p-4 bg-red-50 border-2 border-red-500 rounded">
             <p class="text-red-800 font-semibold">⚠️ Error: No active API key found. Please contact an administrator.</p>
         </div>
+        <?php endif; ?>
+
+        <?php if (isset($_GET['saved']) && $_GET['saved'] === '1'): ?>
+        <div class="mb-5 p-4 bg-green-50 border border-green-500 rounded text-green-800">Settings saved.</div>
+        <?php endif; ?>
+        <?php if (isset($settingsError)): ?>
+        <div class="mb-5 p-4 bg-red-50 border border-red-500 rounded text-red-800"><?php echo htmlspecialchars($settingsError); ?></div>
         <?php endif; ?>
 
         <!-- Messages -->
@@ -73,6 +99,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             id="tab-list"
                             class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">
                         List Existing Nodes
+                    </button>
+                    <button onclick="showTab('settings')" 
+                            id="tab-settings"
+                            class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+                        Settings
                     </button>
                 </nav>
             </div>
@@ -161,6 +192,38 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     </div>
                     <p class="text-gray-500 p-4" id="loading-message">Loading nodes...</p>
                 </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="content-settings" class="p-6 hidden">
+                <form method="post" action="" class="space-y-4 max-w-2xl">
+                    <input type="hidden" name="action" value="save_settings">
+                    <div>
+                        <label for="project_name" class="block mb-1.5 text-gray-800 font-medium">App name</label>
+                        <input type="text" id="project_name" name="project_name" value="<?php echo htmlspecialchars($projectName); ?>" required
+                               class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="project_tagline" class="block mb-1.5 text-gray-800 font-medium">Description</label>
+                        <input type="text" id="project_tagline" name="project_tagline" value="<?php echo htmlspecialchars($projectTagline); ?>"
+                               class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="iframe_back_text" class="block mb-1.5 text-gray-800 font-medium">Iframe button text</label>
+                        <input type="text" id="iframe_back_text" name="iframe_back_text" value="<?php echo htmlspecialchars($projectIframeBackText); ?>" required
+                               class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <span class="text-xs text-gray-500 mt-1 block">Text shown on the “Go back” button in the link window (e.g. “Go back”).</span>
+                    </div>
+                    <div>
+                        <label for="alert_message" class="block mb-1.5 text-gray-800 font-medium">Alert message</label>
+                        <textarea id="alert_message" name="alert_message" rows="3" required
+                                  class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"><?php echo htmlspecialchars($projectAlertMessage); ?></textarea>
+                        <span class="text-xs text-gray-500 mt-1 block">Message shown in the alert when a link cannot be embedded (e.g. “Close this window when you're done to go back.”).</span>
+                    </div>
+                    <div>
+                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">Save settings</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -810,9 +873,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             // Hide all tab contents
             document.getElementById('content-add').classList.add('hidden');
             document.getElementById('content-list').classList.add('hidden');
+            const contentSettings = document.getElementById('content-settings');
+            if (contentSettings) contentSettings.classList.add('hidden');
             
             // Remove active styling from all tabs
-            const tabs = ['add', 'list'];
+            const tabs = ['add', 'list', 'settings'];
             tabs.forEach(tab => {
                 const tabElement = document.getElementById('tab-' + tab);
                 if (tabElement) {

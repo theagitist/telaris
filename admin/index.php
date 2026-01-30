@@ -140,7 +140,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             
             'logout' => (function(): void {
                 logoutAdmin();
-                header('Location: /login.php');
+                header('Location: ../utils/login.php');
                 exit();
             })(),
             

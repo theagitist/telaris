@@ -13,6 +13,8 @@ $r = isset($_GET['r']) ? (int) $_GET['r'] : 60;
 $g = isset($_GET['g']) ? (int) $_GET['g'] : 60;
 $b = isset($_GET['b']) ? (int) $_GET['b'] : 80;
 $app = isset($_GET['app']) ? trim((string) $_GET['app']) : 'Telaris';
+$iframeBackText = isset($_GET['iframe_text']) ? trim((string) $_GET['iframe_text']) : 'Go back';
+$alertMessage = isset($_GET['alert_msg']) ? trim((string) $_GET['alert_msg']) : "Close this window when you're done to go back.";
 
 // Only allow http/https URLs
 $allowed = preg_match('#^https?://#i', $url);
@@ -53,7 +55,7 @@ if ($url !== '') {
     }
     if ($blocksFraming) {
         $appEsc = htmlspecialchars($app, ENT_QUOTES, 'UTF-8');
-        $message = "Close this window when you're done to go back to " . $app . ".";
+        $message = $alertMessage;
         $messageJson = json_encode($message, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
         $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
         header('Content-Type: text/html; charset=UTF-8');
@@ -117,7 +119,7 @@ $urlEsc = $url !== '' ? htmlspecialchars($url, ENT_QUOTES, 'UTF-8') : '';
 </head>
 <body>
     <div id="toolbar">
-        <button type="button" onclick="window.close();" aria-label="Go back to app">← Go back to <?php echo $appEsc; ?></button>
+        <button type="button" onclick="window.close();" aria-label="<?php echo htmlspecialchars($iframeBackText, ENT_QUOTES, 'UTF-8'); ?>">← <?php echo htmlspecialchars($iframeBackText, ENT_QUOTES, 'UTF-8'); ?></button>
     </div>
     <?php if ($url !== ''): ?>
         <iframe id="content" title="Link content" src="<?php echo $urlEsc; ?>"></iframe>

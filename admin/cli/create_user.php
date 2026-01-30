@@ -159,7 +159,7 @@ try {
         echo "  Name: $firstname $lastname\n";
         echo "  Email: $email\n";
         echo "  Type: " . ($userType === USER_TYPE_ADMIN ? 'Admin' : 'Editor') . "\n";
-        echo "\nThe user can now login at /login.php\n";
+        echo "\nThe user can now login at /utils/login.php\n";
     } else {
         echo "✗ ERROR: Failed to create user: $result\n";
         exit(1);

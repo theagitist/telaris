@@ -66,7 +66,10 @@ const USE_MORE_COLOR_VARIETY = true;
                 const g = (d && d.colorG !== undefined) ? d.colorG : 60;
                 const b = (d && d.colorB !== undefined) ? d.colorB : 80;
                 const app = typeof window.TELARIS_APP_NAME === 'string' ? window.TELARIS_APP_NAME : 'Telaris';
-                const frameUrl = 'frame.php?url=' + encodeURIComponent(url) + '&r=' + r + '&g=' + g + '&b=' + b + '&app=' + encodeURIComponent(app);
+                const iframeText = typeof window.TELARIS_IFRAME_BACK_TEXT === 'string' ? window.TELARIS_IFRAME_BACK_TEXT : 'Go back';
+                const alertMsg = typeof window.TELARIS_ALERT_MESSAGE === 'string' ? window.TELARIS_ALERT_MESSAGE : "Close this window when you're done to go back.";
+                const frameUrl = 'utils/frame.php?url=' + encodeURIComponent(url) + '&r=' + r + '&g=' + g + '&b=' + b + '&app=' + encodeURIComponent(app)
+                    + '&iframe_text=' + encodeURIComponent(iframeText) + '&alert_msg=' + encodeURIComponent(alertMsg);
                 window.open(frameUrl, '_blank', 'noopener,noreferrer');
             }
 
@@ -237,6 +240,9 @@ const USE_MORE_COLOR_VARIETY = true;
                     // Don't create default nodes - only show what's in the database
                     this.nodeData = [];
                     this.clearAll();
+                } finally {
+                    const overlay = document.getElementById('loading-overlay');
+                    if (overlay) overlay.style.display = 'none';
                 }
             }
 

@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Provides functions for user authentication and authorization
  */
 
-require_once 'config.php';
+require_once __DIR__ . '/../config.php';
 
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
@@ -51,16 +51,13 @@ function isEditorOrAdminLoggedIn(): bool {
  */
 function requireAdminLogin(): void {
     if (!isAdminLoggedIn()) {
-        // Determine base path for login redirect
-        // If script is in admin directory, go up one level to root
+        // Determine base path for login redirect (login is in utils/)
         $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
         $basePath = '';
         if (strpos($scriptName, '/admin/') !== false || strpos($scriptName, 'admin/') !== false) {
             $basePath = '../';
         }
-        
-        // Always redirect to admin after login for admin pages
-        header('Location: ' . $basePath . 'login.php?redirect=admin');
+        header('Location: ' . $basePath . 'utils/login.php?redirect=admin');
         exit();
     }
 }
@@ -70,27 +67,20 @@ function requireAdminLogin(): void {
  */
 function requireEditorOrAdminLogin(): void {
     if (!isEditorOrAdminLoggedIn()) {
-        // Determine redirect target based on current request URI or script path
         $requestUri = $_SERVER['REQUEST_URI'] ?? '';
         $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-        $redirectTarget = 'admin'; // default
-        
-        // Check if request is coming from edit directory
+        $redirectTarget = 'admin';
         if (strpos($requestUri, '/edit/') !== false || 
             strpos($requestUri, 'edit/') !== false ||
             strpos($scriptName, '/edit/') !== false ||
             strpos($scriptName, 'edit/') !== false) {
             $redirectTarget = 'edit';
         }
-        
-        // Determine base path for login redirect
-        // If script is in edit directory, go up one level to root
         $basePath = '';
         if (strpos($scriptName, '/edit/') !== false || strpos($scriptName, 'edit/') !== false) {
             $basePath = '../';
         }
-        
-        header('Location: ' . $basePath . 'login.php?redirect=' . urlencode($redirectTarget));
+        header('Location: ' . $basePath . 'utils/login.php?redirect=' . urlencode($redirectTarget));
         exit();
     }
 }

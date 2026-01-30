@@ -59,7 +59,7 @@ The setup script follows this 4-step process:
 After setup, you can access:
 
 - **Main Visualization**: `https://your-domain.com/` or `https://your-domain.com/index.php`
-- **Login Page**: `https://your-domain.com/login.php`
+- **Login Page**: `https://your-domain.com/utils/login.php`
 - **Admin Console**: `https://your-domain.com/admin/` (requires admin login)
 - **Node Editor**: `https://your-domain.com/edit/` (requires editor or admin login)
 
@@ -238,13 +238,14 @@ telaris.polivoxia.ca/
 │   ├── telaris-network.js # 3D scene, nodes, connections, tooltips, controls
 │   ├── telaris-node-icons.js # Constellation-themed node mesh creation
 │   └── tailwind.min.js   # Tailwind CSS
-├── auth.php              # User authentication (root)
 ├── config_default.php    # Configuration template (with empty database values)
 ├── config.php            # Generated configuration (created by admin/setup.php, in .gitignore)
-├── frame.php             # New-window frame for node links (toolbar + iframe/redirect)
 ├── index.php             # Main entry; loads bootstrap + main view
-├── login.php             # Login page with context-aware redirects
-├── logout.php            # Logout handler (root)
+├── utils/
+│   ├── auth.php          # User authentication helpers
+│   ├── frame.php         # New-window frame for node links (toolbar + iframe/redirect)
+│   ├── login.php         # Login page with context-aware redirects
+│   └── logout.php        # Logout handler
 ├── README.md             # This file
 └── VERSION               # Current version (e.g. 2.0.0)
 ```

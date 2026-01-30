@@ -129,6 +129,8 @@ CREATE TABLE IF NOT EXISTS project_info (
     id INT PRIMARY KEY DEFAULT 1,
     name VARCHAR(255) NOT NULL DEFAULT 'Telaris',
     description TEXT NOT NULL,
+    iframe_back_text VARCHAR(255) NOT NULL DEFAULT 'Go back',
+    alert_message TEXT NOT NULL DEFAULT 'Close this window when you''re done to go back.',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CHECK (id = 1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1082,7 +1084,7 @@ if ($pdo && !$adminUserCreated) {
         <?php elseif ($adminUserCreated): ?>
             <div class="mb-5 p-4 bg-green-50 border-2 border-green-500 rounded">
                 <p class="text-green-800 font-semibold">✓ Admin user created successfully!</p>
-                <p class="text-green-700 text-sm mt-2">You can now login at the <a href="../login.php" class="underline font-medium">login page</a>.</p>
+                <p class="text-green-700 text-sm mt-2">You can now login at the <a href="../utils/login.php" class="underline font-medium">login page</a>.</p>
             </div>
         <?php endif; ?>
         
