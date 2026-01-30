@@ -63,11 +63,31 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
         .persistent-tooltip-item {
             transition: opacity 0.75s ease-in-out;
         }
+        #starfield-background {
+            pointer-events: none;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .star-dot {
+            position: absolute;
+            border-radius: 50%;
+            background: #fff;
+            will-change: opacity;
+        }
+        @keyframes star-blink {
+            0%, 100% { opacity: 0.2; }
+            50% { opacity: 1; }
+        }
     </style>
 </head>
 <body class="overflow-hidden bg-black font-sans">
-        <div id="canvas-container" class="w-screen h-screen relative" style="position: relative;">
-        <canvas class="block" style="position: relative; z-index: 1;"></canvas>
+        <div id="canvas-container" class="relative" style="position: relative; width: 100vw; height: 100vh; min-height: 100vh;">
+        <div id="starfield-background" class="absolute z-0" style="inset: 0;" aria-hidden="true"></div>
+        <div id="webgl-canvas-wrapper" class="absolute inset-0" style="z-index: 1;"></div>
         <div id="persistent-tooltips" class="absolute inset-0 pointer-events-none z-[150]" style="font-family: inherit;"></div>
         <div id="node-tooltip" class="absolute px-3 py-2 rounded text-sm pointer-events-none z-[200]" style="font-family: inherit; opacity: 0; visibility: hidden;"></div>
     </div>
@@ -125,7 +145,8 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 );
                 this.renderer = new THREE.WebGLRenderer({ 
                     antialias: true,
-                    alpha: true 
+                    alpha: true,
+                    premultipliedAlpha: false
                 });
                 
                 this.nodes = [];
@@ -170,6 +191,27 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 this.lastInteractionAt = performance.now();
             }
 
+            initStarfield(container) {
+                const starfield = document.getElementById('starfield-background');
+                if (!starfield) return;
+                const starCount = 180;
+                for (let i = 0; i < starCount; i++) {
+                    const star = document.createElement('div');
+                    star.className = 'star-dot';
+                    star.style.left = (Math.random() * 100) + '%';
+                    star.style.top = (Math.random() * 100) + '%';
+                    const size = 1 + Math.random() * 2;
+                    star.style.width = size + 'px';
+                    star.style.height = size + 'px';
+                    const gray = Math.floor(180 + Math.random() * 75);
+                    star.style.background = `rgb(${gray},${gray},${gray + 20})`;
+                    const duration = 1.8 + Math.random() * 2.8;
+                    const delay = Math.random() * 4;
+                    star.style.animation = `star-blink ${duration}s ease-in-out ${delay}s infinite`;
+                    starfield.appendChild(star);
+                }
+            }
+
             hideMainTooltip() {
                 if (!this.tooltip) return;
                 if (this.tooltipHideTimeout) {
@@ -186,13 +228,23 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 // Setup renderer
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
                 this.renderer.setPixelRatio(window.devicePixelRatio);
-                this.renderer.setClearColor(0x000000, 1);
+                this.renderer.setClearColor(0x000000, 0);
                 const canvasElement = this.renderer.domElement;
-                canvasElement.style.position = 'relative';
-                canvasElement.style.zIndex = '1';
+                canvasElement.style.position = 'absolute';
+                canvasElement.style.left = '0';
+                canvasElement.style.top = '0';
+                canvasElement.style.width = '100%';
+                canvasElement.style.height = '100%';
+                canvasElement.style.display = 'block';
+                canvasElement.style.backgroundColor = 'transparent';
                 const canvasContainer = document.getElementById('canvas-container');
-                canvasContainer.appendChild(canvasElement);
-                // Move tooltip on top of canvas so it is visible (canvas was appended after tooltip in DOM)
+                const canvasWrapper = document.getElementById('webgl-canvas-wrapper');
+                this.initStarfield(canvasContainer);
+                if (canvasWrapper) {
+                    canvasWrapper.appendChild(canvasElement);
+                } else {
+                    canvasContainer.appendChild(canvasElement);
+                }
                 canvasContainer.appendChild(this.tooltip);
 
                 // Setup camera
@@ -859,13 +911,14 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 if (maxAbsZ === 0) maxAbsZ = 1;
 
                 // Safe bounds: use perspective frustum so all nodes are visible at load.
-                // Visible X/Y shrink for points closer to camera (larger z); use extent at z = zMax.
-                const marginFactor = 1.0;
-                const distAtClosestZ = Math.max(0.1, cameraZ - layoutBounds.zMax);
+                // Use distance to front of *scaled* cloud (safeZ) so X/Y bounds match what's visible at that plane.
+                const marginFactor = 0.95;
+                const safeZ = layoutBounds.zMax * marginFactor;
+                const distAtClosestZ = Math.max(0.1, cameraZ - safeZ);
                 const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5));
                 const safeX = distAtClosestZ * tanHalfFov * this.camera.aspect * marginFactor;
-                const safeY = distAtClosestZ * tanHalfFov * marginFactor;
-                const safeZ = layoutBounds.zMax * marginFactor;
+                // Y: extra headroom (0.82) so nodes + animation stay on screen at top/bottom
+                const safeY = Math.max(1, distAtClosestZ * tanHalfFov * marginFactor * 0.82);
 
                 const scaleX = safeX / maxAbsX;
                 const scaleY = safeY / maxAbsY;
