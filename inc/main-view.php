@@ -9,6 +9,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/favicon.png" type="image/png">
     <title><?php echo htmlspecialchars($projectName); ?></title>
     <meta name="description" content="<?php echo htmlspecialchars($projectTagline); ?>">
     <meta property="og:title" content="<?php echo htmlspecialchars($projectName); ?>">

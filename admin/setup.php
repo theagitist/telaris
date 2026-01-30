@@ -577,6 +577,7 @@ if ($showWebsiteForm) {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="icon" href="/favicon.png" type="image/png">
         <title>Telaris - Setup</title>
         <script src="../js/tailwind.min.js"></script>
     </head>
@@ -623,6 +624,7 @@ if ($showForm) {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="icon" href="/favicon.png" type="image/png">
         <title>Telaris - Setup</title>
         <script src="../js/tailwind.min.js"></script>
     </head>
@@ -935,6 +937,7 @@ if ($pdo && !$adminUserCreated) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/favicon.png" type="image/png">
     <title>Telaris - Setup</title>
     <script src="js/tailwind.min.js"></script>
 </head>
