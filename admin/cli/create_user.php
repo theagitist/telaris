@@ -42,47 +42,6 @@ function readPassword(string $prompt): string {
     return $password;
 }
 
-/**
- * Create a user in the database
- */
-function createUser(PDO $pdo, string $email, string $password, string $firstname, string $lastname, int $type): ?string {
-    try {
-        // Check if email already exists
-        $checkStmt = $pdo->prepare("SELECT id FROM users WHERE email = :email");
-        $checkStmt->execute([':email' => $email]);
-        if ($checkStmt->fetch()) {
-            return 'Email already exists';
-        }
-        
-        // Hash password
-        $hashedPassword = hashPassword($password);
-        if ($hashedPassword === false) {
-            return 'Failed to hash password';
-        }
-        
-        // Generate user ID
-        $userId = 'user_' . bin2hex(random_bytes(8));
-        
-        // Insert user
-        $stmt = $pdo->prepare("
-            INSERT INTO users (id, email, password, firstname, lastname, type)
-            VALUES (:id, :email, :password, :firstname, :lastname, :type)
-        ");
-        $stmt->execute([
-            ':id' => $userId,
-            ':email' => $email,
-            ':password' => $hashedPassword,
-            ':firstname' => $firstname,
-            ':lastname' => $lastname,
-            ':type' => $type
-        ]);
-        
-        return null; // Success
-    } catch (PDOException $e) {
-        return $e->getMessage();
-    }
-}
-
 // Main execution
 echo "Telaris - Create User\n";
 echo "=====================\n\n";
@@ -191,7 +150,8 @@ try {
     
     // Create user
     echo "\nCreating user...\n";
-    $result = createUser($pdo, $email, $password, $firstname, $lastname, $userType);
+    $hashedPassword = hashPassword($password);
+    $result = createUser($pdo, $email, $hashedPassword, $firstname, $lastname, $userType);
     
     if ($result === null) {
         echo "✓ User created successfully!\n";

@@ -26,64 +26,7 @@ if ($configExists) {
     require_once $configPath;
 }
 
-/**
- * Get all table names from the database
- */
-function getAllTables(PDO $pdo): array {
-    try {
-        $stmt = $pdo->query("SHOW TABLES");
-        // SHOW TABLES returns results with a dynamic column name (the database name)
-        // Use FETCH_NUM to get the first column regardless of name
-        $tables = $stmt->fetchAll(PDO::FETCH_NUM);
-        return array_column($tables, 0);
-    } catch (PDOException $e) {
-        return [];
-    }
-}
-
-/**
- * Drop all tables from the database
- */
-function dropAllTables(PDO $pdo): array {
-    $dropped = [];
-    $errors = [];
-    
-    try {
-        // Disable foreign key checks to avoid constraint issues
-        $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
-        
-        // Get all tables
-        $tables = getAllTables($pdo);
-        
-        if (empty($tables)) {
-            return ['dropped' => [], 'errors' => []];
-        }
-        
-        // Drop each table
-        foreach ($tables as $table) {
-            try {
-                $pdo->exec("DROP TABLE IF EXISTS `$table`");
-                $dropped[] = $table;
-            } catch (PDOException $e) {
-                $errors[] = "Failed to drop table '$table': " . $e->getMessage();
-            }
-        }
-        
-        // Re-enable foreign key checks
-        $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
-        
-    } catch (PDOException $e) {
-        // Re-enable foreign key checks even on error
-        try {
-            $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
-        } catch (PDOException $e2) {
-            // Ignore
-        }
-        $errors[] = "Database error: " . $e->getMessage();
-    }
-    
-    return ['dropped' => $dropped, 'errors' => $errors];
-}
+// getAllTables and dropAllTables are in inc/db.php (loaded via config.php)
 
 // Main execution
 echo "Telaris - Hard Reset\n";

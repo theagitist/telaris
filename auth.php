@@ -137,38 +137,19 @@ function passwordNeedsRehash(string $hash): bool {
  */
 function authenticateUser(string $email, string $password): ?array {
     try {
-        $pdo = getDB();
-        $stmt = $pdo->prepare("
-            SELECT id, email, password, firstname, lastname, type 
-            FROM users 
-            WHERE email = :email
-        ");
-        $stmt->execute([':email' => $email]);
-        $user = $stmt->fetch();
-        
-        if ($user && verifyPassword($password, $user['password'])) {
-            // Check if password hash needs to be updated (e.g., if cost factor changed)
-            if (passwordNeedsRehash($user['password'])) {
-                $newHash = hashPassword($password);
-                $updateHashStmt = $pdo->prepare("UPDATE users SET password = :password WHERE id = :id");
-                $updateHashStmt->execute([':password' => $newHash, ':id' => $user['id']]);
-            }
-            
-            // Check if user is editor (type 1) or admin (type 2)
-            $userType = (int)$user['type'];
-            if ($userType === USER_TYPE_EDITOR || $userType === USER_TYPE_ADMIN) {
-                // Update last login
-                $updateStmt = $pdo->prepare("
-                    UPDATE users 
-                    SET date_last_login = CURRENT_TIMESTAMP 
-                    WHERE id = :id
-                ");
-                $updateStmt->execute([':id' => $user['id']]);
-                
-                return $user;
-            }
+        $user = db_get_user_by_email($email);
+        if (!$user || !verifyPassword($password, $user['password'])) {
+            return null;
         }
-        
+        if (passwordNeedsRehash($user['password'])) {
+            $newHash = hashPassword($password);
+            db_update_user_password($user['id'], $newHash);
+        }
+        $userType = (int)$user['type'];
+        if ($userType === USER_TYPE_EDITOR || $userType === USER_TYPE_ADMIN) {
+            db_update_user_last_login($user['id']);
+            return $user;
+        }
         return null;
     } catch (PDOException $e) {
         return null;

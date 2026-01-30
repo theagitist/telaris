@@ -195,53 +195,6 @@ function testConnection(string $host, string $port, string $dbname, string $user
     }
 }
 
-// Function to check if any admin user exists
-function hasAdminUser(PDO $pdo): bool {
-    try {
-        $stmt = $pdo->query("SELECT id FROM users WHERE type = 2 LIMIT 1");
-        return $stmt->fetch() !== false;
-    } catch (PDOException $e) {
-        return false;
-    }
-}
-
-// Function to create admin user
-function createAdminUser(PDO $pdo, string $email, string $password, string $firstname, string $lastname): ?string {
-    try {
-        // Check if email already exists
-        $checkStmt = $pdo->prepare("SELECT id FROM users WHERE email = :email");
-        $checkStmt->execute([':email' => $email]);
-        if ($checkStmt->fetch()) {
-            return 'Email already exists';
-        }
-        
-        // Create admin user (type 2 = USER_TYPE_ADMIN)
-        // Security: Always hash passwords with bcrypt (includes automatic salting)
-        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-        if ($hashedPassword === false) {
-            return 'Failed to hash password';
-        }
-        $userId = 'admin_' . bin2hex(random_bytes(8));
-        
-        $stmt = $pdo->prepare("
-            INSERT INTO users (id, email, password, firstname, lastname, type)
-            VALUES (:id, :email, :password, :firstname, :lastname, :type)
-        ");
-        $stmt->execute([
-            ':id' => $userId,
-            ':email' => $email,
-            ':password' => $hashedPassword,
-            ':firstname' => $firstname,
-            ':lastname' => $lastname,
-            ':type' => 2  // USER_TYPE_ADMIN
-        ]);
-        
-        return null; // Success
-    } catch (PDOException $e) {
-        return $e->getMessage();
-    }
-}
-
 // Function to generate config.php content from config_default.php template
 function generateConfigContent(string $dbHost, string $dbPort, string $dbName, string $dbUser, string $dbPass): string {
     // Read the template file (config_default.php is in parent directory)
@@ -272,40 +225,6 @@ function generateConfigContent(string $dbHost, string $dbPort, string $dbName, s
     );
     
     return $template;
-}
-
-// Function to generate default API key
-function generateDefaultApiKey(PDO $pdo): ?string {
-    try {
-        // Check if default API key already exists using config.php function if available
-        // Fallback to direct query if config.php functions not yet available
-        if (function_exists('getDefaultApiKey')) {
-            $existing = getDefaultApiKey($pdo);
-            if ($existing) {
-                return $existing;
-            }
-        } else {
-            // Fallback: direct query (used during initial setup)
-            $stmt = $pdo->query("SELECT api_key FROM api_keys WHERE name = 'Default API Key' LIMIT 1");
-            $existing = $stmt->fetch();
-            if ($existing) {
-                return $existing['api_key'];
-            }
-        }
-        
-        // Generate a new API key
-        $apiKey = bin2hex(random_bytes(32));
-        
-        $stmt = $pdo->prepare("
-            INSERT INTO api_keys (api_key, name, description, is_active)
-            VALUES (:api_key, 'Default API Key', 'Automatically generated default API key for the application', TRUE)
-        ");
-        $stmt->execute([':api_key' => $apiKey]);
-        
-        return $apiKey;
-    } catch (PDOException $e) {
-        return null;
-    }
 }
 
 // Function to execute database schema
@@ -635,16 +554,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     // Update project_info table with website info
     try {
         require_once dirname(__DIR__) . '/config.php';
-        $pdo = getDB();
-        $projectStmt = $pdo->prepare("
-            UPDATE project_info 
-            SET name = :name, description = :description 
-            WHERE id = 1
-        ");
-        $projectStmt->execute([
-            ':name' => $websiteName,
-            ':description' => $websiteTagline
-        ]);
+        db_upsert_project_info($websiteName, $websiteTagline);
     } catch (Exception $e) {
         // Ignore errors, continue to admin user creation
     }
@@ -882,32 +792,12 @@ $adminUserCreated = false;
 
 $schemaDetails = null;
 
-// Only try to connect if config.php was loaded and we're not showing a form
+// Only try to connect if config.php exists and we're not showing a form
 $configPath = dirname(__DIR__) . '/config.php';
 if (!$showForm && !$showWebsiteForm && file_exists($configPath)) {
+    require_once $configPath;
     try {
-        // Use extracted config values to create connection, not constants
-        // This ensures we use the actual values from config.php file, not stale constants
-        $extractedConfig = extractConfigValues();
-        if ($extractedConfig && !empty($extractedConfig['DB_HOST'])) {
-            $pdo = new PDO(
-                sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', 
-                    $extractedConfig['DB_HOST'], 
-                    $extractedConfig['DB_PORT'], 
-                    $extractedConfig['DB_NAME']
-                ),
-                $extractedConfig['DB_USER'],
-                $extractedConfig['DB_PASS'],
-                [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::ATTR_EMULATE_PREPARES => false,
-                ]
-            );
-        } else {
-            // If extraction failed, we can't connect - skip database operations
-            $pdo = null;
-        }
+        $pdo = getDB();
     
         if ($pdo) {
             // Get website info from session if available
@@ -975,17 +865,7 @@ if (!$showForm && !$showWebsiteForm && file_exists($configPath)) {
             $projectName = $_SESSION['website_name'] ?? 'Telaris';
             $projectDescription = $_SESSION['website_tagline'] ?? 'Weaving memory';
             
-            $projectStmt = $pdo->prepare("
-                INSERT INTO project_info (id, name, description) 
-                VALUES (1, :name, :description)
-                ON DUPLICATE KEY UPDATE name = :name_update, description = :description_update
-            ");
-            $projectStmt->execute([
-                ':name' => $projectName,
-                ':description' => $projectDescription,
-                ':name_update' => $projectName,
-                ':description_update' => $projectDescription
-            ]);
+            db_upsert_project_info($projectName, $projectDescription);
             
             if (!isset($message)) {
                 $message = "Setup complete! Project information initialized.";

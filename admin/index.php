@@ -17,7 +17,6 @@ requireAdminLogin();
 
 require_once '../config.php';
 
-$pdo = getDB();
 $message = null;
 $error = null;
 $activeTab = $_GET['tab'] ?? 'users';
@@ -30,210 +29,111 @@ if (isset($_GET['edit_user'])) {
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     try {
         match ($_POST['action']) {
-            'generate' => (function() use ($pdo): void {
+            'generate' => (function(): void {
                 global $message, $activeTab;
                 $name = trim($_POST['name'] ?? '');
                 $description = trim($_POST['description'] ?? '');
-                
                 if (empty($name)) {
                     throw new Exception('API key name is required');
                 }
-                
-                // Generate a secure API key (64 characters)
                 $apiKey = bin2hex(random_bytes(32));
-                
-                $stmt = $pdo->prepare("
-                    INSERT INTO api_keys (api_key, name, description)
-                    VALUES (:api_key, :name, :description)
-                ");
-                $stmt->execute([
-                    ':api_key' => $apiKey,
-                    ':name' => $name,
-                    ':description' => $description ?: null
-                ]);
-                
+                db_insert_api_key($apiKey, $name, $description ?: null);
                 $_SESSION['new_api_key'] = $apiKey;
                 $_SESSION['new_api_key_name'] = $name;
                 header('Location: index.php?tab=api-keys&generated=1');
                 exit();
             })(),
             
-            'toggle' => (function() use ($pdo): void {
+            'toggle' => (function(): void {
                 global $message, $activeTab;
                 $id = (int)($_POST['id'] ?? 0);
                 $isActive = (bool)($_POST['is_active'] ?? false);
-                
-                $stmt = $pdo->prepare("
-                    UPDATE api_keys 
-                    SET is_active = :is_active 
-                    WHERE id = :id
-                ");
-                $stmt->execute([
-                    ':id' => $id,
-                    ':is_active' => $isActive ? 1 : 0
-                ]);
-                
+                db_toggle_api_key($id, $isActive);
                 $message = 'API key ' . ($isActive ? 'activated' : 'deactivated') . ' successfully.';
                 $activeTab = 'api-keys';
             })(),
             
-            'delete' => (function() use ($pdo): void {
+            'delete' => (function(): void {
                 global $message, $activeTab;
                 $id = (int)($_POST['id'] ?? 0);
-                
-                $stmt = $pdo->prepare("DELETE FROM api_keys WHERE id = :id");
-                $stmt->execute([':id' => $id]);
-                
+                db_delete_api_key($id);
                 $message = 'API key deleted successfully.';
                 $activeTab = 'api-keys';
             })(),
             
-            'create_user' => (function() use ($pdo): void {
+            'create_user' => (function(): void {
                 global $message, $error, $activeTab;
-                require_once '../auth.php';
-                
                 $email = trim($_POST['email'] ?? '');
                 $firstname = trim($_POST['firstname'] ?? '');
                 $lastname = trim($_POST['lastname'] ?? '');
                 $password = $_POST['password'] ?? '';
                 $type = (int)($_POST['type'] ?? 0);
-                
                 if (empty($email) || empty($firstname) || empty($lastname) || empty($password)) {
                     throw new Exception('All fields are required');
                 }
-                
                 if (strlen($password) < 8) {
                     throw new Exception('Password must be at least 8 characters long');
                 }
-                
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     throw new Exception('Invalid email format');
                 }
-                
                 if ($type !== 1 && $type !== 2) {
                     throw new Exception('User type must be Editor (1) or Admin (2)');
                 }
-                
-                // Check if email already exists
-                $checkStmt = $pdo->prepare("SELECT id FROM users WHERE email = :email");
-                $checkStmt->execute([':email' => $email]);
-                if ($checkStmt->fetch()) {
+                if (db_user_email_exists($email)) {
                     throw new Exception('Email already exists');
                 }
-                
-                // Generate unique user ID
-                $userId = bin2hex(random_bytes(16));
-                
-                // Hash password
                 $hashedPassword = hashPassword($password);
-                
-                $stmt = $pdo->prepare("
-                    INSERT INTO users (id, email, password, firstname, lastname, type)
-                    VALUES (:id, :email, :password, :firstname, :lastname, :type)
-                ");
-                $stmt->execute([
-                    ':id' => $userId,
-                    ':email' => $email,
-                    ':password' => $hashedPassword,
-                    ':firstname' => $firstname,
-                    ':lastname' => $lastname,
-                    ':type' => $type
-                ]);
-                
+                $err = createUser(getDB(), $email, $hashedPassword, $firstname, $lastname, $type);
+                if ($err !== null) {
+                    throw new Exception($err);
+                }
                 $message = 'User created successfully.';
                 $activeTab = 'users';
             })(),
             
-            'update_user' => (function() use ($pdo): void {
+            'update_user' => (function(): void {
                 global $message, $error, $activeTab;
-                require_once '../auth.php';
-                
                 $id = trim($_POST['id'] ?? '');
                 $email = trim($_POST['email'] ?? '');
                 $firstname = trim($_POST['firstname'] ?? '');
                 $lastname = trim($_POST['lastname'] ?? '');
                 $password = $_POST['password'] ?? '';
                 $type = (int)($_POST['type'] ?? 0);
-                
                 if (empty($id) || empty($email) || empty($firstname) || empty($lastname)) {
                     throw new Exception('All required fields must be filled');
                 }
-                
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     throw new Exception('Invalid email format');
                 }
-                
                 if ($type !== 1 && $type !== 2) {
                     throw new Exception('User type must be Editor (1) or Admin (2)');
                 }
-                
-                // Check if email already exists for another user
-                $checkStmt = $pdo->prepare("SELECT id FROM users WHERE email = :email AND id != :id");
-                $checkStmt->execute([':email' => $email, ':id' => $id]);
-                if ($checkStmt->fetch()) {
+                if (db_user_email_exists($email, $id)) {
                     throw new Exception('Email already exists for another user');
                 }
-                
-                // Don't allow changing own type to non-admin
                 if ($id === ($_SESSION['admin_user_id'] ?? '') && $type !== USER_TYPE_ADMIN) {
                     throw new Exception('You cannot change your own user type');
                 }
-                
-                // Update user
-                if (!empty($password)) {
-                    if (strlen($password) < 8) {
-                        throw new Exception('Password must be at least 8 characters long');
-                    }
-                    $hashedPassword = hashPassword($password);
-                    $stmt = $pdo->prepare("
-                        UPDATE users 
-                        SET email = :email, firstname = :firstname, lastname = :lastname, 
-                            password = :password, type = :type
-                        WHERE id = :id
-                    ");
-                    $stmt->execute([
-                        ':id' => $id,
-                        ':email' => $email,
-                        ':firstname' => $firstname,
-                        ':lastname' => $lastname,
-                        ':password' => $hashedPassword,
-                        ':type' => $type
-                    ]);
-                } else {
-                    $stmt = $pdo->prepare("
-                        UPDATE users 
-                        SET email = :email, firstname = :firstname, lastname = :lastname, type = :type
-                        WHERE id = :id
-                    ");
-                    $stmt->execute([
-                        ':id' => $id,
-                        ':email' => $email,
-                        ':firstname' => $firstname,
-                        ':lastname' => $lastname,
-                        ':type' => $type
-                    ]);
+                if (!empty($password) && strlen($password) < 8) {
+                    throw new Exception('Password must be at least 8 characters long');
                 }
-                
+                $hashedPassword = !empty($password) ? hashPassword($password) : null;
+                db_update_user($id, $email, $firstname, $lastname, $type, $hashedPassword);
                 $message = 'User updated successfully.';
                 $activeTab = 'users';
             })(),
             
-            'delete_user' => (function() use ($pdo): void {
+            'delete_user' => (function(): void {
                 global $message, $error, $activeTab;
                 $id = trim($_POST['id'] ?? '');
-                
                 if (empty($id)) {
                     throw new Exception('User ID is required');
                 }
-                
-                // Don't allow deleting own account
                 if ($id === ($_SESSION['admin_user_id'] ?? '')) {
                     throw new Exception('You cannot delete your own account');
                 }
-                
-                $stmt = $pdo->prepare("DELETE FROM users WHERE id = :id");
-                $stmt->execute([':id' => $id]);
-                
+                db_delete_user($id);
                 $message = 'User deleted successfully.';
                 $activeTab = 'users';
             })(),
@@ -251,21 +151,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     }
 }
 
-// Get all API keys
-$stmt = $pdo->query("
-    SELECT id, api_key, name, description, created_at, last_used_at, is_active
-    FROM api_keys
-    ORDER BY created_at DESC
-");
-$apiKeys = $stmt->fetchAll();
-
-// Get all users
-$stmt = $pdo->query("
-    SELECT id, email, firstname, lastname, type, date_created, date_last_login
-    FROM users
-    ORDER BY date_created DESC
-");
-$users = $stmt->fetchAll();
+// Get all API keys and users
+$apiKeys = db_get_api_keys();
+$users = db_get_users();
 
 // Get user to edit if specified
 $editUser = null;

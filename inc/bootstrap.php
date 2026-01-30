@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Bootstrap: config check, DB, auth, project info.
  * Expects to be required from project root (e.g. index.php).
- * Sets: $pdo, $isEditorOrAdmin, $projectName, $projectTagline
+ * Sets: $isEditorOrAdmin, $projectName, $projectTagline
  */
 
 $root = dirname(__DIR__);
@@ -20,9 +20,7 @@ try {
         header('Location: admin/setup.php');
         exit();
     }
-    $pdo = getDB();
-    $tablesCheck = $pdo->query("SHOW TABLES LIKE 'project_info'")->fetch();
-    if ($tablesCheck === false) {
+    if (!db_has_project_table()) {
         header('Location: admin/setup.php');
         exit();
     }
@@ -39,14 +37,10 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
 
 $projectName = 'Telaris';
 $projectTagline = 'Weaving memory';
-try {
-    $info = $pdo->query("SELECT name, description FROM project_info WHERE id = 1 LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-    if ($info && !empty($info['name'])) {
-        $projectName = $info['name'];
-    }
-    if ($info && isset($info['description']) && (string)$info['description'] !== '') {
-        $projectTagline = $info['description'];
-    }
-} catch (PDOException $e) {
-    // keep defaults
+$info = db_get_project_info();
+if ($info && !empty($info['name'])) {
+    $projectName = $info['name'];
+}
+if ($info && isset($info['description']) && (string)$info['description'] !== '') {
+    $projectTagline = $info['description'];
 }

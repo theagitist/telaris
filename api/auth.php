@@ -13,34 +13,7 @@ require_once '../config.php';
  * Updates last_used_at timestamp on successful validation
  */
 function validateApiKey(PDO $pdo, string $apiKey): bool {
-    if (empty($apiKey)) {
-        return false;
-    }
-    
-    try {
-        $stmt = $pdo->prepare("
-            SELECT id, is_active 
-            FROM api_keys 
-            WHERE api_key = :api_key AND is_active = TRUE
-        ");
-        $stmt->execute([':api_key' => $apiKey]);
-        $result = $stmt->fetch();
-        
-        if ($result) {
-            // Update last_used_at timestamp
-            $updateStmt = $pdo->prepare("
-                UPDATE api_keys 
-                SET last_used_at = CURRENT_TIMESTAMP 
-                WHERE id = :id
-            ");
-            $updateStmt->execute([':id' => $result['id']]);
-            return true;
-        }
-        
-        return false;
-    } catch (PDOException $e) {
-        return false;
-    }
+    return db_validate_api_key($apiKey);
 }
 
 /**
@@ -102,7 +75,6 @@ function getApiKeyFromRequest(): ?string {
  * Exits with 401 error if API key is missing or invalid
  */
 function requireApiKey(): void {
-    $pdo = getDB();
     $apiKey = getApiKeyFromRequest();
     
     if (!$apiKey) {
@@ -119,7 +91,7 @@ function requireApiKey(): void {
         exit();
     }
     
-    if (!validateApiKey($pdo, $apiKey)) {
+    if (!db_validate_api_key($apiKey)) {
         http_response_code(401);
         header('Content-Type: application/json');
         echo json_encode([

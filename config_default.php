@@ -8,61 +8,7 @@ define('DB_NAME', '');
 define('DB_USER', '');
 define('DB_PASS', '');
 
-/**
- * Create database connection using PHP 8.3 features
- * @return PDO Database connection
- * @throws PDOException
- */
-function getDB(): PDO {
-    try {
-        $dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', DB_HOST, DB_PORT, DB_NAME);
-        $pdo = new PDO(
-            dsn: $dsn,
-            username: DB_USER,
-            password: DB_PASS,
-            options: [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-                PDO::MYSQL_ATTR_INIT_COMMAND => 'SET sql_mode = "STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"'
-            ]
-        );
-        return $pdo;
-    } catch (PDOException $e) {
-        // Only set HTTP headers if not running in CLI mode
-        if (php_sapi_name() !== 'cli') {
-            http_response_code(500);
-            die(json_encode(['error' => 'Database connection failed: ' . $e->getMessage()], JSON_THROW_ON_ERROR));
-        } else {
-            throw $e; // Re-throw for CLI scripts to handle
-        }
-    }
-}
-
-/**
- * Get the default API key from the database
- * 
- * @param PDO|null $pdo Optional database connection (uses getDB() if not provided)
- * @return string|null The API key if found, null otherwise
- */
-function getDefaultApiKey(?PDO $pdo = null): ?string {
-    try {
-        if ($pdo === null) {
-            $pdo = getDB();
-        }
-        
-        $stmt = $pdo->query("SELECT api_key FROM api_keys WHERE name = 'Default API Key' AND is_active = TRUE LIMIT 1");
-        $result = $stmt->fetch();
-        
-        if ($result) {
-            return $result['api_key'];
-        }
-        
-        return null;
-    } catch (PDOException $e) {
-        return null;
-    }
-}
+require_once __DIR__ . '/inc/db.php';
 
 /**
  * Set CORS headers for API responses (only in web context)
