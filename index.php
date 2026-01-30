@@ -69,7 +69,11 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($projectName); ?></title>
-    <meta name="description" content="Interactive 3D knowledge visualization">
+    <meta name="description" content="<?php echo htmlspecialchars($projectTagline); ?>">
+    <meta property="og:title" content="<?php echo htmlspecialchars($projectName); ?>">
+    <meta property="og:description" content="<?php echo htmlspecialchars($projectTagline); ?>">
+    <meta name="twitter:title" content="<?php echo htmlspecialchars($projectName); ?>">
+    <meta name="twitter:description" content="<?php echo htmlspecialchars($projectTagline); ?>">
     <script src="js/tailwind.min.js"></script>
     <style>
         #node-tooltip {
