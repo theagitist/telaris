@@ -756,6 +756,66 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     p.z *= scaleZ;
                 });
 
+                // Pull nodes with more keywords in common closer together (layout by affinity)
+                const getSharedByIndex = (i, j) => {
+                    const k1 = (this.nodeData[i] && this.nodeData[i].keywords) || [];
+                    const k2 = (this.nodeData[j] && this.nodeData[j].keywords) || [];
+                    return k1.filter(k => k2.includes(k)).length;
+                };
+                let maxShared = 0;
+                for (let i = 0; i < this.nodeData.length; i++) {
+                    for (let j = i + 1; j < this.nodeData.length; j++) {
+                        const c = getSharedByIndex(i, j);
+                        if (c > maxShared) maxShared = c;
+                    }
+                }
+                if (maxShared > 0) {
+                    const pullIterations = 12;
+                    const pullStrength = 0.25; // how much to move toward each other per iteration (scaled by affinity)
+                    const minDistance = 6.5; // minimum distance between nodes
+                    for (let iter = 0; iter < pullIterations; iter++) {
+                        for (let i = 0; i < this.nodeData.length; i++) {
+                            for (let j = i + 1; j < this.nodeData.length; j++) {
+                                const shared = getSharedByIndex(i, j);
+                                if (shared === 0) continue;
+                                const pct = shared / maxShared;
+                                const posI = rawPositions[i];
+                                const posJ = rawPositions[j];
+                                const diff = new THREE.Vector3().subVectors(posJ, posI);
+                                const dist = diff.length();
+                                if (dist < 0.001) continue;
+                                if (dist <= minDistance) continue; // already at or below minimum, don't pull closer
+                                diff.normalize();
+                                const desiredMove = pullStrength * pct * dist * 0.5;
+                                const maxMove = (dist - minDistance) * 0.5; // don't get closer than minDistance
+                                const move = Math.min(desiredMove, maxMove);
+                                posI.add(diff.clone().multiplyScalar(move));
+                                posJ.sub(diff.clone().multiplyScalar(move));
+                            }
+                        }
+                        // Re-center after each iteration to prevent drift
+                        const cent = new THREE.Vector3(0, 0, 0);
+                        rawPositions.forEach(p => cent.add(p));
+                        if (rawPositions.length > 0) cent.multiplyScalar(1 / rawPositions.length);
+                        rawPositions.forEach(p => p.sub(cent));
+                    }
+                    // Re-scale to fit safe bounds after pulling
+                    let maxAbsX = 0, maxAbsY = 0, maxAbsZ = 0;
+                    rawPositions.forEach(p => {
+                        maxAbsX = Math.max(maxAbsX, Math.abs(p.x));
+                        maxAbsY = Math.max(maxAbsY, Math.abs(p.y));
+                        maxAbsZ = Math.max(maxAbsZ, Math.abs(p.z));
+                    });
+                    if (maxAbsX === 0) maxAbsX = 1;
+                    if (maxAbsY === 0) maxAbsY = 1;
+                    if (maxAbsZ === 0) maxAbsZ = 1;
+                    rawPositions.forEach(p => {
+                        p.x *= safeX / maxAbsX;
+                        p.y *= safeY / maxAbsY;
+                        p.z *= safeZ / maxAbsZ;
+                    });
+                }
+
                 for (let i = 0; i < this.nodeData.length; i++) {
                     const nodeData = this.nodeData[i];
                     const anim = nodeData.animation;
@@ -836,6 +896,21 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
 
                 console.log(`Creating connections for ${this.nodes.length} nodes`);
 
+                // First pass: find max shared keywords between any pair (used as 100% for thickness)
+                let maxShared = 0;
+                for (let i = 0; i < this.nodes.length; i++) {
+                    for (let j = i + 1; j < this.nodes.length; j++) {
+                        const count = this.getSharedKeywordsCount(this.nodes[i], this.nodes[j]);
+                        if (count > maxShared) maxShared = count;
+                    }
+                }
+
+                // Thickness bands by strength (0–25%, 26–50%, 51–75%, 76–100%) – all relatively thin
+                const THINNEST = 0.006;
+                const MEDIUM_THIN = 0.012;
+                const MEDIUM_THICK = 0.018;
+                const THICKEST = 0.024;
+
                 let connectionIndex = 0; // Track connection index for unique colors
 
                 // Check all pairs of nodes
@@ -847,13 +922,27 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                         // Calculate shared keywords
                         const sharedCount = this.getSharedKeywordsCount(node1, node2);
                         
-                        // Only create connection if nodes share at least one keyword
+                        // Only create connection if nodes share at least one keyword (0% = no line)
                         if (sharedCount > 0) {
-                            // Calculate line thickness: 1px minimum, 7px maximum
-                            // Thickness scales linearly with shared keyword count (1-7 keywords = 1-7px)
-                            // Clamp sharedCount to 1-7 range, then scale: 1 keyword = 0.01 units (1px), 7 keywords = 0.07 units (7px)
-                            const clampedCount = Math.min(7, Math.max(1, sharedCount));
-                            const thickness = clampedCount * 0.01; // 0.01 units per keyword (representing 1px per keyword)
+                            const pct = maxShared > 0 ? sharedCount / maxShared : 1;
+                            // Thickness band: 0–25% thinnest, 26–50% medium-thin, 51–75% medium-thick, 76–100% thickest
+                            let thickness;
+                            if (pct <= 0.25) thickness = THINNEST;
+                            else if (pct <= 0.5) thickness = MEDIUM_THIN;
+                            else if (pct <= 0.75) thickness = MEDIUM_THICK;
+                            else thickness = THICKEST;
+                            
+                            // Transparency by strength: fewer keywords in common = more transparent, more = more solid (gamma-style)
+                            let opacity;
+                            if (pct <= 0.25) {
+                                opacity = 0.06;
+                            } else if (pct <= 0.5) {
+                                opacity = 0.2;
+                            } else if (pct <= 0.75) {
+                                opacity = 0.45;
+                            } else {
+                                opacity = 0.82;
+                            }
                             
                             // Get positions of both nodes
                             const pos1 = this.getNodeAnchorPosition(node1);
@@ -871,22 +960,20 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                                 8          // radial segments
                             );
                             
-                            // Generate random pastel color for this connection
-                            // Use connection index + node indices as seed for unique colors
+                            // Random pastel hue/saturation; fixed lightness so all lines same brightness; opacity by strength
                             const colorSeed = connectionIndex * 1000 + i * 100 + j;
                             const pastelColor = this.generateRandomPastelColor(colorSeed);
                             const threeColor = new THREE.Color().setHSL(
                                 pastelColor.hue,
                                 pastelColor.saturation,
-                                pastelColor.lightness
+                                0.68  // fixed lightness so all lines same brightness
                             );
                             
-                            // Create material with pastel color and reduced opacity for lighter appearance
                             const material = new THREE.MeshBasicMaterial({
                                 color: threeColor,
                                 transparent: true,
-                                opacity: 0.35, // Reduced from 0.8 for lighter appearance
-                                side: THREE.DoubleSide // Ensure both sides are visible
+                                opacity,
+                                side: THREE.DoubleSide
                             });
                             
                             connectionIndex++; // Increment for next connection
