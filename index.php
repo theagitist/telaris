@@ -286,7 +286,8 @@ try {
                 this.controls.dampingFactor = 0.05;
                 this.controls.minDistance = 5;
                 this.controls.maxDistance = 30;
-                this.controls.zoomSpeed = 4.0; // pinch zoom speed similar to scroll rotation
+                const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+                this.controls.zoomSpeed = isTouchDevice ? 1.5 : 4.0; // slower pinch zoom on mobile
                 this.controls.autoRotate = false;
                 this.controls.autoRotateSpeed = 0.35; // subtle, not distracting
                 // Look at a point below center so the graph appears higher on screen
@@ -537,7 +538,7 @@ try {
                     mouseDownTime = 0;
                 });
 
-                // Wheel: rotate on scroll; zoom only on pinch (capture so we run before OrbitControls)
+                // Wheel: mouse = zoom only; trackpad = scroll rotate, pinch zoom (deltaMode: 0 = trackpad, 1 = mouse)
                 const rotateSpeed = 0.002;
                 const minPhi = 0.05;
                 const maxPhi = Math.PI - 0.05;
@@ -545,12 +546,16 @@ try {
                 const tempSpherical = new THREE.Spherical();
                 this.renderer.domElement.addEventListener('wheel', (event) => {
                     this.markInteraction();
-                    const isPinch = event.ctrlKey; // trackpad pinch zoom sets ctrlKey
-                    if (isPinch) {
-                        // let OrbitControls handle zoom only for pinch
+                    const isMouseWheel = event.deltaMode === 1; // DOM_DELTA_LINE = mouse wheel
+                    if (isMouseWheel) {
+                        // mouse: let OrbitControls handle wheel for zoom; rotation is click-and-drag
                         return;
                     }
-                    // scroll: rotate only, consume event so OrbitControls does not zoom
+                    // trackpad: pinch = zoom, two-finger scroll = rotate
+                    const isPinch = event.ctrlKey;
+                    if (isPinch) {
+                        return; // OrbitControls zooms
+                    }
                     if (Math.abs(event.deltaX) > 0 || Math.abs(event.deltaY) > 0) {
                         event.preventDefault();
                         event.stopPropagation();
