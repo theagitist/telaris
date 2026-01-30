@@ -1289,10 +1289,26 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 return withDistance.slice(0, count).map(entry => entry.node);
             }
 
+            // Front 20% by distance: first 10% get full opacity, next 10% get 10% opacity; beyond 20% not shown.
+            getFront20PercentWithTier() {
+                const tempPos = new THREE.Vector3();
+                const withDistance = this.nodes.map(n => {
+                    n.getWorldPosition(tempPos);
+                    return { node: n, distance: tempPos.distanceTo(this.camera.position) };
+                });
+                withDistance.sort((a, b) => a.distance - b.distance);
+                const count20 = Math.max(1, Math.floor(this.nodes.length * 0.2));
+                const front10Count = Math.max(1, Math.floor(this.nodes.length * 0.1));
+                return withDistance.slice(0, count20).map((entry, i) => ({
+                    node: entry.node,
+                    inFront10: i < front10Count
+                }));
+            }
+
             updatePersistentTooltips() {
                 if (!this.persistentTooltipsContainer || this.nodes.length === 0) return;
-                const frontNodes = this.getFront10PercentNodes();
-                const toShow = frontNodes.filter(n => n !== this.mainTooltipNode && n.userData && n.userData.name);
+                const front20WithTier = this.getFront20PercentWithTier();
+                const toShow = front20WithTier.filter(entry => entry.node !== this.mainTooltipNode && entry.node.userData && entry.node.userData.name);
                 const canvasRect = this.renderer.domElement.getBoundingClientRect();
                 const container = this.persistentTooltipsContainer.parentElement;
                 const containerRect = container ? container.getBoundingClientRect() : canvasRect;
@@ -1323,7 +1339,11 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     }, 780);
                 };
 
-                toShow.forEach((node) => {
+                const toShowNodes = new Set(toShow.map(entry => entry.node));
+                toShow.forEach((entry) => {
+                    const node = entry.node;
+                    const inFront10 = entry.inFront10;
+                    const tierOpacity = inFront10 ? '1' : '0.2';
                     node.getWorldPosition(projected);
                     const distanceToCamera = projected.distanceTo(this.camera.position);
                     projected.project(this.camera);
@@ -1347,7 +1367,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                         const styles = this.getNodeTooltipStyles(node);
                         el.style.background = styles.background;
                         el.style.color = styles.color;
-                        el.style.opacity = '1';
+                        el.style.opacity = tierOpacity;
                         return;
                     }
                     el = getAvailableDiv();
@@ -1362,15 +1382,16 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     el.style.visibility = 'visible';
                     el.style.opacity = '0';
                     const elToFade = el;
+                    const targetOpacity = tierOpacity;
                     requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
-                            elToFade.style.opacity = '1';
+                            elToFade.style.opacity = targetOpacity;
                         });
                     });
                 });
 
                 for (const [node, div] of Array.from(nodeToDiv)) {
-                    if (!toShow.includes(node)) startPersistentFadeOut(div, node);
+                    if (!toShowNodes.has(node)) startPersistentFadeOut(div, node);
                 }
             }
 
@@ -1381,11 +1402,12 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 const idleForMs = performance.now() - this.lastInteractionAt;
                 this.controls.autoRotate = idleForMs > this.idleRotateDelayMs;
 
+                // Apply controls (zoom/rotate/pan) first so camera is current before we compute front nodes and opacities
+                this.controls.update();
+                this.updatePersistentTooltips();
                 this.updateNodes();
                 this.updateConnections();
-                this.updatePersistentTooltips();
                 
-                this.controls.update();
                 this.renderer.render(this.scene, this.camera);
             }
 
