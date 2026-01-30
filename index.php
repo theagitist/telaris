@@ -56,11 +56,20 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
     <title>Telaris</title>
     <meta name="description" content="Interactive 3D knowledge visualization">
     <script src="js/tailwind.min.js"></script>
+    <style>
+        #node-tooltip {
+            transition: opacity 0.75s ease-in-out;
+        }
+        .persistent-tooltip-item {
+            transition: opacity 0.75s ease-in-out;
+        }
+    </style>
 </head>
 <body class="overflow-hidden bg-black font-sans">
-    <div id="canvas-container" class="w-screen h-screen relative" style="position: relative;">
+        <div id="canvas-container" class="w-screen h-screen relative" style="position: relative;">
         <canvas class="block" style="position: relative; z-index: 1;"></canvas>
-        <div id="node-tooltip" class="absolute bg-black bg-opacity-75 text-white px-3 py-2 rounded text-sm pointer-events-none z-[200] hidden" style="font-family: inherit;"></div>
+        <div id="persistent-tooltips" class="absolute inset-0 pointer-events-none z-[150]" style="font-family: inherit;"></div>
+        <div id="node-tooltip" class="absolute bg-black bg-opacity-75 text-white px-3 py-2 rounded text-sm pointer-events-none z-[200]" style="font-family: inherit; opacity: 0; visibility: hidden;"></div>
     </div>
     <div id="info" class="absolute top-5 left-5 text-white z-[100] text-sm opacity-80 pointer-events-none">
         <h2 class="text-lg font-semibold mb-1">Telaris</h2>
@@ -125,6 +134,10 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 this.raycaster = new THREE.Raycaster();
                 this.mouse = new THREE.Vector2();
                 this.tooltip = document.getElementById('node-tooltip');
+                this.persistentTooltipsContainer = document.getElementById('persistent-tooltips');
+                this.mainTooltipNode = null; // node currently shown by the main hover/tap tooltip (skip in persistent labels)
+                this.tooltipHideTimeout = null; // for fade-out delay before hiding main tooltip
+                this.persistentTooltipNodeToDiv = new Map(); // node -> div, so we never reuse a div for a different node (ensures full fade-out then fade-in)
 
                 // Idle rotation (auto-rotate when user is inactive)
                 this.lastInteractionAt = performance.now();
@@ -145,6 +158,18 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 this.lastInteractionAt = performance.now();
             }
 
+            hideMainTooltip() {
+                if (!this.tooltip) return;
+                if (this.tooltipHideTimeout) {
+                    clearTimeout(this.tooltipHideTimeout);
+                }
+                this.tooltip.style.opacity = '0';
+                this.tooltipHideTimeout = setTimeout(() => {
+                    this.tooltip.style.visibility = 'hidden';
+                    this.tooltipHideTimeout = null;
+                }, 780);
+            }
+
             init() {
                 // Setup renderer
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -153,7 +178,10 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 const canvasElement = this.renderer.domElement;
                 canvasElement.style.position = 'relative';
                 canvasElement.style.zIndex = '1';
-                document.getElementById('canvas-container').appendChild(canvasElement);
+                const canvasContainer = document.getElementById('canvas-container');
+                canvasContainer.appendChild(canvasElement);
+                // Move tooltip on top of canvas so it is visible (canvas was appended after tooltip in DOM)
+                canvasContainer.appendChild(this.tooltip);
 
                 // Setup camera
                 this.camera.position.set(0, 0, 15);
@@ -334,75 +362,75 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
                     this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
                     
-                    // Use raycaster to detect which node is hovered
+                    // Use raycaster to detect which node is hovered (pick front-most under cursor)
                     this.raycaster.setFromCamera(this.mouse, this.camera);
                     const intersects = this.raycaster.intersectObjects(this.nodes, true);
-                    
                     if (intersects.length > 0) {
-                        // Find the node that was hovered - traverse up to find the parent node in nodes array
-                        let hoveredObject = intersects[0].object;
+                        intersects.sort((a, b) => a.distance - b.distance);
                         let hoveredNode = null;
-                        
-                        // Traverse up the parent tree to find the node in our nodes array
-                        while (hoveredObject) {
-                            if (this.nodes.includes(hoveredObject)) {
-                                hoveredNode = hoveredObject;
-                                break;
+                        for (const hit of intersects) {
+                            let obj = hit.object;
+                            while (obj) {
+                                if (this.nodes.includes(obj)) {
+                                    hoveredNode = obj;
+                                    break;
+                                }
+                                obj = obj.parent;
                             }
-                            hoveredObject = hoveredObject.parent;
+                            if (hoveredNode) break;
                         }
-                        
                         if (hoveredNode && hoveredNode.userData) {
-                            // Update cursor
                             if (hoveredNode.userData.url) {
                                 this.renderer.domElement.style.cursor = 'pointer';
                             } else {
                                 this.renderer.domElement.style.cursor = 'default';
                             }
-                            
-                            // Show tooltip with node name
                             if (this.tooltip && hoveredNode.userData.name) {
+                                if (this.tooltipHideTimeout) {
+                                    clearTimeout(this.tooltipHideTimeout);
+                                    this.tooltipHideTimeout = null;
+                                }
+                                this.mainTooltipNode = hoveredNode;
                                 this.tooltip.textContent = hoveredNode.userData.name;
-                                this.tooltip.classList.remove('hidden');
-                                
-                                // Position tooltip near mouse cursor with offset
+                                this.tooltip.style.visibility = 'visible';
+                                this.tooltip.style.display = 'block';
+                                this.tooltip.style.opacity = '0';
                                 const offsetX = 15;
                                 const offsetY = 15;
-                                let tooltipX = event.clientX + offsetX;
-                                let tooltipY = event.clientY + offsetY;
-                                
-                                // Make sure tooltip stays within viewport
+                                let tooltipX = event.clientX - rect.left + offsetX;
+                                let tooltipY = event.clientY - rect.top + offsetY;
                                 const tooltipRect = this.tooltip.getBoundingClientRect();
-                                if (tooltipX + tooltipRect.width > window.innerWidth) {
-                                    tooltipX = event.clientX - tooltipRect.width - offsetX;
+                                if (tooltipX + tooltipRect.width > rect.width) {
+                                    tooltipX = event.clientX - rect.left - tooltipRect.width - offsetX;
                                 }
-                                if (tooltipY + tooltipRect.height > window.innerHeight) {
-                                    tooltipY = event.clientY - tooltipRect.height - offsetY;
+                                if (tooltipY + tooltipRect.height > rect.height) {
+                                    tooltipY = event.clientY - rect.top - tooltipRect.height - offsetY;
                                 }
-                                
+                                if (tooltipX < 0) tooltipX = 0;
+                                if (tooltipY < 0) tooltipY = 0;
                                 this.tooltip.style.left = tooltipX + 'px';
                                 this.tooltip.style.top = tooltipY + 'px';
+                                requestAnimationFrame(() => {
+                                    requestAnimationFrame(() => {
+                                        this.tooltip.style.opacity = '1';
+                                    });
+                                });
                             }
                         } else {
                             this.renderer.domElement.style.cursor = 'default';
-                            if (this.tooltip) {
-                                this.tooltip.classList.add('hidden');
-                            }
+                            if (this.tooltip) this.hideMainTooltip();
                         }
                     } else {
                         this.renderer.domElement.style.cursor = 'default';
-                        if (this.tooltip) {
-                            this.tooltip.classList.add('hidden');
-                        }
+                        if (this.tooltip) this.hideMainTooltip();
                     }
                 });
                 
                 // Hide tooltip when mouse leaves the canvas
                 this.renderer.domElement.addEventListener('mouseleave', () => {
                     this.markInteraction();
-                    if (this.tooltip) {
-                        this.tooltip.classList.add('hidden');
-                    }
+                    this.mainTooltipNode = null;
+                    if (this.tooltip) this.hideMainTooltip();
                     this.renderer.domElement.style.cursor = 'default';
                 });
                 
@@ -429,52 +457,73 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                     this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
                     this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
                     
-                    // Use raycaster to detect which node was clicked/tapped
+                    // Use raycaster to detect which node was clicked/tapped (pick front-most: closest to camera)
                     this.raycaster.setFromCamera(this.mouse, this.camera);
                     const intersects = this.raycaster.intersectObjects(this.nodes, true);
-                    
                     if (intersects.length > 0) {
-                        // Find the node - traverse up to find the parent node in nodes array
-                        let clickedObject = intersects[0].object;
-                        let clickedNode = null;
-                        
-                        // Traverse up the parent tree to find the node in our nodes array
-                        while (clickedObject) {
-                            if (this.nodes.includes(clickedObject)) {
-                                clickedNode = clickedObject;
-                                break;
+                        intersects.sort((a, b) => a.distance - b.distance);
+                        for (const hit of intersects) {
+                            let obj = hit.object;
+                            while (obj) {
+                                if (this.nodes.includes(obj)) {
+                                    return obj;
+                                }
+                                obj = obj.parent;
                             }
-                            clickedObject = clickedObject.parent;
                         }
-                        
-                        return clickedNode;
                     }
                     return null;
                 };
                 
-                // Helper function to show tooltip for a node at a position
+                // Front 10% by Z: distance threshold (nodes with distance <= this are closest to camera)
+                const getFront10PercentThreshold = () => {
+                    const tempPos = new THREE.Vector3();
+                    const distances = this.nodes.map(n => {
+                        n.getWorldPosition(tempPos);
+                        return tempPos.distanceTo(this.camera.position);
+                    });
+                    distances.sort((a, b) => a - b);
+                    const idx = Math.max(0, Math.floor(this.nodes.length * 0.1));
+                    return distances[idx];
+                };
+                const isNodeInFront10Percent = (node, threshold) => {
+                    const tempPos = new THREE.Vector3();
+                    node.getWorldPosition(tempPos);
+                    return tempPos.distanceTo(this.camera.position) <= threshold;
+                };
+                
+                // Helper function to show tooltip for a node at screen position (x, y)
                 const showTooltipForNode = (node, x, y) => {
                     if (this.tooltip && node && node.userData && node.userData.name) {
+                        if (this.tooltipHideTimeout) {
+                            clearTimeout(this.tooltipHideTimeout);
+                            this.tooltipHideTimeout = null;
+                        }
                         this.tooltip.textContent = node.userData.name;
-                        this.tooltip.classList.remove('hidden');
-                        
-                        // Position tooltip near tap/click position with offset
+                        this.tooltip.style.visibility = 'visible';
+                        this.tooltip.style.display = 'block';
+                        this.tooltip.style.opacity = '0';
+                        const rect = this.renderer.domElement.getBoundingClientRect();
                         const offsetX = 15;
                         const offsetY = 15;
-                        let tooltipX = x + offsetX;
-                        let tooltipY = y + offsetY;
-                        
-                        // Make sure tooltip stays within viewport
+                        let tooltipX = x - rect.left + offsetX;
+                        let tooltipY = y - rect.top + offsetY;
                         const tooltipRect = this.tooltip.getBoundingClientRect();
-                        if (tooltipX + tooltipRect.width > window.innerWidth) {
-                            tooltipX = x - tooltipRect.width - offsetX;
+                        if (tooltipX + tooltipRect.width > rect.width) {
+                            tooltipX = x - rect.left - tooltipRect.width - offsetX;
                         }
-                        if (tooltipY + tooltipRect.height > window.innerHeight) {
-                            tooltipY = y - tooltipRect.height - offsetY;
+                        if (tooltipY + tooltipRect.height > rect.height) {
+                            tooltipY = y - rect.top - tooltipRect.height - offsetY;
                         }
-                        
+                        if (tooltipX < 0) tooltipX = 0;
+                        if (tooltipY < 0) tooltipY = 0;
                         this.tooltip.style.left = tooltipX + 'px';
                         this.tooltip.style.top = tooltipY + 'px';
+                        requestAnimationFrame(() => {
+                            requestAnimationFrame(() => {
+                                this.tooltip.style.opacity = '1';
+                            });
+                        });
                     }
                 };
                 
@@ -590,24 +639,23 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                                     event.preventDefault();
                                     event.stopPropagation();
                                     window.open(clickedNode.userData.url, '_blank', 'noopener,noreferrer');
-                                    lastTappedNode = null; // Reset after opening
+                                    lastTappedNode = null;
+                                    this.mainTooltipNode = null;
                                     touchStartPos = null;
                                     touchStartNode = null;
                                     return;
                                 }
                             } else {
-                                // First tap or tap on different node - show tooltip
+                                // First tap or tap on different node - always show tooltip for the tapped node
                                 lastTappedNode = clickedNode;
-                                
-                                // Show tooltip at touch position (use the stored start position)
+                                this.mainTooltipNode = clickedNode;
                                 showTooltipForNode(clickedNode, touchStartPos.screenX, touchStartPos.screenY);
                             }
                         } else if (isTap && !touchStartNode) {
                             // Tapped on empty space - hide tooltip and reset
                             lastTappedNode = null;
-                            if (this.tooltip) {
-                                this.tooltip.classList.add('hidden');
-                            }
+                            this.mainTooltipNode = null;
+                            if (this.tooltip) this.hideMainTooltip();
                         }
                         
                         // Reset touch tracking
@@ -1204,6 +1252,89 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
                 });
             }
 
+            // Returns nodes in the front 10% by distance to camera (closest first). Used for persistent labels.
+            getFront10PercentNodes() {
+                const tempPos = new THREE.Vector3();
+                const withDistance = this.nodes.map(n => {
+                    n.getWorldPosition(tempPos);
+                    return { node: n, distance: tempPos.distanceTo(this.camera.position) };
+                });
+                withDistance.sort((a, b) => a.distance - b.distance);
+                const count = Math.max(1, Math.floor(this.nodes.length * 0.1));
+                return withDistance.slice(0, count).map(entry => entry.node);
+            }
+
+            updatePersistentTooltips() {
+                if (!this.persistentTooltipsContainer || this.nodes.length === 0) return;
+                const frontNodes = this.getFront10PercentNodes();
+                const toShow = frontNodes.filter(n => n !== this.mainTooltipNode && n.userData && n.userData.name);
+                const rect = this.renderer.domElement.getBoundingClientRect();
+                const projected = new THREE.Vector3();
+                const nodeToDiv = this.persistentTooltipNodeToDiv;
+
+                const getAvailableDiv = () => {
+                    for (const el of this.persistentTooltipsContainer.children) {
+                        if (el.style.visibility === 'hidden' && !el._fadeOutTimeout) return el;
+                    }
+                    const el = document.createElement('div');
+                    el.className = 'persistent-tooltip-item absolute bg-black bg-opacity-75 text-white px-2 py-1 rounded text-xs pointer-events-none whitespace-nowrap';
+                    el.style.opacity = '0';
+                    el.style.visibility = 'hidden';
+                    this.persistentTooltipsContainer.appendChild(el);
+                    return el;
+                };
+
+                const startPersistentFadeOut = (el, node) => {
+                    if (el.style.visibility !== 'visible') return;
+                    if (el._fadeOutTimeout) return;
+                    nodeToDiv.delete(node);
+                    el.style.opacity = '0';
+                    el._fadeOutTimeout = setTimeout(() => {
+                        el.style.visibility = 'hidden';
+                        el._fadeOutTimeout = null;
+                    }, 780);
+                };
+
+                toShow.forEach((node) => {
+                    node.getWorldPosition(projected);
+                    projected.project(this.camera);
+                    const ndcX = projected.x;
+                    const ndcY = projected.y;
+                    if (projected.z > 1 || projected.z < -1) {
+                        const div = nodeToDiv.get(node);
+                        if (div) startPersistentFadeOut(div, node);
+                        return;
+                    }
+                    const left = (ndcX * 0.5 + 0.5) * rect.width;
+                    const top = (0.5 - ndcY * 0.5) * rect.height;
+                    let el = nodeToDiv.get(node);
+                    if (el) {
+                        el.textContent = node.userData.name;
+                        el.style.left = (left + 8) + 'px';
+                        el.style.top = (top + 8) + 'px';
+                        el.style.opacity = '1';
+                        return;
+                    }
+                    el = getAvailableDiv();
+                    nodeToDiv.set(node, el);
+                    el.textContent = node.userData.name;
+                    el.style.left = (left + 8) + 'px';
+                    el.style.top = (top + 8) + 'px';
+                    el.style.visibility = 'visible';
+                    el.style.opacity = '0';
+                    const elToFade = el;
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            elToFade.style.opacity = '1';
+                        });
+                    });
+                });
+
+                for (const [node, div] of Array.from(nodeToDiv)) {
+                    if (!toShow.includes(node)) startPersistentFadeOut(div, node);
+                }
+            }
+
             animate() {
                 requestAnimationFrame(() => this.animate());
                 
@@ -1213,6 +1344,7 @@ $isEditorOrAdmin = isEditorOrAdminLoggedIn();
 
                 this.updateNodes();
                 this.updateConnections();
+                this.updatePersistentTooltips();
                 
                 this.controls.update();
                 this.renderer.render(this.scene, this.camera);
