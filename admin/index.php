@@ -305,8 +305,8 @@ foreach ($importantExtensions as $ext => $name) {
 
             <!-- Users Tab -->
             <div id="content-users" class="p-6 <?php echo $activeTab !== 'users' ? 'hidden' : ''; ?>">
-                <!-- Create/Edit User Form -->
-                <div class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded">
+                <!-- Create/Edit User Form (hidden by default; shown when New User clicked or when editing) -->
+                <div id="user-form-panel" class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded <?php echo $editUser ? '' : 'hidden'; ?>">
                     <h2 class="text-blue-800 text-xl font-semibold mb-4">
                         <?php echo $editUser ? 'Edit User' : 'Create New User'; ?>
                     </h2>
@@ -382,14 +382,21 @@ foreach ($importantExtensions as $ext => $name) {
                                 <a href="index.php?tab=users" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer inline-block">
                                     Cancel
                                 </a>
+                            <?php else: ?>
+                                <button type="button" onclick="document.getElementById('user-form-panel').classList.add('hidden');" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
+                                    Cancel
+                                </button>
                             <?php endif; ?>
                         </div>
                     </form>
                 </div>
                 
-                <!-- Existing Users -->
+                <!-- Users list -->
                 <div>
-                    <h2 class="text-gray-800 text-xl font-semibold mb-4">Existing Users (<?php echo count($users); ?>)</h2>
+                    <div class="flex items-center gap-3 mb-4">
+                        <h2 class="text-gray-800 text-base font-semibold">Users (<?php echo count($users); ?>)</h2>
+                        <a href="#" onclick="document.getElementById('user-form-panel').classList.remove('hidden'); return false;" class="text-blue-600 hover:text-blue-800 font-medium text-base">New User</a>
+                    </div>
                     
                     <?php if (empty($users)): ?>
                         <p class="text-gray-600">No users found.</p>
