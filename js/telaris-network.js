@@ -24,6 +24,8 @@ const USE_MORE_COLOR_VARIETY = true;
                 this.nodes = [];
                 this.nodeData = []; // Store node data from API
                 this.connections = []; // Store connection lines between nodes
+                this.connectionVisibleIndices = null; // Set of indices for which connection is visible (66% at a time)
+                this.connectionRotateInterval = null;
                 this.raycaster = new THREE.Raycaster();
                 this.mouse = new THREE.Vector2();
                 this.tooltip = document.getElementById('node-tooltip');
@@ -680,7 +682,12 @@ const USE_MORE_COLOR_VARIETY = true;
                 });
                 this.nodes = [];
                 
-                // Clear all connections
+                // Clear all connections and 66% visibility state
+                if (this.connectionRotateInterval) {
+                    clearInterval(this.connectionRotateInterval);
+                    this.connectionRotateInterval = null;
+                }
+                this.connectionVisibleIndices = null;
                 this.connections.forEach(conn => {
                     this.scene.remove(conn.mesh);
                     if (conn.mesh.geometry) conn.mesh.geometry.dispose();
@@ -862,7 +869,12 @@ const USE_MORE_COLOR_VARIETY = true;
 
             // Create connection lines between nodes that share keywords
             createConnections() {
-                // Clear existing connections
+                // Clear existing connections and 66% visibility state
+                if (this.connectionRotateInterval) {
+                    clearInterval(this.connectionRotateInterval);
+                    this.connectionRotateInterval = null;
+                }
+                this.connectionVisibleIndices = null;
                 this.connections.forEach(conn => {
                     this.scene.remove(conn.mesh);
                     if (conn.mesh.geometry) conn.mesh.geometry.dispose();
@@ -959,55 +971,119 @@ const USE_MORE_COLOR_VARIETY = true;
                             const up = new THREE.Vector3(0, 1, 0);
                             const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction.clone().normalize());
                             cylinder.quaternion.copy(quaternion);
+                            const thick = (pct > 0.75);
                             this.connections.push({
                                 mesh: cylinder,
                                 node1: node1,
                                 node2: node2,
                                 sharedCount: sharedCount,
-                                originalDistance: distance
+                                originalDistance: distance,
+                                baseOpacity: opacity,
+                                currentOpacity: opacity,
+                                targetOpacity: opacity,
+                                thick: thick
                             });
                             this.scene.add(cylinder);
                             console.log(`Created connection between nodes ${i} and ${j} with ${sharedCount} shared keywords, thickness: ${thickness}, distance: ${distance}`);
                         }
                     }
                 }
+                this.buildConnectionVisibleSet();
             }
 
-            // Update connection positions as nodes move
+            // Thick lines (top thickness band) stay visible; 66% of the rest rotate every 2s with fade.
+            buildConnectionVisibleSet() {
+                if (this.connectionRotateInterval) {
+                    clearInterval(this.connectionRotateInterval);
+                    this.connectionRotateInterval = null;
+                }
+                const conns = this.connections;
+                const n = conns.length;
+                if (n === 0) {
+                    this.connectionVisibleIndices = null;
+                    return;
+                }
+                const rotatable = [];
+                for (let i = 0; i < n; i++) {
+                    if (!conns[i].thick) rotatable.push(i);
+                }
+                const rotatableCount = rotatable.length;
+                const visibleCount = Math.max(1, Math.floor(rotatableCount * 0.66));
+                const visible = new Set();
+                while (visible.size < visibleCount) {
+                    visible.add(rotatable[Math.floor(Math.random() * rotatableCount)]);
+                }
+                this.connectionVisibleIndices = visible;
+                conns.forEach((conn, i) => {
+                    if (conn.thick) {
+                        conn.targetOpacity = conn.baseOpacity ?? conn.mesh.material.opacity;
+                    } else {
+                        conn.targetOpacity = visible.has(i) ? (conn.baseOpacity ?? conn.mesh.material.opacity) : 0;
+                    }
+                    conn.currentOpacity = conn.targetOpacity;
+                });
+                this.connectionRotateInterval = setInterval(() => {
+                    if (!this.connections.length || !this.connectionVisibleIndices) return;
+                    const list = this.connections;
+                    const vis = this.connectionVisibleIndices;
+                    const visibleArr = [];
+                    const invisibleArr = [];
+                    let rotatableCount = 0;
+                    for (let i = 0; i < list.length; i++) {
+                        if (list[i].thick) continue;
+                        rotatableCount++;
+                        if (vis.has(i)) visibleArr.push(i);
+                        else invisibleArr.push(i);
+                    }
+                    const visCount = Math.max(1, Math.floor(rotatableCount * 0.66));
+                    const toHide = Math.max(1, Math.floor(visCount * 0.2));
+                    for (let k = 0; k < toHide && visibleArr.length > 0 && invisibleArr.length > 0; k++) {
+                        const idxV = Math.floor(Math.random() * visibleArr.length);
+                        const idxI = Math.floor(Math.random() * invisibleArr.length);
+                        const hideI = visibleArr[idxV];
+                        const showI = invisibleArr[idxI];
+                        visibleArr[idxV] = visibleArr[visibleArr.length - 1];
+                        visibleArr.pop();
+                        invisibleArr[idxI] = invisibleArr[invisibleArr.length - 1];
+                        invisibleArr.pop();
+                        vis.delete(hideI);
+                        vis.add(showI);
+                        if (list[hideI]) list[hideI].targetOpacity = 0;
+                        if (list[showI]) list[showI].targetOpacity = list[showI].baseOpacity;
+                    }
+                }, 2000);
+            }
+
+            // Update connection positions as nodes move; apply 66% visibility and fade.
             updateConnections() {
                 if (!this.connections || this.connections.length === 0) {
                     return;
                 }
-                
+                const FADE_SPEED = 0.1;
+                const visibleIndices = this.connectionVisibleIndices;
                 const anchorCache = new Map();
                 const getAnchor = (node) => {
-                    if (anchorCache.has(node)) {
-                        return anchorCache.get(node);
-                    }
+                    if (anchorCache.has(node)) return anchorCache.get(node);
                     const anchor = this.getNodeAnchorPosition(node);
                     anchorCache.set(node, anchor);
                     return anchor;
                 };
 
-                this.connections.forEach(conn => {
+                this.connections.forEach((conn, i) => {
                     const node1 = conn.node1;
                     const node2 = conn.node2;
-                    
-                    // Get current world positions aligned to label centers
                     const pos1 = getAnchor(node1);
                     const pos2 = getAnchor(node2);
-                    
-                    // Calculate new direction and distance
                     const direction = new THREE.Vector3().subVectors(pos2, pos1);
                     const distance = direction.length();
-                    
+
                     if (distance < 0.001) {
-                        // Nodes are too close, hide connection
                         conn.mesh.visible = false;
+                        conn.targetOpacity = 0;
+                        conn.currentOpacity = 0;
                         return;
                     }
-                    
-                    conn.mesh.visible = true;
+
                     const midpoint = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
                     conn.mesh.position.copy(midpoint);
                     const up = new THREE.Vector3(0, 1, 0);
@@ -1018,6 +1094,13 @@ const USE_MORE_COLOR_VARIETY = true;
                     if (originalDistance > 0) {
                         conn.mesh.scale.y = distance / originalDistance;
                     }
+
+                    const shouldBeVisible = conn.thick || (visibleIndices ? visibleIndices.has(i) : true);
+                    conn.targetOpacity = shouldBeVisible ? (conn.baseOpacity ?? conn.mesh.material.opacity) : 0;
+                    conn.currentOpacity += (conn.targetOpacity - conn.currentOpacity) * FADE_SPEED;
+                    if (Math.abs(conn.currentOpacity - conn.targetOpacity) < 0.002) conn.currentOpacity = conn.targetOpacity;
+                    conn.mesh.material.opacity = conn.currentOpacity;
+                    conn.mesh.visible = conn.currentOpacity > 0.002;
                 });
             }
 
