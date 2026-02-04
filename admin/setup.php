@@ -86,9 +86,16 @@ CREATE TABLE IF NOT EXISTS users (
     INDEX idx_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Table for constellations (id 0 = default, created by setup, cannot be erased)
+CREATE TABLE IF NOT EXISTS constellations (
+    id INT NOT NULL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Table for nodes (using MySQL 8 JSON features)
 CREATE TABLE IF NOT EXISTS nodes (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    constellation_id INT NOT NULL DEFAULT 0,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     url VARCHAR(500) NULL,
@@ -97,7 +104,9 @@ CREATE TABLE IF NOT EXISTS nodes (
     animation JSON NOT NULL DEFAULT (JSON_OBJECT('radius', 5.0, 'theta', 0, 'phi', 0, 'speed', 0.0025, 'phase', 0)),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (constellation_id) REFERENCES constellations(id),
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_constellation_id (constellation_id),
     INDEX idx_created_by (created_by),
     FULLTEXT INDEX idx_name_desc (name, description)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -105,10 +114,13 @@ CREATE TABLE IF NOT EXISTS nodes (
 -- Table for keywords
 CREATE TABLE IF NOT EXISTS keywords (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    constellation_id INT NOT NULL DEFAULT 0,
     keyword VARCHAR(100) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_keyword (keyword),
-    INDEX idx_keyword (keyword)
+    UNIQUE KEY unique_keyword_constellation (keyword, constellation_id),
+    FOREIGN KEY (constellation_id) REFERENCES constellations(id),
+    INDEX idx_keyword (keyword),
+    INDEX idx_constellation_id (constellation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Junction table for node-keyword relationships (many-to-many)
@@ -307,8 +319,8 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
                 
                 if ($tableExists) {
                     $details['tables_skipped'][] = $tableName;
-                } else {
-                    // Execute the statement (add semicolon back since split removes it)
+            } else {
+                // Execute the statement (add semicolon back since split removes it)
                     $pdo->exec($statement . ';');
                     $details['tables_created'][] = $tableName;
                 }
@@ -316,6 +328,24 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
                 // Execute non-CREATE TABLE statements (like indexes, etc.)
                 $pdo->exec($statement . ';');
             }
+        }
+
+        // Ensure default constellation (id=0) exists; name = app name from DB if set, else 'Default'
+        try {
+            $defaultConstellationName = (trim($websiteName) !== '') ? trim($websiteName) : 'Default';
+            $pdo->prepare("INSERT INTO constellations (id, name) VALUES (0, :name) ON DUPLICATE KEY UPDATE name = VALUES(name)")->execute([':name' => $defaultConstellationName]);
+        } catch (PDOException $e) {
+            // Table may not exist yet on first run before constellations is created
+        }
+        try {
+            $configPath = dirname(__DIR__) . '/config.php';
+            if (file_exists($configPath)) {
+                require_once $configPath;
+                require_once dirname(__DIR__) . '/inc/db.php';
+                db_ensure_constellations();
+            }
+        } catch (Throwable $e) {
+            // Migration may fail if config or tables not yet created
         }
         
         // Generate default API key if api_keys table exists

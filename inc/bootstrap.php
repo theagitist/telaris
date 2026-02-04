@@ -84,3 +84,16 @@ $projectIframeBackText = $projectStrings['iframe_back_text'];
 $projectAlertMessage = $projectStrings['alert_message'];
 $projectEditButtonText = $projectStrings['edit_button_text'] ?? 'Edit';
 $projectLoadingText = $projectStrings['loading_text'] ?? 'Loading';
+
+// Constellation for main view: root URL = default (0); /{NUMBER} or ?constellation_id=NUMBER = that constellation
+$constellationId = 0;
+$path = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
+if (preg_match('/^[0-9]+$/', $path)) {
+    $constellationId = (int) $path;
+} elseif (isset($_GET['constellation_id']) && is_numeric($_GET['constellation_id'])) {
+    $constellationId = (int) $_GET['constellation_id'];
+}
+$constellationIds = array_column(db_get_constellations(), 'id');
+if (!in_array($constellationId, $constellationIds, true)) {
+    $constellationId = 0;
+}

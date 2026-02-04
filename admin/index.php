@@ -25,6 +25,9 @@ $activeTab = $_GET['tab'] ?? 'users';
 if (isset($_GET['edit_user'])) {
     $activeTab = 'users';
 }
+if (isset($_GET['edit_constellation'])) {
+    $activeTab = 'constellations';
+}
 
 // Load project info for Global Settings form
 $projectAll = db_get_project_info_all_locales();
@@ -169,6 +172,37 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $activeTab = 'users';
             })(),
             
+            'create_constellation' => (function(): void {
+                global $message, $error, $activeTab;
+                $name = trim($_POST['name'] ?? '');
+                if (empty($name)) {
+                    throw new Exception('Constellation name is required');
+                }
+                db_create_constellation($name);
+                $message = 'Constellation created successfully.';
+                $activeTab = 'constellations';
+            })(),
+            
+            'update_constellation' => (function(): void {
+                global $message, $error, $activeTab;
+                $id = (int)($_POST['id'] ?? -1);
+                $name = trim($_POST['name'] ?? '');
+                if (empty($name)) {
+                    throw new Exception('Constellation name is required');
+                }
+                db_update_constellation($id, $name);
+                $message = 'Constellation updated successfully.';
+                $activeTab = 'constellations';
+            })(),
+            
+            'delete_constellation' => (function(): void {
+                global $message, $error, $activeTab;
+                $id = (int)($_POST['id'] ?? -1);
+                db_delete_constellation($id);
+                $message = 'Constellation deleted successfully.';
+                $activeTab = 'constellations';
+            })(),
+            
             'logout' => (function(): void {
                 logoutAdmin();
                 header('Location: ../utils/login.php');
@@ -263,9 +297,22 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     }
 }
 
-// Get all API keys and users
+// Get all API keys, users, and constellations
 $apiKeys = db_get_api_keys();
 $users = db_get_users();
+$constellations = db_get_constellations();
+
+// Get constellation to edit if specified
+$editConstellation = null;
+if (isset($_GET['edit_constellation'])) {
+    $editConstellationId = (int)$_GET['edit_constellation'];
+    foreach ($constellations as $c) {
+        if ((int)$c['id'] === $editConstellationId) {
+            $editConstellation = $c;
+            break;
+        }
+    }
+}
 
 // Get user to edit if specified
 $editUser = null;
@@ -404,6 +451,11 @@ foreach ($importantExtensions as $ext => $name) {
         <div class="bg-white rounded-lg shadow-md mb-6">
             <div class="border-b border-gray-200">
                 <nav class="flex">
+                    <button onclick="showTab('constellations')" 
+                            id="tab-constellations"
+                            class="px-6 py-3 font-medium text-sm border-b-2 <?php echo $activeTab === 'constellations' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?>">
+                        Constellations
+                    </button>
                     <button onclick="showTab('users')" 
                             id="tab-users"
                             class="px-6 py-3 font-medium text-sm border-b-2 <?php echo $activeTab === 'users' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?>">
@@ -698,6 +750,97 @@ foreach ($importantExtensions as $ext => $name) {
                 </div>
             </div>
 
+            <!-- Constellations Tab -->
+            <div id="content-constellations" class="p-6 <?php echo $activeTab !== 'constellations' ? 'hidden' : ''; ?>">
+                <div id="constellation-form-panel" class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded <?php echo $editConstellation ? '' : 'hidden'; ?>">
+                    <h2 class="text-blue-800 text-xl font-semibold mb-4">
+                        <?php echo $editConstellation ? 'Edit Constellation' : 'Create New Constellation'; ?>
+                    </h2>
+                    <form method="POST" action="">
+                        <input type="hidden" name="action" value="<?php echo $editConstellation ? 'update_constellation' : 'create_constellation'; ?>">
+                        <?php if ($editConstellation): ?>
+                            <input type="hidden" name="id" value="<?php echo (int)$editConstellation['id']; ?>">
+                            <p class="text-sm text-gray-600 mb-4">ID: <?php echo (int)$editConstellation['id']; ?> (cannot be changed)</p>
+                        <?php endif; ?>
+                        <div class="mb-4">
+                            <label for="constellation_name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
+                            <input type="text" 
+                                   id="constellation_name" 
+                                   name="name" 
+                                   required 
+                                   value="<?php echo $editConstellation ? htmlspecialchars($editConstellation['name']) : ''; ?>"
+                                   placeholder="e.g. Main network, Archive"
+                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
+                                <?php echo $editConstellation ? 'Update Constellation' : 'Create Constellation'; ?>
+                            </button>
+                            <?php if ($editConstellation): ?>
+                                <a href="index.php?tab=constellations" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer inline-block">
+                                    Cancel
+                                </a>
+                            <?php else: ?>
+                                <button type="button" onclick="document.getElementById('constellation-form-panel').classList.add('hidden');" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
+                                    Cancel
+                                </button>
+                            <?php endif; ?>
+                        </div>
+                    </form>
+                </div>
+                <div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <h2 class="text-gray-800 text-base font-semibold">Constellations (<?php echo count($constellations); ?>)</h2>
+                        <a href="#" onclick="document.getElementById('constellation-form-panel').classList.remove('hidden'); return false;" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Constellation</a>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-4">Each constellation is a separate set of nodes and keywords. The default constellation (ID 0) cannot be deleted.</p>
+                    <?php if (empty($constellations)): ?>
+                        <p class="text-gray-600">No constellations found.</p>
+                    <?php else: ?>
+                        <div class="overflow-x-auto border border-gray-300 rounded">
+                            <table class="w-full border-collapse">
+                                <thead>
+                                    <tr class="border-b-2 border-gray-400 bg-gray-100">
+                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">ID</th>
+                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">Name</th>
+                                        <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($constellations as $c): ?>
+                                        <?php
+                                        $cId = (int)$c['id'];
+                                        $isDefault = $cId === 0;
+                                        ?>
+                                        <tr class="border-b border-gray-300 hover:bg-gray-50">
+                                            <td class="py-2 px-2 font-mono text-gray-800"><?php echo $cId; ?></td>
+                                            <td class="py-2 px-2 font-semibold text-gray-800">
+                                                <?php echo htmlspecialchars($c['name']); ?>
+                                                <?php if ($isDefault): ?>
+                                                    <span class="ml-2 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">Default</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="py-2 px-2 text-right">
+                                                <div class="flex gap-2 justify-end">
+                                                    <a href="index.php?tab=constellations&edit_constellation=<?php echo $cId; ?>" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">Edit</a>
+                                                    <?php if (!$isDefault): ?>
+                                                        <form method="POST" action="" class="inline" onsubmit="return confirm('Are you sure you want to delete this constellation? Nodes and keywords in this constellation must be moved or deleted first.');">
+                                                            <input type="hidden" name="action" value="delete_constellation">
+                                                            <input type="hidden" name="id" value="<?php echo $cId; ?>">
+                                                            <button type="submit" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">Delete</button>
+                                                        </form>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
             <!-- Global Settings Tab -->
             <div id="content-settings" class="p-6 <?php echo $activeTab !== 'settings' ? 'hidden' : ''; ?>">
                 <p class="text-gray-600 mb-4 max-w-2xl">Localized content for the main app. English is required; Spanish and Portuguese are optional and fall back to English when empty.</p>
@@ -884,12 +1027,14 @@ foreach ($importantExtensions as $ext => $name) {
             // Hide all tabs
             document.getElementById('content-api-keys').classList.add('hidden');
             document.getElementById('content-users').classList.add('hidden');
+            const contentConstellations = document.getElementById('content-constellations');
+            if (contentConstellations) contentConstellations.classList.add('hidden');
             const contentSettings = document.getElementById('content-settings');
             if (contentSettings) contentSettings.classList.add('hidden');
             document.getElementById('content-php-info').classList.add('hidden');
             
             // Remove active styling from all tabs
-            const tabs = ['api-keys', 'users', 'settings', 'php-info'];
+            const tabs = ['api-keys', 'users', 'constellations', 'settings', 'php-info'];
             tabs.forEach(tab => {
                 const tabElement = document.getElementById('tab-' + tab);
                 if (tabElement) {
@@ -915,11 +1060,14 @@ foreach ($importantExtensions as $ext => $name) {
                 activeTabEl.classList.add('border-blue-500', 'text-blue-600');
             }
             
-            // Update URL without reload (but preserve edit_user if present)
+            // Update URL without reload (preserve edit_user or edit_constellation when on that tab)
             const url = new URL(window.location);
             url.searchParams.set('tab', tabName);
             if (tabName !== 'users') {
                 url.searchParams.delete('edit_user');
+            }
+            if (tabName !== 'constellations') {
+                url.searchParams.delete('edit_constellation');
             }
             window.history.pushState({}, '', url);
         }

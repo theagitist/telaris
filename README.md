@@ -36,8 +36,9 @@ The setup script follows this 4-step process:
 2. **Create Database Schema**: Automatically creates all required tables
    - Project info table (initialized with default values)
    - Users table
-   - Nodes table (with JSON column for animation)
-   - Keywords table
+   - Constellations table (default constellation id=0 created by setup and cannot be erased)
+   - Nodes table (with JSON column for animation; each node belongs to a constellation)
+   - Keywords table (scoped per constellation)
    - Node-keywords junction table
    - API keys table
 
@@ -58,7 +59,7 @@ The setup script follows this 4-step process:
 
 After setup, you can access:
 
-- **Main Visualization**: `https://your-domain.com/` or `https://your-domain.com/index.php`
+- **Main Visualization**: `https://your-domain.com/` or `https://your-domain.com/index.php` — shows the default constellation (id 0). To open a specific constellation by id, use `https://your-domain.com/{id}` (e.g. `/5`) or `?constellation_id={id}`; the path form may require a rewrite rule so `/{number}` is handled by `index.php`.
 - **Login Page**: `https://your-domain.com/utils/login.php`
 - **Admin Console**: `https://your-domain.com/admin/` (requires admin login)
 - **Node Editor**: `https://your-domain.com/edit/` (requires editor or admin login)
@@ -94,6 +95,11 @@ See `admin/cli/README.md` for detailed documentation on CLI scripts.
 
 The application uses MySQL 8+ with the following tables:
 
+### constellations
+Lists all constellations (each constellation is a set of nodes and keywords). The default constellation has id=0 and is created by setup; it cannot be erased.
+- `id` INT NOT NULL PRIMARY KEY - Constellation identifier (immutable; 0 = default)
+- `name` VARCHAR(255) NOT NULL DEFAULT '' - Display name
+
 ### users
 Stores user accounts with authentication information.
 - `id` VARCHAR(255) PRIMARY KEY - Unique user identifier
@@ -106,8 +112,9 @@ Stores user accounts with authentication information.
 - `date_last_login` TIMESTAMP NULL - Last login timestamp
 
 ### nodes
-Stores 3D network nodes with JSON columns for structured data (MySQL 8 feature).
+Stores 3D network nodes with JSON columns for structured data (MySQL 8 feature). Each node belongs to one constellation.
 - `id` INT AUTO_INCREMENT PRIMARY KEY - Node identifier
+- `constellation_id` INT NOT NULL DEFAULT 0 - Constellation (FK → constellations.id)
 - `name` VARCHAR(255) NOT NULL - Node name
 - `description` TEXT - Node description
 - `url` VARCHAR(500) NULL - Optional URL for the node (opens in new window when clicked)
@@ -117,9 +124,10 @@ Stores 3D network nodes with JSON columns for structured data (MySQL 8 feature).
 - `updated_at` TIMESTAMP - Last update timestamp
 
 ### keywords
-Stores keywords/tags that can be associated with nodes.
+Stores keywords/tags that can be associated with nodes; each keyword belongs to one constellation (unique per constellation).
 - `id` INT AUTO_INCREMENT PRIMARY KEY - Keyword identifier
-- `keyword` VARCHAR(100) NOT NULL UNIQUE - Keyword text
+- `constellation_id` INT NOT NULL DEFAULT 0 - Constellation (FK → constellations.id)
+- `keyword` VARCHAR(100) NOT NULL - Keyword text (UNIQUE with constellation_id)
 - `created_at` TIMESTAMP - Creation timestamp
 
 ### node_keywords
@@ -270,6 +278,13 @@ location / {
 }
 ```
 
+To support constellation URLs like `/5` (open constellation by id), add a rewrite before the above so numeric paths are handled by `index.php`:
+```nginx
+location ~ ^/[0-9]+$ {
+    rewrite ^/([0-9]+)$ /index.php?constellation_id=$1 last;
+}
+```
+
 ### Authentication Issues
 - Verify user type in database (0 = regular, 1 = editor, 2 = admin)
 - Check that passwords are properly hashed
@@ -308,6 +323,9 @@ This will return the application to an unconfigured state, allowing you to run `
 - **Pan**: (If enabled) Right-click and drag or use middle mouse button
 
 ## Version History
+
+### Version 2.0.2
+- **Constellations**: Added support for multiple constellations (sets of nodes and keywords). New `constellations` table; nodes and keywords now have `constellation_id`. Setup creates a default constellation (id=0) that cannot be erased. Existing nodes and keywords are migrated to the default constellation automatically.
 
 ### Version 2.0.1
 - **Favicon**: Sun icon on black background added as favicon across all pages.

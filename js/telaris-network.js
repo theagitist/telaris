@@ -210,8 +210,9 @@ const USE_MORE_COLOR_VARIETY = true;
                         }
                     }
                     
-                    // Load nodes
-                    const nodesResponse = await apiFetch('api/nodes.php');
+                    // Load nodes for current constellation (root URL = default 0; /{NUMBER} = that constellation)
+                    const constellationId = typeof window.TELARIS_CONSTELLATION_ID === 'number' ? window.TELARIS_CONSTELLATION_ID : 0;
+                    const nodesResponse = await apiFetch('api/nodes.php?constellation_id=' + encodeURIComponent(constellationId));
                     if (!nodesResponse.ok) {
                         const errorText = await nodesResponse.text();
                         console.error(`HTTP error! status: ${nodesResponse.status}`, errorText);

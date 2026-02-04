@@ -26,7 +26,18 @@ $method = $_SERVER['REQUEST_METHOD'];
 try {
     match ($method) {
         'GET' => (function(): void {
-            $nodes = db_get_nodes();
+            $constellationId = null;
+            if (isset($_GET['constellation_id'])) {
+                if ($_GET['constellation_id'] === 'all') {
+                    $constellationId = null; // all nodes (e.g. for Edit page)
+                } elseif (is_numeric($_GET['constellation_id'])) {
+                    $constellationId = (int) $_GET['constellation_id'];
+                }
+            }
+            if ($constellationId === null && !isset($_GET['constellation_id'])) {
+                $constellationId = DEFAULT_CONSTELLATION_ID; // main view without param: show default constellation only
+            }
+            $nodes = db_get_nodes($constellationId);
             $formatted = array_map(fn($node) => db_format_node($node), $nodes);
             echo json_encode($formatted, JSON_THROW_ON_ERROR);
         })(),
@@ -88,7 +99,8 @@ try {
                 echo json_encode(['error' => 'Node name cannot be empty'], JSON_THROW_ON_ERROR);
                 return;
             }
-            $nodeId = db_create_node($name, $description, $url, $animation);
+            $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : DEFAULT_CONSTELLATION_ID;
+            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId);
             if ($nodeId === 0) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to create node: Could not retrieve node ID'], JSON_THROW_ON_ERROR);
@@ -122,7 +134,8 @@ try {
                     return;
                 }
             }
-            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation);
+            $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : null;
+            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId);
             if (isset($data['keywords']) && is_array($data['keywords'])) {
                 db_save_node_keywords((int)$id, $data['keywords']);
             }

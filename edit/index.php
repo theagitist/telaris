@@ -14,6 +14,8 @@ $pdo = getDB();
 // Get default API key for API calls (using function from config.php)
 $apiKey = getDefaultApiKey($pdo);
 
+$constellations = db_get_constellations();
+
 // Page title only (Global Settings are in Admin)
 $projectInfoEn = db_get_project_info_for_locale('en');
 $projectName = $projectInfoEn['name'] ?? 'Telaris';
@@ -96,7 +98,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                    required 
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
-                        
+                        <div>
+                            <label for="node-constellation" class="block mb-1.5 text-gray-800 font-medium">Constellation</label>
+                            <select id="node-constellation" 
+                                    name="constellation_id" 
+                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                <?php foreach ($constellations as $c): ?>
+                                    <option value="<?php echo (int)$c['id']; ?>" <?php echo (int)$c['id'] === 0 ? 'selected' : ''; ?>><?php echo htmlspecialchars($c['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <span class="text-xs text-gray-500 mt-1 block">Which constellation this node belongs to</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label for="node-keywords" class="block mb-1.5 text-gray-800 font-medium">Keywords</label>
                             <input type="text" 
@@ -152,11 +166,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <!-- Header row -->
                     <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
                         <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
-                            <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">
                                 Name<span id="sort-indicator-name"></span>
                             </div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('constellation_name')">
+                                Constellation<span id="sort-indicator-constellation_name"></span>
+                            </div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')">URL<span id="sort-indicator-url"></span></div>
-                            <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">
                                 Keywords<span id="sort-indicator-keywords"></span>
                             </div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">
@@ -175,6 +192,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <script>
         const API_KEY = <?php echo $apiKey !== null ? json_encode($apiKey, JSON_THROW_ON_ERROR) : 'null'; ?>;
         const API_BASE = '../api/nodes.php';
+        const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name']], $constellations), JSON_THROW_ON_ERROR); ?>;
 
         let editingNodeId = null;
 
@@ -201,7 +219,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (loadingMsg) {
                 loadingMsg.textContent = 'Loading nodes...';
             } else {
-                listDiv.innerHTML = '<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10"><div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700"><div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'name\')">Name<span id="sort-indicator-name"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'url\')">URL<span id="sort-indicator-url"></span></div><div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'keywords\')">Keywords<span id="sort-indicator-keywords"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'created_at\')">Created<span id="sort-indicator-created_at"></span></div><div class="col-span-2 text-right">Actions</div></div></div><p class="text-gray-500 p-4" id="loading-message">Loading nodes...</p>';
+                listDiv.innerHTML = '<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10"><div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700"><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'name\')">Name<span id="sort-indicator-name"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'constellation_name\')">Constellation<span id="sort-indicator-constellation_name"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'url\')">URL<span id="sort-indicator-url"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'keywords\')">Keywords<span id="sort-indicator-keywords"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'created_at\')">Created<span id="sort-indicator-created_at"></span></div><div class="col-span-2 text-right">Actions</div></div></div><p class="text-gray-500 p-4" id="loading-message">Loading nodes...</p>';
             }
 
             // Check if API key exists
@@ -217,7 +235,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 
                 let response;
                 try {
-                    response = await fetch(API_BASE, {
+                    response = await fetch(API_BASE + '?constellation_id=all', {
                         headers: {
                             'X-API-Key': API_KEY
                         },
@@ -334,6 +352,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     
                     // Check if this node is being edited
                     if (editingNodeId === node.id) {
+                        const constellationOptions = (typeof CONSTELLATIONS !== 'undefined' ? CONSTELLATIONS : []).map(c =>
+                            `<option value="${c.id}" ${(node.constellation_id === c.id) ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
+                        ).join('');
                         // Show inline edit form
                         return `
                 <div class="border-2 border-blue-500 rounded p-4 bg-blue-50">
@@ -347,6 +368,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                        value="${escapeHtml(node.name)}" 
                                        required 
                                        class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Constellation</label>
+                                <select id="edit-constellation-${node.id}" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">${constellationOptions}</select>
                             </div>
                             <div>
                                 <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
@@ -392,17 +417,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     const keywordsDisplay = node.keywords && node.keywords.length > 0 
                         ? node.keywords.map(k => escapeHtml(k)).join(', ')
                         : 'No keywords';
+                    const constellationName = (node.constellation_name || 'Default');
                     return `
                 <div class="border-b border-gray-300 hover:bg-gray-50 py-2">
                     <div class="grid grid-cols-12 gap-3 items-center text-sm">
-                        <div class="col-span-3">
+                        <div class="col-span-2">
                             <div class="font-semibold text-gray-800 truncate" title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</div>
                             ${descriptionTruncated ? `<div class="text-xs text-gray-500 truncate mt-0.5" title="${escapeHtml(node.description || '')}">${descriptionTruncated}</div>` : ''}
                         </div>
+                        <div class="col-span-2 text-xs text-gray-600 truncate" title="${escapeHtml(constellationName)}">${escapeHtml(constellationName)}</div>
                         <div class="col-span-2">
                             ${node.url ? `<a href="${escapeHtml(node.url)}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline text-xs truncate block" title="${escapeHtml(node.url)}">${escapeHtml(node.url)}</a>` : '<span class="text-xs text-gray-400">—</span>'}
                         </div>
-                        <div class="col-span-3">
+                        <div class="col-span-2">
                             <div class="text-xs text-gray-600 truncate" title="${keywordsDisplay}">${keywordsDisplay}</div>
                         </div>
                         <div class="col-span-2 text-xs text-gray-500">
@@ -430,11 +457,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     // Create header if it doesn't exist
                     headerHTML = `<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
                         <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
-                            <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">
                                 Name<span id="sort-indicator-name"></span>
                             </div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('constellation_name')">
+                                Constellation<span id="sort-indicator-constellation_name"></span>
+                            </div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')">URL<span id="sort-indicator-url"></span></div>
-                            <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">
                                 Keywords<span id="sort-indicator-keywords"></span>
                             </div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">
@@ -485,7 +515,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Update sort indicators in header
         function updateSortIndicators() {
             // Reset all indicators
-            ['name', 'url', 'keywords', 'created_at'].forEach(col => {
+            ['name', 'constellation_name', 'url', 'keywords', 'created_at'].forEach(col => {
                 const indicator = document.getElementById('sort-indicator-' + col);
                 if (indicator) {
                     indicator.innerHTML = '';
@@ -529,8 +559,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     const keywordsMatch = node.keywords && node.keywords.length > 0
                         ? node.keywords.some(k => k.toLowerCase().includes(searchQuery))
                         : false;
+                    const constellationMatch = (node.constellation_name || '').toLowerCase().includes(searchQuery);
                     
-                    return nameMatch || descriptionMatch || urlMatch || keywordsMatch;
+                    return nameMatch || descriptionMatch || urlMatch || keywordsMatch || constellationMatch;
                 });
             }
             
@@ -556,6 +587,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         case 'keywords':
                             aVal = a.keywords && a.keywords.length > 0 ? a.keywords.join(', ').toLowerCase() : '';
                             bVal = b.keywords && b.keywords.length > 0 ? b.keywords.join(', ').toLowerCase() : '';
+                            break;
+                        case 'constellation_name':
+                            aVal = (a.constellation_name || '').toLowerCase();
+                            bVal = (b.constellation_name || '').toLowerCase();
                             break;
                         default:
                             return 0;
@@ -619,7 +654,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             
             // Get current node data to preserve animation
             try {
-                const response = await fetch(API_BASE, {
+                const response = await fetch(API_BASE + '?constellation_id=all', {
                     headers: {
                         'X-API-Key': API_KEY
                     }
@@ -636,6 +671,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     throw new Error('Node not found');
                 }
                 
+                const constellationSelect = document.getElementById(`edit-constellation-${nodeId}`);
+                const constellationId = constellationSelect ? parseInt(constellationSelect.value, 10) : node.constellation_id;
                 const formData = {
                     id: nodeId,
                     name: nodeName,
@@ -645,7 +682,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         .split(',')
                         .map(k => k.trim())
                         .filter(k => k.length > 0),
-                    animation: node.animation // Preserve existing animation
+                    animation: node.animation, // Preserve existing animation
+                    constellation_id: isNaN(constellationId) ? node.constellation_id : constellationId
                 };
                 
                 const updateResponse = await fetch(API_BASE, {
@@ -747,6 +785,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const animation = generateRandomAnimation();
                 
                 const urlValue = document.getElementById('node-url').value.trim();
+                const constellationSelect = document.getElementById('node-constellation');
+                const constellationId = constellationSelect ? parseInt(constellationSelect.value, 10) : 0;
                 const formData = {
                     name: nodeName,
                     description: document.getElementById('node-description').value.trim() || null,
@@ -755,7 +795,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         .split(',')
                         .map(k => k.trim())
                         .filter(k => k.length > 0),
-                    animation: animation
+                    animation: animation,
+                    constellation_id: isNaN(constellationId) ? 0 : constellationId
                 };
 
                 try {

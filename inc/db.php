@@ -578,18 +578,184 @@ function createUser(PDO $pdo, string $email, string $hashedPassword, string $fir
 }
 
 // ---------------------------------------------------------------------------
+// Constellations
+// ---------------------------------------------------------------------------
+
+/** Default constellation id (created by setup, cannot be erased). */
+const DEFAULT_CONSTELLATION_ID = 0;
+
+/**
+ * Return the display name for the default constellation: app name from project_info (en) if non-empty, else 'Default'.
+ */
+function db_default_constellation_name(PDO $pdo): string {
+    try {
+        $stmt = $pdo->query("SELECT name FROM project_info WHERE locale = 'en' LIMIT 1");
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $name = $row && isset($row['name']) ? trim((string) $row['name']) : '';
+        return $name !== '' ? $name : 'Default';
+    } catch (PDOException $e) {
+        return 'Default';
+    }
+}
+
+/**
+ * @return list<array{id: int, name: string}>
+ */
+function db_get_constellations(): array {
+    db_ensure_constellations();
+    $pdo = getDB();
+    $stmt = $pdo->query("SELECT id, name FROM constellations ORDER BY id");
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Create a new constellation with the next available id. Returns the new id.
+ */
+function db_create_constellation(string $name): int {
+    db_ensure_constellations();
+    $pdo = getDB();
+    $stmt = $pdo->query("SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM constellations");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $nextId = (int)($row['next_id'] ?? 1);
+    $pdo->prepare("INSERT INTO constellations (id, name) VALUES (:id, :name)")->execute([
+        ':id' => $nextId,
+        ':name' => trim($name) ?: 'Unnamed'
+    ]);
+    return $nextId;
+}
+
+/**
+ * Update constellation name. Id cannot be changed. Default constellation (id=0) can be renamed.
+ */
+function db_update_constellation(int $id, string $name): void {
+    $pdo = getDB();
+    $pdo->prepare("UPDATE constellations SET name = :name WHERE id = :id")->execute([
+        ':name' => trim($name) ?: 'Unnamed',
+        ':id' => $id
+    ]);
+}
+
+/**
+ * Delete a constellation. Fails if id is the default (0); nodes/keywords in other constellations are unaffected.
+ */
+function db_delete_constellation(int $id): void {
+    if ($id === DEFAULT_CONSTELLATION_ID) {
+        throw new InvalidArgumentException('The default constellation cannot be deleted.');
+    }
+    $pdo = getDB();
+    $pdo->prepare("DELETE FROM constellations WHERE id = :id")->execute([':id' => $id]);
+}
+
+/**
+ * Ensure constellations table exists, default constellation (id=0) exists,
+ * and nodes/keywords have constellation_id (migration for existing DBs).
+ */
+function db_ensure_constellations(): void {
+    $pdo = getDB();
+    // Create constellations table if missing
+    $stmt = $pdo->query("SHOW TABLES LIKE 'constellations'");
+    if ($stmt->fetch() === false) {
+        $pdo->exec("
+            CREATE TABLE constellations (
+                id INT NOT NULL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL DEFAULT ''
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        $defaultName = db_default_constellation_name($pdo);
+        $pdo->prepare("INSERT INTO constellations (id, name) VALUES (:id, :name)")->execute([
+            ':id' => DEFAULT_CONSTELLATION_ID,
+            ':name' => $defaultName
+        ]);
+    } else {
+        $stmt = $pdo->prepare("SELECT id FROM constellations WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => DEFAULT_CONSTELLATION_ID]);
+        if ($stmt->fetch() === false) {
+            $defaultName = db_default_constellation_name($pdo);
+            $pdo->prepare("INSERT INTO constellations (id, name) VALUES (:id, :name)")->execute([
+                ':id' => DEFAULT_CONSTELLATION_ID,
+                ':name' => $defaultName
+            ]);
+        } else {
+            // Sync default constellation name with app name from project_info
+            $defaultName = db_default_constellation_name($pdo);
+            $pdo->prepare("UPDATE constellations SET name = :name WHERE id = :id")->execute([
+                ':name' => $defaultName,
+                ':id' => DEFAULT_CONSTELLATION_ID
+            ]);
+        }
+    }
+    // Migrate nodes: add constellation_id if missing (only if nodes table exists)
+    $tables = $pdo->query("SHOW TABLES LIKE 'nodes'")->fetch();
+    if ($tables !== false) {
+        $cols = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'constellation_id'")->fetchAll();
+        if ($cols === []) {
+        $pdo->exec("ALTER TABLE nodes ADD COLUMN constellation_id INT NOT NULL DEFAULT " . DEFAULT_CONSTELLATION_ID);
+        $pdo->exec("UPDATE nodes SET constellation_id = " . DEFAULT_CONSTELLATION_ID . " WHERE constellation_id != " . DEFAULT_CONSTELLATION_ID . " OR constellation_id IS NULL");
+        try {
+            $pdo->exec("ALTER TABLE nodes ADD CONSTRAINT fk_nodes_constellation FOREIGN KEY (constellation_id) REFERENCES constellations(id)");
+        } catch (PDOException $e) {
+            // FK may already exist or table may have been created with it
+        }
+        }
+    }
+    // Migrate keywords: add constellation_id if missing (only if keywords table exists)
+    $tables = $pdo->query("SHOW TABLES LIKE 'keywords'")->fetch();
+    if ($tables !== false) {
+        $cols = $pdo->query("SHOW COLUMNS FROM keywords LIKE 'constellation_id'")->fetchAll();
+        if ($cols === []) {
+        $pdo->exec("ALTER TABLE keywords ADD COLUMN constellation_id INT NOT NULL DEFAULT " . DEFAULT_CONSTELLATION_ID);
+        $pdo->exec("UPDATE keywords SET constellation_id = " . DEFAULT_CONSTELLATION_ID);
+        try {
+            $pdo->exec("ALTER TABLE keywords DROP INDEX unique_keyword");
+        } catch (PDOException $e) {
+            // ignore if index name differs or already dropped
+        }
+        try {
+            $pdo->exec("ALTER TABLE keywords ADD UNIQUE KEY unique_keyword_constellation (keyword, constellation_id)");
+        } catch (PDOException $e) {
+            // ignore if key already exists (e.g. new schema)
+        }
+        try {
+            $pdo->exec("ALTER TABLE keywords ADD CONSTRAINT fk_keywords_constellation FOREIGN KEY (constellation_id) REFERENCES constellations(id)");
+        } catch (PDOException $e) {
+            // ignore if FK already exists
+        }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Nodes
 // ---------------------------------------------------------------------------
 
 /**
  * @return list<array<string, mixed>>
  */
-function db_get_nodes(): array {
+/**
+ * @param int|null $constellationId If set, only return nodes in this constellation; null = all nodes
+ * @return list<array<string, mixed>>
+ */
+function db_get_nodes(?int $constellationId = null): array {
+    db_ensure_constellations();
     $pdo = getDB();
+    if ($constellationId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT n.id, n.name, n.description, n.url, n.animation, n.created_at, n.constellation_id,
+                   c.name AS constellation_name
+            FROM nodes n
+            LEFT JOIN constellations c ON c.id = n.constellation_id
+            WHERE n.constellation_id = :constellation_id
+            ORDER BY n.id
+        ");
+        $stmt->execute([':constellation_id' => $constellationId]);
+        return $stmt->fetchAll();
+    }
     $stmt = $pdo->query("
-        SELECT id, name, description, url, animation, created_at
-        FROM nodes
-        ORDER BY id
+        SELECT n.id, n.name, n.description, n.url, n.animation, n.created_at, n.constellation_id,
+               c.name AS constellation_name
+        FROM nodes n
+        LEFT JOIN constellations c ON c.id = n.constellation_id
+        ORDER BY n.id
     ");
     return $stmt->fetchAll();
 }
@@ -632,19 +798,26 @@ function db_format_node(array $node): array {
         'url' => $node['url'] ?? null,
         'keywords' => $keywords,
         'animation' => $animation,
-        'created_at' => $createdAt
+        'created_at' => $createdAt,
+        'constellation_id' => isset($node['constellation_id']) ? (int)$node['constellation_id'] : DEFAULT_CONSTELLATION_ID,
+        'constellation_name' => isset($node['constellation_name']) && (string)$node['constellation_name'] !== '' ? (string)$node['constellation_name'] : 'Default'
     ];
 }
 
 function db_save_node_keywords(int $nodeId, array $keywords): void {
+    db_ensure_constellations();
     $pdo = getDB();
+    $nodeStmt = $pdo->prepare("SELECT constellation_id FROM nodes WHERE id = :id LIMIT 1");
+    $nodeStmt->execute([':id' => $nodeId]);
+    $nodeRow = $nodeStmt->fetch();
+    $constellationId = $nodeRow ? (int)$nodeRow['constellation_id'] : DEFAULT_CONSTELLATION_ID;
     $pdo->prepare("DELETE FROM node_keywords WHERE node_id = :node_id")->execute([':node_id' => $nodeId]);
     if ($keywords === []) {
         return;
     }
     $keywordStmt = $pdo->prepare("
-        INSERT INTO keywords (keyword) VALUES (:keyword)
-        ON DUPLICATE KEY UPDATE id=id
+        INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :constellation_id)
+        ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)
     ");
     $nodeKeywordStmt = $pdo->prepare("
         INSERT INTO node_keywords (node_id, keyword_id)
@@ -657,11 +830,11 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
             continue;
         }
         try {
-            $keywordStmt->execute([':keyword' => $keyword]);
+            $keywordStmt->execute([':keyword' => $keyword, ':constellation_id' => $constellationId]);
             $keywordId = (int)$pdo->lastInsertId();
             if ($keywordId === 0) {
-                $getIdStmt = $pdo->prepare("SELECT id FROM keywords WHERE keyword = :keyword LIMIT 1");
-                $getIdStmt->execute([':keyword' => $keyword]);
+                $getIdStmt = $pdo->prepare("SELECT id FROM keywords WHERE keyword = :keyword AND constellation_id = :constellation_id LIMIT 1");
+                $getIdStmt->execute([':keyword' => $keyword, ':constellation_id' => $constellationId]);
                 $result = $getIdStmt->fetch();
                 $keywordId = $result ? (int)$result['id'] : 0;
             }
@@ -674,33 +847,49 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
     }
 }
 
-function db_create_node(string $name, ?string $description, ?string $url, string $animation): int {
+function db_create_node(string $name, ?string $description, ?string $url, string $animation, int $constellationId = DEFAULT_CONSTELLATION_ID): int {
+    db_ensure_constellations();
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        INSERT INTO nodes (name, description, url, animation)
-        VALUES (:name, :description, :url, :animation)
+        INSERT INTO nodes (name, description, url, animation, constellation_id)
+        VALUES (:name, :description, :url, :animation, :constellation_id)
     ");
     $stmt->execute([
         ':name' => $name,
         ':description' => $description,
         ':url' => $url,
-        ':animation' => $animation
+        ':animation' => $animation,
+        ':constellation_id' => $constellationId
     ]);
     return (int)$pdo->lastInsertId();
 }
 
-function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation): void {
+function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null): void {
     $pdo = getDB();
-    $stmt = $pdo->prepare("
-        UPDATE nodes SET name = :name, description = :description, url = :url, animation = :animation WHERE id = :id
-    ");
-    $stmt->execute([
-        ':id' => $id,
-        ':name' => $name,
-        ':description' => $description,
-        ':url' => $url,
-        ':animation' => $animation
-    ]);
+    if ($constellationId !== null) {
+        $stmt = $pdo->prepare("
+            UPDATE nodes SET name = :name, description = :description, url = :url, animation = :animation, constellation_id = :constellation_id WHERE id = :id
+        ");
+        $stmt->execute([
+            ':id' => $id,
+            ':name' => $name,
+            ':description' => $description,
+            ':url' => $url,
+            ':animation' => $animation,
+            ':constellation_id' => $constellationId
+        ]);
+    } else {
+        $stmt = $pdo->prepare("
+            UPDATE nodes SET name = :name, description = :description, url = :url, animation = :animation WHERE id = :id
+        ");
+        $stmt->execute([
+            ':id' => $id,
+            ':name' => $name,
+            ':description' => $description,
+            ':url' => $url,
+            ':animation' => $animation
+        ]);
+    }
 }
 
 function db_delete_node(int $id): void {
@@ -714,10 +903,11 @@ function db_delete_node(int $id): void {
 // ---------------------------------------------------------------------------
 
 /**
- * @param int|null $nodeId If set, return keywords for that node; otherwise all keywords with usage_count.
+ * @param int|null $nodeId If set, return keywords for that node; otherwise all keywords with usage_count (default constellation).
  * @return list<array<string, mixed>>
  */
 function db_get_keywords(?int $nodeId = null): array {
+    db_ensure_constellations();
     $pdo = getDB();
     if ($nodeId !== null) {
         $stmt = $pdo->prepare("
@@ -731,27 +921,31 @@ function db_get_keywords(?int $nodeId = null): array {
         $stmt->execute([':node_id' => $nodeId]);
         return $stmt->fetchAll();
     }
-    $stmt = $pdo->query("
+    $stmt = $pdo->prepare("
         SELECT k.id, k.keyword, COUNT(nk.node_id) AS usage_count
         FROM keywords k
         LEFT JOIN node_keywords nk ON k.id = nk.keyword_id
+        WHERE k.constellation_id = :constellation_id
         GROUP BY k.id, k.keyword
         ORDER BY k.keyword
     ");
+    $stmt->execute([':constellation_id' => DEFAULT_CONSTELLATION_ID]);
     return $stmt->fetchAll();
 }
 
-function db_create_keyword(string $keyword): int {
+function db_create_keyword(string $keyword, int $constellationId = DEFAULT_CONSTELLATION_ID): int {
+    db_ensure_constellations();
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        INSERT INTO keywords (keyword) VALUES (:keyword)
+        INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :constellation_id)
         ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)
     ");
-    $stmt->execute([':keyword' => $keyword]);
+    $stmt->execute([':keyword' => $keyword, ':constellation_id' => $constellationId]);
     return (int)$pdo->lastInsertId();
 }
 
 function db_delete_keyword(int $id): void {
+    db_ensure_constellations();
     $pdo = getDB();
     $stmt = $pdo->prepare("DELETE FROM keywords WHERE id = :id");
     $stmt->execute([':id' => $id]);
@@ -765,6 +959,7 @@ function db_delete_keyword(int $id): void {
  * @return list<array{id: int, node1_id: int, node2_id: int, shared_keywords: list<string>, shared_count: int}>
  */
 function db_get_connections(): array {
+    db_ensure_constellations();
     $pdo = getDB();
     $nodesStmt = $pdo->query("SELECT n.id, n.name FROM nodes n ORDER BY n.id");
     $nodes = $nodesStmt->fetchAll();
