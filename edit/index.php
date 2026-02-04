@@ -18,7 +18,7 @@ $projectAll = db_get_project_info_all_locales();
 if (!$projectAll) {
     $projectAll = [
         'name' => 'Telaris', 'description' => '', 'iframe_back_text' => 'Go back',
-        'alert_message' => "Close this window when you're done to go back.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading',
+        'alert_message' => "Close this window when you're done to go back to {APPNAME}.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading',
         'name_es' => '', 'name_pt' => '', 'description_es' => '', 'description_pt' => '',
         'iframe_back_text_es' => '', 'iframe_back_text_pt' => '', 'alert_message_es' => '', 'alert_message_pt' => '',
         'edit_button_text_es' => '', 'edit_button_text_pt' => '', 'loading_text_es' => '', 'loading_text_pt' => '',
@@ -30,7 +30,7 @@ if ($projectTagline === '' && isset($projectAll['description'])) {
     $projectTagline = (string)$projectAll['description'];
 }
 $projectIframeBackText = $projectAll['iframe_back_text'] ?? 'Go back';
-$projectAlertMessage = $projectAll['alert_message'] ?? "Close this window when you're done to go back.";
+$projectAlertMessage = $projectAll['alert_message'] ?? "Close this window when you're done to go back to {APPNAME}.";
 $projectEditButtonText = $projectAll['edit_button_text'] ?? 'Edit';
 $projectLoadingText = $projectAll['loading_text'] ?? 'Loading';
 // Spanish & Portuguese (for Settings form)
@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         'name' => trim((string) ($_POST['project_name'] ?? '')),
         'description' => trim((string) ($_POST['project_tagline'] ?? '')),
         'iframe_back_text' => trim((string) ($_POST['iframe_back_text'] ?? 'Go back')),
-        'alert_message' => trim((string) ($_POST['alert_message'] ?? "Close this window when you're done to go back.")),
+        'alert_message' => trim((string) ($_POST['alert_message'] ?? "Close this window when you're done to go back to {APPNAME}.")),
         'edit_button_text' => trim((string) ($_POST['edit_button_text'] ?? 'Edit')),
         'loading_text' => trim((string) ($_POST['loading_text'] ?? 'Loading')),
     ];

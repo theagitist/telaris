@@ -59,17 +59,16 @@ const USE_MORE_COLOR_VARIETY = true;
                 };
             }
 
-            /** Open link in a new window with top toolbar (frame.php); toolbar uses the node's color. */
+            /** Open link in a new window; frame.php shows the alert message then redirects to the URL (styled with node color). */
             openInFrame(node, url) {
                 const d = node && node.userData;
                 const r = (d && d.colorR !== undefined) ? d.colorR : 60;
                 const g = (d && d.colorG !== undefined) ? d.colorG : 60;
                 const b = (d && d.colorB !== undefined) ? d.colorB : 80;
                 const app = typeof window.TELARIS_APP_NAME === 'string' ? window.TELARIS_APP_NAME : 'Telaris';
-                const iframeText = typeof window.TELARIS_IFRAME_BACK_TEXT === 'string' ? window.TELARIS_IFRAME_BACK_TEXT : 'Go back';
-                const alertMsg = typeof window.TELARIS_ALERT_MESSAGE === 'string' ? window.TELARIS_ALERT_MESSAGE : "Close this window when you're done to go back.";
-                const frameUrl = 'utils/frame.php?url=' + encodeURIComponent(url) + '&r=' + r + '&g=' + g + '&b=' + b + '&app=' + encodeURIComponent(app)
-                    + '&iframe_text=' + encodeURIComponent(iframeText) + '&alert_msg=' + encodeURIComponent(alertMsg);
+                let alertMsg = typeof window.TELARIS_ALERT_MESSAGE === 'string' ? window.TELARIS_ALERT_MESSAGE : "Close this window when you're done to go back to " + app + ".";
+                alertMsg = alertMsg.replace(/\{APPNAME\}/g, app);
+                const frameUrl = 'utils/frame.php?url=' + encodeURIComponent(url) + '&r=' + r + '&g=' + g + '&b=' + b + '&app=' + encodeURIComponent(app) + '&alert_msg=' + encodeURIComponent(alertMsg);
                 window.open(frameUrl, '_blank', 'noopener,noreferrer');
             }
 

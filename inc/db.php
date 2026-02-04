@@ -83,9 +83,9 @@ function db_has_project_table(): bool {
  */
 function db_default_project_info_rows(string $enName = 'Telaris', string $enDescription = 'Weaving memory'): array {
     return [
-        'en' => ['name' => $enName, 'description' => $enDescription, 'iframe_back_text' => 'Go back', 'alert_message' => "Close this window when you're done to go back.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading'],
-        'es' => ['name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 'alert_message' => 'Cierra esta ventana cuando termines para volver.', 'edit_button_text' => 'Editar', 'loading_text' => 'Cargando'],
-        'pt' => ['name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 'alert_message' => 'Feche esta janela quando terminar para voltar.', 'edit_button_text' => 'Editar', 'loading_text' => 'Carregando'],
+        'en' => ['name' => $enName, 'description' => $enDescription, 'iframe_back_text' => 'Go back', 'alert_message' => "Close this window when you're done to go back to {APPNAME}.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading'],
+        'es' => ['name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 'alert_message' => 'Cierra esta ventana cuando termines para volver a {APPNAME}.', 'edit_button_text' => 'Editar', 'loading_text' => 'Cargando'],
+        'pt' => ['name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 'alert_message' => 'Feche esta janela quando terminar para voltar a {APPNAME}.', 'edit_button_text' => 'Editar', 'loading_text' => 'Carregando'],
     ];
 }
 
@@ -194,7 +194,7 @@ function db_get_project_info(): ?array {
 function db_upsert_project_info(string $name, string $description): void {
     db_ensure_project_info_table();
     $pdo = getDB();
-    $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text) VALUES ('en', :name, :description, 'Go back', 'Close this window when you''re done to go back.', 'Edit', 'Loading') ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description)");
+    $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text) VALUES ('en', :name, :description, 'Go back', 'Close this window when you''re done to go back to {APPNAME}.', 'Edit', 'Loading') ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description)");
     $stmt->execute([':name' => $name, ':description' => $description]);
 }
 
@@ -220,7 +220,7 @@ function db_get_project_info_all_locales(): ?array {
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $out = [
             'name' => 'Telaris', 'description' => '', 'iframe_back_text' => 'Go back',
-            'alert_message' => "Close this window when you're done to go back.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading',
+            'alert_message' => "Close this window when you're done to go back to {APPNAME}.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading',
             'name_es' => '', 'name_pt' => '', 'description_es' => '', 'description_pt' => '',
             'iframe_back_text_es' => '', 'iframe_back_text_pt' => '',
             'alert_message_es' => '', 'alert_message_pt' => '', 'edit_button_text_es' => '', 'edit_button_text_pt' => '',
@@ -272,7 +272,7 @@ function db_get_project_info_for_locale(string $locale): array {
             'name' => (string) ($enRow['name'] ?? 'Telaris'),
             'description' => (string) ($enRow['description'] ?? 'Weaving memory'),
             'iframe_back_text' => (string) ($enRow['iframe_back_text'] ?? 'Go back'),
-            'alert_message' => (string) ($enRow['alert_message'] ?? "Close this window when you're done to go back."),
+            'alert_message' => (string) ($enRow['alert_message'] ?? "Close this window when you're done to go back to {APPNAME}."),
             'edit_button_text' => (string) ($enRow['edit_button_text'] ?? 'Edit'),
             'loading_text' => (string) ($enRow['loading_text'] ?? 'Loading'),
         ];
@@ -293,7 +293,7 @@ function db_get_project_info_for_locale(string $locale): array {
             'name' => 'Telaris',
             'description' => 'Weaving memory',
             'iframe_back_text' => 'Go back',
-            'alert_message' => "Close this window when you're done to go back.",
+            'alert_message' => "Close this window when you're done to go back to {APPNAME}.",
             'edit_button_text' => 'Edit',
             'loading_text' => 'Loading',
         ];

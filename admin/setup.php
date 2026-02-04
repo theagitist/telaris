@@ -330,9 +330,9 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
             db_insert_default_project_info_rows($pdo, $websiteName, $websiteTagline);
         } catch (Throwable $e) {
             $defaults = [
-                'en' => ['name' => $websiteName, 'description' => $websiteTagline, 'iframe_back_text' => 'Go back', 'alert_message' => "Close this window when you're done to go back.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading'],
-                'es' => ['name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 'alert_message' => 'Cierra esta ventana cuando termines para volver.', 'edit_button_text' => 'Editar', 'loading_text' => 'Cargando'],
-                'pt' => ['name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 'alert_message' => 'Feche esta janela quando terminar para voltar.', 'edit_button_text' => 'Editar', 'loading_text' => 'Carregando'],
+                'en' => ['name' => $websiteName, 'description' => $websiteTagline, 'iframe_back_text' => 'Go back', 'alert_message' => "Close this window when you're done to go back to {APPNAME}.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading'],
+                'es' => ['name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 'alert_message' => 'Cierra esta ventana cuando termines para volver a {APPNAME}.', 'edit_button_text' => 'Editar', 'loading_text' => 'Cargando'],
+                'pt' => ['name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 'alert_message' => 'Feche esta janela quando terminar para voltar a {APPNAME}.', 'edit_button_text' => 'Editar', 'loading_text' => 'Carregando'],
             ];
             $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text) VALUES (:locale, :name, :description, :iframe_back_text, :alert_message, :edit_button_text, :loading_text) ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description), iframe_back_text = VALUES(iframe_back_text), alert_message = VALUES(alert_message), edit_button_text = VALUES(edit_button_text), loading_text = VALUES(loading_text)");
             foreach (['en', 'es', 'pt'] as $locale) {
