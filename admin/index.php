@@ -476,8 +476,8 @@ foreach ($importantExtensions as $ext => $name) {
 
             <!-- API Keys Tab -->
             <div id="content-api-keys" class="p-6 <?php echo $activeTab !== 'api-keys' ? 'hidden' : ''; ?>">
-                <!-- Generate New API Key Form -->
-                <div class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded">
+                <!-- Generate New API Key Form (hidden by default; shown when New API Key clicked) -->
+                <div id="api-key-form-panel" class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded hidden">
                     <h2 class="text-blue-800 text-xl font-semibold mb-4">Generate New API Key</h2>
                     <form method="POST" action="">
                         <input type="hidden" name="action" value="generate">
@@ -499,15 +499,23 @@ foreach ($importantExtensions as $ext => $name) {
                                       placeholder="Optional description of what this key is used for"
                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
                         </div>
-                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                            Generate API Key
-                        </button>
+                        <div class="flex gap-2">
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
+                                Generate API Key
+                            </button>
+                            <button type="button" onclick="document.getElementById('api-key-form-panel').classList.add('hidden');" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
+                                Cancel
+                            </button>
+                        </div>
                     </form>
                 </div>
                 
-                <!-- Existing API Keys -->
+                <!-- API Keys list -->
                 <div>
-                    <h2 class="text-gray-800 text-xl font-semibold mb-4">Existing API Keys (<?php echo count($apiKeys); ?>)</h2>
+                    <div class="flex items-center gap-3 mb-4">
+                        <h2 class="text-gray-800 text-base font-semibold">API Keys (<?php echo count($apiKeys); ?>)</h2>
+                        <a href="#" onclick="document.getElementById('api-key-form-panel').classList.remove('hidden'); return false;" class="text-blue-600 hover:text-blue-800 font-medium text-base">New API Key</a>
+                    </div>
                     
                     <?php if (empty($apiKeys)): ?>
                         <p class="text-gray-600">No API keys have been generated yet.</p>
