@@ -898,9 +898,9 @@ const USE_MORE_COLOR_VARIETY = true;
                     }
                 }
 
-                // Thickness bands by strength (0–25%, 26–50%, 51–75%, 76–100%) – all relatively thin
-                const THINNEST = 0.004;
-                const MEDIUM_THIN = 0.008;
+                // Thickness bands by strength (0–25%, 26–50%, 51–75%, 76–100%); min thickness raised for Chrome visibility
+                const THINNEST = 0.006;
+                const MEDIUM_THIN = 0.009;
                 const MEDIUM_THICK = 0.012;
                 const THICKEST = 0.016;
 
@@ -925,12 +925,12 @@ const USE_MORE_COLOR_VARIETY = true;
                             else if (pct <= 0.75) thickness = MEDIUM_THICK;
                             else thickness = THICKEST;
                             
-                            // Opacity by strength: 4 bands; lowest band barely visible
+                            // Opacity by strength: 4 bands; thin bands raised for Chrome visibility
                             let opacity;
                             if (pct <= 0.25) {
-                                opacity = 0.012;
+                                opacity = 0.14;
                             } else if (pct <= 0.5) {
-                                opacity = 0.18;
+                                opacity = 0.28;
                             } else if (pct <= 0.75) {
                                 opacity = 0.48;
                             } else {
