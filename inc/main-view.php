@@ -10,12 +10,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.png" type="image/png">
-    <title><?php echo htmlspecialchars($projectName); ?></title>
-    <meta name="description" content="<?php echo htmlspecialchars($projectTagline); ?>">
-    <meta property="og:title" content="<?php echo htmlspecialchars($projectName); ?>">
-    <meta property="og:description" content="<?php echo htmlspecialchars($projectTagline); ?>">
-    <meta name="twitter:title" content="<?php echo htmlspecialchars($projectName); ?>">
-    <meta name="twitter:description" content="<?php echo htmlspecialchars($projectTagline); ?>">
+    <title><?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?></title>
+    <meta name="description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
+    <meta property="og:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
+    <meta property="og:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
+    <meta name="twitter:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
+    <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <script src="js/tailwind.min.js"></script>
     <style>
         #node-tooltip {
@@ -129,8 +129,8 @@
     </div>
     <div id="info" class="absolute top-5 left-5 text-white z-[100] text-sm">
         <div class="cursor-pointer hover:opacity-100 transition-opacity" onclick="location.reload()" role="button" tabindex="0" title="Click to reload">
-            <h2 class="text-lg font-semibold mb-1"><?php echo htmlspecialchars($projectName); ?></h2>
-            <p><?php echo htmlspecialchars($projectTagline); ?></p>
+            <h2 class="text-lg font-semibold mb-1"><?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?></h2>
+            <p><?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?></p>
         </div>
     </div>
     <?php if ($isEditorOrAdmin): ?>

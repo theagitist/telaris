@@ -175,10 +175,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             'create_constellation' => (function(): void {
                 global $message, $error, $activeTab;
                 $name = trim($_POST['name'] ?? '');
+                $tagline = trim($_POST['tagline'] ?? '');
                 if (empty($name)) {
                     throw new Exception('Constellation name is required');
                 }
-                db_create_constellation($name);
+                db_create_constellation($name, $tagline);
                 $message = 'Constellation created successfully.';
                 $activeTab = 'constellations';
             })(),
@@ -187,10 +188,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 global $message, $error, $activeTab;
                 $id = (int)($_POST['id'] ?? -1);
                 $name = trim($_POST['name'] ?? '');
+                $tagline = trim($_POST['tagline'] ?? '');
                 if (empty($name)) {
                     throw new Exception('Constellation name is required');
                 }
-                db_update_constellation($id, $name);
+                db_update_constellation($id, $name, $tagline);
                 $message = 'Constellation updated successfully.';
                 $activeTab = 'constellations';
             })(),
@@ -772,6 +774,16 @@ foreach ($importantExtensions as $ext => $name) {
                                    placeholder="e.g. Main network, Archive"
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
+                        <div class="mb-4">
+                            <label for="constellation_tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
+                            <input type="text" 
+                                   id="constellation_tagline" 
+                                   name="tagline" 
+                                   value="<?php echo $editConstellation ? htmlspecialchars($editConstellation['tagline'] ?? '') : ''; ?>"
+                                   placeholder="e.g. Weaving memory"
+                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            <span class="text-xs text-gray-500 mt-1 block">Shown in the main view when this constellation is open</span>
+                        </div>
                         <div class="flex gap-2">
                             <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
                                 <?php echo $editConstellation ? 'Update Constellation' : 'Create Constellation'; ?>
@@ -803,6 +815,7 @@ foreach ($importantExtensions as $ext => $name) {
                                     <tr class="border-b-2 border-gray-400 bg-gray-100">
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">ID</th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">Name</th>
+                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">Tagline</th>
                                         <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">Actions</th>
                                     </tr>
                                 </thead>
@@ -811,6 +824,7 @@ foreach ($importantExtensions as $ext => $name) {
                                         <?php
                                         $cId = (int)$c['id'];
                                         $isDefault = $cId === 0;
+                                        $cTagline = isset($c['tagline']) ? (string)$c['tagline'] : '';
                                         ?>
                                         <tr class="border-b border-gray-300 hover:bg-gray-50">
                                             <td class="py-2 px-2 font-mono text-gray-800"><?php echo $cId; ?></td>
@@ -820,6 +834,7 @@ foreach ($importantExtensions as $ext => $name) {
                                                     <span class="ml-2 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">Default</span>
                                                 <?php endif; ?>
                                             </td>
+                                            <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate" title="<?php echo htmlspecialchars($cTagline); ?>"><?php echo htmlspecialchars($cTagline); ?></td>
                                             <td class="py-2 px-2 text-right">
                                                 <div class="flex gap-2 justify-end">
                                                     <a href="index.php?tab=constellations&edit_constellation=<?php echo $cId; ?>" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">Edit</a>

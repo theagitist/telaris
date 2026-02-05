@@ -97,3 +97,6 @@ $constellationIds = array_column(db_get_constellations(), 'id');
 if (!in_array($constellationId, $constellationIds, true)) {
     $constellationId = 0;
 }
+$constellationInfo = db_get_constellation_by_id($constellationId);
+$constellationName = $constellationInfo ? $constellationInfo['name'] : $projectName;
+$constellationTagline = $constellationInfo ? $constellationInfo['tagline'] : $projectTagline;

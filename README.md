@@ -96,9 +96,10 @@ See `admin/cli/README.md` for detailed documentation on CLI scripts.
 The application uses MySQL 8+ with the following tables:
 
 ### constellations
-Lists all constellations (each constellation is a set of nodes and keywords). The default constellation has id=0 and is created by setup; it cannot be erased.
+Lists all constellations (each constellation is a set of nodes and keywords). The default constellation has id=0 and is created by setup; it cannot be erased. The main view shows the current constellation’s name and tagline in the top-left info area.
 - `id` INT NOT NULL PRIMARY KEY - Constellation identifier (immutable; 0 = default)
 - `name` VARCHAR(255) NOT NULL DEFAULT '' - Display name
+- `tagline` VARCHAR(500) NOT NULL DEFAULT '' - Short tagline shown in the main view with the constellation name
 
 ### users
 Stores user accounts with authentication information.
@@ -325,7 +326,7 @@ This will return the application to an unconfigured state, allowing you to run `
 ## Version History
 
 ### Version 2.0.2
-- **Constellations**: Added support for multiple constellations (sets of nodes and keywords). New `constellations` table; nodes and keywords now have `constellation_id`. Setup creates a default constellation (id=0) that cannot be erased. Existing nodes and keywords are migrated to the default constellation automatically.
+- **Constellations**: Added support for multiple constellations (sets of nodes and keywords). New `constellations` table; nodes and keywords have `constellation_id`. Setup creates a default constellation (id=0) that cannot be erased.
 
 ### Version 2.0.1
 - **Favicon**: Sun icon on black background added as favicon across all pages.

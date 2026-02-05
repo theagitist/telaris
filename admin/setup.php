@@ -67,7 +67,8 @@ function extractConfigValues(): ?array {
     return $config;
 }
 
-// Function to get database schema SQL
+// Function to get database schema SQL.
+// Must stay in sync with inc/db.php (db_ensure_project_info_table) so all required fields exist.
 function getDatabaseSchema(): string {
     return "
 -- Table for users
@@ -89,7 +90,8 @@ CREATE TABLE IF NOT EXISTS users (
 -- Table for constellations (id 0 = default, created by setup, cannot be erased)
 CREATE TABLE IF NOT EXISTS constellations (
     id INT NOT NULL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL DEFAULT ''
+    name VARCHAR(255) NOT NULL DEFAULT '',
+    tagline VARCHAR(500) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table for nodes (using MySQL 8 JSON features)
@@ -330,31 +332,27 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
             }
         }
 
-        // Ensure default constellation (id=0) exists; name = app name from DB if set, else 'Default'
+        // Set default constellation (id=0) name and tagline from setup form
         try {
             $defaultConstellationName = (trim($websiteName) !== '') ? trim($websiteName) : 'Default';
-            $pdo->prepare("INSERT INTO constellations (id, name) VALUES (0, :name) ON DUPLICATE KEY UPDATE name = VALUES(name)")->execute([':name' => $defaultConstellationName]);
+            $defaultConstellationTagline = (trim($websiteTagline) !== '') ? trim($websiteTagline) : '';
+            $pdo->prepare("INSERT INTO constellations (id, name, tagline) VALUES (0, :name, :tagline) ON DUPLICATE KEY UPDATE name = VALUES(name), tagline = VALUES(tagline)")->execute([':name' => $defaultConstellationName, ':tagline' => $defaultConstellationTagline]);
         } catch (PDOException $e) {
-            // Table may not exist yet on first run before constellations is created
-        }
-        try {
-            $configPath = dirname(__DIR__) . '/config.php';
-            if (file_exists($configPath)) {
-                require_once $configPath;
-                require_once dirname(__DIR__) . '/inc/db.php';
-                db_ensure_constellations();
-            }
-        } catch (Throwable $e) {
-            // Migration may fail if config or tables not yet created
+            // Table may not exist or column tagline missing before migration
         }
         
-        // Generate default API key if api_keys table exists
+        // Generate default API key (db.php required for generateDefaultApiKey)
+        require_once dirname(__DIR__) . '/inc/db.php';
         $defaultApiKey = generateDefaultApiKey($pdo);
         $details['default_api_key'] = $defaultApiKey;
         
         // project_info: one row per locale (en, es, pt).
         // Localized Edit button: en "Edit", es "Editar", pt "Editar". Loading text: en "Loading", es "Cargando", pt "Carregando"
         try {
+            $configPath = dirname(__DIR__) . '/config.php';
+            if (file_exists($configPath)) {
+                require_once $configPath;
+            }
             require_once dirname(__DIR__) . '/inc/db.php';
             db_ensure_project_info_table();
             db_insert_default_project_info_rows($pdo, $websiteName, $websiteTagline);
@@ -624,17 +622,17 @@ if ($showWebsiteForm) {
             
             <form method="POST" action="">
                 <input type="hidden" name="website_info" value="1">
-                
+                <p class="text-sm text-gray-600 mb-5">These values are used for the default constellation and project info. You can change them later in Admin → Global Settings and Constellations.</p>
                 <div class="mb-5">
                     <label for="website_name" class="block mb-1.5 text-gray-800 font-medium">Website Name</label>
-                    <input type="text" id="website_name" name="website_name" value="<?php echo htmlspecialchars($websiteName); ?>" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">The name of your website/project</span>
+                    <input type="text" id="website_name" name="website_name" value="<?php echo htmlspecialchars($websiteName); ?>" placeholder="Telaris" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">The name of your website/project. Default: Telaris</span>
                 </div>
                 
                 <div class="mb-5">
                     <label for="website_tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
-                    <input type="text" id="website_tagline" name="website_tagline" value="<?php echo htmlspecialchars($websiteTagline); ?>" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">A short description or tagline for your website</span>
+                    <input type="text" id="website_tagline" name="website_tagline" value="<?php echo htmlspecialchars($websiteTagline); ?>" placeholder="Weaving memory" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">A short description or tagline. Default: Weaving memory</span>
                 </div>
                 
                 <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-3 px-8 rounded text-base cursor-pointer w-full">Continue</button>
@@ -773,34 +771,35 @@ if ($showForm) {
             <?php if (!isset($configContentToShow) || empty($configContentToShow)): ?>
             <form method="POST" action="">
                 <input type="hidden" name="db_config" value="1">
+                <p class="text-sm text-gray-600 mb-5">Enter your database connection details. Defaults are suggested; leave password empty if your MySQL user has none.</p>
                 <div class="mb-5">
                     <label for="db_host" class="block mb-1.5 text-gray-800 font-medium">Database Host</label>
-                    <input type="text" id="db_host" name="db_host" value="<?php echo htmlspecialchars($dbHost); ?>" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">Usually 'localhost' or an IP address</span>
+                    <input type="text" id="db_host" name="db_host" value="<?php echo htmlspecialchars($dbHost); ?>" placeholder="localhost" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">Usually <code>localhost</code> or an IP address. Default: localhost</span>
                 </div>
                 
                 <div class="mb-5">
                     <label for="db_port" class="block mb-1.5 text-gray-800 font-medium">Database Port</label>
-                    <input type="number" id="db_port" name="db_port" value="<?php echo htmlspecialchars($dbPort); ?>" min="1" max="65535" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">Default MySQL port is 3306</span>
+                    <input type="number" id="db_port" name="db_port" value="<?php echo htmlspecialchars($dbPort); ?>" placeholder="3306" min="1" max="65535" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">Default MySQL port: 3306</span>
                 </div>
                 
                 <div class="mb-5">
                     <label for="db_name" class="block mb-1.5 text-gray-800 font-medium">Database Name</label>
-                    <input type="text" id="db_name" name="db_name" value="<?php echo htmlspecialchars($dbName); ?>" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">Name of your MySQL database</span>
+                    <input type="text" id="db_name" name="db_name" value="<?php echo htmlspecialchars($dbName); ?>" placeholder="telaris" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">Name of your MySQL database. Default: telaris (created if missing)</span>
                 </div>
                 
                 <div class="mb-5">
                     <label for="db_user" class="block mb-1.5 text-gray-800 font-medium">Database User</label>
-                    <input type="text" id="db_user" name="db_user" value="<?php echo htmlspecialchars($dbUser); ?>" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">MySQL username</span>
+                    <input type="text" id="db_user" name="db_user" value="<?php echo htmlspecialchars($dbUser); ?>" placeholder="telaris" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">MySQL username. Default: telaris</span>
                 </div>
                 
                 <div class="mb-5">
                     <label for="db_pass" class="block mb-1.5 text-gray-800 font-medium">Database Password</label>
-                    <input type="password" id="db_pass" name="db_pass" value="" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500" placeholder="<?php echo file_exists('config.php') && !empty($dbPass) ? '(Leave empty to keep current password)' : ''; ?>">
-                    <span class="text-xs text-gray-500 mt-1 block"><?php $configPath = dirname(__DIR__) . '/config.php'; echo file_exists($configPath) ? 'Leave empty to keep current password, or enter new password' : 'Leave empty if no password is set'; ?></span>
+                    <input type="password" id="db_pass" name="db_pass" value="" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500" placeholder="<?php $configPath = dirname(__DIR__) . '/config.php'; echo file_exists($configPath) && $dbPass !== '' ? '(Leave empty to keep current)' : '(optional)'; ?>">
+                    <span class="text-xs text-gray-500 mt-1 block"><?php $configPath = dirname(__DIR__) . '/config.php'; echo file_exists($configPath) ? 'Leave empty to keep current password, or enter a new one.' : 'Leave empty if your MySQL user has no password.'; ?></span>
                 </div>
                 
                 <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-3 px-8 rounded text-base cursor-pointer w-full"><?php $configPath = dirname(__DIR__) . '/config.php'; echo file_exists($configPath) ? 'Update Configuration' : 'Create Configuration'; ?></button>

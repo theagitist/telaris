@@ -329,6 +329,15 @@ function db_update_project_settings_with_locales(array $en, array $es, array $pt
             ':loading_text' => $d['loading_text'],
         ]);
     }
+    // Keep default constellation (id=0) in sync with English app name and tagline when Settings are saved
+    db_ensure_constellations();
+    $enName = trim((string) ($en['name'] ?? ''));
+    $enDescription = trim((string) ($en['description'] ?? ''));
+    $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline WHERE id = :id")->execute([
+        ':name' => $enName !== '' ? $enName : 'Default',
+        ':tagline' => $enDescription,
+        ':id' => DEFAULT_CONSTELLATION_ID
+    ]);
 }
 
 // ---------------------------------------------------------------------------
@@ -599,38 +608,73 @@ function db_default_constellation_name(PDO $pdo): string {
 }
 
 /**
- * @return list<array{id: int, name: string}>
+ * Return the tagline for the default constellation: description from project_info (en) if non-empty, else ''.
+ */
+function db_default_constellation_tagline(PDO $pdo): string {
+    try {
+        $stmt = $pdo->query("SELECT description FROM project_info WHERE locale = 'en' LIMIT 1");
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $tagline = $row && isset($row['description']) ? trim((string) $row['description']) : '';
+        return $tagline;
+    } catch (PDOException $e) {
+        return '';
+    }
+}
+
+/**
+ * @return list<array{id: int, name: string, tagline: string}>
  */
 function db_get_constellations(): array {
     db_ensure_constellations();
     $pdo = getDB();
-    $stmt = $pdo->query("SELECT id, name FROM constellations ORDER BY id");
+    $stmt = $pdo->query("SELECT id, name, tagline FROM constellations ORDER BY id");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Get one constellation by id (name and tagline for main view).
+ * @return array{name: string, tagline: string}|null
+ */
+function db_get_constellation_by_id(int $id): ?array {
+    db_ensure_constellations();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT name, tagline FROM constellations WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+    return [
+        'name' => (string) ($row['name'] ?? ''),
+        'tagline' => (string) ($row['tagline'] ?? '')
+    ];
 }
 
 /**
  * Create a new constellation with the next available id. Returns the new id.
  */
-function db_create_constellation(string $name): int {
+function db_create_constellation(string $name, string $tagline = ''): int {
     db_ensure_constellations();
     $pdo = getDB();
     $stmt = $pdo->query("SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM constellations");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     $nextId = (int)($row['next_id'] ?? 1);
-    $pdo->prepare("INSERT INTO constellations (id, name) VALUES (:id, :name)")->execute([
+    $pdo->prepare("INSERT INTO constellations (id, name, tagline) VALUES (:id, :name, :tagline)")->execute([
         ':id' => $nextId,
-        ':name' => trim($name) ?: 'Unnamed'
+        ':name' => trim($name) ?: 'Unnamed',
+        ':tagline' => trim($tagline)
     ]);
     return $nextId;
 }
 
 /**
- * Update constellation name. Id cannot be changed. Default constellation (id=0) can be renamed.
+ * Update constellation name and tagline. Id cannot be changed. Default constellation (id=0) can be renamed.
  */
-function db_update_constellation(int $id, string $name): void {
+function db_update_constellation(int $id, string $name, string $tagline = ''): void {
     $pdo = getDB();
-    $pdo->prepare("UPDATE constellations SET name = :name WHERE id = :id")->execute([
+    $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline WHERE id = :id")->execute([
         ':name' => trim($name) ?: 'Unnamed',
+        ':tagline' => trim($tagline),
         ':id' => $id
     ]);
 }
@@ -647,80 +691,21 @@ function db_delete_constellation(int $id): void {
 }
 
 /**
- * Ensure constellations table exists, default constellation (id=0) exists,
- * and nodes/keywords have constellation_id (migration for existing DBs).
+ * Ensure the default constellation (id=0) exists. Does not overwrite existing row.
+ * Schema (table and columns) is created by setup only.
  */
 function db_ensure_constellations(): void {
     $pdo = getDB();
-    // Create constellations table if missing
-    $stmt = $pdo->query("SHOW TABLES LIKE 'constellations'");
+    $stmt = $pdo->prepare("SELECT id FROM constellations WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => DEFAULT_CONSTELLATION_ID]);
     if ($stmt->fetch() === false) {
-        $pdo->exec("
-            CREATE TABLE constellations (
-                id INT NOT NULL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL DEFAULT ''
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        ");
         $defaultName = db_default_constellation_name($pdo);
-        $pdo->prepare("INSERT INTO constellations (id, name) VALUES (:id, :name)")->execute([
+        $defaultTagline = db_default_constellation_tagline($pdo);
+        $pdo->prepare("INSERT INTO constellations (id, name, tagline) VALUES (:id, :name, :tagline)")->execute([
             ':id' => DEFAULT_CONSTELLATION_ID,
-            ':name' => $defaultName
+            ':name' => $defaultName,
+            ':tagline' => $defaultTagline
         ]);
-    } else {
-        $stmt = $pdo->prepare("SELECT id FROM constellations WHERE id = :id LIMIT 1");
-        $stmt->execute([':id' => DEFAULT_CONSTELLATION_ID]);
-        if ($stmt->fetch() === false) {
-            $defaultName = db_default_constellation_name($pdo);
-            $pdo->prepare("INSERT INTO constellations (id, name) VALUES (:id, :name)")->execute([
-                ':id' => DEFAULT_CONSTELLATION_ID,
-                ':name' => $defaultName
-            ]);
-        } else {
-            // Sync default constellation name with app name from project_info
-            $defaultName = db_default_constellation_name($pdo);
-            $pdo->prepare("UPDATE constellations SET name = :name WHERE id = :id")->execute([
-                ':name' => $defaultName,
-                ':id' => DEFAULT_CONSTELLATION_ID
-            ]);
-        }
-    }
-    // Migrate nodes: add constellation_id if missing (only if nodes table exists)
-    $tables = $pdo->query("SHOW TABLES LIKE 'nodes'")->fetch();
-    if ($tables !== false) {
-        $cols = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'constellation_id'")->fetchAll();
-        if ($cols === []) {
-        $pdo->exec("ALTER TABLE nodes ADD COLUMN constellation_id INT NOT NULL DEFAULT " . DEFAULT_CONSTELLATION_ID);
-        $pdo->exec("UPDATE nodes SET constellation_id = " . DEFAULT_CONSTELLATION_ID . " WHERE constellation_id != " . DEFAULT_CONSTELLATION_ID . " OR constellation_id IS NULL");
-        try {
-            $pdo->exec("ALTER TABLE nodes ADD CONSTRAINT fk_nodes_constellation FOREIGN KEY (constellation_id) REFERENCES constellations(id)");
-        } catch (PDOException $e) {
-            // FK may already exist or table may have been created with it
-        }
-        }
-    }
-    // Migrate keywords: add constellation_id if missing (only if keywords table exists)
-    $tables = $pdo->query("SHOW TABLES LIKE 'keywords'")->fetch();
-    if ($tables !== false) {
-        $cols = $pdo->query("SHOW COLUMNS FROM keywords LIKE 'constellation_id'")->fetchAll();
-        if ($cols === []) {
-        $pdo->exec("ALTER TABLE keywords ADD COLUMN constellation_id INT NOT NULL DEFAULT " . DEFAULT_CONSTELLATION_ID);
-        $pdo->exec("UPDATE keywords SET constellation_id = " . DEFAULT_CONSTELLATION_ID);
-        try {
-            $pdo->exec("ALTER TABLE keywords DROP INDEX unique_keyword");
-        } catch (PDOException $e) {
-            // ignore if index name differs or already dropped
-        }
-        try {
-            $pdo->exec("ALTER TABLE keywords ADD UNIQUE KEY unique_keyword_constellation (keyword, constellation_id)");
-        } catch (PDOException $e) {
-            // ignore if key already exists (e.g. new schema)
-        }
-        try {
-            $pdo->exec("ALTER TABLE keywords ADD CONSTRAINT fk_keywords_constellation FOREIGN KEY (constellation_id) REFERENCES constellations(id)");
-        } catch (PDOException $e) {
-            // ignore if FK already exists
-        }
-        }
     }
 }
 
