@@ -44,9 +44,9 @@ header('Content-Type: text/html; charset=UTF-8');
         body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; background: #000; }
         .alert-window { background: rgb(<?php echo "$r,$g,$b"; ?>); border: 2px solid rgba(255,255,255,0.3); border-radius: 8px; padding: 24px; max-width: 360px; box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
         .message { margin: 0 0 16px 0; text-align: center; font-size: 1rem; color: #000; line-height: 1.4; }
-        .progress-wrap { width: 100%; max-width: 200px; height: 4px; background: rgba(0,0,0,0.25); border-radius: 2px; overflow: hidden; margin: 0 auto 16px; }
-        .progress-bar { height: 100%; width: 100%; background: rgba(0,0,0,0.5); border-radius: 2px; transition: width 2s linear; opacity: 0.5; }
-        .progress-bar.done { width: 0%; }
+        .progress-wrap { width: 100%; max-width: 200px; height: 4px; border-radius: 2px; overflow: hidden; margin: 0 auto 16px; }
+        .progress-bar { height: 100%; width: 100%; background: rgba(0,0,0,0.5); border-radius: 2px; transform-origin: 50% 50%; transition: transform 2s linear; opacity: 0.5; }
+        .progress-bar.done { transform: scaleX(0); }
         .btn-wrap { text-align: center; }
         .btn { padding: 8px 20px; font-size: 0.95rem; border-radius: 6px; border: 1px solid rgba(0,0,0,0.5); background: rgba(255,255,255,0.9); color: #000; cursor: pointer; }
         .btn:hover { background: #fff; }
