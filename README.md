@@ -258,7 +258,7 @@ telaris.polivoxia.ca/
 │   ├── login.php         # Login page with context-aware redirects
 │   └── logout.php        # Logout handler
 ├── README.md             # This file
-└── VERSION               # Current version (e.g. 2.0.1)
+└── VERSION               # Current version (e.g. 3.0.0)
 ```
 
 ## Browser Support
@@ -324,6 +324,14 @@ This will return the application to an unconfigured state, allowing you to run `
 - **Pan**: (If enabled) Right-click and drag or use middle mouse button
 
 ## Version History
+
+### Version 3.0.0
+- **Editor constellation access**: Editors see only constellations assigned to them; admins see all. New `user_constellations` table links users (editors) to constellations.
+- **Edit User**: Multi-select list to choose which constellations an Editor can access (Admin Console → Users → Edit).
+- **Create User**: Option "Create a new constellation for this user" (on by default) with a name field (defaults to email); creates the constellation and grants the user access when type is Editor.
+- **Admin Constellations**: View button opens constellation main view in a new window; Copy button copies constellation URL with confirmation toast.
+- **Setup**: Schema creates all required tables (including `user_constellations`); forms use defaults and placeholders; no DB backwards-compatibility code.
+- **Database**: All ensure/migration logic removed; schema is created by setup only.
 
 ### Version 2.0.2
 - **Constellations**: Added support for multiple constellations (sets of nodes and keywords). New `constellations` table; nodes and keywords have `constellation_id`. Setup creates a default constellation (id=0) that cannot be erased.
