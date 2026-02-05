@@ -515,6 +515,50 @@ function db_delete_user(string $id): void {
     $stmt->execute([':id' => $id]);
 }
 
+/**
+ * Ensure user_constellations table exists (for editor constellation access).
+ */
+function db_ensure_user_constellations_table(): void {
+    $pdo = getDB();
+    $stmt = $pdo->query("SHOW TABLES LIKE 'user_constellations'");
+    if ($stmt->fetch() === false) {
+        $pdo->exec("
+            CREATE TABLE user_constellations (
+                user_id VARCHAR(255) NOT NULL,
+                constellation_id INT NOT NULL,
+                PRIMARY KEY (user_id, constellation_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE,
+                INDEX idx_user_id (user_id),
+                INDEX idx_constellation_id (constellation_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    }
+}
+
+/** @return list<int> */
+function db_get_user_constellation_ids(string $userId): array {
+    db_ensure_user_constellations_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT constellation_id FROM user_constellations WHERE user_id = :user_id ORDER BY constellation_id");
+    $stmt->execute([':user_id' => $userId]);
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+function db_set_user_constellations(string $userId, array $constellationIds): void {
+    db_ensure_user_constellations_table();
+    $pdo = getDB();
+    $pdo->prepare("DELETE FROM user_constellations WHERE user_id = :user_id")->execute([':user_id' => $userId]);
+    $constellationIds = array_unique(array_map('intval', $constellationIds));
+    if ($constellationIds === []) {
+        return;
+    }
+    $stmt = $pdo->prepare("INSERT INTO user_constellations (user_id, constellation_id) VALUES (:user_id, :constellation_id)");
+    foreach ($constellationIds as $cid) {
+        $stmt->execute([':user_id' => $userId, ':constellation_id' => $cid]);
+    }
+}
+
 function hasAdminUser(PDO $pdo): bool {
     try {
         $stmt = $pdo->query("SELECT id FROM users WHERE type = 2 LIMIT 1");
@@ -628,6 +672,32 @@ function db_get_constellations(): array {
     db_ensure_constellations();
     $pdo = getDB();
     $stmt = $pdo->query("SELECT id, name, tagline FROM constellations ORDER BY id");
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Constellations visible to a user: admins see all; editors see only those assigned to them.
+ * @param string|null $userId Current user id (session)
+ * @param bool $isAdmin Whether the current user is an admin
+ * @return list<array{id: int, name: string, tagline: string}>
+ */
+function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
+    if ($isAdmin) {
+        return db_get_constellations();
+    }
+    if ($userId === null || $userId === '') {
+        return [];
+    }
+    db_ensure_constellations();
+    db_ensure_user_constellations_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT c.id, c.name, c.tagline
+        FROM constellations c
+        INNER JOIN user_constellations uc ON uc.constellation_id = c.id AND uc.user_id = :user_id
+        ORDER BY c.id
+    ");
+    $stmt->execute([':user_id' => $userId]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 

@@ -122,6 +122,13 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 if ($err !== null) {
                     throw new Exception($err);
                 }
+                if ($type === USER_TYPE_EDITOR) {
+                    $newUser = db_get_user_by_email($email);
+                    if ($newUser && isset($newUser['id'])) {
+                        $constellationIds = array_map('intval', array_filter((array)($_POST['constellation_ids'] ?? [])));
+                        db_set_user_constellations($newUser['id'], $constellationIds);
+                    }
+                }
                 $message = 'User created successfully.';
                 $activeTab = 'users';
             })(),
@@ -154,6 +161,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 }
                 $hashedPassword = !empty($password) ? hashPassword($password) : null;
                 db_update_user($id, $email, $firstname, $lastname, $type, $hashedPassword);
+                $constellationIds = array_map('intval', array_filter((array)($_POST['constellation_ids'] ?? [])));
+                db_set_user_constellations($id, $type === USER_TYPE_EDITOR ? $constellationIds : []);
                 $message = 'User updated successfully.';
                 $activeTab = 'users';
             })(),
@@ -318,6 +327,7 @@ if (isset($_GET['edit_constellation'])) {
 
 // Get user to edit if specified
 $editUser = null;
+$editUserConstellationIds = [];
 if (isset($_GET['edit_user'])) {
     $editUserId = trim($_GET['edit_user']);
     foreach ($users as $user) {
@@ -325,6 +335,9 @@ if (isset($_GET['edit_user'])) {
             $editUser = $user;
             break;
         }
+    }
+    if ($editUser) {
+        $editUserConstellationIds = db_get_user_constellation_ids($editUser['id']);
     }
 }
 
@@ -548,8 +561,23 @@ foreach ($importantExtensions as $ext => $name) {
                                 <option value="2" <?php echo ($editUser['type'] ?? 0) == 2 ? 'selected' : ''; ?>>Admin</option>
                             </select>
                             <span class="text-xs text-gray-500 mt-1 block">
-                                Editor: Can edit nodes | Admin: Full access
+                                Editor: Can edit nodes in assigned constellations only | Admin: Full access to all constellations
                             </span>
+                        </div>
+                        
+                        <div id="user-constellations-section" class="mb-4 <?php echo ($editUser['type'] ?? 1) == USER_TYPE_EDITOR ? '' : 'hidden'; ?>">
+                            <label class="block mb-1.5 text-gray-800 font-medium">Constellation access (Editors only)</label>
+                            <p class="text-xs text-gray-500 mb-2">Editors can only see and edit nodes in the constellations checked below. Admins see all constellations.</p>
+                            <div class="border border-gray-200 rounded p-3 bg-white max-h-48 overflow-y-auto">
+                                <?php foreach ($constellations as $c): ?>
+                                    <?php $cId = (int)$c['id']; $checked = in_array($cId, $editUserConstellationIds, true); ?>
+                                    <label class="flex items-center gap-2 py-1 text-sm cursor-pointer hover:bg-gray-50 rounded px-2">
+                                        <input type="checkbox" name="constellation_ids[]" value="<?php echo $cId; ?>" <?php echo $checked ? 'checked' : ''; ?> class="rounded border-gray-300">
+                                        <span class="font-mono text-gray-600"><?php echo $cId; ?></span>
+                                        <span class="text-gray-800"><?php echo htmlspecialchars($c['name']); ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
                         </div>
                         
                         <div class="flex gap-2">
@@ -1022,6 +1050,17 @@ foreach ($importantExtensions as $ext => $name) {
     </div>
     
     <script>
+        function toggleUserConstellationsSection() {
+            const typeSelect = document.getElementById('type');
+            const section = document.getElementById('user-constellations-section');
+            if (!typeSelect || !section) return;
+            const isEditor = typeSelect.value === '1';
+            section.classList.toggle('hidden', !isEditor);
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const typeSelect = document.getElementById('type');
+            if (typeSelect) typeSelect.addEventListener('change', toggleUserConstellationsSection);
+        });
         function copyConstellationUrl(relativePath, buttonEl) {
             const absoluteUrl = new URL(relativePath, window.location.origin + window.location.pathname).href;
             navigator.clipboard.writeText(absoluteUrl).then(function() {

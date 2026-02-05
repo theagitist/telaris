@@ -149,6 +149,17 @@ CREATE TABLE IF NOT EXISTS project_info (
     loading_text VARCHAR(200) NOT NULL DEFAULT 'Loading'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Table for editor constellation access (user_id = users.id, constellation_id = constellations.id). Admins see all; editors see only rows here.
+CREATE TABLE IF NOT EXISTS user_constellations (
+    user_id VARCHAR(255) NOT NULL,
+    constellation_id INT NOT NULL,
+    PRIMARY KEY (user_id, constellation_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE,
+    INDEX idx_user_id (user_id),
+    INDEX idx_constellation_id (constellation_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Table for API keys
 CREATE TABLE IF NOT EXISTS api_keys (
     id INT AUTO_INCREMENT PRIMARY KEY,

@@ -14,7 +14,10 @@ $pdo = getDB();
 // Get default API key for API calls (using function from config.php)
 $apiKey = getDefaultApiKey($pdo);
 
-$constellations = db_get_constellations();
+// Editors see only constellations assigned to them; admins see all
+$currentUserId = $_SESSION['admin_user_id'] ?? null;
+$isAdmin = isAdminLoggedIn();
+$constellations = db_get_constellations_for_user($currentUserId, $isAdmin);
 
 // Page title only (Global Settings are in Admin)
 $projectInfoEn = db_get_project_info_for_locale('en');
