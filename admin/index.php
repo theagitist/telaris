@@ -806,6 +806,7 @@ foreach ($importantExtensions as $ext => $name) {
                         <a href="#" onclick="document.getElementById('constellation-form-panel').classList.remove('hidden'); return false;" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Constellation</a>
                     </div>
                     <p class="text-sm text-gray-600 mb-4">Each constellation is a separate set of nodes and keywords. The default constellation (ID 0) cannot be deleted.</p>
+                    <div id="copy-url-toast" class="hidden fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded shadow-lg text-sm" role="status" aria-live="polite">URL copied to clipboard.</div>
                     <?php if (empty($constellations)): ?>
                         <p class="text-gray-600">No constellations found.</p>
                     <?php else: ?>
@@ -825,6 +826,7 @@ foreach ($importantExtensions as $ext => $name) {
                                         $cId = (int)$c['id'];
                                         $isDefault = $cId === 0;
                                         $cTagline = isset($c['tagline']) ? (string)$c['tagline'] : '';
+                                        $viewRel = $cId === 0 ? '../index.php' : '../index.php?constellation_id=' . $cId;
                                         ?>
                                         <tr class="border-b border-gray-300 hover:bg-gray-50">
                                             <td class="py-2 px-2 font-mono text-gray-800"><?php echo $cId; ?></td>
@@ -836,7 +838,7 @@ foreach ($importantExtensions as $ext => $name) {
                                             </td>
                                             <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate" title="<?php echo htmlspecialchars($cTagline); ?>"><?php echo htmlspecialchars($cTagline); ?></td>
                                             <td class="py-2 px-2 text-right">
-                                                <div class="flex gap-2 justify-end">
+                                                <div class="flex gap-2 justify-end items-center">
                                                     <a href="index.php?tab=constellations&edit_constellation=<?php echo $cId; ?>" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">Edit</a>
                                                     <?php if (!$isDefault): ?>
                                                         <form method="POST" action="" class="inline" onsubmit="return confirm('Are you sure you want to delete this constellation? Nodes and keywords in this constellation must be moved or deleted first.');">
@@ -845,6 +847,10 @@ foreach ($importantExtensions as $ext => $name) {
                                                             <button type="submit" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">Delete</button>
                                                         </form>
                                                     <?php endif; ?>
+                                                    <a href="<?php echo htmlspecialchars($viewRel); ?>" target="_blank" rel="noopener" class="px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white text-xs rounded inline-flex items-center gap-1">View</a>
+                                                    <button type="button" onclick="copyConstellationUrl('<?php echo htmlspecialchars($viewRel, ENT_QUOTES); ?>', this)" class="p-1.5 rounded border border-gray-300 hover:bg-gray-100 text-gray-600 hover:text-gray-800" title="Copy constellation URL">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1016,6 +1022,21 @@ foreach ($importantExtensions as $ext => $name) {
     </div>
     
     <script>
+        function copyConstellationUrl(relativePath, buttonEl) {
+            const absoluteUrl = new URL(relativePath, window.location.origin + window.location.pathname).href;
+            navigator.clipboard.writeText(absoluteUrl).then(function() {
+                const toast = document.getElementById('copy-url-toast');
+                if (toast) {
+                    toast.classList.remove('hidden');
+                    setTimeout(function() { toast.classList.add('hidden'); }, 3000);
+                }
+                if (buttonEl) {
+                    const origTitle = buttonEl.getAttribute('title');
+                    buttonEl.setAttribute('title', 'Copied!');
+                    setTimeout(function() { buttonEl.setAttribute('title', origTitle || 'Copy constellation URL'); }, 1500);
+                }
+            });
+        }
         // Settings language sub-tabs (English / Spanish / Portuguese)
         function showSettingsLang(lang) {
             if (!['en', 'es', 'pt'].includes(lang)) lang = 'en';
