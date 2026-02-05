@@ -68,7 +68,7 @@ function extractConfigValues(): ?array {
 }
 
 // Function to get database schema SQL.
-// Must stay in sync with inc/db.php (db_ensure_project_info_table) so all required fields exist.
+// Must stay in sync with inc/db.php (project_info, constellations, user_constellations) so all required fields exist.
 function getDatabaseSchema(): string {
     return "
 -- Table for users

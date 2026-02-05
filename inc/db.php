@@ -89,51 +89,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
     ];
 }
 
-/**
- * Ensure project_info table exists with one row per locale (en, es, pt).
- */
+/** No-op: schema is created by setup only. */
 function db_ensure_project_info_table(): void {
-    $pdo = getDB();
-    $stmt = $pdo->query("SHOW TABLES LIKE 'project_info'");
-    if ($stmt->fetch() === false) {
-        $pdo->exec("
-            CREATE TABLE project_info (
-                locale VARCHAR(10) NOT NULL PRIMARY KEY,
-                name VARCHAR(2000) NOT NULL DEFAULT '',
-                description VARCHAR(2000) NOT NULL DEFAULT '',
-                iframe_back_text VARCHAR(2000) NOT NULL DEFAULT '',
-                alert_message VARCHAR(2000) NOT NULL DEFAULT '',
-                edit_button_text VARCHAR(200) NOT NULL DEFAULT 'Edit',
-                loading_text VARCHAR(200) NOT NULL DEFAULT 'Loading'
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        ");
-        db_insert_default_project_info_rows($pdo);
-        return;
-    }
-    $count = (int) $pdo->query("SELECT COUNT(*) FROM project_info")->fetchColumn();
-    if ($count === 0) {
-        db_insert_default_project_info_rows($pdo);
-        return;
-    }
-    $existing = $pdo->query("SELECT locale FROM project_info")->fetchAll(PDO::FETCH_COLUMN);
-    $missing = array_diff(PROJECT_INFO_LOCALES, $existing);
-    if ($missing === []) {
-        return;
-    }
-    $defaults = db_default_project_info_rows();
-    $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text) VALUES (:locale, :name, :description, :iframe_back_text, :alert_message, :edit_button_text, :loading_text)");
-    foreach ($missing as $locale) {
-        $d = $defaults[$locale];
-        $stmt->execute([
-            ':locale' => $locale,
-            ':name' => $d['name'],
-            ':description' => $d['description'],
-            ':iframe_back_text' => $d['iframe_back_text'],
-            ':alert_message' => $d['alert_message'],
-            ':edit_button_text' => $d['edit_button_text'],
-            ':loading_text' => $d['loading_text'],
-        ]);
-    }
 }
 
 /**
@@ -156,11 +113,8 @@ function db_insert_default_project_info_rows(PDO $pdo, string $enName = 'Telaris
     }
 }
 
-/**
- * Ensure project_info table exists (one row per locale). Called by setup and by code that reads project info.
- */
+/** No-op: schema is created by setup only. */
 function db_ensure_project_info_columns(): void {
-    db_ensure_project_info_table();
 }
 
 /**
@@ -330,7 +284,6 @@ function db_update_project_settings_with_locales(array $en, array $es, array $pt
         ]);
     }
     // Keep default constellation (id=0) in sync with English app name and tagline when Settings are saved
-    db_ensure_constellations();
     $enName = trim((string) ($en['name'] ?? ''));
     $enDescription = trim((string) ($en['description'] ?? ''));
     $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline WHERE id = :id")->execute([
@@ -515,30 +468,8 @@ function db_delete_user(string $id): void {
     $stmt->execute([':id' => $id]);
 }
 
-/**
- * Ensure user_constellations table exists (for editor constellation access).
- */
-function db_ensure_user_constellations_table(): void {
-    $pdo = getDB();
-    $stmt = $pdo->query("SHOW TABLES LIKE 'user_constellations'");
-    if ($stmt->fetch() === false) {
-        $pdo->exec("
-            CREATE TABLE user_constellations (
-                user_id VARCHAR(255) NOT NULL,
-                constellation_id INT NOT NULL,
-                PRIMARY KEY (user_id, constellation_id),
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE,
-                INDEX idx_user_id (user_id),
-                INDEX idx_constellation_id (constellation_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        ");
-    }
-}
-
 /** @return list<int> */
 function db_get_user_constellation_ids(string $userId): array {
-    db_ensure_user_constellations_table();
     $pdo = getDB();
     $stmt = $pdo->prepare("SELECT constellation_id FROM user_constellations WHERE user_id = :user_id ORDER BY constellation_id");
     $stmt->execute([':user_id' => $userId]);
@@ -546,7 +477,6 @@ function db_get_user_constellation_ids(string $userId): array {
 }
 
 function db_set_user_constellations(string $userId, array $constellationIds): void {
-    db_ensure_user_constellations_table();
     $pdo = getDB();
     $pdo->prepare("DELETE FROM user_constellations WHERE user_id = :user_id")->execute([':user_id' => $userId]);
     $constellationIds = array_unique(array_map('intval', $constellationIds));
@@ -669,7 +599,6 @@ function db_default_constellation_tagline(PDO $pdo): string {
  * @return list<array{id: int, name: string, tagline: string}>
  */
 function db_get_constellations(): array {
-    db_ensure_constellations();
     $pdo = getDB();
     $stmt = $pdo->query("SELECT id, name, tagline FROM constellations ORDER BY id");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -688,8 +617,6 @@ function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
     if ($userId === null || $userId === '') {
         return [];
     }
-    db_ensure_constellations();
-    db_ensure_user_constellations_table();
     $pdo = getDB();
     $stmt = $pdo->prepare("
         SELECT c.id, c.name, c.tagline
@@ -706,7 +633,6 @@ function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
  * @return array{name: string, tagline: string}|null
  */
 function db_get_constellation_by_id(int $id): ?array {
-    db_ensure_constellations();
     $pdo = getDB();
     $stmt = $pdo->prepare("SELECT name, tagline FROM constellations WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
@@ -724,7 +650,6 @@ function db_get_constellation_by_id(int $id): ?array {
  * Create a new constellation with the next available id. Returns the new id.
  */
 function db_create_constellation(string $name, string $tagline = ''): int {
-    db_ensure_constellations();
     $pdo = getDB();
     $stmt = $pdo->query("SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM constellations");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -760,25 +685,6 @@ function db_delete_constellation(int $id): void {
     $pdo->prepare("DELETE FROM constellations WHERE id = :id")->execute([':id' => $id]);
 }
 
-/**
- * Ensure the default constellation (id=0) exists. Does not overwrite existing row.
- * Schema (table and columns) is created by setup only.
- */
-function db_ensure_constellations(): void {
-    $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT id FROM constellations WHERE id = :id LIMIT 1");
-    $stmt->execute([':id' => DEFAULT_CONSTELLATION_ID]);
-    if ($stmt->fetch() === false) {
-        $defaultName = db_default_constellation_name($pdo);
-        $defaultTagline = db_default_constellation_tagline($pdo);
-        $pdo->prepare("INSERT INTO constellations (id, name, tagline) VALUES (:id, :name, :tagline)")->execute([
-            ':id' => DEFAULT_CONSTELLATION_ID,
-            ':name' => $defaultName,
-            ':tagline' => $defaultTagline
-        ]);
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Nodes
 // ---------------------------------------------------------------------------
@@ -791,7 +697,6 @@ function db_ensure_constellations(): void {
  * @return list<array<string, mixed>>
  */
 function db_get_nodes(?int $constellationId = null): array {
-    db_ensure_constellations();
     $pdo = getDB();
     if ($constellationId !== null) {
         $stmt = $pdo->prepare("
@@ -860,7 +765,6 @@ function db_format_node(array $node): array {
 }
 
 function db_save_node_keywords(int $nodeId, array $keywords): void {
-    db_ensure_constellations();
     $pdo = getDB();
     $nodeStmt = $pdo->prepare("SELECT constellation_id FROM nodes WHERE id = :id LIMIT 1");
     $nodeStmt->execute([':id' => $nodeId]);
@@ -903,7 +807,6 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
 }
 
 function db_create_node(string $name, ?string $description, ?string $url, string $animation, int $constellationId = DEFAULT_CONSTELLATION_ID): int {
-    db_ensure_constellations();
     $pdo = getDB();
     $stmt = $pdo->prepare("
         INSERT INTO nodes (name, description, url, animation, constellation_id)
@@ -962,7 +865,6 @@ function db_delete_node(int $id): void {
  * @return list<array<string, mixed>>
  */
 function db_get_keywords(?int $nodeId = null): array {
-    db_ensure_constellations();
     $pdo = getDB();
     if ($nodeId !== null) {
         $stmt = $pdo->prepare("
@@ -989,7 +891,6 @@ function db_get_keywords(?int $nodeId = null): array {
 }
 
 function db_create_keyword(string $keyword, int $constellationId = DEFAULT_CONSTELLATION_ID): int {
-    db_ensure_constellations();
     $pdo = getDB();
     $stmt = $pdo->prepare("
         INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :constellation_id)
@@ -1000,7 +901,6 @@ function db_create_keyword(string $keyword, int $constellationId = DEFAULT_CONST
 }
 
 function db_delete_keyword(int $id): void {
-    db_ensure_constellations();
     $pdo = getDB();
     $stmt = $pdo->prepare("DELETE FROM keywords WHERE id = :id");
     $stmt->execute([':id' => $id]);
@@ -1014,7 +914,6 @@ function db_delete_keyword(int $id): void {
  * @return list<array{id: int, node1_id: int, node2_id: int, shared_keywords: list<string>, shared_count: int}>
  */
 function db_get_connections(): array {
-    db_ensure_constellations();
     $pdo = getDB();
     $nodesStmt = $pdo->query("SELECT n.id, n.name FROM nodes n ORDER BY n.id");
     $nodes = $nodesStmt->fetchAll();
