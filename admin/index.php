@@ -117,15 +117,24 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 if (db_user_email_exists($email)) {
                     throw new Exception('Email already exists');
                 }
+                $createConstellation = !empty($_POST['create_constellation']);
+                $newConstellationName = trim((string)($_POST['new_constellation_name'] ?? ''));
+                if ($createConstellation && $newConstellationName === '') {
+                    throw new Exception('Constellation name is required when "Create new constellation" is checked.');
+                }
                 $hashedPassword = hashPassword($password);
                 $err = createUser(getDB(), $email, $hashedPassword, $firstname, $lastname, $type);
                 if ($err !== null) {
                     throw new Exception($err);
                 }
-                if ($type === USER_TYPE_EDITOR) {
-                    $newUser = db_get_user_by_email($email);
-                    if ($newUser && isset($newUser['id'])) {
-                        $constellationIds = array_map('intval', array_filter((array)($_POST['constellation_ids'] ?? [])));
+                $newUser = db_get_user_by_email($email);
+                if ($newUser && isset($newUser['id'])) {
+                    $constellationIds = array_map('intval', array_filter((array)($_POST['constellation_ids'] ?? [])));
+                    if ($createConstellation && $newConstellationName !== '') {
+                        $newConstellationId = db_create_constellation($newConstellationName, '');
+                        $constellationIds[] = $newConstellationId;
+                    }
+                    if ($type === USER_TYPE_EDITOR) {
                         db_set_user_constellations($newUser['id'], $constellationIds);
                     }
                 }
@@ -564,6 +573,25 @@ foreach ($importantExtensions as $ext => $name) {
                                 Editor: Can edit nodes in assigned constellations only | Admin: Full access to all constellations
                             </span>
                         </div>
+                        
+                        <?php if (!$editUser): ?>
+                        <div class="mb-4 p-3 border border-gray-200 rounded bg-white">
+                            <label class="flex items-center gap-2 cursor-pointer mb-2">
+                                <input type="checkbox" id="create_constellation" name="create_constellation" value="1" class="rounded border-gray-300" checked>
+                                <span class="text-gray-800 font-medium">Create a new constellation for this user</span>
+                            </label>
+                            <p class="text-xs text-gray-500 mb-2">A new constellation is created with the name below and the user is granted access to it (Editors only).</p>
+                            <div id="new-constellation-name-wrap">
+                                <label for="new_constellation_name" class="block mb-1 text-gray-700 text-sm">Constellation name *</label>
+                                <input type="text" 
+                                       id="new_constellation_name" 
+                                       name="new_constellation_name" 
+                                       value=""
+                                       placeholder="Defaults to email above"
+                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            </div>
+                        </div>
+                        <?php endif; ?>
                         
                         <div id="user-constellations-section" class="mb-4 <?php echo ($editUser['type'] ?? 1) == USER_TYPE_EDITOR ? '' : 'hidden'; ?>">
                             <label class="block mb-1.5 text-gray-800 font-medium">Constellation access (Editors only)</label>
@@ -1057,9 +1085,31 @@ foreach ($importantExtensions as $ext => $name) {
             const isEditor = typeSelect.value === '1';
             section.classList.toggle('hidden', !isEditor);
         }
+        function toggleNewConstellationName() {
+            const cb = document.getElementById('create_constellation');
+            const wrap = document.getElementById('new-constellation-name-wrap');
+            if (cb && wrap) wrap.classList.toggle('hidden', !cb.checked);
+        }
+        function initCreateUserForm() {
+            const emailEl = document.getElementById('email');
+            const nameEl = document.getElementById('new_constellation_name');
+            const createCb = document.getElementById('create_constellation');
+            if (createCb) createCb.addEventListener('change', toggleNewConstellationName);
+            if (emailEl && nameEl) {
+                emailEl.addEventListener('input', function() {
+                    if (nameEl.value === '' || nameEl.getAttribute('data-auto') === '1') {
+                        nameEl.value = emailEl.value;
+                        nameEl.setAttribute('data-auto', '1');
+                    }
+                });
+                nameEl.addEventListener('input', function() { nameEl.removeAttribute('data-auto'); });
+            }
+        }
         document.addEventListener('DOMContentLoaded', function() {
             const typeSelect = document.getElementById('type');
             if (typeSelect) typeSelect.addEventListener('change', toggleUserConstellationsSection);
+            toggleNewConstellationName();
+            initCreateUserForm();
         });
         function copyConstellationUrl(relativePath, buttonEl) {
             const absoluteUrl = new URL(relativePath, window.location.origin + window.location.pathname).href;
