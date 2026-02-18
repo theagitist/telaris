@@ -6,6 +6,6 @@ require_once __DIR__ . '/auth.php';
 // Logout the user
 logoutAdmin();
 
-// Redirect to login page
-header('Location: login.php');
+// Redirect to home page
+header('Location: ../index.php');
 exit();

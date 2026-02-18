@@ -111,9 +111,16 @@
         <div id="node-tooltip" class="absolute px-3 py-2 rounded text-sm pointer-events-none z-[200]" style="font-family: inherit; opacity: 0; visibility: hidden;"></div>
     </div>
     <div id="info" class="absolute top-5 left-5 text-white z-[100] text-sm">
-        <div class="cursor-pointer hover:opacity-100 transition-opacity" onclick="location.reload()" role="button" tabindex="0" title="Click to reload">
-            <h2 class="text-lg font-semibold mb-1"><?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?></h2>
-            <p><?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?></p>
+        <div class="cursor-pointer hover:opacity-100 transition-opacity" role="button" tabindex="0">
+            <h2 class="text-lg font-semibold mb-1" onclick="location.reload()" title="Click to reload"><?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?></h2>
+            <p onclick="location.reload()" title="Click to reload"><?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?></p>
+            <div class="mt-3 opacity-60 hover:opacity-100 transition-opacity flex gap-3">
+                <?php if ($isEditorOrAdmin): ?>
+                    <a href="utils/logout.php" class="underline">Logout</a>
+                <?php else: ?>
+                    <a href="utils/login.php" target="_blank" rel="noopener" class="underline">Login</a>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
     <?php if ($isEditorOrAdmin): ?>
