@@ -84,25 +84,61 @@ const USE_MORE_COLOR_VARIETY = true;
                 this.lastInteractionAt = performance.now();
             }
 
-            initStarfield(container) {
-                const starfield = document.getElementById('starfield-background');
-                if (!starfield) return;
-                const starCount = 180;
+            initStarfield() {
+                const starCount = 1000;
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(starCount * 3);
+                const colors = new Float32Array(starCount * 3);
+                const sizes = new Float32Array(starCount);
+                const phases = new Float32Array(starCount);
+
                 for (let i = 0; i < starCount; i++) {
-                    const star = document.createElement('div');
-                    star.className = 'star-dot';
-                    star.style.left = (Math.random() * 100) + '%';
-                    star.style.top = (Math.random() * 100) + '%';
-                    const size = 1 + Math.random() * 2;
-                    star.style.width = size + 'px';
-                    star.style.height = size + 'px';
-                    const gray = Math.floor(180 + Math.random() * 75);
-                    star.style.background = `rgb(${gray},${gray},${gray + 20})`;
-                    const duration = 1.8 + Math.random() * 2.8;
-                    const delay = Math.random() * 4;
-                    star.style.animation = `star-blink ${duration}s ease-in-out ${delay}s infinite`;
-                    starfield.appendChild(star);
+                    // Random positions in a large sphere
+                    const r = 40 + Math.random() * 60;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos(2 * Math.random() - 1);
+                    
+                    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+                    positions[i * 3 + 2] = r * Math.cos(phi);
+
+                    // Random white/blueish colors
+                    const color = new THREE.Color();
+                    color.setHSL(0.6, 0.2, 0.8 + Math.random() * 0.2);
+                    colors[i * 3] = color.r;
+                    colors[i * 3 + 1] = color.g;
+                    colors[i * 3 + 2] = color.b;
+
+                    sizes[i] = 0.05 + Math.random() * 0.15;
+                    phases[i] = Math.random() * Math.PI * 2;
                 }
+
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+                geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
+
+                const material = new THREE.PointsMaterial({
+                    size: 0.12, // Reduced size
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 0.8,
+                    sizeAttenuation: true
+                });
+
+                this.stars = new THREE.Points(geometry, material);
+                this.scene.add(this.stars);
+            }
+
+            updateStarfield(time) {
+                if (!this.stars) return;
+                const material = this.stars.material;
+                // Subtle rotation
+                this.stars.rotation.y = time * 0.02;
+                this.stars.rotation.x = time * 0.01;
+                
+                // Twinkle effect using time
+                material.opacity = 0.6 + Math.sin(time * 2) * 0.2;
             }
 
             hideMainTooltip() {
@@ -132,7 +168,7 @@ const USE_MORE_COLOR_VARIETY = true;
                 canvasElement.style.backgroundColor = 'transparent';
                 const canvasContainer = document.getElementById('canvas-container');
                 const canvasWrapper = document.getElementById('webgl-canvas-wrapper');
-                this.initStarfield(canvasContainer);
+                this.initStarfield();
                 if (canvasWrapper) {
                     canvasWrapper.appendChild(canvasElement);
                 } else {
@@ -145,15 +181,35 @@ const USE_MORE_COLOR_VARIETY = true;
 
                 // Setup Post-processing (Bloom)
                 const renderScene = new RenderPass(this.scene, this.camera);
+                renderScene.clearAlpha = 0; // Ensure render pass doesn't force opaque background
+                
                 const bloomPass = new UnrealBloomPass(
                     new THREE.Vector2(window.innerWidth, window.innerHeight),
                     0.6, // reduced strength
                     0.3, // radius
                     0.9  // higher threshold to only catch bright highlights
                 );
-                this.composer = new EffectComposer(this.renderer);
+                bloomPass.renderToScreen = true; // Ensure last pass renders correctly
+                
+                // Create a render target with alpha support
+                const renderTarget = new THREE.WebGLRenderTarget(
+                    window.innerWidth,
+                    window.innerHeight,
+                    {
+                        minFilter: THREE.LinearFilter,
+                        magFilter: THREE.LinearFilter,
+                        format: THREE.RGBAFormat,
+                        type: THREE.UnsignedByteType,
+                        samples: 4
+                    }
+                );
+                this.renderer.setClearColor(0x000000, 0); // Ensure renderer base is clear
+                this.composer = new EffectComposer(this.renderer, renderTarget);
                 this.composer.addPass(renderScene);
                 this.composer.addPass(bloomPass);
+                
+                // UnrealBloomPass can be destructive to alpha. Ensure it doesn't clear.
+                bloomPass.clear = false;
 
                 // Add controls
                 this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -1512,31 +1568,35 @@ const USE_MORE_COLOR_VARIETY = true;
                                             }
                                         });
                                     }            
-                        animate() {
-                            requestAnimationFrame(() => this.animate());
-                            const now = performance.now();
-                            const deltaTimeSec = this._lastFrameTime ? (now - this._lastFrameTime) / 1000 : 0.016;
-                            this._lastFrameTime = now;
-            
-                            // Enable subtle auto-rotation when idle; stop immediately on interaction
-                            const idleForMs = now - this.lastInteractionAt;
-                            this.controls.autoRotate = idleForMs > this.idleRotateDelayMs;
-            
-                                                                            // Physics simulation (Force-Directed)
-                                                                            // Use a very low strength multiplier (0.05) for live animation so nodes barely move
-                                                                            this.applyForces(deltaTimeSec, 0.05);                                            
-                                                            // Apply controls (zoom/rotate/pan) first so camera is current before we compute front nodes and opacities                            this.controls.update();
-                            this.updatePersistentTooltips();
-                                            this.updateNodes();
-                                            this.updateConnections(deltaTimeSec);
-                                            
-                                            if (this.composer) {
-                                                this.composer.render();
-                                            } else {
-                                                this.renderer.render(this.scene, this.camera);
-                                            }
+                                    animate() {
+                                        requestAnimationFrame(() => this.animate());
+                                        const now = performance.now();
+                                        const deltaTimeSec = this._lastFrameTime ? (now - this._lastFrameTime) / 1000 : 0.016;
+                                        this._lastFrameTime = now;
+                        
+                                        // Enable subtle auto-rotation when idle
+                                        const idleForMs = now - this.lastInteractionAt;
+                                        this.controls.autoRotate = idleForMs > this.idleRotateDelayMs;
+                        
+                                        // Physics simulation
+                                        this.applyForces(deltaTimeSec, 0.05);
+                        
+                                        // Update components
+                                        this.controls.update();
+                                        this.updatePersistentTooltips();
+                                        this.updateStarfield(now * 0.001);
+                                        this.updateNodes();
+                                        this.updateConnections(deltaTimeSec);
+                        
+                                        // Render with post-processing
+                                        if (this.composer) {
+                                            this.renderer.autoClear = false;
+                                            this.renderer.clear();
+                                            this.composer.render();
+                                        } else {
+                                            this.renderer.render(this.scene, this.camera);
                                         }
-                            
+                                    }                            
                                         onWindowResize() {
                                             this.camera.aspect = window.innerWidth / window.innerHeight;
                                             this.camera.updateProjectionMatrix();

@@ -24,24 +24,8 @@
         .persistent-tooltip-item {
             transition: opacity 0.75s ease-in-out;
         }
-        #starfield-background {
-            pointer-events: none;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            width: 100%;
-            height: 100%;
-        }
-        .star-dot {
-            position: absolute;
-            border-radius: 50%;
-            background: #fff;
-            will-change: opacity;
-        }
-        @keyframes star-blink {
-            0%, 100% { opacity: 0.2; }
-            50% { opacity: 1; }
+        #webgl-canvas-wrapper {
+            background: transparent !important;
         }
         #loading-overlay {
             position: fixed;
@@ -122,7 +106,6 @@
     })();
     </script>
     <div id="canvas-container" class="relative" style="position: relative; width: 100vw; height: 100vh; min-height: 100vh;">
-        <div id="starfield-background" class="absolute z-0" style="inset: 0;" aria-hidden="true"></div>
         <div id="webgl-canvas-wrapper" class="absolute inset-0" style="z-index: 1;"></div>
         <div id="persistent-tooltips" class="absolute inset-0 pointer-events-none z-[150]" style="font-family: inherit;"></div>
         <div id="node-tooltip" class="absolute px-3 py-2 rounded text-sm pointer-events-none z-[200]" style="font-family: inherit; opacity: 0; visibility: hidden;"></div>
