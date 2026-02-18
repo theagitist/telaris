@@ -29,19 +29,25 @@ class TelarisNetwork {
         this.mainTooltipNodeTimeout = null;
         this.tooltipHideTimeout = null;
         this.persistentTooltipNodeToDiv = new Map();
+        this.tooltipPool = []; // Optimization: Pool of DOM elements for labels
 
         // Idle rotation
         this.lastInteractionAt = performance.now();
         this.idleRotateDelayMs = 4500;
         this._lastFrameTime = 0;
 
+        // Optimization: Scratch objects to avoid GC pressure
+        this._scratchVec = new THREE.Vector3();
+        this._scratchVec2 = new THREE.Vector3();
+        this._scratchQuat = new THREE.Quaternion();
+        this._upVec = new THREE.Vector3(0, 1, 0);
+
         this.init();
     }
 
     getNodeAnchorPosition(node) {
-        const worldPos = new THREE.Vector3();
-        node.getWorldPosition(worldPos);
-        return worldPos;
+        node.getWorldPosition(this._scratchVec);
+        return this._scratchVec;
     }
 
     getNodeTooltipStyles(node) {
@@ -825,8 +831,21 @@ class TelarisNetwork {
                 velocity: new THREE.Vector3(),
                 colorR: Math.round(color.r * 255),
                 colorG: Math.round(color.g * 255),
-                colorB: Math.round(color.b * 255)
+                colorB: Math.round(color.b * 255),
+                cachedMaterials: [],
+                cachedMoons: []
             };
+
+            node.traverse(c => {
+                if (c.material) {
+                    const mats = Array.isArray(c.material) ? c.material : [c.material];
+                    node.userData.cachedMaterials.push(...mats);
+                }
+                if (c.userData?.isMoon) {
+                    node.userData.cachedMoons.push(c);
+                }
+            });
+
             this.nodes.push(node);
         });
     }
@@ -904,18 +923,28 @@ class TelarisNetwork {
     updateConnections(deltaTimeSec) {
         const anchorCache = new Map();
         const getAnchor = (n) => {
-            if (!anchorCache.has(n)) anchorCache.set(n, this.getNodeAnchorPosition(n));
+            if (!anchorCache.has(n)) {
+                const pos = new THREE.Vector3();
+                n.getWorldPosition(pos);
+                anchorCache.set(n, pos);
+            }
             return anchorCache.get(n);
         };
 
         for (const c of this.connections) {
             const p1 = getAnchor(c.node1), p2 = getAnchor(c.node2);
-            const dir = new THREE.Vector3().subVectors(p2, p1);
-            const dist = dir.length();
+            this._scratchVec.subVectors(p2, p1);
+            const dist = this._scratchVec.length();
             if (dist < 0.001) { c.mesh.visible = false; continue; }
 
-            c.mesh.position.copy(p1).add(dir.clone().multiplyScalar(0.5));
-            c.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+            // Set midpoint
+            c.mesh.position.copy(p1).addScaledVector(this._scratchVec, 0.5);
+            
+            // Set orientation
+            this._scratchVec.normalize();
+            this._scratchQuat.setFromUnitVectors(this._upVec, this._scratchVec);
+            c.mesh.quaternion.copy(this._scratchQuat);
+            
             c.mesh.scale.set(c.thickness, dist, c.thickness);
             c.mesh.visible = true;
         }
@@ -989,69 +1018,61 @@ class TelarisNetwork {
     }
 
     updateNodes() {
-        const time = performance.now() * 0.001; // Current time in seconds
+        const time = performance.now() * 0.001;
         const focused = this.networkManager.getFocusedNode();
         
-        const tempPos = new THREE.Vector3();
-        const dists = this.nodes.map(n => { n.getWorldPosition(tempPos); return tempPos.distanceTo(this.camera.position); });
+        const dists = this.nodes.map(n => {
+            n.getWorldPosition(this._scratchVec);
+            return this._scratchVec.distanceTo(this.camera.position);
+        });
         const minD = Math.min(...dists), maxD = Math.max(...dists), range = Math.max(0.001, maxD - minD);
 
         this.nodes.forEach((n, i) => {
             const d = n.userData;
-            // Depth-based brightness
             const brightness = 1 - ((dists[i] - minD) / range) * 0.6;
 
-            // Solar Flare Logic: 0.05% chance per frame (~once every 30s per constellation)
-            // If active, it lasts for 15 frames
             if (!d.solarFlare && Math.random() < 0.0005) {
                 d.solarFlare = 15;
             }
 
-            n.traverse(obj => {
-                if (obj.material) {
-                    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-                    mats.forEach(m => {
-                        const isActive = (focused === n);
-                        m.opacity = (isActive || this.persistentTooltipNodeToDiv.has(n)) ? 1 : 0.94;
-                        
-                        if (d.colorR !== undefined) {
-                            m.color.setRGB((d.colorR / 255) * brightness, (d.colorG / 255) * brightness, (d.colorB / 255) * brightness);
-                            m.emissive?.copy(m.color);
-                            
-                            if (m.emissiveIntensity !== undefined) {
-                                if (m._baseEmissiveIntensity === undefined) m._baseEmissiveIntensity = m.emissiveIntensity;
-                                
-                                // Enhanced Twinkle: vary intensity between 0.5 and 1.5 of base
-                                const twinkle = 1.0 + Math.sin(time * 2.5 + d.phase) * 0.5;
-                                const hoverBoost = isActive ? 2.5 : 1.0;
-                                
-                                // Solar Flare multiplier: sudden burst
-                                let flareBoost = 1.0;
-                                if (d.solarFlare > 0) {
-                                    flareBoost = 8.0 * (d.solarFlare / 15); // Fade out the flare
-                                    d.solarFlare--;
-                                }
+            const isActive = (focused === n);
+            const isVisible = (isActive || this.persistentTooltipNodeToDiv.has(n));
+            const opacity = isVisible ? 1 : 0.94;
 
-                                m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverBoost * twinkle * flareBoost;
-                            }
+            // Optimization: iterate cached materials directly
+            d.cachedMaterials.forEach(m => {
+                m.opacity = opacity;
+                if (d.colorR !== undefined) {
+                    m.color.setRGB((d.colorR / 255) * brightness, (d.colorG / 255) * brightness, (d.colorB / 255) * brightness);
+                    if (m.emissive) m.emissive.copy(m.color);
+                    
+                    if (m.emissiveIntensity !== undefined) {
+                        if (m._baseEmissiveIntensity === undefined) m._baseEmissiveIntensity = m.emissiveIntensity;
+                        const twinkle = 1.0 + Math.sin(time * 2.5 + d.phase) * 0.5;
+                        const hoverBoost = isActive ? 2.5 : 1.0;
+                        let flareBoost = 1.0;
+                        if (d.solarFlare > 0) {
+                            flareBoost = 8.0 * (d.solarFlare / 15);
+                            if (m === d.cachedMaterials[0]) d.solarFlare--; // Only decrement once per node
                         }
-                    });
+                        m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverBoost * twinkle * flareBoost;
+                    }
                 }
             });
 
-            // Keep position perfectly stable
             n.position.copy(d.originalPosition);
-            
-            // Subtle pulse
             const s = 1 + Math.sin(time * 1.5 + d.phase) * 0.05;
             n.scale.set(s, s, s);
 
-            // Animate satellites and station rings
+            // Optimization: iterate cached moons directly
+            d.cachedMoons.forEach(moonGroup => {
+                moonGroup.rotation.y = time * moonGroup.userData.speed;
+                moonGroup.rotation.z = time * (moonGroup.userData.speed * 0.3);
+            });
+
+            // Animate station rings (if any)
             n.children.forEach(child => {
-                if (child.userData?.isMoon) {
-                    child.rotation.y = time * child.userData.speed;
-                    child.rotation.z = time * (child.userData.speed * 0.3);
-                } else if (child.userData?.isStationRing) {
+                if (child.userData?.isStationRing) {
                     child.rotation.x += 0.01;
                     child.rotation.y += 0.02;
                 }
@@ -1072,41 +1093,57 @@ class TelarisNetwork {
         const focused = this.networkManager.getFocusedNode();
         const toShow = this.getFront20PercentWithTier().filter(e => e.node !== focused && e.node.userData?.name);
         const rect = this.renderer.domElement.getBoundingClientRect();
-        const containerRect = this.persistentTooltipsContainer.parentElement.getBoundingClientRect();
-        const projected = new THREE.Vector3();
 
         const startFade = (el, node) => {
             if (el.style.visibility !== 'visible' || el._fadeOutTimeout) return;
             this.persistentTooltipNodeToDiv.delete(node);
             el.style.opacity = '0';
-            el._fadeOutTimeout = setTimeout(() => { el.style.visibility = 'hidden'; el._fadeOutTimeout = null; }, 780);
+            el._fadeOutTimeout = setTimeout(() => { 
+                el.style.visibility = 'hidden'; 
+                el._fadeOutTimeout = null; 
+                this.tooltipPool.push(el); // Return to pool
+            }, 780);
         };
 
         const toShowNodes = new Set(toShow.map(e => e.node));
         toShow.forEach(e => {
             const n = e.node, opacity = e.inFront10 ? '1' : '0.2';
-            n.getWorldPosition(projected);
-            const dist = projected.distanceTo(this.camera.position);
-            projected.project(this.camera);
-            if (projected.z > 1 || projected.z < -1) { const d = this.persistentTooltipNodeToDiv.get(n); if (d) startFade(d, n); return; }
+            n.getWorldPosition(this._scratchVec);
+            const dist = this._scratchVec.distanceTo(this.camera.position);
+            this._scratchVec.project(this.camera);
+            
+            if (this._scratchVec.z > 1 || this._scratchVec.z < -1) { 
+                const d = this.persistentTooltipNodeToDiv.get(n); 
+                if (d) startFade(d, n); 
+                return; 
+            }
 
             const yOff = 34 + Math.max(0, (18 - dist) * 1.5);
-            const left = (projected.x * 0.5 + 0.5) * rect.width, top = (0.5 - projected.y * 0.5) * rect.height + yOff;
+            const left = (this._scratchVec.x * 0.5 + 0.5) * rect.width;
+            const top = (0.5 - this._scratchVec.y * 0.5) * rect.height + yOff;
             
             let el = this.persistentTooltipNodeToDiv.get(n);
             if (!el) {
-                el = Array.from(this.persistentTooltipsContainer.children).find(c => c.style.visibility === 'hidden' && !c._fadeOutTimeout) || document.createElement('div');
+                el = this.tooltipPool.pop() || document.createElement('div');
                 if (!el.parentElement) {
                     el.className = 'persistent-tooltip-item absolute px-1 py-0.5 rounded text-xs pointer-events-none whitespace-nowrap';
                     this.persistentTooltipsContainer.appendChild(el);
                 }
                 this.persistentTooltipNodeToDiv.set(n, el);
-                el.style.visibility = 'visible'; el.style.opacity = '0';
+                el.style.visibility = 'visible'; 
+                el.style.opacity = '0';
                 requestAnimationFrame(() => requestAnimationFrame(() => { el.style.opacity = opacity; }));
             }
             el.textContent = n.userData.name;
             const s = this.getNodeTooltipStyles(n);
-            Object.assign(el.style, { left: left + 'px', top: top + 'px', transform: 'translate(-50%, -50%) translate(-12px, 0)', background: s.background, color: s.color, opacity });
+            Object.assign(el.style, { 
+                left: left + 'px', 
+                top: top + 'px', 
+                transform: 'translate(-50%, -50%) translate(-12px, 0)', 
+                background: s.background, 
+                color: s.color, 
+                opacity 
+            });
         });
 
         for (const [n, d] of Array.from(this.persistentTooltipNodeToDiv)) if (!toShowNodes.has(n)) startFade(d, n);
