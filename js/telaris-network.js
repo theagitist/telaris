@@ -304,6 +304,7 @@ const USE_MORE_COLOR_VARIETY = true;
                         this.createNodes();
                         this.createConnections();
                         this.warmupPhysics();
+                        this.fitCameraToNodes();
                         
                         // Add to scene only after settled
                         this.nodes.forEach(n => this.scene.add(n));
@@ -1477,7 +1478,46 @@ const USE_MORE_COLOR_VARIETY = true;
                 }
             }
 
-                                                // Pre-run the simulation to settle nodes into clusters before they are shown
+                                                // Adjust camera distance to ensure all nodes fit on screen
+            fitCameraToNodes() {
+                if (this.nodes.length === 0) return;
+
+                const box = new THREE.Box3();
+                this.nodes.forEach(node => {
+                    box.expandByPoint(node.position);
+                });
+
+                const center = new THREE.Vector3();
+                box.getCenter(center);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+
+                // Get the max dimension of the box
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const fov = this.camera.fov * (Math.PI / 180);
+                
+                // Calculate distance needed to fit the box
+                // We use a multiplier (1.1) to add some padding around the edges
+                let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 1.1;
+
+                // Minimum distance to prevent being too close
+                cameraZ = Math.max(cameraZ, 15);
+
+                // Update camera and controls
+                this.camera.position.set(center.x, center.y, center.z + cameraZ);
+                this.camera.lookAt(center);
+                
+                if (this.controls) {
+                    this.controls.target.copy(center);
+                    // Update max distance to allow zooming out further if the cloud is big
+                    this.controls.maxDistance = Math.max(100, cameraZ * 2);
+                    this.controls.update();
+                }
+                
+                console.log(`Camera fitted to nodes. Distance: ${cameraZ}`);
+            }
+
+            // Pre-run the simulation to settle nodes into clusters before they are shown
             warmupPhysics() {
                 if (this.nodes.length < 2) return;
                 console.log('Warming up physics...');
