@@ -247,6 +247,7 @@ const USE_MORE_COLOR_VARIETY = true;
                     if (this.nodeData.length > 0) {
                         this.createNodes();
                         this.createConnections();
+                        this.warmupPhysics();
                         console.log(`Created ${this.nodes.length} nodes`);
                         console.log(`Created ${this.connections.length} connections`);
                     } else {
@@ -1416,22 +1417,33 @@ const USE_MORE_COLOR_VARIETY = true;
                 }
             }
 
-                                                // Force-directed layout simulation: calculate repulsion and attraction
-                                                applyForces(deltaTimeSec = 0.016) {
-                                                    if (this.nodes.length < 2) return;
-                                                    
-                                                    // Scale factors for stability and separation
-                                                    const dt = Math.min(deltaTimeSec, 0.032);
-                                                    const REPULSION_STRENGTH = 1.2; // Significantly increased for better separation
-                                                    const ATTRACTION_STRENGTH = 0.04; // Reduced to let repulsion win at close range
-                                                    const IDEAL_DISTANCE = 4.0; // Target distance between connected nodes
-                                                    const DAMPING = 0.85;
-                                                    const MAX_DISTANCE = 18; // Slightly larger cloud radius
-                                                    const MAX_FORCE = 0.6;
-                                                    const MAX_VELOCITY = 0.25;
-                                                    
-                                                    const tempVec = new THREE.Vector3();
-                                                    const nodeCount = this.nodes.length;
+                                                // Pre-run the simulation to settle nodes into clusters before they are shown
+            warmupPhysics() {
+                if (this.nodes.length < 2) return;
+                console.log('Warming up physics...');
+                // Run simulation 300 times to reach near-perfect equilibrium
+                for (let i = 0; i < 300; i++) {
+                    this.applyForces(0.016, 1.0); // Full strength
+                }
+                console.log('Physics settled.');
+            }
+
+                        // Force-directed layout simulation: calculate repulsion and attraction
+                        applyForces(deltaTimeSec = 0.016, strengthMultiplier = 0.05) {
+                            if (this.nodes.length < 2) return;
+                            
+                            // Scale factors for stability and separation
+                            const dt = Math.min(deltaTimeSec, 0.032);
+                            const REPULSION_STRENGTH = 1.2 * strengthMultiplier;
+                            const ATTRACTION_STRENGTH = 0.04 * strengthMultiplier;
+                            const IDEAL_DISTANCE = 4.0;
+                            const DAMPING = 0.85;
+                            const MAX_DISTANCE = 18;
+                            const MAX_FORCE = 0.6 * strengthMultiplier;
+                            // Barely move in live mode (max 0.02), full speed in warmup (0.25)
+                            const MAX_VELOCITY = strengthMultiplier > 0.5 ? 0.25 : 0.02;
+                            
+                            const tempVec = new THREE.Vector3();                                                    const nodeCount = this.nodes.length;
                                     
                                                     // 1. Repulsion: all nodes push each other away
                                                     for (let i = 0; i < nodeCount; i++) {
@@ -1510,9 +1522,9 @@ const USE_MORE_COLOR_VARIETY = true;
                             const idleForMs = now - this.lastInteractionAt;
                             this.controls.autoRotate = idleForMs > this.idleRotateDelayMs;
             
-                                                            // Physics simulation (Force-Directed)
-                                                            this.applyForces(deltaTimeSec);
-                                            
+                                                                            // Physics simulation (Force-Directed)
+                                                                            // Use a very low strength multiplier (0.05) for live animation so nodes barely move
+                                                                            this.applyForces(deltaTimeSec, 0.05);                                            
                                                             // Apply controls (zoom/rotate/pan) first so camera is current before we compute front nodes and opacities                            this.controls.update();
                             this.updatePersistentTooltips();
                                             this.updateNodes();
