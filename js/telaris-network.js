@@ -1,8 +1,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { apiFetch } from './api.js';
 import { createNodeIcon } from './telaris-node-icons.js';
 import { NetworkManager } from './network-manager.js';
+import { GeometryManager } from './geometry-manager.js';
 
 // Set to false to revert to previous (less varied) node and line colors
 const USE_MORE_COLOR_VARIETY = true;
@@ -26,6 +30,7 @@ const USE_MORE_COLOR_VARIETY = true;
                 this.nodeData = []; // Store node data from API
                 this.connections = []; // Store connection lines between nodes
                 this.networkManager = new NetworkManager({ fadeSpeed: 0.1 });
+                this.geometryManager = new GeometryManager();
                 this.raycaster = new THREE.Raycaster();
                 this.mouse = new THREE.Vector2();
                 this.tooltip = document.getElementById('node-tooltip');
@@ -137,6 +142,18 @@ const USE_MORE_COLOR_VARIETY = true;
 
                 // Setup camera
                 this.camera.position.set(0, 0, 15);
+
+                // Setup Post-processing (Bloom)
+                const renderScene = new RenderPass(this.scene, this.camera);
+                const bloomPass = new UnrealBloomPass(
+                    new THREE.Vector2(window.innerWidth, window.innerHeight),
+                    1.5, // strength
+                    0.4, // radius
+                    0.85 // threshold
+                );
+                this.composer = new EffectComposer(this.renderer);
+                this.composer.addPass(renderScene);
+                this.composer.addPass(bloomPass);
 
                 // Add controls
                 this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -342,6 +359,7 @@ const USE_MORE_COLOR_VARIETY = true;
                                 clearTimeout(this.mainTooltipNodeTimeout);
                                 this.mainTooltipNodeTimeout = null;
                             }
+                            this.mainTooltipNode = hoveredNode;
                             this.networkManager.setFocusedNode(hoveredNode);
                             if (hoveredNode.userData.url) {
                                 this.renderer.domElement.style.cursor = 'pointer';
@@ -353,7 +371,18 @@ const USE_MORE_COLOR_VARIETY = true;
                                     clearTimeout(this.tooltipHideTimeout);
                                     this.tooltipHideTimeout = null;
                                 }
-                                this.tooltip.textContent = hoveredNode.userData.name;
+                                
+                                // Build rich tooltip content with keywords
+                                let tooltipHTML = `<div style="font-weight:600; margin-bottom: 2px;">${hoveredNode.userData.name}</div>`;
+                                if (hoveredNode.userData.keywords && hoveredNode.userData.keywords.length > 0) {
+                                    tooltipHTML += `<div style="opacity: 0.8; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 4px;">`;
+                                    hoveredNode.userData.keywords.forEach(kw => {
+                                        tooltipHTML += `<span style="background: rgba(255,255,255,0.15); padding: 1px 4px; rounded: 2px;">#${kw}</span>`;
+                                    });
+                                    tooltipHTML += `</div>`;
+                                }
+                                this.tooltip.innerHTML = tooltipHTML;
+
                                 const tipStyles = this.getNodeTooltipStyles(hoveredNode);
                                 this.tooltip.style.background = tipStyles.background;
                                 this.tooltip.style.color = tipStyles.color;
@@ -383,6 +412,7 @@ const USE_MORE_COLOR_VARIETY = true;
                             this.renderer.domElement.style.cursor = 'default';
                             if (!this.mainTooltipNodeTimeout) {
                                 this.mainTooltipNodeTimeout = setTimeout(() => {
+                                    this.mainTooltipNode = null;
                                     this.networkManager.setFocusedNode(null);
                                     this.mainTooltipNodeTimeout = null;
                                 }, 1000);
@@ -532,7 +562,18 @@ const USE_MORE_COLOR_VARIETY = true;
                             clearTimeout(this.tooltipHideTimeout);
                             this.tooltipHideTimeout = null;
                         }
-                        this.tooltip.textContent = node.userData.name;
+                        
+                        // Build rich tooltip content with keywords
+                        let tooltipHTML = `<div style="font-weight:600; margin-bottom: 2px;">${node.userData.name}</div>`;
+                        if (node.userData.keywords && node.userData.keywords.length > 0) {
+                            tooltipHTML += `<div style="opacity: 0.8; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 4px;">`;
+                            node.userData.keywords.forEach(kw => {
+                                tooltipHTML += `<span style="background: rgba(255,255,255,0.15); padding: 1px 4px; rounded: 2px;">#${kw}</span>`;
+                            });
+                            tooltipHTML += `</div>`;
+                        }
+                        this.tooltip.innerHTML = tooltipHTML;
+
                         const tipStyles = this.getNodeTooltipStyles(node);
                         this.tooltip.style.background = tipStyles.background;
                         this.tooltip.style.color = tipStyles.color;
@@ -681,6 +722,7 @@ const USE_MORE_COLOR_VARIETY = true;
                                 this.mainTooltipNodeTimeout = null;
                             }
                             lastTappedNode = clickedNode;
+                            this.mainTooltipNode = clickedNode;
                             this.networkManager.setFocusedNode(clickedNode);
                             showTooltipForNode(clickedNode, touchStartPos.screenX, touchStartPos.screenY);
                         } else if (isTap && !touchStartNode) {
@@ -688,6 +730,7 @@ const USE_MORE_COLOR_VARIETY = true;
                             lastTappedNode = null;
                             if (!this.mainTooltipNodeTimeout) {
                                 this.mainTooltipNodeTimeout = setTimeout(() => {
+                                    this.mainTooltipNode = null;
                                     this.networkManager.setFocusedNode(null);
                                     this.mainTooltipNodeTimeout = null;
                                 }, 1000);
@@ -856,7 +899,7 @@ const USE_MORE_COLOR_VARIETY = true;
                     });
 
                     // Create a random constellation-themed icon (star, moon, five-point star, asteroid, sparkle)
-                    const node = createNodeIcon(starMaterial, i);
+                    const node = createNodeIcon(starMaterial, i, this.geometryManager);
                     node.position.copy(randomPos);
 
                     // Store RGB for tooltip styling (background 5%, text 100%)
@@ -922,10 +965,10 @@ const USE_MORE_COLOR_VARIETY = true;
                 }
 
                 // Thickness bands by strength (0–25%, 26–50%, 51–75%, 76–100%); min thickness raised for Chrome visibility
-                const THINNEST = 0.006;
-                const MEDIUM_THIN = 0.009;
-                const MEDIUM_THICK = 0.012;
-                const THICKEST = 0.016;
+                const THINNEST = 0.008;
+                const MEDIUM_THIN = 0.015;
+                const MEDIUM_THICK = 0.025;
+                const THICKEST = 0.04;
 
                 let connectionIndex = 0; // Track connection index for unique colors
 
@@ -940,6 +983,7 @@ const USE_MORE_COLOR_VARIETY = true;
                         
                         // Only create connection if nodes share at least one keyword (0% = no line)
                         if (sharedCount > 0) {
+                            const sharedKeywords = (node1.userData.keywords || []).filter(k => (node2.userData.keywords || []).includes(k));
                             const pct = maxShared > 0 ? sharedCount / maxShared : 1;
                             // Thickness band: 0–25% thinnest, 26–50% medium-thin, 51–75% medium-thick, 76–100% thickest
                             let thickness;
@@ -962,19 +1006,16 @@ const USE_MORE_COLOR_VARIETY = true;
                             
                             // Get positions of both nodes
                             const pos1 = this.getNodeAnchorPosition(node1);
-                            const pos2 = this.getNodeAnchorPosition(node2);
-                            
-                            // Calculate distance and direction
-                            const direction = new THREE.Vector3().subVectors(pos2, pos1);
-                            const distance = direction.length();
-                            
-                            const geometry = new THREE.CylinderGeometry(
-                                thickness,
-                                thickness,
-                                distance,
-                                8
-                            );
-                            const pastelColor = this.generateRandomPastelColor(connectionIndex, { connectionIndex });
+                                                        const pos2 = this.getNodeAnchorPosition(node2);
+                                                        
+                                                        // Calculate distance and direction
+                                                        const direction = new THREE.Vector3().subVectors(pos2, pos1);
+                                                        const distance = direction.length();
+                                                        
+                                                        // Use a shared base geometry (unit height) and scale it to the required distance
+                                                        const geometry = this.geometryManager.getOrCreate('connection_cylinder', () => new THREE.CylinderGeometry(1, 1, 1, 8));
+                                                        
+                                                        const pastelColor = this.generateRandomPastelColor(connectionIndex, { connectionIndex });
                             const lineLightness = USE_MORE_COLOR_VARIETY ? pastelColor.lightness : 0.68;
                             const threeColor = new THREE.Color().setHSL(
                                 pastelColor.hue,
@@ -991,6 +1032,10 @@ const USE_MORE_COLOR_VARIETY = true;
                             const cylinder = new THREE.Mesh(geometry, material);
                             const midpoint = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
                             cylinder.position.copy(midpoint);
+                            
+                            // Scale the unit cylinder
+                            cylinder.scale.set(thickness, distance, thickness);
+                            
                             const up = new THREE.Vector3(0, 1, 0);
                             const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction.clone().normalize());
                             cylinder.quaternion.copy(quaternion);
@@ -1000,8 +1045,9 @@ const USE_MORE_COLOR_VARIETY = true;
                                 node1: node1,
                                 node2: node2,
                                 sharedCount: sharedCount,
-                                originalDistance: distance,
-                                baseOpacity: opacity,
+                                sharedKeywords: sharedKeywords,
+                                thickness: thickness,
+                                baseOpacity: Math.min(opacity * 1.5, 1.0),
                                 currentOpacity: 0,
                                 targetOpacity: 0,
                                 thick: thick
@@ -1036,8 +1082,6 @@ const USE_MORE_COLOR_VARIETY = true;
 
                     if (distance < 0.001) {
                         conn.mesh.visible = false;
-                        conn.targetOpacity = 0;
-                        conn.currentOpacity = 0;
                         continue;
                     }
 
@@ -1047,10 +1091,11 @@ const USE_MORE_COLOR_VARIETY = true;
                     const normalizedDirection = direction.clone().normalize();
                     const quaternion = new THREE.Quaternion().setFromUnitVectors(up, normalizedDirection);
                     conn.mesh.quaternion.copy(quaternion);
-                    const originalDistance = conn.originalDistance || conn.mesh.geometry?.parameters?.height;
-                    if (originalDistance > 0) {
-                        conn.mesh.scale.y = distance / originalDistance;
-                    }
+                    
+                    // Scale the unit cylinder: X/Z = thickness, Y = distance
+                    const t = conn.thickness || 0.01;
+                    conn.mesh.scale.set(t, distance, t);
+                    conn.mesh.visible = true; // Let NetworkManager handle the final opacity-based visibility
                 }
 
                 this.networkManager.updateVisibility(this.connections, deltaTimeSec);
@@ -1184,6 +1229,7 @@ const USE_MORE_COLOR_VARIETY = true;
                         if (obj.material) {
                             const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
                             mats.forEach(m => {
+                                const isActive = this.mainTooltipNode === node;
                                 const opacity = hasTooltip(node) ? 1 : 0.94;
                                 m.opacity = opacity;
                                 if (data.colorR !== undefined) {
@@ -1194,7 +1240,8 @@ const USE_MORE_COLOR_VARIETY = true;
                                     );
                                     m.emissive.copy(m.color);
                                     if (m._baseEmissiveIntensity === undefined) m._baseEmissiveIntensity = m.emissiveIntensity;
-                                    m.emissiveIntensity = m._baseEmissiveIntensity * brightness;
+                                    // Glow effect: double emissive intensity if hovered
+                                    m.emissiveIntensity = m._baseEmissiveIntensity * brightness * (isActive ? 2.5 : 1.0);
                                 }
                             });
                         }
@@ -1369,30 +1416,123 @@ const USE_MORE_COLOR_VARIETY = true;
                 }
             }
 
-            animate() {
-                requestAnimationFrame(() => this.animate());
-                const now = performance.now();
-                const deltaTimeSec = this._lastFrameTime ? (now - this._lastFrameTime) / 1000 : 0.016;
-                this._lastFrameTime = now;
-
-                // Enable subtle auto-rotation when idle; stop immediately on interaction
-                const idleForMs = now - this.lastInteractionAt;
-                this.controls.autoRotate = idleForMs > this.idleRotateDelayMs;
-
-                // Apply controls (zoom/rotate/pan) first so camera is current before we compute front nodes and opacities
-                this.controls.update();
-                this.updatePersistentTooltips();
-                this.updateNodes();
-                this.updateConnections(deltaTimeSec);
-
-                this.renderer.render(this.scene, this.camera);
-            }
-
-            onWindowResize() {
-                this.camera.aspect = window.innerWidth / window.innerHeight;
-                this.camera.updateProjectionMatrix();
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
-            }
+                                                // Force-directed layout simulation: calculate repulsion and attraction
+                                                applyForces(deltaTimeSec = 0.016) {
+                                                    if (this.nodes.length < 2) return;
+                                                    
+                                                    // Scale factors for stability and separation
+                                                    const dt = Math.min(deltaTimeSec, 0.032);
+                                                    const REPULSION_STRENGTH = 1.2; // Significantly increased for better separation
+                                                    const ATTRACTION_STRENGTH = 0.04; // Reduced to let repulsion win at close range
+                                                    const IDEAL_DISTANCE = 4.0; // Target distance between connected nodes
+                                                    const DAMPING = 0.85;
+                                                    const MAX_DISTANCE = 18; // Slightly larger cloud radius
+                                                    const MAX_FORCE = 0.6;
+                                                    const MAX_VELOCITY = 0.25;
+                                                    
+                                                    const tempVec = new THREE.Vector3();
+                                                    const nodeCount = this.nodes.length;
+                                    
+                                                    // 1. Repulsion: all nodes push each other away
+                                                    for (let i = 0; i < nodeCount; i++) {
+                                                        const n1 = this.nodes[i];
+                                                        for (let j = i + 1; j < nodeCount; j++) {
+                                                            const n2 = this.nodes[j];
+                                                            tempVec.subVectors(n1.userData.originalPosition, n2.userData.originalPosition);
+                                                            const distSq = tempVec.lengthSq();
+                                                            
+                                                            if (distSq < 0.0001 || distSq > 625) continue;
+                                                            
+                                                            // Inverse square law repulsion
+                                                            const forceMag = Math.min(REPULSION_STRENGTH / distSq, MAX_FORCE);
+                                                            tempVec.normalize().multiplyScalar(forceMag * dt);
+                                                            
+                                                            n1.userData.velocity.add(tempVec);
+                                                            n2.userData.velocity.sub(tempVec);
+                                                        }
+                                                    }
+                                    
+                                                    // 2. Attraction: connected nodes pull each other toward the IDEAL_DISTANCE
+                                                    this.connections.forEach(conn => {
+                                                        const n1 = conn.node1;
+                                                        const n2 = conn.node2;
+                                                        const sharedCount = conn.sharedCount || 1;
+                                                        
+                                                        tempVec.subVectors(n2.userData.originalPosition, n1.userData.originalPosition);
+                                                        const dist = tempVec.length();
+                                                        
+                                                        if (dist < 0.1) return;
+                                                        
+                                                        // Spring-like force that targets IDEAL_DISTANCE
+                                                        const delta = dist - IDEAL_DISTANCE;
+                                                        if (delta <= 0) return; // Repulsion already handles close-range separation
+                                                        
+                                                        const forceMag = Math.min(delta * ATTRACTION_STRENGTH * (1 + sharedCount * 0.4), MAX_FORCE);
+                                                        tempVec.normalize().multiplyScalar(forceMag * dt);
+                                                        
+                                                        n1.userData.velocity.add(tempVec);
+                                                        n2.userData.velocity.sub(tempVec);
+                                                    });                        
+                                        // 3. Update positions and apply damping/centering
+                                        this.nodes.forEach(node => {
+                                            const data = node.userData;
+                                            
+                                            // Cap velocity
+                                            if (data.velocity.length() > MAX_VELOCITY) {
+                                                data.velocity.normalize().multiplyScalar(MAX_VELOCITY);
+                                            }
+                        
+                                            // Apply velocity to position
+                                            data.originalPosition.add(data.velocity);
+                                            
+                                            // Apply damping to velocity
+                                            data.velocity.multiplyScalar(DAMPING);
+                                            
+                                            // Gentle pull toward origin (prevents drifting away)
+                                            tempVec.copy(data.originalPosition).multiplyScalar(-0.01 * dt);
+                                            data.velocity.add(tempVec);
+                                            
+                                            // Keep within bounds
+                                            const distFromOrigin = data.originalPosition.length();
+                                            if (distFromOrigin > MAX_DISTANCE) {
+                                                data.originalPosition.normalize().multiplyScalar(MAX_DISTANCE);
+                                                data.velocity.multiplyScalar(0.5); // "Bounce" or absorb impact
+                                            }
+                                        });
+                                    }            
+                        animate() {
+                            requestAnimationFrame(() => this.animate());
+                            const now = performance.now();
+                            const deltaTimeSec = this._lastFrameTime ? (now - this._lastFrameTime) / 1000 : 0.016;
+                            this._lastFrameTime = now;
+            
+                            // Enable subtle auto-rotation when idle; stop immediately on interaction
+                            const idleForMs = now - this.lastInteractionAt;
+                            this.controls.autoRotate = idleForMs > this.idleRotateDelayMs;
+            
+                                                            // Physics simulation (Force-Directed)
+                                                            this.applyForces(deltaTimeSec);
+                                            
+                                                            // Apply controls (zoom/rotate/pan) first so camera is current before we compute front nodes and opacities                            this.controls.update();
+                            this.updatePersistentTooltips();
+                                            this.updateNodes();
+                                            this.updateConnections(deltaTimeSec);
+                                            
+                                            if (this.composer) {
+                                                this.composer.render();
+                                            } else {
+                                                this.renderer.render(this.scene, this.camera);
+                                            }
+                                        }
+                            
+                                        onWindowResize() {
+                                            this.camera.aspect = window.innerWidth / window.innerHeight;
+                                            this.camera.updateProjectionMatrix();
+                                            this.renderer.setSize(window.innerWidth, window.innerHeight);
+                                            if (this.composer) {
+                                                this.composer.setSize(window.innerWidth, window.innerHeight);
+                                            }
+                                        }
         }
 
 export { TelarisNetwork };

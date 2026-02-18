@@ -19,7 +19,7 @@
     <script src="js/tailwind.min.js"></script>
     <style>
         #node-tooltip {
-            transition: opacity 0.75s ease-in-out;
+            /* Transition handled in JS for responsiveness */
         }
         .persistent-tooltip-item {
             transition: opacity 0.75s ease-in-out;

@@ -57,8 +57,21 @@ export class NetworkManager {
             if (Math.abs(conn.currentOpacity - conn.targetOpacity) < 0.002) {
                 conn.currentOpacity = conn.targetOpacity;
             }
-            conn.mesh.material.opacity = conn.currentOpacity;
+            
+            // Sync with material
+            const mat = conn.mesh.material;
+            mat.opacity = conn.currentOpacity;
             conn.mesh.visible = conn.currentOpacity > this.visibilityThreshold;
+
+            // Selective Glow: Increase emissive intensity when line is becoming visible
+            if (mat.emissiveIntensity !== undefined) {
+                if (conn._baseEmissiveIntensity === undefined) {
+                    conn._baseEmissiveIntensity = mat.emissiveIntensity;
+                }
+                const isFocused = this._focusedNode !== null && (this._focusedNode === conn.node1 || this._focusedNode === conn.node2);
+                const targetIntensity = isFocused ? 2.0 : conn._baseEmissiveIntensity;
+                mat.emissiveIntensity += (targetIntensity - mat.emissiveIntensity) * t;
+            }
         }
     }
 }

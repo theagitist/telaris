@@ -1,15 +1,16 @@
 /**
  * Constellation-themed node icon creation (star, moon, five-point star, asteroid, sparkle).
+ * Optimized to use GeometryManager for shared geometry reuse.
  */
 
 import * as THREE from 'three';
 
-function createStarNode(material) {
+function createStarNode(material, gm) {
     const starGroup = new THREE.Group();
-    const centerGeometry = new THREE.SphereGeometry(0.24, 8, 8);
+    const centerGeometry = gm.getSphere(0.24, 8);
     const center = new THREE.Mesh(centerGeometry, material);
     starGroup.add(center);
-    const spikeGeometry = new THREE.OctahedronGeometry(0.4, 0);
+    const spikeGeometry = gm.getOctahedron(0.4, 0);
     const spikeMaterial = material.clone();
     spikeMaterial.emissiveIntensity = material.emissiveIntensity * 1.2;
     const directions = [
@@ -26,48 +27,37 @@ function createStarNode(material) {
     return starGroup;
 }
 
-function createMoonNode(material) {
+function createMoonNode(material, gm) {
     const group = new THREE.Group();
-    const geo = new THREE.SphereGeometry(0.28, 16, 16);
+    const geo = gm.getSphere(0.28, 16);
     group.add(new THREE.Mesh(geo, material));
     return group;
 }
 
-function createFivePointStarNode(material) {
+function createFivePointStarNode(material, gm) {
     const group = new THREE.Group();
-    const R = 0.28, r = 0.11;
-    const shape = new THREE.Shape();
-    for (let i = 0; i < 10; i++) {
-        const angle = (i / 5) * Math.PI - Math.PI / 2;
-        const radius = (i % 2 === 0) ? R : r;
-        const x = Math.cos(angle) * radius;
-        const y = Math.sin(angle) * radius;
-        if (i === 0) shape.moveTo(x, y);
-        else shape.lineTo(x, y);
-    }
-    shape.closePath();
     const starMat = material.clone();
     starMat.side = THREE.DoubleSide;
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.06, bevelEnabled: false });
+    const geo = gm.getExtrudedStar();
     const mesh = new THREE.Mesh(geo, starMat);
     group.add(mesh);
     return group;
 }
 
-function createAsteroidNode(material) {
+function createAsteroidNode(material, gm) {
     const group = new THREE.Group();
-    const geo = new THREE.IcosahedronGeometry(0.22, 1);
+    const geo = gm.getIcosahedron(0.22, 1);
     group.add(new THREE.Mesh(geo, material));
     return group;
 }
 
-function createSparkleNode(material) {
+function createSparkleNode(material, gm) {
     const group = new THREE.Group();
-    const coreGeo = new THREE.TetrahedronGeometry(0.2, 0);
+    const coreGeo = gm.getTetrahedron(0.2, 0);
     group.add(new THREE.Mesh(coreGeo, material));
     const rayMat = material.clone();
     rayMat.emissiveIntensity = material.emissiveIntensity * 1.3;
-    const rayGeo = new THREE.ConeGeometry(0.06, 0.22, 5);
+    const rayGeo = gm.getCone(0.06, 0.22, 5);
     const up = new THREE.Vector3(0, 1, 0);
     const dirs = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
     dirs.forEach(([x, y, z]) => {
@@ -88,7 +78,7 @@ const iconFactories = [
     createSparkleNode
 ];
 
-export function createNodeIcon(material, index) {
+export function createNodeIcon(material, index, geometryManager) {
     const choice = (index * 1103515245 + 12345) >>> 0;
-    return iconFactories[choice % 5](material);
+    return iconFactories[choice % 5](material, geometryManager);
 }
