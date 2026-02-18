@@ -214,7 +214,78 @@ class TelarisNetwork {
         this.loadApiKey().then(() => this.loadData());
         this.initComet();
         this.initRocket();
+        this.initUFO();
         this.animate();
+    }
+
+    initUFO() {
+        this.ufo = new THREE.Group();
+        
+        // Disk: metallic silver
+        const diskGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.03, 16);
+        const diskMat = new THREE.MeshStandardMaterial({ 
+            color: 0xcccccc, 
+            metalness: 0.9, 
+            roughness: 0.1,
+            emissive: 0x333333 
+        });
+        const disk = new THREE.Mesh(diskGeo, diskMat);
+        this.ufo.add(disk);
+
+        // Dome: glass
+        const domeGeo = new THREE.SphereGeometry(0.06, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+        const domeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 });
+        const dome = new THREE.Mesh(domeGeo, domeMat);
+        dome.position.y = 0.01;
+        this.ufo.add(dome);
+
+        this.ufo.visible = false;
+        this.ufo.userData = { 
+            active: false, 
+            state: 'idle', // 'idle', 'hovering', 'leaving'
+            timer: 0 
+        };
+        this.scene.add(this.ufo);
+    }
+
+    updateUFO(dt) {
+        if (!this.ufo) return;
+        const d = this.ufo.userData;
+
+        if (!d.active) {
+            // Very rare: 0.02% chance per frame (~once every 2 mins)
+            if (this.nodes.length > 0 && Math.random() < 0.0002) {
+                d.active = true;
+                d.state = 'hovering';
+                d.timer = 3.0; // 3 seconds scan
+                this.ufo.visible = true;
+                
+                const randomNode = this.nodes[Math.floor(Math.random() * this.nodes.length)];
+                this.ufo.position.copy(randomNode.position).add(new THREE.Vector3(0, 0.5, 0));
+                d.departureDir = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+            }
+            return;
+        }
+
+        if (d.state === 'hovering') {
+            d.timer -= dt;
+            // Wobble/Tilt
+            this.ufo.rotation.z = Math.sin(performance.now() * 0.01) * 0.2;
+            this.ufo.rotation.x = Math.cos(performance.now() * 0.01) * 0.1;
+            
+            if (d.timer <= 0) {
+                d.state = 'leaving';
+            }
+        } else if (d.state === 'leaving') {
+            // Extreme acceleration
+            const speed = 100.0;
+            this.ufo.position.add(d.departureDir.clone().multiplyScalar(speed * dt));
+            
+            if (this.ufo.position.length() > 200) {
+                d.active = false;
+                this.ufo.visible = false;
+            }
+        }
     }
 
     initComet() {
@@ -779,11 +850,17 @@ class TelarisNetwork {
         const opacities = [0.14, 0.28, 0.48, 0.58];
         const geometry = this.geometryManager.getOrCreate('connection_cylinder', () => new THREE.CylinderGeometry(1, 1, 1, 8));
 
+        // Track connection counts to find the centerpiece
+        const nodeConnectionCounts = new Map();
+
         for (let i = 0; i < this.nodes.length; i++) {
             for (let j = i + 1; j < this.nodes.length; j++) {
                 const n1 = this.nodes[i], n2 = this.nodes[j];
                 const shared = this.getSharedKeywordsCount(n1, n2);
                 if (shared > 0) {
+                    nodeConnectionCounts.set(n1, (nodeConnectionCounts.get(n1) || 0) + 1);
+                    nodeConnectionCounts.set(n2, (nodeConnectionCounts.get(n2) || 0) + 1);
+
                     const pct = shared / maxShared;
                     const bIdx = Math.min(Math.floor(pct * 4), 3);
                     const thickness = bands[bIdx];
@@ -800,6 +877,26 @@ class TelarisNetwork {
                         currentOpacity: 0, targetOpacity: 0
                     });
                 }
+            }
+        }
+
+        // Add Space Station Ring to the most connected node
+        if (nodeConnectionCounts.size > 0) {
+            let maxCount = -1;
+            let centerpiece = null;
+            for (const [node, count] of nodeConnectionCounts.entries()) {
+                if (count > maxCount) {
+                    maxCount = count;
+                    centerpiece = node;
+                }
+            }
+
+            if (centerpiece) {
+                const ringGeo = new THREE.TorusGeometry(0.5, 0.01, 8, 32);
+                const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, wireframe: true, transparent: true, opacity: 0.6 });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.userData = { isStationRing: true };
+                centerpiece.add(ring);
             }
         }
     }
@@ -904,6 +1001,12 @@ class TelarisNetwork {
             // Depth-based brightness
             const brightness = 1 - ((dists[i] - minD) / range) * 0.6;
 
+            // Solar Flare Logic: 0.05% chance per frame (~once every 30s per constellation)
+            // If active, it lasts for 15 frames
+            if (!d.solarFlare && Math.random() < 0.0005) {
+                d.solarFlare = 15;
+            }
+
             n.traverse(obj => {
                 if (obj.material) {
                     const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
@@ -919,10 +1022,17 @@ class TelarisNetwork {
                                 if (m._baseEmissiveIntensity === undefined) m._baseEmissiveIntensity = m.emissiveIntensity;
                                 
                                 // Enhanced Twinkle: vary intensity between 0.5 and 1.5 of base
-                                // Using different frequencies for a more random look
                                 const twinkle = 1.0 + Math.sin(time * 2.5 + d.phase) * 0.5;
                                 const hoverBoost = isActive ? 2.5 : 1.0;
-                                m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverBoost * twinkle;
+                                
+                                // Solar Flare multiplier: sudden burst
+                                let flareBoost = 1.0;
+                                if (d.solarFlare > 0) {
+                                    flareBoost = 8.0 * (d.solarFlare / 15); // Fade out the flare
+                                    d.solarFlare--;
+                                }
+
+                                m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverBoost * twinkle * flareBoost;
                             }
                         }
                     });
@@ -936,11 +1046,14 @@ class TelarisNetwork {
             const s = 1 + Math.sin(time * 1.5 + d.phase) * 0.05;
             n.scale.set(s, s, s);
 
-            // Animate satellites
+            // Animate satellites and station rings
             n.children.forEach(child => {
                 if (child.userData?.isMoon) {
                     child.rotation.y = time * child.userData.speed;
                     child.rotation.z = time * (child.userData.speed * 0.3);
+                } else if (child.userData?.isStationRing) {
+                    child.rotation.x += 0.01;
+                    child.rotation.y += 0.02;
                 }
             });
         });
@@ -1014,6 +1127,7 @@ class TelarisNetwork {
         this.updateConnections(dt);
         this.updateComet(dt);
         this.updateRocket(dt);
+        this.updateUFO(dt);
 
         if (this.composer) {
             this.renderer.autoClear = false;
