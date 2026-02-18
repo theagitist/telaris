@@ -212,7 +212,7 @@ class TelarisNetwork {
         }
         canvasContainer.appendChild(this.tooltip);
 
-        this.camera.position.set(0, 0, 15);
+        this.camera.position.set(0, 0, 13);
 
         // Setup Post-processing (Bloom)
         const renderScene = new RenderPass(this.scene, this.camera);
@@ -243,8 +243,8 @@ class TelarisNetwork {
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
-        this.controls.minDistance = 5;
-        this.controls.maxDistance = 30;
+        this.controls.minDistance = 3;
+        this.controls.maxDistance = 22;
         this.controls.zoomSpeed = ('ontouchstart' in window || navigator.maxTouchPoints > 0) ? 1.5 : 4.0;
         this.controls.autoRotate = false;
         this.controls.autoRotateSpeed = 0.35;
@@ -918,7 +918,7 @@ class TelarisNetwork {
             }
         }
 
-        const bands = [0.002, 0.005, 0.009, 0.014];
+        const bands = [0.004, 0.009, 0.016, 0.024];
         const opacities = [0.14, 0.28, 0.48, 0.58];
         const geometry = this.geometryManager.getOrCreate('connection_cylinder', () => new THREE.CylinderGeometry(0.5, 0.5, 1, 8));
 
@@ -1068,13 +1068,13 @@ class TelarisNetwork {
         box.getCenter(center); box.getSize(size);
         
         const maxDim = Math.max(size.x, size.y, size.z);
-        let cameraZ = Math.max(Math.abs(maxDim / 2 / Math.tan(this.camera.fov * Math.PI / 360)) * 1.1, 15);
+        let cameraZ = Math.max(Math.abs(maxDim / 2 / Math.tan(this.camera.fov * Math.PI / 360)) * 1.1, 13);
 
         this.camera.position.set(center.x, center.y, center.z + cameraZ);
         this.camera.lookAt(center);
         if (this.controls) {
             this.controls.target.copy(center);
-            this.controls.maxDistance = Math.max(100, cameraZ * 2);
+            this.controls.maxDistance = Math.max(45, cameraZ * 1.8);
             this.controls.update();
         }
     }
@@ -1169,7 +1169,7 @@ class TelarisNetwork {
             });
 
             n.position.copy(d.originalPosition);
-            const s = 1 + Math.sin(time * 1.5 + d.phase) * 0.05;
+            const s = 1.4 + Math.sin(time * 1.5 + d.phase) * 0.08;
             n.scale.set(s, s, s);
 
             // Optimization: iterate cached moons directly
