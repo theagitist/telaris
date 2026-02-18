@@ -114,6 +114,66 @@ class TelarisNetwork {
         this.scene.add(this.stars);
     }
 
+    initNebulas() {
+        const createNebulaTexture = (colorStr) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+            gradient.addColorStop(0, colorStr);
+            gradient.addColorStop(0.4, colorStr.replace('1)', '0.4)'));
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 256, 256);
+            return new THREE.CanvasTexture(canvas);
+        };
+
+        this.nebulas = new THREE.Group();
+        const colors = [
+            'rgba(100, 50, 255, 1)', // Deep Purple
+            'rgba(255, 50, 150, 1)', // Magenta
+            'rgba(50, 100, 255, 1)', // Cosmic Blue
+        ];
+
+        colors.forEach((color, i) => {
+            const material = new THREE.SpriteMaterial({
+                map: createNebulaTexture(color),
+                transparent: true,
+                opacity: 0.08, // Very subtle
+                blending: THREE.AdditiveBlending
+            });
+            const sprite = new THREE.Sprite(material);
+            
+            // Place far away in the background
+            const angle = (i / colors.length) * Math.PI * 2;
+            const dist = 50 + Math.random() * 20;
+            sprite.position.set(
+                Math.cos(angle) * dist,
+                Math.sin(angle) * dist,
+                -30 - Math.random() * 20
+            );
+            
+            sprite.scale.set(40 + Math.random() * 20, 40 + Math.random() * 20, 1);
+            sprite.userData = { rotationSpeed: 0.02 + Math.random() * 0.03 };
+            this.nebulas.add(sprite);
+        });
+
+        this.scene.add(this.nebulas);
+    }
+
+    updateNebulas(time) {
+        if (!this.nebulas) return;
+        this.nebulas.children.forEach((sprite, i) => {
+            // Slow cosmic drift
+            sprite.material.rotation = time * sprite.userData.rotationSpeed * (i % 2 === 0 ? 1 : -1);
+            // Subtle pulse in opacity
+            sprite.material.opacity = 0.06 + Math.sin(time * 0.5 + i) * 0.02;
+        });
+    }
+
     updateStarfield(time) {
         if (!this.stars) return;
         this.stars.rotation.y = time * 0.02;
@@ -511,7 +571,7 @@ class TelarisNetwork {
             this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
             
             this.raycaster.setFromCamera(this.mouse, this.camera);
-            const intersects = this.raycaster.intersectObjects(this.nodes, true);
+            const intersects = this.raycaster.intersectObjects(this.nodes, true); 
             
             let hoveredNode = null;
             if (intersects.length > 0) {
@@ -813,6 +873,7 @@ class TelarisNetwork {
                 const moonGroup = new THREE.Group();
                 moonGroup.add(moon);
                 moonGroup.userData = { isMoon: true, speed: 0.5 + Math.random() * 1.5 };
+                moonGroup.raycast = () => {}; // Make moon non-clickable
                 node.add(moonGroup);
             }
 
@@ -867,7 +928,7 @@ class TelarisNetwork {
 
         const bands = [0.002, 0.005, 0.009, 0.014];
         const opacities = [0.14, 0.28, 0.48, 0.58];
-        const geometry = this.geometryManager.getOrCreate('connection_cylinder', () => new THREE.CylinderGeometry(1, 1, 1, 8));
+        const geometry = this.geometryManager.getOrCreate('connection_cylinder', () => new THREE.CylinderGeometry(0.5, 0.5, 1, 8));
 
         // Track connection counts to find the centerpiece
         const nodeConnectionCounts = new Map();
@@ -887,9 +948,17 @@ class TelarisNetwork {
                     
                     const hue = (this.connections.length * 0.618) % 1;
                     const color = new THREE.Color().setHSL(hue, 0.7, 0.68);
-                    const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide });
+                    const material = new THREE.MeshBasicMaterial({ 
+                        color, 
+                        transparent: true, 
+                        opacity: 0, 
+                        side: THREE.DoubleSide,
+                        depthWrite: false,
+                        depthTest: false // Allow lines to be seen through the nodes to the very center
+                    });
                     
                     const mesh = new THREE.Mesh(geometry, material);
+                    mesh.renderOrder = 10; // Render after nebulas and nodes
                     this.connections.push({
                         mesh, node1: n1, node2: n2, sharedCount: shared,
                         thickness, baseOpacity: Math.min(opacity * 1.5, 1.0),
@@ -899,25 +968,58 @@ class TelarisNetwork {
             }
         }
 
-        // Add Space Station Ring to the most connected node
+        // Add Space Station Ring and Cluster Nebulas
         if (nodeConnectionCounts.size > 0) {
             let maxCount = -1;
             let centerpiece = null;
+            
+            // Shared nebula texture
+            const nebulaTex = this.geometryManager.getOrCreate('nebula_tex', () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 128; canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+                grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.3)');
+                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 128, 128);
+                return new THREE.CanvasTexture(canvas);
+            });
+
             for (const [node, count] of nodeConnectionCounts.entries()) {
                 if (count > maxCount) {
                     maxCount = count;
                     centerpiece = node;
+                }
+
+                // Add a small cluster nebula to "hub" nodes (actual clusters with 5+ connections)
+                if (count >= 5) {
+                    const mat = new THREE.SpriteMaterial({
+                        map: nebulaTex,
+                        color: new THREE.Color(0x4488ff), // Subtle cosmic blue
+                        transparent: true,
+                        opacity: 0.008, // Near invisible
+                        blending: THREE.AdditiveBlending
+                    });
+                    const sprite = new THREE.Sprite(mat);
+                    // Scale nebula much tighter
+                    const s = 2.0 + (count * 0.2);
+                    sprite.scale.set(s, s, 1);
+                    sprite.userData = { isClusterNebula: true, baseOpacity: 0.008 };
+                    sprite.raycast = () => {}; // Make nebula non-clickable
+                    node.add(sprite);
                 }
             }
 
             if (centerpiece) {
                 const ringGeo = new THREE.TorusGeometry(0.5, 0.01, 8, 32);
                 const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, wireframe: true, transparent: true, opacity: 0.6 });
-                const ring = new THREE.Mesh(ringGeo, ringMat);
-                ring.userData = { isStationRing: true };
-                centerpiece.add(ring);
-            }
-        }
+                                        const ring = new THREE.Mesh(ringGeo, ringMat);
+                                        ring.userData = { isStationRing: true };
+                                        ring.raycast = () => {}; // Make ring non-clickable
+                                        centerpiece.add(ring);
+                                    }        }
     }
 
     updateConnections(deltaTimeSec) {
@@ -933,19 +1035,24 @@ class TelarisNetwork {
 
         for (const c of this.connections) {
             const p1 = getAnchor(c.node1), p2 = getAnchor(c.node2);
+            
+            // Vector from p1 to p2
             this._scratchVec.subVectors(p2, p1);
             const dist = this._scratchVec.length();
             if (dist < 0.001) { c.mesh.visible = false; continue; }
 
-            // Set midpoint
+            // Set position to EXACT midpoint
             c.mesh.position.copy(p1).addScaledVector(this._scratchVec, 0.5);
             
-            // Set orientation
+            // Align orientation: point cylinder UP (Y) along the connection vector
             this._scratchVec.normalize();
             this._scratchQuat.setFromUnitVectors(this._upVec, this._scratchVec);
             c.mesh.quaternion.copy(this._scratchQuat);
             
-            c.mesh.scale.set(c.thickness, dist, c.thickness);
+            // Scale: Y is height (distance), X/Z is thickness
+            // Using a higher multiplier since radius is now 0.5 (diameter 1)
+            const t = c.thickness * 2.0; 
+            c.mesh.scale.set(t, dist, t);
             c.mesh.visible = true;
         }
         this.networkManager.updateVisibility(this.connections, deltaTimeSec);
