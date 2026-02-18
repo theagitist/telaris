@@ -33,7 +33,7 @@ export class NetworkManager {
      * @returns {number} Target opacity (0 or baseOpacity)
      */
     getTargetOpacityForConnection(connection) {
-        if (!this._focusedNode) return 0;
+        if (!this._focusedNode || !connection.node1.visible || !connection.node2.visible) return 0;
         const base = connection.baseOpacity ?? 0.5;
         const isRelevant = (this._focusedNode === connection.node1 || this._focusedNode === connection.node2);
         return isRelevant ? base : 0;
@@ -52,8 +52,18 @@ export class NetworkManager {
         const t = deltaTimeSec > 0 ? Math.min(this.fadeSpeed * (deltaTimeSec * 60), 1) : this.fadeSpeed;
 
         for (const conn of connections) {
+            // CRITICAL: Force immediate invisibility if either node is filtered out
+            if (!conn.node1.visible || !conn.node2.visible) {
+                conn.currentOpacity = 0;
+                conn.targetOpacity = 0;
+                conn.mesh.visible = false;
+                if (conn.mesh.material) conn.mesh.material.opacity = 0;
+                continue;
+            }
+
             conn.targetOpacity = this.getTargetOpacityForConnection(conn);
             conn.currentOpacity += (conn.targetOpacity - conn.currentOpacity) * t;
+
             if (Math.abs(conn.currentOpacity - conn.targetOpacity) < 0.002) {
                 conn.currentOpacity = conn.targetOpacity;
             }

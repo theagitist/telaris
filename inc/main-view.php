@@ -16,7 +16,7 @@
     <meta property="og:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <meta name="twitter:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
     <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
-    <script src="js/tailwind.min.js"></script>
+    <script src="js/tailwind.min.js?v=3.0.0"></script>
     <style>
         :root {
             --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -162,6 +162,18 @@
         </div>
 
         <div class="hud-line"></div>
+        
+        <div class="mb-4 relative group/search">
+            <input type="text" id="hud-search" placeholder="SCAN SYSTEM..." 
+                class="w-full bg-white/5 border border-white/20 rounded px-2 py-1.5 pr-8 text-xs text-[#00ffcc] placeholder:text-white/20 focus:outline-none focus:border-[#00ffcc]/50 focus:bg-white/10 transition-all uppercase tracking-wider">
+            <button id="hud-search-clear" class="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-[#ff4444] transition-colors" style="display: none;" title="Clear Scan">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="hud-line"></div>
 
         <div class="space-y-2 opacity-80 mb-6 text-sm">
             <div class="flex justify-between gap-12">
@@ -200,7 +212,7 @@
     </script>
     <script>
     (function() {
-        var zoneW = 360, zoneH = 360;
+        var zoneW = 400, zoneH = 400;
         function inZone(x, y) { return x < zoneW && y < zoneH; }
         function update(e) {
             var x = e.clientX, y = e.clientY;
@@ -217,10 +229,15 @@
         {
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+                "./telaris-network.js": "./js/telaris-network.js?v=3.0.0",
+                "./network-manager.js": "./js/network-manager.js?v=3.0.0",
+                "./geometry-manager.js": "./js/geometry-manager.js?v=3.0.0",
+                "./api.js": "./js/api.js?v=3.0.0",
+                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=3.0.0"
             }
         }
     </script>
-    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/main.js?v=3.0.0"></script>
 </body>
 </html>

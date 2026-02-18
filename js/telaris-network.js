@@ -42,7 +42,9 @@ class TelarisNetwork {
         this._scratchQuat = new THREE.Quaternion();
         this._upVec = new THREE.Vector3(0, 1, 0);
 
+        this.searchQuery = '';
         this.init();
+        this.setupSearch();
     }
 
     getNodeAnchorPosition(node) {
@@ -567,7 +569,7 @@ class TelarisNetwork {
             this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
             
             this.raycaster.setFromCamera(this.mouse, this.camera);
-            const intersects = this.raycaster.intersectObjects(this.nodes, true); 
+            const intersects = this.raycaster.intersectObjects(this.nodes.filter(n => n.visible), true); 
             
             let hoveredNode = null;
             if (intersects.length > 0) {
@@ -779,7 +781,7 @@ class TelarisNetwork {
             this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
             
             this.raycaster.setFromCamera(this.mouse, this.camera);
-            const intersects = this.raycaster.intersectObjects(this.nodes, true);
+            const intersects = this.raycaster.intersectObjects(this.nodes.filter(n => n.visible), true);
             if (intersects.length > 0) {
                 intersects.sort((a, b) => a.distance - b.distance);
                 for (const hit of intersects) {
@@ -1039,6 +1041,11 @@ class TelarisNetwork {
         };
 
         for (const c of this.connections) {
+            if (!c.node1.visible || !c.node2.visible) {
+                c.mesh.visible = false;
+                continue;
+            }
+
             const p1 = getAnchor(c.node1), p2 = getAnchor(c.node2);
             
             // Vector from p1 to p2
@@ -1058,7 +1065,6 @@ class TelarisNetwork {
             // Using a higher multiplier since radius is now 0.5 (diameter 1)
             const t = c.thickness * 2.0; 
             c.mesh.scale.set(t, dist, t);
-            c.mesh.visible = true;
         }
         this.networkManager.updateVisibility(this.connections, deltaTimeSec);
     }
@@ -1141,6 +1147,25 @@ class TelarisNetwork {
 
         this.nodes.forEach((n, i) => {
             const d = n.userData;
+            
+            // Search Filtering: hard visibility toggle
+            const matchesSearch = !this.searchQuery || 
+                (d.name && d.name.toLowerCase().includes(this.searchQuery)) || 
+                (d.keywords && d.keywords.some(k => k.toLowerCase().includes(this.searchQuery)));
+            
+            n.visible = !!matchesSearch;
+
+            if (!n.visible) {
+                n.traverse(child => {
+                    if (child.material) {
+                        const mats = Array.isArray(child.material) ? child.material : [child.material];
+                        mats.forEach(m => { m.opacity = 0; m.visible = false; });
+                    }
+                });
+                if (focused === n) this.networkManager.setFocusedNode(null);
+                return;
+            }
+
             const brightness = 1 - ((dists[i] - minD) / range) * 0.6;
 
             if (!d.solarFlare && Math.random() < 0.0005) {
@@ -1148,12 +1173,13 @@ class TelarisNetwork {
             }
 
             const isActive = (focused === n);
-            const isVisible = (isActive || this.persistentTooltipNodeToDiv.has(n));
-            const opacity = isVisible ? 1 : 0.94;
+            const isVisible = n.visible && (isActive || this.persistentTooltipNodeToDiv.has(n));
+            const opacity = isVisible ? 1 : (n.visible ? 0.94 : 0);
 
             // Optimization: iterate cached materials directly
             d.cachedMaterials.forEach(m => {
                 m.opacity = opacity;
+                m.visible = n.visible; // Sync material visibility with node
                 if (d.colorR !== undefined) {
                     m.color.setRGB((d.colorR / 255) * brightness, (d.colorG / 255) * brightness, (d.colorB / 255) * brightness);
                     if (m.emissive) m.emissive.copy(m.color);
@@ -1194,7 +1220,9 @@ class TelarisNetwork {
 
     getFront20PercentWithTier() {
         const tempPos = new THREE.Vector3();
-        const withDist = this.nodes.map(n => { n.getWorldPosition(tempPos); return { node: n, dist: tempPos.distanceTo(this.camera.position) }; });
+        const withDist = this.nodes
+            .filter(n => n.visible)
+            .map(n => { n.getWorldPosition(tempPos); return { node: n, dist: tempPos.distanceTo(this.camera.position) }; });
         withDist.sort((a, b) => a.dist - b.dist);
         const c20 = Math.max(1, Math.floor(this.nodes.length * 0.2)), f10 = Math.max(1, Math.floor(this.nodes.length * 0.1));
         return withDist.slice(0, c20).map((e, i) => ({ node: e.node, inFront10: i < f10 }));
@@ -1305,8 +1333,44 @@ class TelarisNetwork {
         if (elY) elY.innerText = this.camera.position.y.toFixed(1);
         if (elZ) elZ.innerText = this.camera.position.z.toFixed(1);
         
-        if (elNodes && this.nodes) elNodes.innerText = this.nodes.length;
-        if (elConns && this.connections) elConns.innerText = this.connections.length;
+        if (elNodes && this.nodes) {
+            const visibleNodes = this.nodes.filter(n => n.visible).length;
+            elNodes.innerText = this.searchQuery ? `${visibleNodes}/${this.nodes.length}` : this.nodes.length;
+        }
+        if (elConns && this.connections) {
+            const visibleConns = this.connections.filter(c => c.node1.visible && c.node2.visible).length;
+            elConns.innerText = this.searchQuery ? `${visibleConns}/${this.connections.length}` : this.connections.length;
+        }
+    }
+
+    setupSearch() {
+        const searchInput = document.getElementById('hud-search');
+        const clearBtn = document.getElementById('hud-search-clear');
+        if (!searchInput) return;
+
+        const updateSearch = (val) => {
+            this.searchQuery = val.toLowerCase().trim();
+            if (clearBtn) clearBtn.style.display = this.searchQuery ? 'block' : 'none';
+            
+            // Clear focus immediately so no connections related to hidden nodes remain
+            this.networkManager.setFocusedNode(null);
+            if (this.tooltip) this.hideMainTooltip();
+            
+            this.markInteraction();
+        };
+
+        searchInput.addEventListener('input', (e) => updateSearch(e.target.value));
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                updateSearch('');
+                searchInput.focus();
+            });
+        }
+
+        // Prevent orbit controls from capturing keystrokes when typing
+        searchInput.addEventListener('keydown', (e) => e.stopPropagation());
     }
 
     onWindowResize() {
