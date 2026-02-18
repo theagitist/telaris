@@ -390,6 +390,29 @@ class TelarisNetwork {
             mouseDownTime = 0;
         });
 
+        this.renderer.domElement.addEventListener('click', (event) => {
+            if (isTouchDevice) return;
+            
+            let isDrag = false;
+            if (mouseDownPos) {
+                const rect = this.renderer.domElement.getBoundingClientRect();
+                const dx = event.clientX - rect.left - mouseDownPos.x;
+                const dy = event.clientY - rect.top - mouseDownPos.y;
+                const distance = Math.hypot(dx, dy);
+                const timeElapsed = Date.now() - mouseDownTime;
+                if (distance > dragThreshold || timeElapsed > clickTimeThreshold) isDrag = true;
+            }
+            
+            if (isDrag) return;
+            
+            const clickedNode = getNodeFromEvent(event);
+            if (clickedNode?.userData?.url) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.openInFrame(clickedNode, clickedNode.userData.url);
+            }
+        }, true);
+
         // Wheel & Trackpad
         const tempOffset = new THREE.Vector3();
         const tempSpherical = new THREE.Spherical();
