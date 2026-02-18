@@ -114,67 +114,58 @@ class TelarisNetwork {
         this.scene.add(this.stars);
     }
 
-    initNebulas() {
-        const createNebulaTexture = (colorStr) => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256;
-            canvas.height = 256;
-            const ctx = canvas.getContext('2d');
-            
-            const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-            gradient.addColorStop(0, colorStr);
-            gradient.addColorStop(0.4, colorStr.replace('1)', '0.4)'));
-            gradient.addColorStop(1, 'rgba(0,0,0,0)');
-            
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, 256, 256);
-            return new THREE.CanvasTexture(canvas);
-        };
-
-        this.nebulas = new THREE.Group();
-        const colors = [
-            'rgba(100, 50, 255, 1)', // Deep Purple
-            'rgba(255, 50, 150, 1)', // Magenta
-            'rgba(50, 100, 255, 1)', // Cosmic Blue
-        ];
-
-        colors.forEach((color, i) => {
-            const material = new THREE.SpriteMaterial({
-                map: createNebulaTexture(color),
-                transparent: true,
-                opacity: 0.08, // Very subtle
-                blending: THREE.AdditiveBlending
-            });
-            const sprite = new THREE.Sprite(material);
-            
-            // Place far away in the background
-            const angle = (i / colors.length) * Math.PI * 2;
-            const dist = 50 + Math.random() * 20;
-            sprite.position.set(
-                Math.cos(angle) * dist,
-                Math.sin(angle) * dist,
-                -30 - Math.random() * 20
-            );
-            
-            sprite.scale.set(40 + Math.random() * 20, 40 + Math.random() * 20, 1);
-            sprite.userData = { rotationSpeed: 0.02 + Math.random() * 0.03 };
-            this.nebulas.add(sprite);
-        });
-
-        this.scene.add(this.nebulas);
-    }
-
-    updateNebulas(time) {
-        if (!this.nebulas) return;
-        this.nebulas.children.forEach((sprite, i) => {
-            // Slow cosmic drift
-            sprite.material.rotation = time * sprite.userData.rotationSpeed * (i % 2 === 0 ? 1 : -1);
-            // Subtle pulse in opacity
-            sprite.material.opacity = 0.06 + Math.sin(time * 0.5 + i) * 0.02;
-        });
-    }
-
-    updateStarfield(time) {
+            initNebulas() {
+                const nebulaTex = this.geometryManager.getOrCreate('nebula_tex', () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 128; canvas.height = 128;
+                    const ctx = canvas.getContext('2d');
+                    const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+                    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                    grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.3)');
+                    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, 128, 128);
+                    return new THREE.CanvasTexture(canvas);
+                });
+        
+                        this.bgNebulas = new THREE.Group();
+                        const colors = [0x4466aa, 0x6644aa, 0x774477]; 
+                
+                        for (let i = 0; i < 8; i++) { // Increased to 8 for spherical coverage
+                            const mat = new THREE.SpriteMaterial({
+                                map: nebulaTex,
+                                color: new THREE.Color(colors[i % colors.length]),
+                                transparent: true,
+                                opacity: 0.028, 
+                                blending: THREE.AdditiveBlending,
+                                depthWrite: false
+                            });
+                            const sprite = new THREE.Sprite(mat);
+                
+                            // Spherical distribution at a large distance
+                            const r = 80 + Math.random() * 20;
+                            const theta = Math.random() * Math.PI * 2;
+                            const phi = Math.acos(2 * Math.random() - 1);
+                            
+                            sprite.position.set(
+                                r * Math.sin(phi) * Math.cos(theta),
+                                r * Math.sin(phi) * Math.sin(theta),
+                                r * Math.cos(phi)
+                            );
+                
+                            sprite.scale.set(70 + Math.random() * 30, 70 + Math.random() * 30, 1);
+                            sprite.userData = { rotationSpeed: 0.005 + Math.random() * 0.01 };
+                            this.bgNebulas.add(sprite);
+                        }
+                        this.scene.add(this.bgNebulas);
+                    }                
+                    updateNebulas(time) {
+                        if (!this.bgNebulas) return;
+                        this.bgNebulas.children.forEach((sprite, i) => {
+                            sprite.material.rotation = time * sprite.userData.rotationSpeed * (i % 2 === 0 ? 1 : -1);
+                            sprite.material.opacity = 0.028 + Math.sin(time * 0.2 + i) * 0.008;
+                        });
+                    }    updateStarfield(time) {
         if (!this.stars) return;
         this.stars.rotation.y = time * 0.02;
         this.stars.rotation.x = time * 0.01;
@@ -213,6 +204,7 @@ class TelarisNetwork {
         const canvasWrapper = document.getElementById('webgl-canvas-wrapper');
         
         this.initStarfield();
+        this.initNebulas();
         if (canvasWrapper) {
             canvasWrapper.appendChild(canvasElement);
         } else {
@@ -1276,6 +1268,7 @@ class TelarisNetwork {
         this.controls.update();
         this.updatePersistentTooltips();
         this.updateStarfield(now * 0.001);
+        this.updateNebulas(now * 0.001);
         this.updateNodes();
         this.updateConnections(dt);
         this.updateComet(dt);
