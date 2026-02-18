@@ -117,9 +117,9 @@
             <p onclick="location.reload()" title="Click to reload"><?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?></p>
             <div class="mt-3 opacity-60 hover:opacity-100 transition-opacity flex gap-3">
                 <?php if ($isEditorOrAdmin): ?>
-                    <a href="edit/index.php" class="underline"><?php echo htmlspecialchars($projectEditButtonText ?? 'Edit'); ?></a>
+                    <a href="edit/index.php" target="_blank" rel="noopener" class="underline"><?php echo htmlspecialchars($projectEditButtonText ?? 'Edit'); ?></a>
                     <?php if (isAdminLoggedIn()): ?>
-                        <a href="admin/index.php" class="underline">Admin</a>
+                        <a href="admin/index.php" target="_blank" rel="noopener" class="underline">Admin</a>
                     <?php endif; ?>
                     <a href="utils/logout.php" class="underline">Logout</a>
                 <?php else: ?>
