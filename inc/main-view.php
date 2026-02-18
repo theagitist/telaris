@@ -18,6 +18,14 @@
     <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <script src="js/tailwind.min.js"></script>
     <style>
+        :root {
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+        
+        * {
+            font-family: var(--font-mono) !important;
+        }
+
         #node-tooltip {
             /* Transition handled in JS for responsiveness */
         }
@@ -57,18 +65,72 @@
         }
         #info {
             opacity: 0;
-            transition: opacity 0.35s ease;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transform: translateX(-10px);
             pointer-events: none;
+            backdrop-filter: blur(12px);
+            background: rgba(0, 0, 0, 0.5);
+            border-left: 2px solid rgba(255, 255, 255, 0.3);
+            padding: 1.5rem;
+            border-radius: 0 4px 4px 0;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
         }
         body.info-visible #info {
-            opacity: 0.8;
-        }
-        body.info-visible #info > div {
+            opacity: 1;
+            transform: translateX(0);
             pointer-events: auto;
+        }
+        .hud-line {
+            height: 1px;
+            background: linear-gradient(90deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 100%);
+            margin: 1rem 0;
+        }
+        .status-pulse {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #00ffcc;
+            border-radius: 50%;
+            margin-right: 8px;
+            box-shadow: 0 0 8px #00ffcc;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.4; transform: scale(0.9); }
+            50% { opacity: 1; transform: scale(1.1); }
+            100% { opacity: 0.4; transform: scale(0.9); }
+        }
+        #hud-indicator {
+            position: absolute;
+            top: 1.25rem;
+            left: 1.25rem;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            color: #fff;
+            opacity: 0.6;
+            transition: opacity 0.3s ease;
+            cursor: pointer;
+            z-index: 90;
+        }
+        body.info-visible #hud-indicator {
+            opacity: 0;
+            pointer-events: none;
         }
     </style>
 </head>
-<body class="overflow-hidden bg-black font-sans">
+<body class="overflow-hidden bg-black">
+    <div id="hud-indicator" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12h18M3 6h18M3 18h18"/>
+        </svg>
+    </div>
+
     <div id="loading-overlay" aria-live="polite" aria-busy="true">
         <p class="loading-text"><?php echo htmlspecialchars($projectLoadingText ?? 'Loading'); ?></p>
         <svg class="loading-star" viewBox="0 0 40 40" aria-hidden="true">
@@ -76,56 +138,57 @@
             <path class="fill" pathLength="100" d="M20 4 L24.1 14.3 L35.2 15.1 L26.7 22.2 L29.4 32.9 L20 27 L10.6 32.9 L13.3 22.2 L4.8 15.1 L15.9 14.3 Z" fill="none" stroke="var(--loading-color, #fff)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
     </div>
-    <script>
-    (function() {
-        var overlay = document.getElementById('loading-overlay');
-        if (!overlay) return;
-        function hslToRgb(h, s, l) {
-            var r, g, b;
-            if (s === 0) { r = g = b = l; }
-            else {
-                function hue2rgb(p, q, t) {
-                    if (t < 0) t += 1; if (t > 1) t -= 1;
-                    if (t < 1/6) return p + (q - p) * 6 * t;
-                    if (t < 1/2) return q;
-                    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-                    return p;
-                }
-                var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-                var p = 2 * l - q;
-                r = hue2rgb(p, q, h + 1/3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1/3);
-            }
-            return [Math.round(r*255), Math.round(g*255), Math.round(b*255)];
-        }
-        var h = Math.random();
-        var s = 0.5 + Math.random() * 0.15;
-        var l = 0.78 + Math.random() * 0.14;
-        var rgb = hslToRgb(h, s, l);
-        overlay.style.setProperty('--loading-color', 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')');
-        overlay.style.setProperty('--loading-color-dim', 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.25)');
-    })();
-    </script>
+
     <div id="canvas-container" class="relative" style="position: relative; width: 100vw; height: 100vh; min-height: 100vh;">
         <div id="webgl-canvas-wrapper" class="absolute inset-0" style="z-index: 1;"></div>
-        <div id="persistent-tooltips" class="absolute inset-0 pointer-events-none z-[150]" style="font-family: inherit;"></div>
-        <div id="node-tooltip" class="absolute px-3 py-2 rounded text-sm pointer-events-none z-[200]" style="font-family: inherit; opacity: 0; visibility: hidden;"></div>
+        <div id="persistent-tooltips" class="absolute inset-0 pointer-events-none z-[150]"></div>
+        <div id="node-tooltip" class="absolute px-3 py-2 rounded text-base pointer-events-none z-[200]" style="opacity: 0; visibility: hidden;"></div>
     </div>
-    <!-- Navigation Panel -->
-    <div id="info" class="absolute top-5 left-5 text-white z-[100] text-sm">
-        <div class="cursor-pointer hover:opacity-100 transition-opacity" role="button" tabindex="0">
-            <h2 class="text-lg font-semibold mb-1" onclick="location.reload()" title="Click to reload"><?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?></h2>
-            <p onclick="location.reload()" title="Click to reload"><?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?></p>
-            <div class="mt-3 opacity-60 hover:opacity-100 transition-opacity flex gap-3">
-                <?php if ($isEditorOrAdmin): ?>
-                    <a href="edit/index.php" target="_blank" rel="noopener" class="underline"><?php echo htmlspecialchars($projectEditButtonText ?? 'Edit'); ?></a>
-                    <?php if (isAdminLoggedIn()): ?>
-                        <a href="admin/index.php" target="_blank" rel="noopener" class="underline">Admin</a>
-                    <?php endif; ?>
-                    <a href="utils/logout.php" class="underline">Logout</a>
-                <?php else: ?>
-                    <a href="utils/login.php" target="_blank" rel="noopener" class="underline">Login</a>
-                <?php endif; ?>
+    
+    <!-- Tactical HUD Navigation -->
+    <div id="info" class="absolute top-5 left-0 text-white z-[100] text-sm">
+        <div class="mb-3 flex items-center">
+            <span class="status-pulse"></span>
+            <span class="tracking-widest uppercase font-bold opacity-80 text-xs">System: Online</span>
+        </div>
+        
+        <div class="hud-line"></div>
+        
+        <div class="cursor-pointer group" onclick="location.reload()" title="Reload System">
+            <h2 class="text-xl font-bold mb-1 tracking-tight uppercase group-hover:text-[#00ffcc] transition-colors">
+                <?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>
+            </h2>
+            <p class="opacity-60 italic text-xs"><?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?></p>
+        </div>
+
+        <div class="hud-line"></div>
+
+        <div class="space-y-2 opacity-80 mb-6 text-sm">
+            <div class="flex justify-between gap-12">
+                <span class="uppercase">Systems:</span>
+                <span id="hud-nodes" class="font-bold text-[#00ffcc]">--</span>
             </div>
+            <div class="flex justify-between gap-12">
+                <span class="uppercase">Hyperlinks:</span>
+                <span id="hud-connections" class="font-bold text-[#00ffcc]">--</span>
+            </div>
+            <div class="pt-2 text-xs opacity-60 flex gap-4">
+                <span>X:<span id="hud-x">0.0</span></span>
+                <span>Y:<span id="hud-y">0.0</span></span>
+                <span>Z:<span id="hud-z">0.0</span></span>
+            </div>
+        </div>
+
+        <div class="flex gap-6 mt-4 font-bold text-xs uppercase">
+            <?php if ($isEditorOrAdmin): ?>
+                <a href="edit/index.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectEditButtonText ?? 'Edit'); ?></a>
+                <?php if (isAdminLoggedIn()): ?>
+                    <a href="admin/index.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1">Admin</a>
+                <?php endif; ?>
+                <a href="utils/logout.php" class="opacity-40 hover:opacity-100 transition-opacity">Logout</a>
+            <?php else: ?>
+                <a href="utils/login.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1">Initialize Auth</a>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -137,7 +200,7 @@
     </script>
     <script>
     (function() {
-        var zoneW = 220, zoneH = 110;
+        var zoneW = 360, zoneH = 360;
         function inZone(x, y) { return x < zoneW && y < zoneH; }
         function update(e) {
             var x = e.clientX, y = e.clientY;
