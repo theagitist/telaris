@@ -212,7 +212,143 @@ class TelarisNetwork {
         window.addEventListener('resize', () => this.onWindowResize());
         
         this.loadApiKey().then(() => this.loadData());
+        this.initComet();
+        this.initRocket();
         this.animate();
+    }
+
+    initComet() {
+        this.comet = new THREE.Group();
+        
+        // Head: bright white sphere
+        const headGeo = this.geometryManager.getSphere(0.12, 8);
+        const headMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const head = new THREE.Mesh(headGeo, headMat);
+        this.comet.add(head);
+
+        // Tail: tapering cylinder that starts AT the head
+        // Radius top (front) is same as sphere radius, radius bottom (back) is near 0
+        const tailGeo = new THREE.CylinderGeometry(0.12, 0.01, 1.2, 8);
+        const tailMat = new THREE.MeshBasicMaterial({ 
+            color: 0xccccff, 
+            transparent: true, 
+            opacity: 0.4 
+        });
+        const tail = new THREE.Mesh(tailGeo, tailMat);
+        // Position it so the wide part sits in the center of the sphere
+        tail.position.z = -0.6; 
+        tail.rotation.x = Math.PI / 2; // Orient along Z
+        this.comet.add(tail);
+
+        this.comet.visible = false;
+        this.comet.userData = { active: false, speed: 0.2 };
+        this.scene.add(this.comet);
+    }
+
+    updateComet(dt) {
+        if (!this.comet) return;
+        
+        if (!this.comet.userData.active) {
+            // 0.1% chance per frame to start a fly-by (~once every 15-30 seconds)
+            if (Math.random() < 0.001) {
+                this.comet.userData.active = true;
+                this.comet.visible = true;
+                // Start from a random position far away
+                this.comet.position.set(
+                    (Math.random() - 0.5) * 60,
+                    (Math.random() - 0.5) * 60,
+                    (Math.random() - 0.5) * 40
+                );
+                // Aim toward the other side
+                this.comet.userData.target = new THREE.Vector3(
+                    -this.comet.position.x + (Math.random() - 0.5) * 20,
+                    -this.comet.position.y + (Math.random() - 0.5) * 20,
+                    -this.comet.position.z + (Math.random() - 0.5) * 20
+                ).normalize();
+            }
+            return;
+        }
+
+        // Move comet
+        const speed = 30.0; // Units per second (doubled)
+        const movement = this.comet.userData.target.clone().multiplyScalar(speed * dt);
+        this.comet.position.add(movement);
+
+        // Point comet toward travel direction (head first, tail trails behind)
+        this.comet.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), this.comet.userData.target);
+
+        // Deactivate if far away
+        if (this.comet.position.length() > 100) {
+            this.comet.userData.active = false;
+            this.comet.visible = false;
+        }
+    }
+
+    initRocket() {
+        this.rocket = new THREE.Group();
+        
+        // Body: white cylinder
+        const bodyGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.2, 6);
+        const bodyMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.rotation.x = Math.PI / 2; // Orient along Z
+        this.rocket.add(body);
+
+        // Tip: VERY red and slightly larger cone
+        const tipGeo = new THREE.ConeGeometry(0.045, 0.1, 6);
+        // Using MeshStandardMaterial with emissive to pierce through bloom
+        const tipMat = new THREE.MeshStandardMaterial({ 
+            color: 0xff0000,
+            emissive: 0xff0000,
+            emissiveIntensity: 2.0
+        });
+        const tip = new THREE.Mesh(tipGeo, tipMat);
+        tip.position.z = 0.15; // Position at the front
+        tip.rotation.x = Math.PI / 2; // Orient along Z
+        this.rocket.add(tip);
+
+        this.rocket.visible = false;
+        this.rocket.userData = { active: false, progress: 0 };
+        this.scene.add(this.rocket);
+    }
+
+    updateRocket(dt) {
+        if (!this.rocket) return;
+
+        if (!this.rocket.userData.active) {
+            // 0.2% chance per frame to launch a rocket between ANY two connected nodes
+            if (this.connections.length > 0 && Math.random() < 0.002) {
+                const conn = this.connections[Math.floor(Math.random() * this.connections.length)];
+                this.rocket.userData.active = true;
+                // Randomly choose direction
+                const reverse = Math.random() > 0.5;
+                this.rocket.userData.node1 = reverse ? conn.node2 : conn.node1;
+                this.rocket.userData.node2 = reverse ? conn.node1 : conn.node2;
+                this.rocket.userData.progress = 0;
+                this.rocket.visible = true;
+            }
+            return;
+        }
+
+        // Advance rocket
+        this.rocket.userData.progress += dt * 0.4; // Slower speed (approx 2.5 seconds to cross)
+        this.rocket.position.lerpVectors(
+            this.rocket.userData.node1.position, 
+            this.rocket.userData.node2.position, 
+            this.rocket.userData.progress
+        );
+
+        // Point rocket toward target
+        const dir = new THREE.Vector3().subVectors(
+            this.rocket.userData.node2.position,
+            this.rocket.userData.node1.position
+        ).normalize();
+        this.rocket.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+
+        if (this.rocket.userData.progress >= 1) {
+            this.rocket.userData.active = false;
+            this.rocket.visible = false;
+        }
     }
 
     async loadApiKey() {
@@ -586,6 +722,23 @@ class TelarisNetwork {
 
             const node = createNodeIcon(material, i, this.geometryManager);
             node.position.copy(pos);
+            
+            // Random celestial event: 10% chance of a satellite moon
+            if (Math.random() < 0.1) {
+                const moonGeo = this.geometryManager.getSphere(0.05, 8);
+                const moonMat = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+                const moon = new THREE.Mesh(moonGeo, moonMat);
+                
+                // Position moon at a distance
+                const orbitRadius = 0.6 + Math.random() * 0.4;
+                moon.position.set(orbitRadius, 0, 0);
+                
+                const moonGroup = new THREE.Group();
+                moonGroup.add(moon);
+                moonGroup.userData = { isMoon: true, speed: 0.5 + Math.random() * 1.5 };
+                node.add(moonGroup);
+            }
+
             node.userData = {
                 name: data.name,
                 description: data.description,
@@ -782,6 +935,14 @@ class TelarisNetwork {
             // Subtle pulse
             const s = 1 + Math.sin(time * 1.5 + d.phase) * 0.05;
             n.scale.set(s, s, s);
+
+            // Animate satellites
+            n.children.forEach(child => {
+                if (child.userData?.isMoon) {
+                    child.rotation.y = time * child.userData.speed;
+                    child.rotation.z = time * (child.userData.speed * 0.3);
+                }
+            });
         });
     }
 
@@ -851,6 +1012,8 @@ class TelarisNetwork {
         this.updateStarfield(now * 0.001);
         this.updateNodes();
         this.updateConnections(dt);
+        this.updateComet(dt);
+        this.updateRocket(dt);
 
         if (this.composer) {
             this.renderer.autoClear = false;
