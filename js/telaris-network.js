@@ -304,6 +304,11 @@ const USE_MORE_COLOR_VARIETY = true;
                         this.createNodes();
                         this.createConnections();
                         this.warmupPhysics();
+                        
+                        // Add to scene only after settled
+                        this.nodes.forEach(n => this.scene.add(n));
+                        this.connections.forEach(c => this.scene.add(c.mesh));
+                        
                         console.log(`Created ${this.nodes.length} nodes`);
                         console.log(`Created ${this.connections.length} connections`);
                     } else {
@@ -981,7 +986,7 @@ const USE_MORE_COLOR_VARIETY = true;
                     };
 
                     this.nodes.push(node);
-                    this.scene.add(node);
+                    // Do not add to scene yet; wait for warmup
                 }
             }
 
@@ -1109,8 +1114,7 @@ const USE_MORE_COLOR_VARIETY = true;
                                 targetOpacity: 0,
                                 thick: thick
                             });
-                            this.scene.add(cylinder);
-                            console.log(`Created connection between nodes ${i} and ${j} with ${sharedCount} shared keywords, thickness: ${thickness}, distance: ${distance}`);
+                            // Do not add to scene yet; wait for warmup
                         }
                     }
                 }
@@ -1484,63 +1488,65 @@ const USE_MORE_COLOR_VARIETY = true;
                 console.log('Physics settled.');
             }
 
-                        // Force-directed layout simulation: calculate repulsion and attraction
-                        applyForces(deltaTimeSec = 0.016, strengthMultiplier = 0.05) {
-                            if (this.nodes.length < 2) return;
-                            
-                            // Scale factors for stability and separation
-                            const dt = Math.min(deltaTimeSec, 0.032);
-                            const REPULSION_STRENGTH = 1.2 * strengthMultiplier;
-                            const ATTRACTION_STRENGTH = 0.04 * strengthMultiplier;
-                            const IDEAL_DISTANCE = 4.0;
-                            const DAMPING = 0.85;
-                            const MAX_DISTANCE = 18;
-                            const MAX_FORCE = 0.6 * strengthMultiplier;
-                            // Barely move in live mode (max 0.02), full speed in warmup (0.25)
-                            const MAX_VELOCITY = strengthMultiplier > 0.5 ? 0.25 : 0.02;
-                            
-                            const tempVec = new THREE.Vector3();                                                    const nodeCount = this.nodes.length;
-                                    
-                                                    // 1. Repulsion: all nodes push each other away
-                                                    for (let i = 0; i < nodeCount; i++) {
-                                                        const n1 = this.nodes[i];
-                                                        for (let j = i + 1; j < nodeCount; j++) {
-                                                            const n2 = this.nodes[j];
-                                                            tempVec.subVectors(n1.userData.originalPosition, n2.userData.originalPosition);
-                                                            const distSq = tempVec.lengthSq();
-                                                            
-                                                            if (distSq < 0.0001 || distSq > 625) continue;
-                                                            
-                                                            // Inverse square law repulsion
-                                                            const forceMag = Math.min(REPULSION_STRENGTH / distSq, MAX_FORCE);
-                                                            tempVec.normalize().multiplyScalar(forceMag * dt);
-                                                            
-                                                            n1.userData.velocity.add(tempVec);
-                                                            n2.userData.velocity.sub(tempVec);
-                                                        }
-                                                    }
-                                    
-                                                    // 2. Attraction: connected nodes pull each other toward the IDEAL_DISTANCE
-                                                    this.connections.forEach(conn => {
-                                                        const n1 = conn.node1;
-                                                        const n2 = conn.node2;
-                                                        const sharedCount = conn.sharedCount || 1;
-                                                        
-                                                        tempVec.subVectors(n2.userData.originalPosition, n1.userData.originalPosition);
-                                                        const dist = tempVec.length();
-                                                        
-                                                        if (dist < 0.1) return;
-                                                        
-                                                        // Spring-like force that targets IDEAL_DISTANCE
-                                                        const delta = dist - IDEAL_DISTANCE;
-                                                        if (delta <= 0) return; // Repulsion already handles close-range separation
-                                                        
-                                                        const forceMag = Math.min(delta * ATTRACTION_STRENGTH * (1 + sharedCount * 0.4), MAX_FORCE);
-                                                        tempVec.normalize().multiplyScalar(forceMag * dt);
-                                                        
-                                                        n1.userData.velocity.add(tempVec);
-                                                        n2.userData.velocity.sub(tempVec);
-                                                    });                        
+                                    // Force-directed layout simulation: calculate repulsion and attraction
+                                    applyForces(deltaTimeSec = 0.016, strengthMultiplier = 0.05) {
+                                        if (this.nodes.length < 2) return;
+                                        
+                                        // Scale factors for stability and separation
+                                        const dt = Math.min(deltaTimeSec, 0.032);
+                                        const REPULSION_STRENGTH = 2.0 * strengthMultiplier; // Increased from 1.2
+                                        const ATTRACTION_STRENGTH = 0.04 * strengthMultiplier;
+                                        const IDEAL_DISTANCE = 6.0; // Increased from 4.0 for better breathing room
+                                        const DAMPING = 0.85;
+                                        const MAX_DISTANCE = 22; // Larger bounds
+                                        const MAX_FORCE = 0.6 * strengthMultiplier;
+                                        // Barely move in live mode (max 0.02), full speed in warmup (0.25)
+                                        const MAX_VELOCITY = strengthMultiplier > 0.5 ? 0.25 : 0.02;
+                                        
+                                        const tempVec = new THREE.Vector3();
+                                        const nodeCount = this.nodes.length;
+                        
+                                        // 1. Repulsion: all nodes push each other away
+                                        for (let i = 0; i < nodeCount; i++) {
+                                            const n1 = this.nodes[i];
+                                            for (let j = i + 1; j < nodeCount; j++) {
+                                                const n2 = this.nodes[j];
+                                                tempVec.subVectors(n1.userData.originalPosition, n2.userData.originalPosition);
+                                                const distSq = tempVec.lengthSq();
+                                                
+                                                if (distSq < 0.0001 || distSq > 900) continue;
+                                                
+                                                // Inverse square law repulsion
+                                                const forceMag = Math.min(REPULSION_STRENGTH / distSq, MAX_FORCE);
+                                                tempVec.normalize().multiplyScalar(forceMag * dt);
+                                                
+                                                n1.userData.velocity.add(tempVec);
+                                                n2.userData.velocity.sub(tempVec);
+                                            }
+                                        }
+                        
+                                        // 2. Attraction: connected nodes pull each other toward the IDEAL_DISTANCE
+                                        this.connections.forEach(conn => {
+                                            const n1 = conn.node1;
+                                            const n2 = conn.node2;
+                                            const sharedCount = conn.sharedCount || 1;
+                                            
+                                            tempVec.subVectors(n2.userData.originalPosition, n1.userData.originalPosition);
+                                            const dist = tempVec.length();
+                                            
+                                            if (dist < 0.1) return;
+                                            
+                                            // Spring-like force that targets IDEAL_DISTANCE
+                                            const delta = dist - IDEAL_DISTANCE;
+                                            if (delta <= 0) return; // Repulsion already handles close-range separation
+                                            
+                                            const forceMag = Math.min(delta * ATTRACTION_STRENGTH * (1 + sharedCount * 0.4), MAX_FORCE);
+                                            tempVec.normalize().multiplyScalar(forceMag * dt);
+                                            
+                                            n1.userData.velocity.add(tempVec);
+                                            n2.userData.velocity.sub(tempVec);
+                                        });
+                        
                                         // 3. Update positions and apply damping/centering
                                         this.nodes.forEach(node => {
                                             const data = node.userData;
@@ -1557,7 +1563,8 @@ const USE_MORE_COLOR_VARIETY = true;
                                             data.velocity.multiplyScalar(DAMPING);
                                             
                                             // Gentle pull toward origin (prevents drifting away)
-                                            tempVec.copy(data.originalPosition).multiplyScalar(-0.01 * dt);
+                                            // Reduced from 0.01 to 0.002 to prevent over-clustering in the center
+                                            tempVec.copy(data.originalPosition).multiplyScalar(-0.002 * dt);
                                             data.velocity.add(tempVec);
                                             
                                             // Keep within bounds
