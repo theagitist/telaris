@@ -995,18 +995,27 @@ class TelarisNetwork {
 
                 // Add a small cluster nebula to "hub" nodes (actual clusters with 5+ connections)
                 if (count >= 5) {
+                    const cosmicPalette = [
+                        0x4455aa, // Muted Royal Blue
+                        0x6644aa, // Muted Indigo
+                        0x884488, // Muted Magenta/Plum
+                        0x4477aa, // Muted Cyan-Blue
+                        0x553377  // Muted Deep Purple
+                    ];
+                    const randomColor = cosmicPalette[Math.floor(Math.random() * cosmicPalette.length)];
+
                     const mat = new THREE.SpriteMaterial({
                         map: nebulaTex,
-                        color: new THREE.Color(0x4488ff), // Subtle cosmic blue
+                        color: new THREE.Color(randomColor),
                         transparent: true,
-                        opacity: 0.008, // Near invisible
+                        opacity: 0.025, // Increased visibility
                         blending: THREE.AdditiveBlending
                     });
                     const sprite = new THREE.Sprite(mat);
                     // Scale nebula much tighter
                     const s = 2.0 + (count * 0.2);
                     sprite.scale.set(s, s, 1);
-                    sprite.userData = { isClusterNebula: true, baseOpacity: 0.008 };
+                    sprite.userData = { isClusterNebula: true, baseOpacity: 0.025 };
                     sprite.raycast = () => {}; // Make nebula non-clickable
                     node.add(sprite);
                 }
