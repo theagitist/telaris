@@ -117,6 +117,7 @@ class TelarisNetwork {
         });
 
         this.stars = new THREE.Points(geometry, material);
+        this.stars.renderOrder = -20;
         this.scene.add(this.stars);
     }
 
@@ -147,6 +148,7 @@ class TelarisNetwork {
                                 depthWrite: false
                             });
                             const sprite = new THREE.Sprite(mat);
+                            sprite.renderOrder = -10;
                 
                             // Spherical distribution at a large distance
                             const r = 80 + Math.random() * 20;
@@ -1007,9 +1009,11 @@ class TelarisNetwork {
                         color: new THREE.Color(randomColor),
                         transparent: true,
                         opacity: 0.025, // Increased visibility
-                        blending: THREE.AdditiveBlending
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false
                     });
                     const sprite = new THREE.Sprite(mat);
+                    sprite.renderOrder = -5;
                     // Scale nebula much tighter
                     const s = 2.0 + (count * 0.2);
                     sprite.scale.set(s, s, 1);
@@ -1021,9 +1025,16 @@ class TelarisNetwork {
 
             if (centerpiece) {
                 const ringGeo = new THREE.TorusGeometry(0.5, 0.01, 8, 32);
-                const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, wireframe: true, transparent: true, opacity: 0.6 });
-                                        const ring = new THREE.Mesh(ringGeo, ringMat);
-                                        ring.userData = { isStationRing: true };
+                const ringMat = new THREE.MeshBasicMaterial({ 
+                    color: 0x00ffcc, 
+                    wireframe: true, 
+                    transparent: true, 
+                    opacity: 0.6,
+                    depthWrite: false
+                });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.renderOrder = 5;
+                ring.userData = { isStationRing: true };
                                         ring.raycast = () => {}; // Make ring non-clickable
                                         centerpiece.add(ring);
                                     }        }

@@ -16,7 +16,7 @@
     <meta property="og:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <meta name="twitter:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
     <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
-    <script src="js/tailwind.min.js?v=3.0.0"></script>
+    <script src="js/tailwind.min.js?v=3.0.1"></script>
     <style>
         :root {
             --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -216,13 +216,26 @@
         function inZone(x, y) { return x < zoneW && y < zoneH; }
         function update(e) {
             var x = e.clientX, y = e.clientY;
-            document.body.classList.toggle('info-visible', inZone(x, y));
+            var isVisible = inZone(x, y);
+            var wasVisible = document.body.classList.contains('info-visible');
+            document.body.classList.toggle('info-visible', isVisible);
+            
+            if (isVisible && !wasVisible) {
+                var searchInput = document.getElementById('hud-search');
+                if (searchInput) {
+                    setTimeout(function() { searchInput.focus(); }, 50);
+                }
+            }
         }
         document.addEventListener('mousemove', update);
         document.addEventListener('touchmove', function(e) {
             if (e.touches.length) update(e.touches[0]);
         }, { passive: true });
-        document.addEventListener('mouseleave', function() { document.body.classList.remove('info-visible'); });
+        document.addEventListener('mouseleave', function() { 
+            document.body.classList.remove('info-visible'); 
+            var searchInput = document.getElementById('hud-search');
+            if (searchInput) searchInput.blur();
+        });
     })();
     </script>
     <script type="importmap">
@@ -230,14 +243,14 @@
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "./telaris-network.js": "./js/telaris-network.js?v=3.0.0",
-                "./network-manager.js": "./js/network-manager.js?v=3.0.0",
-                "./geometry-manager.js": "./js/geometry-manager.js?v=3.0.0",
-                "./api.js": "./js/api.js?v=3.0.0",
-                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=3.0.0"
+                "./telaris-network.js": "./js/telaris-network.js?v=3.0.1",
+                "./network-manager.js": "./js/network-manager.js?v=3.0.1",
+                "./geometry-manager.js": "./js/geometry-manager.js?v=3.0.1",
+                "./api.js": "./js/api.js?v=3.0.1",
+                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=3.0.1"
             }
         }
     </script>
-    <script type="module" src="js/main.js?v=3.0.0"></script>
+    <script type="module" src="js/main.js?v=3.0.1"></script>
 </body>
 </html>
