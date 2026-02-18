@@ -739,7 +739,7 @@ class TelarisNetwork {
     }
 
     updateNodes() {
-        const time = Date.now() * 0.00025, now = Date.now();
+        const time = performance.now() * 0.001; // Current time in seconds
         const focused = this.networkManager.getFocusedNode();
         
         const tempPos = new THREE.Vector3();
@@ -748,44 +748,39 @@ class TelarisNetwork {
 
         this.nodes.forEach((n, i) => {
             const d = n.userData;
-            const brightness = 1 - ((dists[i] - minD) / range) * 0.85;
+            // Depth-based brightness
+            const brightness = 1 - ((dists[i] - minD) / range) * 0.6;
 
             n.traverse(obj => {
                 if (obj.material) {
                     const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
                     mats.forEach(m => {
-                        m.opacity = (focused === n || this.persistentTooltipNodeToDiv.has(n)) ? 1 : 0.94;
+                        const isActive = (focused === n);
+                        m.opacity = (isActive || this.persistentTooltipNodeToDiv.has(n)) ? 1 : 0.94;
+                        
                         if (d.colorR !== undefined) {
                             m.color.setRGB((d.colorR / 255) * brightness, (d.colorG / 255) * brightness, (d.colorB / 255) * brightness);
                             m.emissive?.copy(m.color);
+                            
                             if (m.emissiveIntensity !== undefined) {
                                 if (m._baseEmissiveIntensity === undefined) m._baseEmissiveIntensity = m.emissiveIntensity;
-                                m.emissiveIntensity = m._baseEmissiveIntensity * brightness * (focused === n ? 2.5 : 1.0);
+                                
+                                // Enhanced Twinkle: vary intensity between 0.5 and 1.5 of base
+                                // Using different frequencies for a more random look
+                                const twinkle = 1.0 + Math.sin(time * 2.5 + d.phase) * 0.5;
+                                const hoverBoost = isActive ? 2.5 : 1.0;
+                                m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverBoost * twinkle;
                             }
                         }
                     });
                 }
             });
 
-            if (now - d.stateChangeTime > d.stateTimer) {
-                d.animationState = ['normal', 'twitch', 'glow', 'fast', 'slow'][Math.floor(Math.random() * 5)];
-                d.stateChangeTime = now; d.stateTimer = Math.random() * 4000 + 2000;
-            }
-
-            let multi = 1.0;
-            if (d.animationState === 'fast') multi = 2.5;
-            else if (d.animationState === 'slow') multi = 0.4;
-            d.speed = d.baseSpeed * multi;
-
-            const floatX = Math.sin(time + d.phase) * 0.3, floatY = Math.cos(time * 0.7 + d.phase) * 0.3, floatZ = Math.sin(time * 0.5 + d.phase) * 0.2;
-            let tx = 0, ty = 0, tz = 0;
-            if (d.animationState === 'twitch') {
-                const ti = Math.sin(time * 15 + d.phase) * 0.15;
-                tx = ti; ty = ti * 0.7; tz = ti * 0.5;
-            }
-
-            n.position.set(d.originalPosition.x + floatX + tx, d.originalPosition.y + floatY + ty, d.originalPosition.z + floatZ + tz);
-            const s = 1 + (d.animationState === 'twitch' ? Math.sin(time * 20 + d.phase) * 0.15 : Math.sin(time * 3 + d.phase) * 0.2);
+            // Keep position perfectly stable
+            n.position.copy(d.originalPosition);
+            
+            // Subtle pulse
+            const s = 1 + Math.sin(time * 1.5 + d.phase) * 0.05;
             n.scale.set(s, s, s);
         });
     }
