@@ -166,164 +166,35 @@ Stores API keys for authentication.
 ## Features
 
 ### Frontend
-- 3D visualization with organic animations
-- Large star-shaped node icons (4x scaled)
-- Light, semi-transparent vivid pastel connections between nodes based on shared keywords
-- Vivid pastel-colored node icons for enhanced visual appeal
-- Interactive hover labels showing node names
-- Clickable nodes - clicking a node with a URL opens it in a new window
-- Cursor changes to pointer when hovering over nodes with URLs
-- Orbit controls for camera navigation (drag to rotate, scroll to zoom)
-- Idle auto-rotation - the scene slowly rotates when the user is inactive
-- Real-time data loading from API
+- **Tactical HUD Navigation**: Semitransparent cockpit-style interface with real-time coordinate tracking and system status.
+- **Fuzzy Search (SCAN SYSTEM)**: Real-time filtering of nodes and connections by name or keyword.
+- **Dynamic Launch Sequence**: Simplified, immersive rocket launch animation when transitioning to external node links.
+- **Monospace Typography**: Unified system-wide "NASA-style" typography for all UI elements and 3D labels.
+- 3D visualization with organic animations and vivid pastel-colored node icons.
+- Light, semi-transparent vivid pastel connections between nodes based on shared keywords.
+- Interactive hover labels and clickable nodes with URL support.
+- Orbit controls for camera navigation (drag to rotate, scroll to zoom).
+- Idle auto-rotation - the scene slowly rotates when the user is inactive.
+- Real-time data loading from API.
 
 ### Backend
-- Database-driven node management
-- Keywords system for tagging and categorizing nodes
-- Many-to-many relationship between nodes and keywords
-- Automatic connection calculation based on shared keywords
-- Node URL support - optional URL attribute per node
-- User authentication and authorization
-- Context-aware login redirects (edit page redirects back to edit after login)
-- Secure password hashing (bcrypt with automatic salting)
-- API key authentication for API endpoints
-
-### Node Editor Interface
-- Tabbed interface for adding new nodes and listing existing nodes
-- Inline editing - edit nodes directly in the list at their position
-- Compact spreadsheet-like layout - efficient use of vertical space with all node information visible in columns
-- Clickable column headers for sorting:
-  - Click any column header (Name, URL, Keywords, Created) to sort by that column
-  - Click again to toggle between ascending and descending order
-  - Visual indicators (↑/↓) show the current sort column and direction
-- Fuzzy search functionality:
-  - Real-time search as you type
-  - Searches across node name, description, URL, and keywords
-  - Works seamlessly with sorting
-- Date created display - shows when each node was created
-- Admin Console button - visible only to admin users (type 2)
-
-### Admin Console Interface
-- User management with compact spreadsheet-like layout matching the node editor style
-- Clickable column headers for sorting user list:
-  - Sort by Name, Email, Type, Created, or Last Login
-  - Visual indicators (↑/↓) show the current sort column and direction
-- Create, edit, and delete users
-- API key management
-- PHP information display
-
-## Security
-
-- **Password Security**: All passwords are hashed using PHP's `password_hash()` with `PASSWORD_DEFAULT` (bcrypt), which includes automatic salting. Each password gets a unique salt.
-- **Session Management**: User authentication uses secure session management
-- **User Authorization**: Role-based access control (regular, editor, admin)
-- **SQL Injection Protection**: All database queries use prepared statements
-
-## File Structure
-
-```
-telaris.polivoxia.ca/
-├── admin/                 # Admin console
-│   ├── index.php         # Admin dashboard (redirects to setup.php if not configured)
-│   ├── setup.php         # Initial setup wizard (web GUI only)
-│   ├── cli/              # CLI scripts
-│   │   ├── cli_auth.php  # CLI access protection
-│   │   ├── create_user.php # Create users via CLI
-│   │   ├── hard_reset.php  # Hard reset (drops tables + deletes config.php)
-│   │   └── README.md     # CLI scripts documentation
-│   └── README.md         # Admin documentation
-├── api/                   # API endpoints
-│   ├── auth.php          # API authentication
-│   ├── connections.php   # Connections API (calculated from keywords)
-│   ├── keywords.php      # Keywords API
-│   └── nodes.php         # Nodes API
-├── edit/                  # Node editor interface
-│   └── index.php         # Node management UI (supports URL editing)
-├── inc/                   # PHP includes (bootstrap, view, database layer)
-│   ├── bootstrap.php     # Config check, DB, auth, project info
-│   ├── db.php            # All database access (connection + queries)
-│   └── main-view.php     # Main HTML shell and 3D canvas markup
-├── js/                    # Frontend (ES modules + Tailwind)
-│   ├── api.js            # API fetch helper (uses API key)
-│   ├── main.js           # Entry point; initializes 3D network
-│   ├── telaris-network.js # 3D scene, nodes, connections, tooltips, controls
-│   ├── telaris-node-icons.js # Constellation-themed node mesh creation
-│   └── tailwind.min.js   # Tailwind CSS
-├── config_default.php    # Configuration template (with empty database values)
-├── config.php            # Generated configuration (created by admin/setup.php, in .gitignore)
-├── index.php             # Main entry; loads bootstrap + main view
-├── utils/
-│   ├── auth.php          # User authentication helpers
-│   ├── frame.php         # New-window frame for node links (toolbar + iframe/redirect)
-│   ├── login.php         # Login page with context-aware redirects
-│   └── logout.php        # Logout handler
-├── README.md             # This file
-└── VERSION               # Current version (e.g. 3.0.0)
-```
-
-## Browser Support
-
-Modern browsers with WebGL support:
-- Chrome (recommended)
-- Firefox
-- Safari
-- Edge
-
-## Troubleshooting
-
-### 404 Errors on Directories
-If accessing `/edit` or `/admin` returns 404, ensure your Nginx configuration includes:
-```nginx
-location / {
-    try_files $uri $uri/ $uri/index.php =404;
-}
-```
-
-To support constellation URLs like `/5` (open constellation by id), add a rewrite before the above so numeric paths are handled by `index.php`:
-```nginx
-location ~ ^/[0-9]+$ {
-    rewrite ^/([0-9]+)$ /index.php?constellation_id=$1 last;
-}
-```
-
-### Authentication Issues
-- Verify user type in database (0 = regular, 1 = editor, 2 = admin)
-- Check that passwords are properly hashed
-- Ensure session cookies are enabled in browser
-
-### Configuration Issues
-- If `config.php` cannot be created automatically, the setup script will display the content in a textarea for manual creation
-- Ensure the web server has write permissions to the root directory for automatic `config.php` creation
-- `config.php` is in `.gitignore` and should not be committed to version control
-
-### Hard Reset
-To completely reset the installation (drop all tables and delete config.php), use:
-```bash
-php admin/cli/hard_reset.php
-```
-
-The script will prompt for confirmation. Type `yes` or `y` to proceed, or use the `--force` flag to skip confirmation:
-```bash
-php admin/cli/hard_reset.php --force
-```
-
-This will return the application to an unconfigured state, allowing you to run `admin/setup.php` again.
-
-## User Interaction
-
-### Visual Features
-- **Node Icons**: Large star-shaped 3D icons (4x scaled from original size)
-- **Hover Labels**: When hovering over a node, a tooltip appears showing the node's name
-- **Clickable Nodes**: Nodes with URLs are clickable - clicking opens the URL in a new window
-- **Cursor Feedback**: Cursor changes to a pointer when hovering over nodes with URLs
-- **Connections**: Colored lines connect nodes that share keywords
-
-### Navigation
-- **Rotate View**: Click and drag to rotate the camera around the scene
-- **Zoom**: Use mouse wheel to zoom in/out
-- **Pan**: (If enabled) Right-click and drag or use middle mouse button
+- Database-driven node management.
+- Keywords system for tagging and categorizing nodes.
+- Many-to-many relationship between nodes and keywords.
+- Automatic connection calculation based on shared keywords.
+- User authentication and authorization with secure password hashing (bcrypt).
+- API key authentication for API endpoints.
 
 ## Version History
+
+### Version 3.5.0
+- **Tactical HUD Interface**: Completely redesigned the navigation panel into a cockpit-inspired HUD with glassmorphism and coordinate tracking.
+- **Fuzzy Search**: Added real-time "SCAN SYSTEM" functionality to the HUD, allowing users to filter nodes and connections instantly.
+- **Launch Redesign**: Revamped the redirection window with a minimalist SVG rocket launch sequence and dynamic status updates.
+- **Typography Unification**: Switched all UI and 3D elements to a unified monospace font for a consistent technical aesthetic.
+- **Cache Busting**: Implemented version-based cache busting for all JS modules and assets to ensure immediate delivery of updates.
+- **Visual Refinement**: Tuned camera distances, node scaling, and connection thickness for better visual balance and intimacy.
+- **Rendering Fixes**: Resolved transparency layering issues with the station ring and nebulas using strict render order management.
 
 ### Version 3.0.0
 - **Editor constellation access**: Editors see only constellations assigned to them; admins see all. New `user_constellations` table links users (editors) to constellations.
