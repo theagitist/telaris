@@ -147,9 +147,9 @@ const USE_MORE_COLOR_VARIETY = true;
                 const renderScene = new RenderPass(this.scene, this.camera);
                 const bloomPass = new UnrealBloomPass(
                     new THREE.Vector2(window.innerWidth, window.innerHeight),
-                    1.5, // strength
-                    0.4, // radius
-                    0.85 // threshold
+                    0.6, // reduced strength
+                    0.3, // radius
+                    0.9  // higher threshold to only catch bright highlights
                 );
                 this.composer = new EffectComposer(this.renderer);
                 this.composer.addPass(renderScene);
@@ -964,11 +964,11 @@ const USE_MORE_COLOR_VARIETY = true;
                     }
                 }
 
-                // Thickness bands by strength (0–25%, 26–50%, 51–75%, 76–100%); min thickness raised for Chrome visibility
-                const THINNEST = 0.008;
-                const MEDIUM_THIN = 0.015;
-                const MEDIUM_THICK = 0.025;
-                const THICKEST = 0.04;
+                // Thickness bands by strength (0–25%, 26–50%, 51–75%, 76–100%)
+                const THINNEST = 0.002;
+                const MEDIUM_THIN = 0.005;
+                const MEDIUM_THICK = 0.009;
+                const THICKEST = 0.014;
 
                 let connectionIndex = 0; // Track connection index for unique colors
 
