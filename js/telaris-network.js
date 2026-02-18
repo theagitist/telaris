@@ -365,14 +365,14 @@ class TelarisNetwork {
         this.rocket = new THREE.Group();
         
         // Body: white cylinder
-        const bodyGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.2, 6);
+        const bodyGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.12, 6);
         const bodyMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const body = new THREE.Mesh(bodyGeo, bodyMat);
         body.rotation.x = Math.PI / 2; // Orient along Z
         this.rocket.add(body);
 
         // Tip: VERY red and slightly larger cone
-        const tipGeo = new THREE.ConeGeometry(0.045, 0.1, 6);
+        const tipGeo = new THREE.ConeGeometry(0.03, 0.06, 6);
         // Using MeshStandardMaterial with emissive to pierce through bloom
         const tipMat = new THREE.MeshStandardMaterial({ 
             color: 0xff0000,
@@ -380,7 +380,7 @@ class TelarisNetwork {
             emissiveIntensity: 2.0
         });
         const tip = new THREE.Mesh(tipGeo, tipMat);
-        tip.position.z = 0.15; // Position at the front
+        tip.position.z = 0.09; // Position at the front
         tip.rotation.x = Math.PI / 2; // Orient along Z
         this.rocket.add(tip);
 
