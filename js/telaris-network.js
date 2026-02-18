@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { apiFetch } from './api.js';
 import { createNodeIcon } from './telaris-node-icons.js';
+import { NetworkManager } from './network-manager.js';
 
 // Set to false to revert to previous (less varied) node and line colors
 const USE_MORE_COLOR_VARIETY = true;
@@ -24,11 +25,11 @@ const USE_MORE_COLOR_VARIETY = true;
                 this.nodes = [];
                 this.nodeData = []; // Store node data from API
                 this.connections = []; // Store connection lines between nodes
+                this.networkManager = new NetworkManager({ fadeSpeed: 0.1 });
                 this.raycaster = new THREE.Raycaster();
                 this.mouse = new THREE.Vector2();
                 this.tooltip = document.getElementById('node-tooltip');
                 this.persistentTooltipsContainer = document.getElementById('persistent-tooltips');
-                this.mainTooltipNode = null; // node currently shown by the main hover/tap tooltip (skip in persistent labels)
                 this.mainTooltipNodeTimeout = null; // for delayed clearing of active node
                 this.tooltipHideTimeout = null; // for fade-out delay before hiding main tooltip
                 this.persistentTooltipNodeToDiv = new Map(); // node -> div, so we never reuse a div for a different node (ensures full fade-out then fade-in)
@@ -36,7 +37,8 @@ const USE_MORE_COLOR_VARIETY = true;
                 // Idle rotation (auto-rotate when user is inactive)
                 this.lastInteractionAt = performance.now();
                 this.idleRotateDelayMs = 4500; // wait ~4.5s of inactivity before rotating
-                
+                this._lastFrameTime = 0;
+
                 this.init();
             }
 
@@ -340,7 +342,7 @@ const USE_MORE_COLOR_VARIETY = true;
                                 clearTimeout(this.mainTooltipNodeTimeout);
                                 this.mainTooltipNodeTimeout = null;
                             }
-                            this.mainTooltipNode = hoveredNode;
+                            this.networkManager.setFocusedNode(hoveredNode);
                             if (hoveredNode.userData.url) {
                                 this.renderer.domElement.style.cursor = 'pointer';
                             } else {
@@ -381,7 +383,7 @@ const USE_MORE_COLOR_VARIETY = true;
                             this.renderer.domElement.style.cursor = 'default';
                             if (!this.mainTooltipNodeTimeout) {
                                 this.mainTooltipNodeTimeout = setTimeout(() => {
-                                    this.mainTooltipNode = null;
+                                    this.networkManager.setFocusedNode(null);
                                     this.mainTooltipNodeTimeout = null;
                                 }, 1000);
                             }
@@ -391,7 +393,7 @@ const USE_MORE_COLOR_VARIETY = true;
                         this.renderer.domElement.style.cursor = 'default';
                         if (!this.mainTooltipNodeTimeout) {
                             this.mainTooltipNodeTimeout = setTimeout(() => {
-                                this.mainTooltipNode = null;
+                                this.networkManager.setFocusedNode(null);
                                 this.mainTooltipNodeTimeout = null;
                             }, 1000);
                         }
@@ -404,7 +406,7 @@ const USE_MORE_COLOR_VARIETY = true;
                     this.markInteraction();
                     if (!this.mainTooltipNodeTimeout) {
                         this.mainTooltipNodeTimeout = setTimeout(() => {
-                            this.mainTooltipNode = null;
+                            this.networkManager.setFocusedNode(null);
                             this.mainTooltipNodeTimeout = null;
                         }, 1000);
                     }
@@ -669,7 +671,7 @@ const USE_MORE_COLOR_VARIETY = true;
                                 event.stopPropagation();
                                 this.openInFrame(clickedNode, clickedNode.userData.url);
                                 lastTappedNode = null;
-                                this.mainTooltipNode = null;
+                                this.networkManager.setFocusedNode(null);
                                 touchStartPos = null;
                                 touchStartNode = null;
                                 return;
@@ -679,14 +681,14 @@ const USE_MORE_COLOR_VARIETY = true;
                                 this.mainTooltipNodeTimeout = null;
                             }
                             lastTappedNode = clickedNode;
-                            this.mainTooltipNode = clickedNode;
+                            this.networkManager.setFocusedNode(clickedNode);
                             showTooltipForNode(clickedNode, touchStartPos.screenX, touchStartPos.screenY);
                         } else if (isTap && !touchStartNode) {
                             // Tapped on empty space - hide tooltip and reset
                             lastTappedNode = null;
                             if (!this.mainTooltipNodeTimeout) {
                                 this.mainTooltipNodeTimeout = setTimeout(() => {
-                                    this.mainTooltipNode = null;
+                                    this.networkManager.setFocusedNode(null);
                                     this.mainTooltipNodeTimeout = null;
                                 }, 1000);
                             }
@@ -874,6 +876,7 @@ const USE_MORE_COLOR_VARIETY = true;
                         animationState: 'normal',
                         stateTimer: Math.random() * 3000 + 2000,
                         stateChangeTime: Date.now(),
+                        velocity: new THREE.Vector3(0, 0, 0), // Physics velocity
                         colorR: r, colorG: g, colorB: b // For tooltip background (5%) and text (100%)
                     };
 
@@ -1010,12 +1013,11 @@ const USE_MORE_COLOR_VARIETY = true;
                 }
             }
 
-            // Update connection positions as nodes move; apply fade.
-            updateConnections() {
+            // Update connection positions as nodes move; visibility and fade are handled by NetworkManager.
+            updateConnections(deltaTimeSec = 0) {
                 if (!this.connections || this.connections.length === 0) {
                     return;
                 }
-                const FADE_SPEED = 0.1;
                 const anchorCache = new Map();
                 const getAnchor = (node) => {
                     if (anchorCache.has(node)) return anchorCache.get(node);
@@ -1024,7 +1026,7 @@ const USE_MORE_COLOR_VARIETY = true;
                     return anchor;
                 };
 
-                this.connections.forEach((conn, i) => {
+                for (const conn of this.connections) {
                     const node1 = conn.node1;
                     const node2 = conn.node2;
                     const pos1 = getAnchor(node1);
@@ -1036,7 +1038,7 @@ const USE_MORE_COLOR_VARIETY = true;
                         conn.mesh.visible = false;
                         conn.targetOpacity = 0;
                         conn.currentOpacity = 0;
-                        return;
+                        continue;
                     }
 
                     const midpoint = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
@@ -1049,16 +1051,9 @@ const USE_MORE_COLOR_VARIETY = true;
                     if (originalDistance > 0) {
                         conn.mesh.scale.y = distance / originalDistance;
                     }
+                }
 
-                    // Show connections only for the currently hovered or tapped node
-                    const isRelevant = (this.mainTooltipNode === node1 || this.mainTooltipNode === node2);
-                    conn.targetOpacity = isRelevant ? (conn.baseOpacity ?? 0.5) : 0;
-
-                    conn.currentOpacity += (conn.targetOpacity - conn.currentOpacity) * FADE_SPEED;
-                    if (Math.abs(conn.currentOpacity - conn.targetOpacity) < 0.002) conn.currentOpacity = conn.targetOpacity;
-                    conn.mesh.material.opacity = conn.currentOpacity;
-                    conn.mesh.visible = conn.currentOpacity > 0.002;
-                });
+                this.networkManager.updateVisibility(this.connections, deltaTimeSec);
             }
 
             // Seeded random number generator for consistent but different results per page load
@@ -1167,7 +1162,7 @@ const USE_MORE_COLOR_VARIETY = true;
             updateNodes() {
                 const time = Date.now() * 0.001 / 4; // 1/4 speed
                 const currentTime = Date.now();
-                const hasTooltip = (node) => this.mainTooltipNode === node || this.persistentTooltipNodeToDiv.has(node);
+                const hasTooltip = (node) => this.networkManager.getFocusedNode() === node || this.persistentTooltipNodeToDiv.has(node);
 
                 // Distance-based darkening: farther nodes look darker
                 const tempPos = new THREE.Vector3();
@@ -1287,7 +1282,7 @@ const USE_MORE_COLOR_VARIETY = true;
             updatePersistentTooltips() {
                 if (!this.persistentTooltipsContainer || this.nodes.length === 0) return;
                 const front20WithTier = this.getFront20PercentWithTier();
-                const toShow = front20WithTier.filter(entry => entry.node !== this.mainTooltipNode && entry.node.userData && entry.node.userData.name);
+                const toShow = front20WithTier.filter(entry => entry.node !== this.networkManager.getFocusedNode() && entry.node.userData && entry.node.userData.name);
                 const canvasRect = this.renderer.domElement.getBoundingClientRect();
                 const container = this.persistentTooltipsContainer.parentElement;
                 const containerRect = container ? container.getBoundingClientRect() : canvasRect;
@@ -1376,17 +1371,20 @@ const USE_MORE_COLOR_VARIETY = true;
 
             animate() {
                 requestAnimationFrame(() => this.animate());
-                
+                const now = performance.now();
+                const deltaTimeSec = this._lastFrameTime ? (now - this._lastFrameTime) / 1000 : 0.016;
+                this._lastFrameTime = now;
+
                 // Enable subtle auto-rotation when idle; stop immediately on interaction
-                const idleForMs = performance.now() - this.lastInteractionAt;
+                const idleForMs = now - this.lastInteractionAt;
                 this.controls.autoRotate = idleForMs > this.idleRotateDelayMs;
 
                 // Apply controls (zoom/rotate/pan) first so camera is current before we compute front nodes and opacities
                 this.controls.update();
                 this.updatePersistentTooltips();
                 this.updateNodes();
-                this.updateConnections();
-                
+                this.updateConnections(deltaTimeSec);
+
                 this.renderer.render(this.scene, this.camera);
             }
 
