@@ -1087,7 +1087,7 @@ class TelarisNetwork {
     applyForces(dtSec, strength = 0.05) {
         if (this.nodes.length < 2) return;
         const dt = Math.min(dtSec, 0.032);
-        const params = { rep: 2.0 * strength, att: 0.04 * strength, ideal: 6.0, damp: 0.85, maxD: 22, maxF: 0.6 * strength };
+        const params = { rep: 2.5 * strength, att: 0.04 * strength, ideal: 8.0, damp: 0.85, maxD: 25, maxF: 0.6 * strength };
         const maxV = strength > 0.5 ? 0.25 : 0.02;
         const temp = new THREE.Vector3();
 
