@@ -24,13 +24,12 @@ const USE_MORE_COLOR_VARIETY = true;
                 this.nodes = [];
                 this.nodeData = []; // Store node data from API
                 this.connections = []; // Store connection lines between nodes
-                this.connectionVisibleIndices = null; // Set of indices for which connection is visible (66% at a time)
-                this.connectionRotateInterval = null;
                 this.raycaster = new THREE.Raycaster();
                 this.mouse = new THREE.Vector2();
                 this.tooltip = document.getElementById('node-tooltip');
                 this.persistentTooltipsContainer = document.getElementById('persistent-tooltips');
                 this.mainTooltipNode = null; // node currently shown by the main hover/tap tooltip (skip in persistent labels)
+                this.mainTooltipNodeTimeout = null; // for delayed clearing of active node
                 this.tooltipHideTimeout = null; // for fade-out delay before hiding main tooltip
                 this.persistentTooltipNodeToDiv = new Map(); // node -> div, so we never reuse a div for a different node (ensures full fade-out then fade-in)
 
@@ -337,6 +336,11 @@ const USE_MORE_COLOR_VARIETY = true;
                             if (hoveredNode) break;
                         }
                         if (hoveredNode && hoveredNode.userData) {
+                            if (this.mainTooltipNodeTimeout) {
+                                clearTimeout(this.mainTooltipNodeTimeout);
+                                this.mainTooltipNodeTimeout = null;
+                            }
+                            this.mainTooltipNode = hoveredNode;
                             if (hoveredNode.userData.url) {
                                 this.renderer.domElement.style.cursor = 'pointer';
                             } else {
@@ -347,7 +351,6 @@ const USE_MORE_COLOR_VARIETY = true;
                                     clearTimeout(this.tooltipHideTimeout);
                                     this.tooltipHideTimeout = null;
                                 }
-                                this.mainTooltipNode = hoveredNode;
                                 this.tooltip.textContent = hoveredNode.userData.name;
                                 const tipStyles = this.getNodeTooltipStyles(hoveredNode);
                                 this.tooltip.style.background = tipStyles.background;
@@ -376,10 +379,22 @@ const USE_MORE_COLOR_VARIETY = true;
                             }
                         } else {
                             this.renderer.domElement.style.cursor = 'default';
+                            if (!this.mainTooltipNodeTimeout) {
+                                this.mainTooltipNodeTimeout = setTimeout(() => {
+                                    this.mainTooltipNode = null;
+                                    this.mainTooltipNodeTimeout = null;
+                                }, 1000);
+                            }
                             if (this.tooltip) this.hideMainTooltip();
                         }
                     } else {
                         this.renderer.domElement.style.cursor = 'default';
+                        if (!this.mainTooltipNodeTimeout) {
+                            this.mainTooltipNodeTimeout = setTimeout(() => {
+                                this.mainTooltipNode = null;
+                                this.mainTooltipNodeTimeout = null;
+                            }, 1000);
+                        }
                         if (this.tooltip) this.hideMainTooltip();
                     }
                 });
@@ -387,7 +402,12 @@ const USE_MORE_COLOR_VARIETY = true;
                 // Hide tooltip when mouse leaves the canvas
                 this.renderer.domElement.addEventListener('mouseleave', () => {
                     this.markInteraction();
-                    this.mainTooltipNode = null;
+                    if (!this.mainTooltipNodeTimeout) {
+                        this.mainTooltipNodeTimeout = setTimeout(() => {
+                            this.mainTooltipNode = null;
+                            this.mainTooltipNodeTimeout = null;
+                        }, 1000);
+                    }
                     if (this.tooltip) this.hideMainTooltip();
                     this.renderer.domElement.style.cursor = 'default';
                 });
@@ -654,13 +674,22 @@ const USE_MORE_COLOR_VARIETY = true;
                                 touchStartNode = null;
                                 return;
                             }
+                            if (this.mainTooltipNodeTimeout) {
+                                clearTimeout(this.mainTooltipNodeTimeout);
+                                this.mainTooltipNodeTimeout = null;
+                            }
                             lastTappedNode = clickedNode;
                             this.mainTooltipNode = clickedNode;
                             showTooltipForNode(clickedNode, touchStartPos.screenX, touchStartPos.screenY);
                         } else if (isTap && !touchStartNode) {
                             // Tapped on empty space - hide tooltip and reset
                             lastTappedNode = null;
-                            this.mainTooltipNode = null;
+                            if (!this.mainTooltipNodeTimeout) {
+                                this.mainTooltipNodeTimeout = setTimeout(() => {
+                                    this.mainTooltipNode = null;
+                                    this.mainTooltipNodeTimeout = null;
+                                }, 1000);
+                            }
                             if (this.tooltip) this.hideMainTooltip();
                         }
                         
@@ -683,12 +712,7 @@ const USE_MORE_COLOR_VARIETY = true;
                 });
                 this.nodes = [];
                 
-                // Clear all connections and 66% visibility state
-                if (this.connectionRotateInterval) {
-                    clearInterval(this.connectionRotateInterval);
-                    this.connectionRotateInterval = null;
-                }
-                this.connectionVisibleIndices = null;
+                // Clear all connections
                 this.connections.forEach(conn => {
                     this.scene.remove(conn.mesh);
                     if (conn.mesh.geometry) conn.mesh.geometry.dispose();
@@ -870,12 +894,7 @@ const USE_MORE_COLOR_VARIETY = true;
 
             // Create connection lines between nodes that share keywords
             createConnections() {
-                // Clear existing connections and 66% visibility state
-                if (this.connectionRotateInterval) {
-                    clearInterval(this.connectionRotateInterval);
-                    this.connectionRotateInterval = null;
-                }
-                this.connectionVisibleIndices = null;
+                // Clear existing connections
                 this.connections.forEach(conn => {
                     this.scene.remove(conn.mesh);
                     if (conn.mesh.geometry) conn.mesh.geometry.dispose();
@@ -962,7 +981,7 @@ const USE_MORE_COLOR_VARIETY = true;
                             const material = new THREE.MeshBasicMaterial({
                                 color: threeColor,
                                 transparent: true,
-                                opacity,
+                                opacity: 0, // Start invisible
                                 side: THREE.DoubleSide
                             });
                             connectionIndex++;
@@ -980,8 +999,8 @@ const USE_MORE_COLOR_VARIETY = true;
                                 sharedCount: sharedCount,
                                 originalDistance: distance,
                                 baseOpacity: opacity,
-                                currentOpacity: opacity,
-                                targetOpacity: opacity,
+                                currentOpacity: 0,
+                                targetOpacity: 0,
                                 thick: thick
                             });
                             this.scene.add(cylinder);
@@ -989,79 +1008,14 @@ const USE_MORE_COLOR_VARIETY = true;
                         }
                     }
                 }
-                this.buildConnectionVisibleSet();
             }
 
-            // Thick lines (top thickness band) stay visible; 66% of the rest rotate every 2s with fade.
-            buildConnectionVisibleSet() {
-                if (this.connectionRotateInterval) {
-                    clearInterval(this.connectionRotateInterval);
-                    this.connectionRotateInterval = null;
-                }
-                const conns = this.connections;
-                const n = conns.length;
-                if (n === 0) {
-                    this.connectionVisibleIndices = null;
-                    return;
-                }
-                const rotatable = [];
-                for (let i = 0; i < n; i++) {
-                    if (!conns[i].thick) rotatable.push(i);
-                }
-                const rotatableCount = rotatable.length;
-                const visibleCount = Math.max(1, Math.floor(rotatableCount * 0.66));
-                const visible = new Set();
-                while (visible.size < visibleCount) {
-                    visible.add(rotatable[Math.floor(Math.random() * rotatableCount)]);
-                }
-                this.connectionVisibleIndices = visible;
-                conns.forEach((conn, i) => {
-                    if (conn.thick) {
-                        conn.targetOpacity = conn.baseOpacity ?? conn.mesh.material.opacity;
-                    } else {
-                        conn.targetOpacity = visible.has(i) ? (conn.baseOpacity ?? conn.mesh.material.opacity) : 0;
-                    }
-                    conn.currentOpacity = conn.targetOpacity;
-                });
-                this.connectionRotateInterval = setInterval(() => {
-                    if (!this.connections.length || !this.connectionVisibleIndices) return;
-                    const list = this.connections;
-                    const vis = this.connectionVisibleIndices;
-                    const visibleArr = [];
-                    const invisibleArr = [];
-                    let rotatableCount = 0;
-                    for (let i = 0; i < list.length; i++) {
-                        if (list[i].thick) continue;
-                        rotatableCount++;
-                        if (vis.has(i)) visibleArr.push(i);
-                        else invisibleArr.push(i);
-                    }
-                    const visCount = Math.max(1, Math.floor(rotatableCount * 0.66));
-                    const toHide = Math.max(1, Math.floor(visCount * 0.2));
-                    for (let k = 0; k < toHide && visibleArr.length > 0 && invisibleArr.length > 0; k++) {
-                        const idxV = Math.floor(Math.random() * visibleArr.length);
-                        const idxI = Math.floor(Math.random() * invisibleArr.length);
-                        const hideI = visibleArr[idxV];
-                        const showI = invisibleArr[idxI];
-                        visibleArr[idxV] = visibleArr[visibleArr.length - 1];
-                        visibleArr.pop();
-                        invisibleArr[idxI] = invisibleArr[invisibleArr.length - 1];
-                        invisibleArr.pop();
-                        vis.delete(hideI);
-                        vis.add(showI);
-                        if (list[hideI]) list[hideI].targetOpacity = 0;
-                        if (list[showI]) list[showI].targetOpacity = list[showI].baseOpacity;
-                    }
-                }, 2000);
-            }
-
-            // Update connection positions as nodes move; apply 66% visibility and fade.
+            // Update connection positions as nodes move; apply fade.
             updateConnections() {
                 if (!this.connections || this.connections.length === 0) {
                     return;
                 }
                 const FADE_SPEED = 0.1;
-                const visibleIndices = this.connectionVisibleIndices;
                 const anchorCache = new Map();
                 const getAnchor = (node) => {
                     if (anchorCache.has(node)) return anchorCache.get(node);
@@ -1096,8 +1050,10 @@ const USE_MORE_COLOR_VARIETY = true;
                         conn.mesh.scale.y = distance / originalDistance;
                     }
 
-                    const shouldBeVisible = conn.thick || (visibleIndices ? visibleIndices.has(i) : true);
-                    conn.targetOpacity = shouldBeVisible ? (conn.baseOpacity ?? conn.mesh.material.opacity) : 0;
+                    // Show connections only for the currently hovered or tapped node
+                    const isRelevant = (this.mainTooltipNode === node1 || this.mainTooltipNode === node2);
+                    conn.targetOpacity = isRelevant ? (conn.baseOpacity ?? 0.5) : 0;
+
                     conn.currentOpacity += (conn.targetOpacity - conn.currentOpacity) * FADE_SPEED;
                     if (Math.abs(conn.currentOpacity - conn.targetOpacity) < 0.002) conn.currentOpacity = conn.targetOpacity;
                     conn.mesh.material.opacity = conn.currentOpacity;
