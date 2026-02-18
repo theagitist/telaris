@@ -70,7 +70,11 @@ class TelarisNetwork {
         const app = typeof window.TELARIS_APP_NAME === 'string' ? window.TELARIS_APP_NAME : 'Telaris';
         let alertMsg = typeof window.TELARIS_ALERT_MESSAGE === 'string' ? window.TELARIS_ALERT_MESSAGE : "Close this window when you're done to go back to " + app + ".";
         alertMsg = alertMsg.replace(/\{APPNAME\}/g, app);
-        const frameUrl = 'utils/frame.php?url=' + encodeURIComponent(url) + '&r=' + r + '&g=' + g + '&b=' + b + '&app=' + encodeURIComponent(app) + '&alert_msg=' + encodeURIComponent(alertMsg);
+        const frameUrl = 'utils/frame.php?url=' + encodeURIComponent(url) + 
+            '&r=' + r + '&g=' + g + '&b=' + b + 
+            '&app=' + encodeURIComponent(app) + 
+            '&alert_msg=' + encodeURIComponent(alertMsg) +
+            '&node_name=' + encodeURIComponent(d.name || 'System');
         window.open(frameUrl, '_blank', 'noopener,noreferrer');
     }
 
