@@ -16,7 +16,6 @@ export class GeometryManager {
         return this.cache.get(id);
     }
 
-    /** Pre-allocate common geometries for the constellation icons. */
     getSphere(radius = 0.24, detail = 8) {
         return this.getOrCreate(`sphere_${radius}_${detail}`, () => new THREE.SphereGeometry(radius, detail, detail));
     }
@@ -35,6 +34,11 @@ export class GeometryManager {
 
     getCone(radius = 0.06, height = 0.22, radialSegments = 5) {
         return this.getOrCreate(`cone_${radius}_${height}_${radialSegments}`, () => new THREE.ConeGeometry(radius, height, radialSegments));
+    }
+
+    getTorus(radius = 0.28, tube = 0.04, radialSegments = 16, tubularSegments = 32) {
+        return this.getOrCreate(`torus_${radius}_${tube}_${radialSegments}_${tubularSegments}`,
+            () => new THREE.TorusGeometry(radius, tube, radialSegments, tubularSegments));
     }
 
     getExtrudedStar() {

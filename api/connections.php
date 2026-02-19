@@ -12,7 +12,15 @@ $method = $_SERVER['REQUEST_METHOD'];
 try {
     match ($method) {
         'GET' => (function(): void {
-            $connections = db_get_connections();
+            $constellationId = null;
+            if (isset($_GET['constellation_id'])) {
+                if ($_GET['constellation_id'] === 'all') {
+                    $constellationId = null;
+                } elseif (is_numeric($_GET['constellation_id'])) {
+                    $constellationId = (int) $_GET['constellation_id'];
+                }
+            }
+            $connections = db_get_connections($constellationId);
             echo json_encode($connections, JSON_THROW_ON_ERROR);
         })(),
         

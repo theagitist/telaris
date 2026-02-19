@@ -44,8 +44,9 @@ export class NetworkManager {
      * Call this each frame after updating connection positions.
      * @param {Array<{ mesh: { material: { opacity: number }, visible: boolean }, node1: object, node2: object, baseOpacity?: number, currentOpacity: number, targetOpacity: number }>} connections
      * @param {number} [deltaTimeSec=0] - Time since last frame in seconds. If 0, uses per-frame fade (backward compatible).
+     * @param {number} [fadeMultiplier] - Optional 0–1 multiplier (e.g. portal fade-in); applied to final opacity.
      */
-    updateVisibility(connections, deltaTimeSec = 0) {
+    updateVisibility(connections, deltaTimeSec = 0, fadeMultiplier = null) {
         if (!connections || connections.length === 0) return;
 
         // Scale fade by time so behavior is consistent across frame rates when deltaTime is provided
@@ -70,8 +71,10 @@ export class NetworkManager {
             
             // Sync with material
             const mat = conn.mesh.material;
-            mat.opacity = conn.currentOpacity;
-            conn.mesh.visible = conn.currentOpacity > this.visibilityThreshold;
+            let opacity = conn.currentOpacity;
+            if (fadeMultiplier != null) opacity = (conn.baseOpacity ?? 0.5) * fadeMultiplier;
+            mat.opacity = opacity;
+            conn.mesh.visible = opacity > this.visibilityThreshold;
 
             // Selective Glow: Increase emissive intensity when line is becoming visible
             if (mat.emissiveIntensity !== undefined) {

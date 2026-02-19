@@ -21,6 +21,31 @@ if (php_sapi_name() !== 'cli') {
 // Require API key authentication
 requireApiKey();
 
+/** Allowed node_type values (must match nodes.node_type ENUM). */
+const NODE_TYPE_VALUES = ['object', 'portal'];
+
+/**
+ * Sanitize node_type from request data; return one of NODE_TYPE_VALUES or 'object'.
+ */
+function sanitizeNodeType(mixed $value): string {
+    $s = is_string($value) ? trim($value) : '';
+    return in_array($s, NODE_TYPE_VALUES, true) ? $s : 'object';
+}
+
+/**
+ * Parse target_constellation_id from request data as nullable integer.
+ */
+function parseTargetConstellationId(mixed $value): ?int {
+    if ($value === null || $value === '') {
+        return null;
+    }
+    if (is_numeric($value)) {
+        $id = (int)$value;
+        return $id >= 0 ? $id : null;
+    }
+    return null;
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
 
 try {
@@ -84,13 +109,17 @@ try {
             if (isset($data['description']) && !empty(trim((string)$data['description']))) {
                 $description = trim((string)$data['description']);
             }
+            $nodeType = sanitizeNodeType($data['node_type'] ?? 'object');
             $url = null;
             if (isset($data['url']) && !empty(trim((string)$data['url']))) {
                 $url = trim((string)$data['url']);
-                if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                if ($nodeType !== 'portal' && !filter_var($url, FILTER_VALIDATE_URL)) {
                     http_response_code(400);
                     echo json_encode(['error' => 'Invalid URL format'], JSON_THROW_ON_ERROR);
                     return;
+                }
+                if ($nodeType === 'portal' && !filter_var($url, FILTER_VALIDATE_URL)) {
+                    $url = null;
                 }
             }
             $name = trim((string)$data['name']);
@@ -100,7 +129,8 @@ try {
                 return;
             }
             $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : DEFAULT_CONSTELLATION_ID;
-            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId);
+            $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
+            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId);
             if ($nodeId === 0) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to create node: Could not retrieve node ID'], JSON_THROW_ON_ERROR);
@@ -125,17 +155,22 @@ try {
                 return;
             }
             $animation = json_encode($data['animation'], JSON_THROW_ON_ERROR);
+            $nodeType = sanitizeNodeType($data['node_type'] ?? 'object');
             $url = null;
             if (isset($data['url']) && !empty(trim((string)$data['url']))) {
                 $url = trim((string)$data['url']);
-                if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                if ($nodeType !== 'portal' && !filter_var($url, FILTER_VALIDATE_URL)) {
                     http_response_code(400);
                     echo json_encode(['error' => 'Invalid URL format'], JSON_THROW_ON_ERROR);
                     return;
                 }
+                if ($nodeType === 'portal' && !filter_var($url, FILTER_VALIDATE_URL)) {
+                    $url = null;
+                }
             }
             $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : null;
-            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId);
+            $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
+            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId);
             if (isset($data['keywords']) && is_array($data['keywords'])) {
                 db_save_node_keywords((int)$id, $data['keywords']);
             }

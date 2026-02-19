@@ -24,20 +24,26 @@ CREATE TABLE IF NOT EXISTS constellations (
     tagline VARCHAR(500) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Table for nodes (using MySQL 8 JSON features)
+-- In SCHEMA.sql, locate the nodes table and update it:
 CREATE TABLE IF NOT EXISTS nodes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     constellation_id INT NOT NULL DEFAULT 0,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     url VARCHAR(500) NULL,
+    -- NEW FIELDS START HERE --
+    node_type ENUM('object', 'portal') NOT NULL DEFAULT 'object',
+    target_constellation_id INT NULL,
+    -- NEW FIELDS END HERE --
     created_by VARCHAR(255) NULL,
     animation JSON NOT NULL DEFAULT (JSON_OBJECT('radius', 5.0, 'theta', 0, 'phi', 0, 'speed', 0.0025, 'phase', 0)),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (constellation_id) REFERENCES constellations(id),
+    FOREIGN KEY (target_constellation_id) REFERENCES constellations(id) ON DELETE SET NULL,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_constellation_id (constellation_id),
+    INDEX idx_target_constellation_id (target_constellation_id),
     INDEX idx_created_by (created_by),
     FULLTEXT INDEX idx_name_desc (name, description)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

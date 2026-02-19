@@ -40,10 +40,30 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <div class="max-w-7xl mx-auto py-8 px-5">
         <!-- Header -->
         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-            <div class="flex items-center justify-between">
+            <div class="flex flex-wrap items-center justify-between gap-4">
                 <div>
                     <h1 class="text-gray-800 text-3xl font-semibold">Edit Nodes</h1>
                     <p class="text-gray-600 mt-1">Welcome, <?php echo htmlspecialchars($userName); ?> (<?php echo $isAdmin ? 'Admin' : 'Editor'; ?>)</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <label for="current-constellation" class="text-sm font-medium text-gray-700">Current Constellation:</label>
+                    <select id="current-constellation" 
+                            onchange="switchConstellation(this.value)"
+                            class="p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 bg-white min-w-[180px]">
+                        <?php
+                        $currentConstellationParam = isset($_GET['constellation_id']) ? trim((string)$_GET['constellation_id']) : 'all';
+                        if (!is_numeric($currentConstellationParam) && $currentConstellationParam !== 'all') {
+                            $currentConstellationParam = 'all';
+                        }
+                        ?>
+                        <option value="all"<?php echo $currentConstellationParam === 'all' ? ' selected' : ''; ?>>All constellations</option>
+                        <?php foreach ($constellations as $c):
+                            $cid = (int)$c['id'];
+                            $sel = $currentConstellationParam === (string)$cid ? ' selected' : '';
+                        ?>
+                            <option value="<?php echo $cid; ?>"<?php echo $sel; ?>><?php echo htmlspecialchars($c['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="flex gap-3">
                     <a href="../index.php" class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded">
@@ -75,13 +95,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <div class="bg-white rounded-lg shadow-md mb-6">
             <div class="border-b border-gray-200">
                 <nav class="flex">
-                    <button onclick="showTab('add')" 
+                    <button type="button" onclick="showTab('content-add')" 
                             id="tab-add"
-                            class="px-6 py-3 font-medium text-sm border-b-2 border-blue-500 text-blue-600">
+                            data-target="content-add"
+                            class="px-6 py-3 font-medium text-sm border-b-2 border-blue-500 text-blue-600 active">
                         Add New Node
                     </button>
-                    <button onclick="showTab('list')" 
+                    <button type="button" onclick="showTab('content-list')" 
                             id="tab-list"
+                            data-target="content-list"
                             class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">
                         List Existing Nodes (<span id="tab-list-count">0</span>)
                     </button>
@@ -89,7 +111,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </div>
 
             <!-- Add New Node Tab -->
-            <div id="content-add" class="p-6">
+            <div id="content-add" class="tab-content p-6">
                 <form id="node-form" class="space-y-4" novalidate>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -111,6 +133,35 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 <?php endforeach; ?>
                             </select>
                             <span class="text-xs text-gray-500 mt-1 block">Which constellation this node belongs to</span>
+                        </div>
+                        <div>
+                            <label for="node-type" class="block mb-1.5 text-gray-800 font-medium">Node type</label>
+                            <select id="node-type" 
+                                    name="node_type" 
+                                    onchange="toggleTargetConstellation(this.value, 'add')"
+                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                <option value="object">Object</option>
+                                <option value="portal">Portal</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="add-target-constellation-wrap" class="hidden">
+                        <div class="flex flex-wrap items-end gap-2 mb-2">
+                            <div class="min-w-[200px] flex-1">
+                                <label for="node-target-constellation" class="block mb-1.5 text-gray-800 font-medium">Target Constellation</label>
+                                <select id="node-target-constellation" 
+                                        name="target_constellation_id" 
+                                        class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                    <?php foreach ($constellations as $c): ?>
+                                        <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <button type="button" 
+                                    onclick="createNewConstellation('add')"
+                                    class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">
+                                Create New Constellation
+                            </button>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -152,7 +203,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </div>
 
             <!-- List Existing Nodes Tab -->
-            <div id="content-list" class="p-6 hidden">
+            <div id="content-list" class="tab-content p-6 hidden">
                 <!-- Search Controls -->
                 <div class="mb-6 flex flex-wrap items-center gap-4 p-4 bg-gray-50 rounded-lg">
                     <div class="flex items-center gap-2 flex-1 min-w-[200px]">
@@ -172,6 +223,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">
                                 Name<span id="sort-indicator-name"></span>
                             </div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('node_type')">
+                                Type<span id="sort-indicator-node_type"></span>
+                            </div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('constellation_name')">
                                 Constellation<span id="sort-indicator-constellation_name"></span>
                             </div>
@@ -182,7 +236,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">
                                 Created<span id="sort-indicator-created_at"></span>
                             </div>
-                            <div class="col-span-2 text-right">Actions</div>
+                            <div class="col-span-1 text-right">Actions</div>
                         </div>
                     </div>
                     <p class="text-gray-500 p-4" id="loading-message">Loading nodes...</p>
@@ -195,9 +249,117 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <script>
         const API_KEY = <?php echo $apiKey !== null ? json_encode($apiKey, JSON_THROW_ON_ERROR) : 'null'; ?>;
         const API_BASE = '../api/nodes.php';
+        const CONSTELLATIONS_API = '../api/constellations.php';
         const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name']], $constellations), JSON_THROW_ON_ERROR); ?>;
 
+        /** Constellations from API (all), populated at load for target dropdown when Portal is selected. */
+        let allConstellations = [];
+
+        (function fetchConstellationsAtStart() {
+            if (!API_KEY) return;
+            fetch(CONSTELLATIONS_API, { headers: { 'X-API-Key': API_KEY } })
+                .then(r => r.ok ? r.json() : Promise.resolve([]))
+                .then(data => { allConstellations = Array.isArray(data) ? data.map(c => ({ id: c.id, name: c.name || '' })) : []; })
+                .catch(() => {});
+        })();
+
         let editingNodeId = null;
+
+        // Switch current constellation (reload page so list shows only that constellation)
+        function switchConstellation(value) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('constellation_id', value);
+            window.location.assign(url.toString());
+        }
+
+        // Populate a target-constellation select with options from API list (allConstellations)
+        function populateTargetConstellationDropdown(selectEl, selectedId) {
+            if (!selectEl) return;
+            const list = allConstellations.length ? allConstellations : CONSTELLATIONS;
+            const currentValue = selectEl.value;
+            selectEl.innerHTML = '';
+            list.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name;
+                selectEl.appendChild(opt);
+            });
+            const valueToSet = selectedId != null ? String(selectedId) : currentValue;
+            if (valueToSet && Array.from(selectEl.options).some(o => o.value === valueToSet)) selectEl.value = valueToSet;
+        }
+
+        // Show/hide Target Constellation block when node type is portal; populate target dropdown from API list
+        function toggleTargetConstellation(nodeType, context, nodeId) {
+            if (context === 'add') {
+                const wrap = document.getElementById('add-target-constellation-wrap');
+                if (wrap) wrap.classList.toggle('hidden', nodeType !== 'portal');
+                if (nodeType === 'portal') {
+                    const select = document.getElementById('node-target-constellation');
+                    populateTargetConstellationDropdown(select);
+                }
+            } else if (context === 'inline' && nodeId) {
+                const wrap = document.getElementById('edit-target-constellation-wrap-' + nodeId);
+                if (wrap) wrap.classList.toggle('hidden', nodeType !== 'portal');
+                if (nodeType === 'portal') {
+                    const select = document.getElementById('edit-target-constellation-' + nodeId);
+                    const node = allNodes && allNodes.find(n => n.id === nodeId);
+                    populateTargetConstellationDropdown(select, node ? node.target_constellation_id : null);
+                }
+            }
+        }
+
+        // Create new constellation via API and add to dropdowns
+        async function createNewConstellation(context, inlineNodeId) {
+            const name = window.prompt('Name of the new constellation:');
+            if (name === null || name.trim() === '') return;
+            try {
+                const response = await fetch('create_constellation.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name.trim() })
+                });
+                const text = await response.text();
+                if (!response.ok) {
+                    const err = (() => { try { return JSON.parse(text).error; } catch (e) { return text || response.statusText; } })();
+                    throw new Error(err);
+                }
+                const data = JSON.parse(text);
+                const newId = data.id;
+                const newName = data.name || name.trim();
+                CONSTELLATIONS.push({ id: newId, name: newName });
+                // Update add form dropdown
+                const addSelect = document.getElementById('node-target-constellation');
+                if (addSelect) {
+                    const opt = document.createElement('option');
+                    opt.value = newId;
+                    opt.textContent = newName;
+                    addSelect.appendChild(opt);
+                }
+                // Update current-constellation header dropdown
+                const currentSelect = document.getElementById('current-constellation');
+                if (currentSelect && !Array.from(currentSelect.options).some(o => o.value === String(newId))) {
+                    const opt = document.createElement('option');
+                    opt.value = newId;
+                    opt.textContent = newName;
+                    currentSelect.appendChild(opt);
+                }
+                // Update inline edit target constellation dropdown if open
+                if (context === 'inline' && inlineNodeId) {
+                    const editSelect = document.getElementById('edit-target-constellation-' + inlineNodeId);
+                    if (editSelect) {
+                        const opt = document.createElement('option');
+                        opt.value = newId;
+                        opt.textContent = newName;
+                        editSelect.appendChild(opt);
+                        editSelect.value = String(newId);
+                    }
+                }
+                if (addSelect && context === 'add') addSelect.value = String(newId);
+                showMessage('Constellation "' + newName + '" created.');
+            } catch (e) {
+                showMessage('Error creating constellation: ' + e.message, 'error');
+            }
+        }
 
         // Show message
         function showMessage(text, type = 'success') {
@@ -222,7 +384,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (loadingMsg) {
                 loadingMsg.textContent = 'Loading nodes...';
             } else {
-                listDiv.innerHTML = '<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10"><div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700"><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'name\')">Name<span id="sort-indicator-name"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'constellation_name\')">Constellation<span id="sort-indicator-constellation_name"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'url\')">URL<span id="sort-indicator-url"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'keywords\')">Keywords<span id="sort-indicator-keywords"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'created_at\')">Created<span id="sort-indicator-created_at"></span></div><div class="col-span-2 text-right">Actions</div></div></div><p class="text-gray-500 p-4" id="loading-message">Loading nodes...</p>';
+                listDiv.innerHTML = '<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10"><div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700"><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'name\')">Name<span id="sort-indicator-name"></span></div><div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'node_type\')">Type<span id="sort-indicator-node_type"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'constellation_name\')">Constellation<span id="sort-indicator-constellation_name"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'url\')">URL<span id="sort-indicator-url"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'keywords\')">Keywords<span id="sort-indicator-keywords"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'created_at\')">Created<span id="sort-indicator-created_at"></span></div><div class="col-span-1 text-right">Actions</div></div></div><p class="text-gray-500 p-4" id="loading-message">Loading nodes...</p>';
             }
 
             // Check if API key exists
@@ -236,9 +398,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
                 
+                const constellationEl = document.getElementById('current-constellation');
+                const constellationId = constellationEl ? constellationEl.value : 'all';
+                const query = constellationId === 'all' ? '?constellation_id=all' : ('?constellation_id=' + encodeURIComponent(constellationId));
                 let response;
                 try {
-                    response = await fetch(API_BASE + '?constellation_id=all', {
+                    response = await fetch(API_BASE + query, {
                         headers: {
                             'X-API-Key': API_KEY
                         },
@@ -358,7 +523,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         const constellationOptions = (typeof CONSTELLATIONS !== 'undefined' ? CONSTELLATIONS : []).map(c =>
                             `<option value="${c.id}" ${(node.constellation_id === c.id) ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
                         ).join('');
-                        // Show inline edit form
+                        const nodeType = node.node_type || 'object';
+                        const targetConstellationOptions = (typeof CONSTELLATIONS !== 'undefined' ? CONSTELLATIONS : []).map(c =>
+                            `<option value="${c.id}" ${(node.target_constellation_id === c.id) ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
+                        ).join('');
+                        const showTarget = nodeType === 'portal';
                         return `
                 <div class="border-2 border-blue-500 rounded p-4 bg-blue-50">
                     <h3 class="font-semibold text-gray-800 mb-4">Edit Node</h3>
@@ -377,6 +546,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 <select id="edit-constellation-${node.id}" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">${constellationOptions}</select>
                             </div>
                             <div>
+                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Node type</label>
+                                <select id="edit-node-type-${node.id}" onchange="toggleTargetConstellation(this.value, 'inline', ${node.id})" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                    <option value="object" ${nodeType === 'object' ? 'selected' : ''}>Object</option>
+                                    <option value="portal" ${nodeType === 'portal' ? 'selected' : ''}>Portal</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
                                 <input type="text" 
                                        id="edit-keywords-${node.id}" 
@@ -384,6 +560,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                        placeholder="comma-separated"
                                        class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                                 <span class="text-xs text-gray-500 mt-1 block">Separate keywords with commas</span>
+                            </div>
+                        </div>
+                        <div id="edit-target-constellation-wrap-${node.id}" class="${showTarget ? '' : 'hidden'}">
+                            <div class="flex flex-wrap items-end gap-2 mb-2">
+                                <div class="min-w-[200px] flex-1">
+                                    <label class="block mb-1.5 text-gray-800 font-medium text-sm">Target Constellation</label>
+                                    <select id="edit-target-constellation-${node.id}" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">${targetConstellationOptions}</select>
+                                </div>
+                                <button type="button" onclick="createNewConstellation('inline', ${node.id})" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">Create New Constellation</button>
                             </div>
                         </div>
                         <div>
@@ -421,12 +606,25 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         ? node.keywords.map(k => escapeHtml(k)).join(', ')
                         : 'No keywords';
                     const constellationName = (node.constellation_name || 'Default');
+                    const nodeType = node.node_type || 'object';
+                    const typeLabel = nodeType === 'portal' ? 'Portal' : 'Object';
+                    const typeBadgeClass = nodeType === 'portal' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700';
+                    const targetConstellationList = allConstellations.length ? allConstellations : CONSTELLATIONS;
+                    const targetConstellationName = (nodeType === 'portal' && node.target_constellation_id != null)
+                        ? (targetConstellationList.find(c => c.id === node.target_constellation_id)?.name || ('#' + node.target_constellation_id))
+                        : '';
+                    const typeDisplay = nodeType === 'portal' && targetConstellationName
+                        ? `<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeBadgeClass}" title="Target: ${escapeHtml(targetConstellationName)}">${escapeHtml(typeLabel)}</span> <span class="text-xs text-gray-500 truncate block" title="${escapeHtml(targetConstellationName)}">→ ${escapeHtml(targetConstellationName)}</span>`
+                        : `<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeBadgeClass}">${escapeHtml(typeLabel)}</span>`;
                     return `
                 <div class="border-b border-gray-300 hover:bg-gray-50 py-2">
                     <div class="grid grid-cols-12 gap-3 items-center text-sm">
                         <div class="col-span-2">
                             <div class="font-semibold text-gray-800 truncate" title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</div>
                             ${descriptionTruncated ? `<div class="text-xs text-gray-500 truncate mt-0.5" title="${escapeHtml(node.description || '')}">${descriptionTruncated}</div>` : ''}
+                        </div>
+                        <div class="col-span-1 text-xs">
+                            ${typeDisplay}
                         </div>
                         <div class="col-span-2 text-xs text-gray-600 truncate" title="${escapeHtml(constellationName)}">${escapeHtml(constellationName)}</div>
                         <div class="col-span-2">
@@ -438,7 +636,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <div class="col-span-2 text-xs text-gray-500">
                             ${createdDate}
                         </div>
-                        <div class="col-span-2 flex gap-2 justify-end">
+                        <div class="col-span-1 flex gap-2 justify-end">
                             <button onclick="editNode(${node.id})" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">
                                 Edit
                             </button>
@@ -458,10 +656,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     headerHTML = headerRow.outerHTML;
                 } else {
                     // Create header if it doesn't exist
-                    headerHTML = `<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
+                                    headerHTML = `<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
                         <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">
                                 Name<span id="sort-indicator-name"></span>
+                            </div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('node_type')">
+                                Type<span id="sort-indicator-node_type"></span>
                             </div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('constellation_name')">
                                 Constellation<span id="sort-indicator-constellation_name"></span>
@@ -473,7 +674,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">
                                 Created<span id="sort-indicator-created_at"></span>
                             </div>
-                            <div class="col-span-2 text-right">Actions</div>
+                            <div class="col-span-1 text-right">Actions</div>
                         </div>
                     </div>`;
                     updateSortIndicators();
@@ -518,7 +719,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Update sort indicators in header
         function updateSortIndicators() {
             // Reset all indicators
-            ['name', 'constellation_name', 'url', 'keywords', 'created_at'].forEach(col => {
+            ['name', 'node_type', 'constellation_name', 'url', 'keywords', 'created_at'].forEach(col => {
                 const indicator = document.getElementById('sort-indicator-' + col);
                 if (indicator) {
                     indicator.innerHTML = '';
@@ -563,8 +764,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         ? node.keywords.some(k => k.toLowerCase().includes(searchQuery))
                         : false;
                     const constellationMatch = (node.constellation_name || '').toLowerCase().includes(searchQuery);
+                    const typeMatch = (node.node_type || 'object').toLowerCase().includes(searchQuery);
                     
-                    return nameMatch || descriptionMatch || urlMatch || keywordsMatch || constellationMatch;
+                    return nameMatch || descriptionMatch || urlMatch || keywordsMatch || constellationMatch || typeMatch;
                 });
             }
             
@@ -594,6 +796,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         case 'constellation_name':
                             aVal = (a.constellation_name || '').toLowerCase();
                             bVal = (b.constellation_name || '').toLowerCase();
+                            break;
+                        case 'node_type':
+                            aVal = (a.node_type || 'object').toLowerCase();
+                            bVal = (b.node_type || 'object').toLowerCase();
                             break;
                         default:
                             return 0;
@@ -676,6 +882,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 
                 const constellationSelect = document.getElementById(`edit-constellation-${nodeId}`);
                 const constellationId = constellationSelect ? parseInt(constellationSelect.value, 10) : node.constellation_id;
+                const nodeTypeEl = document.getElementById(`edit-node-type-${nodeId}`);
+                const nodeType = nodeTypeEl ? nodeTypeEl.value : (node.node_type || 'object');
+                const targetConstellationEl = document.getElementById(`edit-target-constellation-${nodeId}`);
+                const targetConstellationId = (nodeType === 'portal' && targetConstellationEl) ? parseInt(targetConstellationEl.value, 10) : null;
+                
                 const formData = {
                     id: nodeId,
                     name: nodeName,
@@ -686,7 +897,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         .map(k => k.trim())
                         .filter(k => k.length > 0),
                     animation: node.animation, // Preserve existing animation
-                    constellation_id: isNaN(constellationId) ? node.constellation_id : constellationId
+                    constellation_id: isNaN(constellationId) ? node.constellation_id : constellationId,
+                    node_type: nodeType,
+                    target_constellation_id: nodeType === 'portal' && !isNaN(targetConstellationId) && targetConstellationId !== null ? targetConstellationId : null
                 };
                 
                 const updateResponse = await fetch(API_BASE, {
@@ -790,6 +1003,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const urlValue = document.getElementById('node-url').value.trim();
                 const constellationSelect = document.getElementById('node-constellation');
                 const constellationId = constellationSelect ? parseInt(constellationSelect.value, 10) : 0;
+                const nodeTypeEl = document.getElementById('node-type');
+                const nodeType = nodeTypeEl ? nodeTypeEl.value : 'object';
+                const targetConstellationEl = document.getElementById('node-target-constellation');
+                const targetConstellationId = (nodeType === 'portal' && targetConstellationEl) ? parseInt(targetConstellationEl.value, 10) : null;
+                
                 const formData = {
                     name: nodeName,
                     description: document.getElementById('node-description').value.trim() || null,
@@ -799,7 +1017,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         .map(k => k.trim())
                         .filter(k => k.length > 0),
                     animation: animation,
-                    constellation_id: isNaN(constellationId) ? 0 : constellationId
+                    constellation_id: isNaN(constellationId) ? 0 : constellationId,
+                    node_type: nodeType,
+                    target_constellation_id: nodeType === 'portal' && !isNaN(targetConstellationId) && targetConstellationId !== null ? targetConstellationId : null
                 };
 
                 try {
@@ -860,39 +1080,33 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
         });
         
-        // Tab functionality
-        function showTab(tabName) {
-            if (tabName !== 'add' && tabName !== 'list') tabName = 'add';
-            // Hide all tab contents
-            document.getElementById('content-add').classList.add('hidden');
-            document.getElementById('content-list').classList.add('hidden');
-            
-            // Remove active styling from all tabs
-            const tabs = ['add', 'list'];
-            tabs.forEach(tab => {
-                const tabElement = document.getElementById('tab-' + tab);
-                if (tabElement) {
-                    tabElement.classList.remove('border-blue-500', 'text-blue-600');
-                    tabElement.classList.add('border-transparent', 'text-gray-500');
-                }
+        // Tab functionality: tabId is the content element id (e.g. 'content-add') or shorthand ('add'/'list')
+        function showTab(tabId) {
+            const contentId = (tabId === 'add' || tabId === 'list') ? ('content-' + tabId) : tabId;
+            const panel = document.getElementById(contentId);
+            if (!panel) return;
+
+            // Hide all tab-content elements
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+
+            // Show the panel matching tabId
+            panel.classList.remove('hidden');
+
+            // Update 'active' class on navigation buttons (buttons with data-target)
+            document.querySelectorAll('nav button[data-target]').forEach(btn => {
+                const isActive = btn.getAttribute('data-target') === contentId;
+                btn.classList.toggle('active', isActive);
+                btn.classList.toggle('border-blue-500', isActive);
+                btn.classList.toggle('text-blue-600', isActive);
+                btn.classList.toggle('border-transparent', !isActive);
+                btn.classList.toggle('text-gray-500', !isActive);
             });
-            
-            // Show selected tab content
-            document.getElementById('content-' + tabName).classList.remove('hidden');
-            
-            // Add active styling to selected tab
-            const activeTab = document.getElementById('tab-' + tabName);
-            if (activeTab) {
-                activeTab.classList.remove('border-transparent', 'text-gray-500');
-                activeTab.classList.add('border-blue-500', 'text-blue-600');
-            }
-            
-            // If switching to list tab, ensure nodes are loaded
-            if (tabName === 'list') {
+
+            if (contentId === 'content-list') {
                 loadNodes();
             }
-            
-            // Update URL without reload
+
+            const tabName = contentId.replace('content-', '');
             const url = new URL(window.location);
             url.searchParams.set('tab', tabName);
             window.history.pushState({}, '', url);

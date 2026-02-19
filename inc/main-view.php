@@ -140,6 +140,13 @@
     </div>
 
     <div id="canvas-container" class="relative" style="position: relative; width: 100vw; height: 100vh; min-height: 100vh;">
+        <button type="button" id="portal-back-button" aria-label="Back to previous constellation"
+                class="absolute top-4 left-4 z-[80] cursor-pointer"
+                style="display: none; padding: 0.75rem 1.25rem; font-family: var(--font-mono); font-weight: 900; font-size: 0.875rem; letter-spacing: 0.2em; text-transform: uppercase; color: #fff; background: #000; border: 4px solid #fff; box-shadow: 4px 4px 0 #fff; transition: transform 0.1s, box-shadow 0.1s;"
+                onmouseover="this.style.background='#fff'; this.style.color='#000'; this.style.boxShadow='4px 4px 0 #000';"
+                onmouseout="this.style.background='#000'; this.style.color='#fff'; this.style.boxShadow='4px 4px 0 #fff';">
+            ← Back
+        </button>
         <div id="webgl-canvas-wrapper" class="absolute inset-0" style="z-index: 1;"></div>
         <div id="persistent-tooltips" class="absolute inset-0 pointer-events-none z-[150]"></div>
         <div id="node-tooltip" class="absolute px-3 py-2 rounded text-base pointer-events-none z-[200]" style="opacity: 0; visibility: hidden;"></div>
@@ -155,10 +162,10 @@
         <div class="hud-line"></div>
         
         <div class="cursor-pointer group" onclick="location.reload()" title="Reload System">
-            <h2 class="text-xl font-bold mb-1 tracking-tight uppercase group-hover:text-[#00ffcc] transition-colors">
+            <h2 id="constellation-title" class="text-xl font-bold mb-1 tracking-tight uppercase group-hover:text-[#00ffcc] transition-colors">
                 <?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>
             </h2>
-            <p class="opacity-60 italic text-xs"><?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?></p>
+            <p id="constellation-tagline" class="opacity-60 italic text-xs"><?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?></p>
         </div>
 
         <div class="hud-line"></div>

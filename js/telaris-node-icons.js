@@ -70,6 +70,36 @@ function createSparkleNode(material, gm) {
     return group;
 }
 
+function createPortalNode(material, gm) {
+    const group = new THREE.Group();
+
+    // The visible torus
+    let geometry;
+    if (gm && typeof gm.getTorus === 'function') {
+        geometry = gm.getTorus(0.28, 0.04, 16, 32);
+    } else {
+        console.warn("Falling back to direct TorusGeometry - check geometry-manager.js structure.");
+        geometry = new THREE.TorusGeometry(0.28, 0.04, 16, 32);
+    }
+    const mesh = new THREE.Mesh(geometry, material);
+    group.add(mesh);
+
+    // Invisible hitbox so clicking the hole or near the thin wires still triggers the portal
+    const hitboxGeo = new THREE.SphereGeometry(0.5, 8, 8);
+    const hitboxMat = new THREE.MeshBasicMaterial({ 
+        transparent: true, 
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const hitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
+    hitbox.name = "portal_hitbox";
+    group.add(hitbox);
+
+    group.isPortal = true; // For animation (rotate whole portal as one)
+    return group;
+}
+
 const iconFactories = [
     createStarNode,
     createMoonNode,
@@ -78,7 +108,10 @@ const iconFactories = [
     createSparkleNode
 ];
 
-export function createNodeIcon(material, index, geometryManager) {
+export function createNodeIcon(material, index, gm, type = 'object') {
+    if (type === 'portal') {
+        return createPortalNode(material, gm);
+    }
     const choice = (index * 1103515245 + 12345) >>> 0;
-    return iconFactories[choice % 5](material, geometryManager);
+    return iconFactories[choice % iconFactories.length](material, gm);
 }

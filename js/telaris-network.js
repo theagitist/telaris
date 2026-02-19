@@ -20,6 +20,7 @@ class TelarisNetwork {
 
         this.nodes = [];
         this.connections = [];
+        this.navigationStack = [0];
         this.networkManager = new NetworkManager({ fadeSpeed: 0.1 });
         this.geometryManager = new GeometryManager();
         this.raycaster = new THREE.Raycaster();
@@ -275,6 +276,7 @@ class TelarisNetwork {
         });
 
         this.setupMouseInteraction();
+        this.setupBackButton();
         window.addEventListener('resize', () => this.onWindowResize());
         
         this.loadApiKey().then(() => this.loadData());
@@ -511,15 +513,22 @@ class TelarisNetwork {
             
             const nodesJson = await response.json();
             const nodeData = Array.isArray(nodesJson) ? nodesJson : [];
-            
+            if (constellationId !== 0) {
+                console.log('[Telaris] loadData constellation_id=' + constellationId, { nodes: nodeData, nodesCount: nodeData.length });
+            }
             if (nodeData.length > 0) {
                 this.createNodes(nodeData);
                 this.createConnections();
+                if (constellationId !== 0) {
+                    console.log('[Telaris] loadData constellation_id=' + constellationId, { connectionsCount: this.connections.length });
+                }
                 this.warmupPhysics();
+                this.syncNodePositionsFromPhysics();
                 this.fitCameraToNodes();
-                
                 this.nodes.forEach(n => this.scene.add(n));
-                this.connections.forEach(c => this.scene.add(c.mesh));
+                if (this.connections.length > 0) {
+                    this.connections.forEach(c => this.scene.add(c.mesh));
+                }
             } else {
                 this.clearAll();
             }
@@ -529,6 +538,43 @@ class TelarisNetwork {
         } finally {
             const overlay = document.getElementById('loading-overlay');
             if (overlay) overlay.style.display = 'none';
+            this.updateBackButtonVisibility();
+            this.updateConstellationUI(window.TELARIS_CONSTELLATION_ID ?? 0);
+        }
+    }
+
+    setupBackButton() {
+        const btn = document.getElementById('portal-back-button');
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            if (this.navigationStack.length <= 1) return;
+            this.navigationStack.pop(); // Pop current
+            const previousId = this.navigationStack.pop(); // Pop target to reload it
+            this.loadDataForConstellation(previousId);
+        });
+    }
+
+    updateBackButtonVisibility() {
+        const btn = document.getElementById('portal-back-button');
+        if (btn) btn.style.display = this.navigationStack.length > 1 ? 'block' : 'none';
+    }
+
+    async updateConstellationUI(constellationId) {
+        const titleEl = document.getElementById('constellation-title');
+        const taglineEl = document.getElementById('constellation-tagline');
+        if (!titleEl && !taglineEl) return;
+        try {
+            const response = await apiFetch('api/constellations.php');
+            if (!response.ok) return;
+            const list = await response.json();
+            const c = Array.isArray(list) ? list.find(x => x.id === constellationId) : null;
+            if (c) {
+                document.title = c.name || document.title;
+                if (titleEl) titleEl.textContent = c.name || '';
+                if (taglineEl) taglineEl.textContent = c.tagline || '';
+            }
+        } catch (err) {
+            console.warn('Could not update constellation labels:', err);
         }
     }
 
@@ -548,6 +594,118 @@ class TelarisNetwork {
             if (c.mesh.material) c.mesh.material.dispose();
         });
         this.connections = [];
+    }
+
+    /** Get or create a full-screen overlay used for portal transition fade. */
+    getOrCreateTransitionOverlay() {
+        let el = document.getElementById('portal-transition-overlay');
+        if (el) return el;
+        el = document.createElement('div');
+        el.id = 'portal-transition-overlay';
+        el.setAttribute('aria-hidden', 'true');
+        Object.assign(el.style, {
+            position: 'absolute',
+            inset: '0',
+            backgroundColor: '#000',
+            opacity: '0',
+            pointerEvents: 'none',
+            transition: 'opacity 0.25s ease',
+            zIndex: '50'
+        });
+        const container = document.getElementById('canvas-container');
+        if (container) container.appendChild(el);
+        return el;
+    }
+
+    /**
+     * Start 500ms "rev" feedback on the clicked portal, then run the constellation transition.
+     */
+    startPortalRev(clickedNode, targetId) {
+        this._revvingPortal = { node: clickedNode, targetId, startTime: performance.now() };
+    }
+
+    /**
+     * Run portal transition: move camera toward portal over 1s while fading network to 0,
+     * then load new constellation, reset camera, and fade new network in.
+     */
+    runPortalTransition(clickedNode, targetId) {
+        const portalPos = new THREE.Vector3();
+        clickedNode.getWorldPosition(portalPos);
+        this._portalTransition = {
+            phase: 'camera_fade_out',
+            startTime: performance.now(),
+            duration: 1000,
+            portalPos: portalPos.clone(),
+            cameraStart: this.camera.position.clone(),
+            targetStart: this.controls.target.clone(),
+            targetId
+        };
+        this.controls.enabled = false;
+    }
+
+    /**
+     * Fade out current network, fetch and render nodes for targetConstellationId, then fade in.
+     */
+    async transitionToConstellation(targetConstellationId) {
+        const overlay = this.getOrCreateTransitionOverlay();
+        overlay.style.display = 'block';
+        overlay.style.pointerEvents = 'auto';
+        const fadeOut = () => new Promise(resolve => {
+            overlay.style.opacity = '1';
+            setTimeout(resolve, 280);
+        });
+        await fadeOut();
+        try {
+            await this.loadDataForConstellation(targetConstellationId);
+        } catch (err) {
+            console.error('Portal transition failed:', err);
+        }
+        overlay.style.opacity = '0';
+        overlay.style.pointerEvents = 'none';
+        setTimeout(() => { overlay.style.display = 'none'; }, 280);
+    }
+
+    /**
+     * Switch to another constellation: update URL, clear scene, fetch and render new data.
+     */
+    switchConstellation(id) {
+        window.history.pushState({}, '', '?constellation_id=' + id);
+        this.navigationStack.push(id);
+        this.updateBackButtonVisibility();
+        this.clearAll();
+        this.loadDataForConstellation(id);
+    }
+
+    /**
+     * Fetch nodes for a constellation and replace the current network (no fade).
+     */
+    async loadDataForConstellation(constellationId) {
+        if (!window.TELARIS_API_KEY) throw new Error('API key not available');
+        const response = await apiFetch(`api/nodes.php?constellation_id=${constellationId}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const nodesJson = await response.json();
+        const nodeData = Array.isArray(nodesJson) ? nodesJson : [];
+        this.clearAll();
+        if (constellationId !== 0) {
+            console.log('[Telaris] loadDataForConstellation constellation_id=' + constellationId, { nodes: nodeData, nodesCount: nodeData.length });
+        }
+        if (nodeData.length > 0) {
+            this.createNodes(nodeData);
+            this.createConnections();
+            if (constellationId !== 0) {
+                console.log('[Telaris] loadDataForConstellation constellation_id=' + constellationId, { connectionsCount: this.connections.length });
+            }
+            this.warmupPhysics();
+            this.syncNodePositionsFromPhysics();
+            this.fitCameraToNodes();
+            this.nodes.forEach(n => this.scene.add(n));
+            if (this.connections.length > 0) {
+                this.connections.forEach(c => this.scene.add(c.mesh));
+            }
+        }
+        window.TELARIS_CONSTELLATION_ID = constellationId;
+        this.updateBackButtonVisibility();
+        this.updateConstellationUI(constellationId);
     }
 
     setupMouseInteraction() {
@@ -571,11 +729,15 @@ class TelarisNetwork {
             this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
             
             this.raycaster.setFromCamera(this.mouse, this.camera);
-            const intersects = this.raycaster.intersectObjects(this.nodes.filter(n => n.visible), true); 
+            const intersects = this.raycaster.intersectObjects(this.nodes.filter(n => n.visible), true);
             
-            let hoveredNode = null;
             if (intersects.length > 0) {
                 intersects.sort((a, b) => a.distance - b.distance);
+                // console.log('[Telaris] Intersects:', intersects.length, intersects[0].object.name);
+            }
+
+            let hoveredNode = null;
+            if (intersects.length > 0) {
                 for (const hit of intersects) {
                     let obj = hit.object;
                     while (obj && !this.nodes.includes(obj)) obj = obj.parent;
@@ -589,8 +751,12 @@ class TelarisNetwork {
                     this.mainTooltipNodeTimeout = null;
                 }
                 this.networkManager.setFocusedNode(hoveredNode);
-                this.renderer.domElement.style.cursor = hoveredNode.userData.url ? 'pointer' : 'default';
                 
+                const isPortal = hoveredNode.userData.node_type === 'portal' && hoveredNode.userData.target_constellation_id != null;
+                const isObjectWithLink = hoveredNode.userData.node_type === 'object' && hoveredNode.userData.url;
+                
+                this.renderer.domElement.style.cursor = (isPortal || isObjectWithLink) ? 'pointer' : 'default';
+
                 if (this.tooltip && hoveredNode.userData.name) {
                     if (this.tooltipHideTimeout) {
                         clearTimeout(this.tooltipHideTimeout);
@@ -678,11 +844,43 @@ class TelarisNetwork {
             
             if (isDrag) return;
             
-            const clickedNode = getNodeFromEvent(event);
-            if (clickedNode?.userData?.url) {
-                event.preventDefault();
-                event.stopPropagation();
-                this.openInFrame(clickedNode, clickedNode.userData.url);
+            const rect = this.renderer.domElement.getBoundingClientRect();
+            this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            this.raycaster.setFromCamera(this.mouse, this.camera);
+            const intersects = this.raycaster.intersectObjects(this.nodes.filter(n => n.visible), true);
+
+            if (intersects.length > 0) {
+                intersects.sort((a, b) => a.distance - b.distance);
+                
+                let targetNode = null;
+                for (const hit of intersects) {
+                    let obj = hit.object;
+                    while (obj && !this.nodes.includes(obj)) {
+                        obj = obj.parent;
+                    }
+                    if (obj) { targetNode = obj; break; }
+                }
+                
+                if (!targetNode || !targetNode.userData) return;
+                
+                const data = targetNode.userData;
+
+                if (data.node_type === 'portal') {
+                    if (data.target_constellation_id != null) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (window.telarisApp) {
+                            window.telarisApp.startPortalRev(targetNode, data.target_constellation_id);
+                        } else {
+                            window.location.href = `index.php?constellation_id=${data.target_constellation_id}`;
+                        }
+                    }
+                } else if (data.url) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    window.open(data.url, '_blank');
+                }
             }
         }, true);
 
@@ -751,10 +949,21 @@ class TelarisNetwork {
                 const isTap = Math.hypot(t.clientX - touchStartPos.screenX, t.clientY - touchStartPos.screenY) < 10 && (Date.now() - touchStartTime) < 300;
                 
                 if (isTap && touchStartNode) {
-                    if (touchStartNode.userData.url) {
+                    const nodeData = touchStartNode.userData;
+                    if (nodeData.node_type === 'portal' && nodeData.target_constellation_id != null) {
                         e.preventDefault();
-                        this.openInFrame(touchStartNode, touchStartNode.userData.url);
+                        this.startPortalRev(touchStartNode, nodeData.target_constellation_id);
                         this.networkManager.setFocusedNode(null);
+                    } else if (nodeData.node_type === 'object') {
+                        if (nodeData.url) {
+                            e.preventDefault();
+                            this.openInFrame(touchStartNode, nodeData.url);
+                            this.networkManager.setFocusedNode(null);
+                        } else {
+                            if (this.mainTooltipNodeTimeout) clearTimeout(this.mainTooltipNodeTimeout);
+                            this.networkManager.setFocusedNode(touchStartNode);
+                            showTooltipForNode(touchStartNode, touchStartPos.screenX, touchStartPos.screenY);
+                        }
                     } else {
                         if (this.mainTooltipNodeTimeout) clearTimeout(this.mainTooltipNodeTimeout);
                         this.networkManager.setFocusedNode(touchStartNode);
@@ -848,66 +1057,81 @@ class TelarisNetwork {
         const b = { x: halfWidth * 0.9, y: halfHeight * 0.9, z: cameraZ * 0.5 };
 
         nodeData.forEach((data, i) => {
-            const pos = new THREE.Vector3((Math.random() * 2 - 1) * b.x, (Math.random() * 2 - 1) * b.y, (Math.random() * 2 - 1) * b.z);
-            const hue = (i + 0.5) / nodeData.length;
-            const color = new THREE.Color().setHSL(hue, 0.7, 0.75);
+            try {
+                // 1. Define the node data object from the API response first
+                const pos = new THREE.Vector3((Math.random() * 2 - 1) * b.x, (Math.random() * 2 - 1) * b.y, (Math.random() * 2 - 1) * b.z);
+                const hue = (i + 0.5) / nodeData.length;
+                const color = new THREE.Color().setHSL(hue, 0.7, 0.75);
 
-            const material = new THREE.MeshStandardMaterial({
-                color, emissive: color, emissiveIntensity: 0.5,
-                metalness: 0.3, roughness: 0.7, transparent: true, opacity: 0.94
-            });
+                const node = {
+                    name: data.name,
+                    description: data.description,
+                    keywords: data.keywords || [],
+                    url: data.url,
+                    node_type: data.node_type ?? 'object',
+                    target_constellation_id: (data.target_constellation_id !== undefined && data.target_constellation_id !== null && data.target_constellation_id !== '') ? Number(data.target_constellation_id) : null,
+                    originalPosition: pos.clone(),
+                    speed: data.animation.speed / 4,
+                    baseSpeed: data.animation.speed / 4,
+                    phase: data.animation.phase,
+                    animationState: 'normal',
+                    stateTimer: Math.random() * 3000 + 2000,
+                    stateChangeTime: Date.now(),
+                    velocity: new THREE.Vector3(),
+                    colorR: Math.round(color.r * 255),
+                    colorG: Math.round(color.g * 255),
+                    colorB: Math.round(color.b * 255),
+                    cachedMaterials: [],
+                    cachedMoons: []
+                };
 
-            const node = createNodeIcon(material, i, this.geometryManager);
-            node.position.copy(pos);
-            
-            // Random celestial event: 10% chance of a satellite moon
-            if (Math.random() < 0.1) {
-                const moonGeo = this.geometryManager.getSphere(0.05, 8);
-                const moonMat = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
-                const moon = new THREE.Mesh(moonGeo, moonMat);
+                // 2. Create the icon/mesh using that data
+                const material = new THREE.MeshStandardMaterial({
+                    color, emissive: color, emissiveIntensity: 0.5,
+                    metalness: 0.3, roughness: 0.7, transparent: true, opacity: 0.94
+                });
+                const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type);
+                mesh.position.copy(pos);
+                // Assign full node data to mesh so raycaster and logic can read node_type, etc.
+                mesh.userData = node;
                 
-                // Position moon at a distance
-                const orbitRadius = 0.6 + Math.random() * 0.4;
-                moon.position.set(orbitRadius, 0, 0);
-                
-                const moonGroup = new THREE.Group();
-                moonGroup.add(moon);
-                moonGroup.userData = { isMoon: true, speed: 0.5 + Math.random() * 1.5 };
-                moonGroup.raycast = () => {}; // Make moon non-clickable
-                node.add(moonGroup);
+                // Portal mesh tagging: so the animation loop can apply rotation/pulse
+                if (node.node_type === 'portal') {
+                    mesh.isPortal = true;
+                    mesh.userData.baseScale = mesh.scale.x;
+                }
+
+                // Random celestial event: 10% chance of a satellite moon
+                if (Math.random() < 0.1) {
+                    const moonGeo = this.geometryManager.getSphere(0.05, 8);
+                    const moonMat = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+                    const moon = new THREE.Mesh(moonGeo, moonMat);
+                    
+                    const orbitRadius = 0.6 + Math.random() * 0.4;
+                    moon.position.set(orbitRadius, 0, 0);
+                    
+                    const moonGroup = new THREE.Group();
+                    moonGroup.add(moon);
+                    moonGroup.userData = { isMoon: true, speed: 0.5 + Math.random() * 1.5 };
+                    moonGroup.raycast = () => {};
+                    mesh.add(moonGroup);
+                }
+
+                mesh.traverse(c => {
+                    // Skip portal hitbox material so it doesn't get rendered/faded as a sphere
+                    if (c.material && c.name !== 'portal_hitbox') {
+                        const mats = Array.isArray(c.material) ? c.material : [c.material];
+                        mesh.userData.cachedMaterials.push(...mats);
+                    }
+                    if (c.userData?.isMoon) {
+                        mesh.userData.cachedMoons.push(c);
+                    }
+                });
+
+                this.nodes.push(mesh);
+            } catch (err) {
+                console.error('[Telaris] Failed to create node:', data?.name ?? data?.id ?? i, err);
             }
-
-            node.userData = {
-                name: data.name,
-                description: data.description,
-                keywords: data.keywords || [],
-                url: data.url,
-                originalPosition: pos.clone(),
-                speed: data.animation.speed / 4,
-                baseSpeed: data.animation.speed / 4,
-                phase: data.animation.phase,
-                animationState: 'normal',
-                stateTimer: Math.random() * 3000 + 2000,
-                stateChangeTime: Date.now(),
-                velocity: new THREE.Vector3(),
-                colorR: Math.round(color.r * 255),
-                colorG: Math.round(color.g * 255),
-                colorB: Math.round(color.b * 255),
-                cachedMaterials: [],
-                cachedMoons: []
-            };
-
-            node.traverse(c => {
-                if (c.material) {
-                    const mats = Array.isArray(c.material) ? c.material : [c.material];
-                    node.userData.cachedMaterials.push(...mats);
-                }
-                if (c.userData?.isMoon) {
-                    node.userData.cachedMoons.push(c);
-                }
-            });
-
-            this.nodes.push(node);
         });
     }
 
@@ -1077,7 +1301,14 @@ class TelarisNetwork {
             const t = c.thickness * 2.0; 
             c.mesh.scale.set(t, dist, t);
         }
-        this.networkManager.updateVisibility(this.connections, deltaTimeSec);
+        this.networkManager.updateVisibility(this.connections, deltaTimeSec, this._portalFadeInMultiplier);
+    }
+
+    /** Sync node.position from userData.originalPosition so camera fit uses post-physics positions. */
+    syncNodePositionsFromPhysics() {
+        this.nodes.forEach(n => {
+            if (n.userData.originalPosition) n.position.copy(n.userData.originalPosition);
+        });
     }
 
     fitCameraToNodes() {
@@ -1185,7 +1416,10 @@ class TelarisNetwork {
 
             const isActive = (focused === n);
             const isVisible = n.visible && (isActive || this.persistentTooltipNodeToDiv.has(n));
-            const opacity = isVisible ? 1 : (n.visible ? 0.94 : 0);
+            let opacity = isVisible ? 1 : (n.visible ? 0.94 : 0);
+            if (this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null) {
+                opacity *= this._portalFadeInMultiplier;
+            }
 
             // Optimization: iterate cached materials directly
             d.cachedMaterials.forEach(m => {
@@ -1318,6 +1552,71 @@ class TelarisNetwork {
         this.updateRocket(dt);
         this.updateUFO(dt);
         this.updateHUD();
+
+        // Portal meshes: slow rotation + scale pulse; rev up when clicked (500ms then transition)
+        const time = performance.now() * 0.001;
+        const nowMs = performance.now();
+        if (this._revvingPortal && (nowMs - this._revvingPortal.startTime) >= 500) {
+            const { node, targetId } = this._revvingPortal;
+            this._revvingPortal = null;
+            this.runPortalTransition(node, targetId);
+        }
+        this.scene.traverse((object) => {
+            if (object.isPortal) {
+                const isRevving = this._revvingPortal && this._revvingPortal.node === object;
+                const revMult = isRevving ? 4 : 1;
+                const pulseSpeed = isRevving ? 8 : 2.0;
+                const pulseAmp = isRevving ? 0.2 : 0.1;
+                object.rotation.y += 0.01 * revMult;
+                object.rotation.z += 0.005 * revMult;
+                const pulse = 1 + Math.sin(time * pulseSpeed) * pulseAmp;
+                const baseScale = object.userData.baseScale ?? 1;
+                object.scale.set(baseScale * pulse, baseScale * pulse, baseScale * pulse);
+            }
+        });
+
+        // Portal transition: camera move + fade out, then load + fade in
+        if (this._portalTransition) {
+            const tr = this._portalTransition;
+            const now = performance.now();
+            if (tr.phase === 'camera_fade_out') {
+                const t = Math.min((now - tr.startTime) / tr.duration, 1);
+                this.camera.position.lerpVectors(tr.cameraStart, tr.portalPos, t);
+                this.controls.target.lerpVectors(tr.targetStart, tr.portalPos, t);
+                this.nodes.forEach(n => {
+                    (n.userData.cachedMaterials || []).forEach(m => { m.opacity = (1 - t) * 0.94; });
+                });
+                this.connections.forEach(c => {
+                    if (c.mesh.material) c.mesh.material.opacity = (1 - t) * (c.baseOpacity ?? 0.5);
+                });
+                if (t >= 1) {
+                    tr.phase = 'loading';
+                    const app = window.telarisApp || this;
+                    app.loadDataForConstellation(tr.targetId).then(() => {
+                        if (this._portalTransition && this._portalTransition.phase === 'loading') {
+                            this.navigationStack.push(tr.targetId);
+                            this.updateBackButtonVisibility();
+                            this._portalTransition.phase = 'fade_in';
+                            this._portalTransition.fadeInStartTime = performance.now();
+                            this._portalTransition.fadeInDuration = 400;
+                            this._portalFadeInMultiplier = 0;
+                        }
+                    }).catch(err => {
+                        console.error('Portal transition failed:', err);
+                        this._portalTransition = null;
+                        this.controls.enabled = true;
+                    });
+                }
+            } else if (tr.phase === 'fade_in') {
+                const fadeT = Math.min((now - tr.fadeInStartTime) / tr.fadeInDuration, 1);
+                this._portalFadeInMultiplier = fadeT;
+                if (fadeT >= 1) {
+                    this._portalTransition = null;
+                    this._portalFadeInMultiplier = undefined;
+                    this.controls.enabled = true;
+                }
+            }
+        }
 
         if (this.composer) {
             this.renderer.autoClear = false;

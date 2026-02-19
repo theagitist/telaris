@@ -701,6 +701,7 @@ function db_get_nodes(?int $constellationId = null): array {
     if ($constellationId !== null) {
         $stmt = $pdo->prepare("
             SELECT n.id, n.name, n.description, n.url, n.animation, n.created_at, n.constellation_id,
+                   n.node_type, n.target_constellation_id,
                    c.name AS constellation_name
             FROM nodes n
             LEFT JOIN constellations c ON c.id = n.constellation_id
@@ -712,6 +713,7 @@ function db_get_nodes(?int $constellationId = null): array {
     }
     $stmt = $pdo->query("
         SELECT n.id, n.name, n.description, n.url, n.animation, n.created_at, n.constellation_id,
+               n.node_type, n.target_constellation_id,
                c.name AS constellation_name
         FROM nodes n
         LEFT JOIN constellations c ON c.id = n.constellation_id
@@ -751,6 +753,11 @@ function db_format_node(array $node): array {
         $ts = strtotime($createdAt);
         $createdAt = $ts !== false ? gmdate('c', $ts) : $createdAt;
     }
+    $targetConstellationId = null;
+    if (isset($node['target_constellation_id']) && $node['target_constellation_id'] !== null && $node['target_constellation_id'] !== '') {
+        $targetConstellationId = (int)$node['target_constellation_id'];
+    }
+    $nodeType = isset($node['node_type']) && (string)$node['node_type'] !== '' ? (string)$node['node_type'] : 'object';
     return [
         'id' => (int)$node['id'],
         'name' => $node['name'],
@@ -760,7 +767,9 @@ function db_format_node(array $node): array {
         'animation' => $animation,
         'created_at' => $createdAt,
         'constellation_id' => isset($node['constellation_id']) ? (int)$node['constellation_id'] : DEFAULT_CONSTELLATION_ID,
-        'constellation_name' => isset($node['constellation_name']) && (string)$node['constellation_name'] !== '' ? (string)$node['constellation_name'] : 'Default'
+        'constellation_name' => isset($node['constellation_name']) && (string)$node['constellation_name'] !== '' ? (string)$node['constellation_name'] : 'Default',
+        'node_type' => $nodeType,
+        'target_constellation_id' => $targetConstellationId
     ];
 }
 
@@ -806,27 +815,29 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
     }
 }
 
-function db_create_node(string $name, ?string $description, ?string $url, string $animation, int $constellationId = DEFAULT_CONSTELLATION_ID): int {
+function db_create_node(string $name, ?string $description, ?string $url, string $animation, int $constellationId = DEFAULT_CONSTELLATION_ID, string $nodeType = 'object', ?int $targetConstellationId = null): int {
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        INSERT INTO nodes (name, description, url, animation, constellation_id)
-        VALUES (:name, :description, :url, :animation, :constellation_id)
+        INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, target_constellation_id)
+        VALUES (:name, :description, :url, :animation, :constellation_id, :node_type, :target_constellation_id)
     ");
     $stmt->execute([
         ':name' => $name,
         ':description' => $description,
         ':url' => $url,
         ':animation' => $animation,
-        ':constellation_id' => $constellationId
+        ':constellation_id' => $constellationId,
+        ':node_type' => $nodeType,
+        ':target_constellation_id' => $targetConstellationId
     ]);
     return (int)$pdo->lastInsertId();
 }
 
-function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null): void {
+function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null): void {
     $pdo = getDB();
     if ($constellationId !== null) {
         $stmt = $pdo->prepare("
-            UPDATE nodes SET name = :name, description = :description, url = :url, animation = :animation, constellation_id = :constellation_id WHERE id = :id
+            UPDATE nodes SET name = :name, description = :description, url = :url, animation = :animation, constellation_id = :constellation_id, node_type = :node_type, target_constellation_id = :target_constellation_id WHERE id = :id
         ");
         $stmt->execute([
             ':id' => $id,
@@ -834,18 +845,22 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
             ':description' => $description,
             ':url' => $url,
             ':animation' => $animation,
-            ':constellation_id' => $constellationId
+            ':constellation_id' => $constellationId,
+            ':node_type' => $nodeType,
+            ':target_constellation_id' => $targetConstellationId
         ]);
     } else {
         $stmt = $pdo->prepare("
-            UPDATE nodes SET name = :name, description = :description, url = :url, animation = :animation WHERE id = :id
+            UPDATE nodes SET name = :name, description = :description, url = :url, animation = :animation, node_type = :node_type, target_constellation_id = :target_constellation_id WHERE id = :id
         ");
         $stmt->execute([
             ':id' => $id,
             ':name' => $name,
             ':description' => $description,
             ':url' => $url,
-            ':animation' => $animation
+            ':animation' => $animation,
+            ':node_type' => $nodeType,
+            ':target_constellation_id' => $targetConstellationId
         ]);
     }
 }
@@ -911,21 +926,44 @@ function db_delete_keyword(int $id): void {
 // ---------------------------------------------------------------------------
 
 /**
+ * Return connections (shared keywords) between nodes. When $constellationId is set, only nodes
+ * and keywords in that constellation are used so connection node IDs match db_get_nodes($constellationId)
+ * and the O(n²) loop never compares nodes from different constellations (avoids broken/invisible links).
+ *
+ * @param int|null $constellationId If set, only nodes (and keywords) in this constellation; null = all nodes
  * @return list<array{id: int, node1_id: int, node2_id: int, shared_keywords: list<string>, shared_count: int}>
  */
-function db_get_connections(): array {
+function db_get_connections(?int $constellationId = null): array {
     $pdo = getDB();
-    $nodesStmt = $pdo->query("SELECT n.id, n.name FROM nodes n ORDER BY n.id");
-    $nodes = $nodesStmt->fetchAll();
+    if ($constellationId !== null) {
+        $nodesStmt = $pdo->prepare("SELECT n.id, n.name FROM nodes n WHERE n.constellation_id = :constellation_id ORDER BY n.id");
+        $nodesStmt->execute([':constellation_id' => $constellationId]);
+        $nodes = $nodesStmt->fetchAll();
+    } else {
+        $nodesStmt = $pdo->query("SELECT n.id, n.name FROM nodes n ORDER BY n.id");
+        $nodes = $nodesStmt->fetchAll();
+    }
     $nodeKeywords = [];
-    foreach ($nodes as $node) {
-        $stmt = $pdo->prepare("
-            SELECT k.keyword FROM keywords k
-            JOIN node_keywords nk ON k.id = nk.keyword_id
-            WHERE nk.node_id = :node_id
-        ");
-        $stmt->execute([':node_id' => $node['id']]);
-        $nodeKeywords[$node['id']] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    if ($constellationId !== null) {
+        foreach ($nodes as $node) {
+            $stmt = $pdo->prepare("
+                SELECT k.keyword FROM keywords k
+                JOIN node_keywords nk ON k.id = nk.keyword_id
+                WHERE nk.node_id = :node_id AND k.constellation_id = :constellation_id
+            ");
+            $stmt->execute([':node_id' => $node['id'], ':constellation_id' => $constellationId]);
+            $nodeKeywords[$node['id']] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+    } else {
+        foreach ($nodes as $node) {
+            $stmt = $pdo->prepare("
+                SELECT k.keyword FROM keywords k
+                JOIN node_keywords nk ON k.id = nk.keyword_id
+                WHERE nk.node_id = :node_id
+            ");
+            $stmt->execute([':node_id' => $node['id']]);
+            $nodeKeywords[$node['id']] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
     }
     $connections = [];
     $connectionId = 1;
