@@ -594,6 +594,8 @@ class TelarisNetwork {
             if (c.mesh.material) c.mesh.material.dispose();
         });
         this.connections = [];
+        this.networkManager.setFocusedNode(null);
+        if (this.tooltip) this.hideMainTooltip();
     }
 
     /** Get or create a full-screen overlay used for portal transition fade. */
@@ -631,14 +633,21 @@ class TelarisNetwork {
     runPortalTransition(clickedNode, targetId) {
         const portalPos = new THREE.Vector3();
         clickedNode.getWorldPosition(portalPos);
+        
+        // Pre-fetch data immediately
+        const dataPromise = apiFetch(`api/nodes.php?constellation_id=${targetId}`)
+            .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
+            .then(json => Array.isArray(json) ? json : []);
+
         this._portalTransition = {
             phase: 'camera_fade_out',
             startTime: performance.now(),
-            duration: 1000,
+            duration: 800, // Slower speed (was 500)
             portalPos: portalPos.clone(),
             cameraStart: this.camera.position.clone(),
             targetStart: this.controls.target.clone(),
-            targetId
+            targetId,
+            dataPromise
         };
         this.controls.enabled = false;
     }
@@ -679,12 +688,16 @@ class TelarisNetwork {
     /**
      * Fetch nodes for a constellation and replace the current network (no fade).
      */
-    async loadDataForConstellation(constellationId) {
+    async loadDataForConstellation(constellationId, nodeData = null) {
         if (!window.TELARIS_API_KEY) throw new Error('API key not available');
-        const response = await apiFetch(`api/nodes.php?constellation_id=${constellationId}`);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const nodesJson = await response.json();
-        const nodeData = Array.isArray(nodesJson) ? nodesJson : [];
+        
+        if (!nodeData) {
+            const response = await apiFetch(`api/nodes.php?constellation_id=${constellationId}`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const nodesJson = await response.json();
+            nodeData = Array.isArray(nodesJson) ? nodesJson : [];
+        }
+        
         this.clearAll();
         if (constellationId !== 0) {
             console.log('[Telaris] loadDataForConstellation constellation_id=' + constellationId, { nodes: nodeData, nodesCount: nodeData.length });
@@ -1088,9 +1101,10 @@ class TelarisNetwork {
                 // 2. Create the icon/mesh using that data
                 const material = new THREE.MeshStandardMaterial({
                     color, emissive: color, emissiveIntensity: 0.5,
-                    metalness: 0.3, roughness: 0.7, transparent: true, opacity: 0.94
+                    metalness: 0.3, roughness: 0.7, transparent: true, opacity: 0
                 });
                 const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type);
+                mesh.visible = false;
                 mesh.position.copy(pos);
                 // Assign full node data to mesh so raycaster and logic can read node_type, etc.
                 mesh.userData = node;
@@ -1182,6 +1196,7 @@ class TelarisNetwork {
                     });
                     
                     const mesh = new THREE.Mesh(geometry, material);
+                    mesh.visible = false; // Start invisible
                     mesh.renderOrder = 10; // Render after nebulas and nodes
                     this.connections.push({
                         mesh, node1: n1, node2: n2, sharedCount: shared,
@@ -1417,14 +1432,17 @@ class TelarisNetwork {
             const isActive = (focused === n);
             const isVisible = n.visible && (isActive || this.persistentTooltipNodeToDiv.has(n));
             let opacity = isVisible ? 1 : (n.visible ? 0.94 : 0);
+            
+            let forceInvisible = false;
             if (this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null) {
                 opacity *= this._portalFadeInMultiplier;
+                if (this._portalFadeInMultiplier === 0) forceInvisible = true;
             }
 
             // Optimization: iterate cached materials directly
             d.cachedMaterials.forEach(m => {
                 m.opacity = opacity;
-                m.visible = n.visible; // Sync material visibility with node
+                m.visible = n.visible && !forceInvisible; // Sync material visibility with node
                 if (d.colorR !== undefined) {
                     m.color.setRGB((d.colorR / 255) * brightness, (d.colorG / 255) * brightness, (d.colorB / 255) * brightness);
                     if (m.emissive) m.emissive.copy(m.color);
@@ -1540,66 +1558,60 @@ class TelarisNetwork {
         const dt = this._lastFrameTime ? (now - this._lastFrameTime) / 1000 : 0.016;
         this._lastFrameTime = now;
 
-        this.controls.autoRotate = (now - this.lastInteractionAt) > this.idleRotateDelayMs;
-        this.applyForces(dt, 0.05);
-        this.controls.update();
-        this.updatePersistentTooltips();
-        this.updateStarfield(now * 0.001);
-        this.updateNebulas(now * 0.001);
-        this.updateNodes();
-        this.updateConnections(dt);
-        this.updateComet(dt);
-        this.updateRocket(dt);
-        this.updateUFO(dt);
-        this.updateHUD();
-
-        // Portal meshes: slow rotation + scale pulse; rev up when clicked (500ms then transition)
-        const time = performance.now() * 0.001;
-        const nowMs = performance.now();
-        if (this._revvingPortal && (nowMs - this._revvingPortal.startTime) >= 500) {
-            const { node, targetId } = this._revvingPortal;
-            this._revvingPortal = null;
-            this.runPortalTransition(node, targetId);
-        }
-        this.scene.traverse((object) => {
-            if (object.isPortal) {
-                const isRevving = this._revvingPortal && this._revvingPortal.node === object;
-                const revMult = isRevving ? 4 : 1;
-                const pulseSpeed = isRevving ? 8 : 2.0;
-                const pulseAmp = isRevving ? 0.2 : 0.1;
-                object.rotation.y += 0.01 * revMult;
-                object.rotation.z += 0.005 * revMult;
-                const pulse = 1 + Math.sin(time * pulseSpeed) * pulseAmp;
-                const baseScale = object.userData.baseScale ?? 1;
-                object.scale.set(baseScale * pulse, baseScale * pulse, baseScale * pulse);
-            }
-        });
-
-        // Portal transition: camera move + fade out, then load + fade in
+        // 1. Update Portal Transition state FIRST
         if (this._portalTransition) {
             const tr = this._portalTransition;
-            const now = performance.now();
             if (tr.phase === 'camera_fade_out') {
-                const t = Math.min((now - tr.startTime) / tr.duration, 1);
+                const rawT = Math.min((now - tr.startTime) / tr.duration, 1);
+                // Ease In Out Quad
+                const t = rawT < 0.5 ? 2 * rawT * rawT : 1 - Math.pow(-2 * rawT + 2, 2) / 2;
+                
                 this.camera.position.lerpVectors(tr.cameraStart, tr.portalPos, t);
                 this.controls.target.lerpVectors(tr.targetStart, tr.portalPos, t);
+                
+                // Fade OUT current network
                 this.nodes.forEach(n => {
                     (n.userData.cachedMaterials || []).forEach(m => { m.opacity = (1 - t) * 0.94; });
                 });
                 this.connections.forEach(c => {
                     if (c.mesh.material) c.mesh.material.opacity = (1 - t) * (c.baseOpacity ?? 0.5);
                 });
-                if (t >= 1) {
+
+                if (rawT >= 1) {
+                    this.clearAll(); // BLANK SCREEN IMMEDIATELY
                     tr.phase = 'loading';
+                    this._portalFadeInMultiplier = 0; // Force immediate invisibility
+                    
+                    const loadingOverlay = document.getElementById('loading-overlay');
+                    if (loadingOverlay) {
+                        loadingOverlay.style.display = 'flex';
+                        loadingOverlay.style.opacity = '1';
+                        loadingOverlay.style.pointerEvents = 'auto';
+                    }
+                    
                     const app = window.telarisApp || this;
-                    app.loadDataForConstellation(tr.targetId).then(() => {
+                    const dataPromise = tr.dataPromise || apiFetch(`api/nodes.php?constellation_id=${tr.targetId}`).then(r => r.json());
+                    
+                    dataPromise.then((nodeData) => {
                         if (this._portalTransition && this._portalTransition.phase === 'loading') {
-                            this.navigationStack.push(tr.targetId);
-                            this.updateBackButtonVisibility();
-                            this._portalTransition.phase = 'fade_in';
-                            this._portalTransition.fadeInStartTime = performance.now();
-                            this._portalTransition.fadeInDuration = 400;
-                            this._portalFadeInMultiplier = 0;
+                            app.loadDataForConstellation(tr.targetId, nodeData).then(() => {
+                                if (this._portalTransition && this._portalTransition.phase === 'loading') {
+                                    this.navigationStack.push(tr.targetId);
+                                    this.updateBackButtonVisibility();
+                                    
+                                    const loadingOverlay = document.getElementById('loading-overlay');
+                                    if (loadingOverlay) {
+                                        loadingOverlay.style.opacity = '0';
+                                        loadingOverlay.style.pointerEvents = 'none';
+                                        setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
+                                    }
+
+                                    this._portalTransition.phase = 'fade_in';
+                                    this._portalTransition.fadeInStartTime = performance.now();
+                                    this._portalTransition.fadeInDuration = 1000;
+                                    this._portalFadeInMultiplier = 0; // Explicitly 0 before any update occurs
+                                }
+                            });
                         }
                     }).catch(err => {
                         console.error('Portal transition failed:', err);
@@ -1617,6 +1629,46 @@ class TelarisNetwork {
                 }
             }
         }
+
+        // 2. Normal updates (will use the _portalFadeInMultiplier set above)
+        const isZooming = this._portalTransition && this._portalTransition.phase === 'camera_fade_out';
+        
+        if (!isZooming) {
+            this.controls.autoRotate = (now - this.lastInteractionAt) > this.idleRotateDelayMs;
+            this.applyForces(dt, 0.05);
+            this.controls.update();
+        }
+        
+        this.updatePersistentTooltips();
+        this.updateStarfield(now * 0.001);
+        this.updateNebulas(now * 0.001);
+        this.updateNodes();
+        this.updateConnections(dt);
+        this.updateComet(dt);
+        this.updateRocket(dt);
+        this.updateUFO(dt);
+        this.updateHUD();
+
+        // Portal meshes: slow rotation + scale pulse; rev up when clicked
+        const time = now * 0.001;
+        if (this._revvingPortal && (now - this._revvingPortal.startTime) >= 300) {
+            const { node, targetId } = this._revvingPortal;
+            this._revvingPortal = null;
+            this.runPortalTransition(node, targetId);
+        }
+        this.scene.traverse((object) => {
+            if (object.isPortal) {
+                const isRevving = this._revvingPortal && this._revvingPortal.node === object;
+                const revMult = isRevving ? 8 : 1;
+                const pulseSpeed = isRevving ? 12 : 2.0;
+                const pulseAmp = isRevving ? 0.3 : 0.1;
+                object.rotation.y += 0.01 * revMult;
+                object.rotation.z += 0.005 * revMult;
+                const pulse = 1 + Math.sin(time * pulseSpeed) * pulseAmp;
+                const baseScale = object.userData.baseScale ?? 1;
+                object.scale.set(baseScale * pulse, baseScale * pulse, baseScale * pulse);
+            }
+        });
 
         if (this.composer) {
             this.renderer.autoClear = false;

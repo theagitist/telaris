@@ -72,7 +72,12 @@ export class NetworkManager {
             // Sync with material
             const mat = conn.mesh.material;
             let opacity = conn.currentOpacity;
-            if (fadeMultiplier != null) opacity = (conn.baseOpacity ?? 0.5) * fadeMultiplier;
+            
+            // Scale by fadeMultiplier if provided (e.g. during portal fade-in)
+            if (fadeMultiplier !== null && fadeMultiplier !== undefined) {
+                opacity *= fadeMultiplier;
+            }
+            
             mat.opacity = opacity;
             conn.mesh.visible = opacity > this.visibilityThreshold;
 
