@@ -141,11 +141,12 @@
 
     <div id="canvas-container" class="relative" style="position: relative; width: 100vw; height: 100vh; min-height: 100vh;">
         <button type="button" id="portal-back-button" aria-label="Back to previous constellation"
-                class="absolute top-4 left-4 z-[80] cursor-pointer"
-                style="display: none; padding: 0.75rem 1.25rem; font-family: var(--font-mono); font-weight: 900; font-size: 0.875rem; letter-spacing: 0.2em; text-transform: uppercase; color: #fff; background: #000; border: 4px solid #fff; box-shadow: 4px 4px 0 #fff; transition: transform 0.1s, box-shadow 0.1s;"
-                onmouseover="this.style.background='#fff'; this.style.color='#000'; this.style.boxShadow='4px 4px 0 #000';"
-                onmouseout="this.style.background='#000'; this.style.color='#fff'; this.style.boxShadow='4px 4px 0 #fff';">
-            ← Back
+                class="absolute top-5 right-5 z-[80] cursor-pointer"
+                style="display: none; padding: 0.5rem 0.75rem; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: #00ffcc; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 2px; backdrop-filter: blur(4px); transition: all 0.2s;"
+                onmouseover="this.style.background='rgba(0, 255, 204, 0.1)'; this.style.borderColor='rgba(0, 255, 204, 0.8)';"
+                onmouseout="this.style.background='rgba(0, 0, 0, 0.4)'; this.style.borderColor='rgba(0, 255, 204, 0.3)';"
+        >
+            ← BACK
         </button>
         <div id="webgl-canvas-wrapper" class="absolute inset-0" style="z-index: 1;"></div>
         <div id="persistent-tooltips" class="absolute inset-0 pointer-events-none z-[150]"></div>

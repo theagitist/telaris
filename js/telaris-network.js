@@ -20,7 +20,7 @@ class TelarisNetwork {
 
         this.nodes = [];
         this.connections = [];
-        this.navigationStack = [0];
+        this.navigationStack = [window.TELARIS_CONSTELLATION_ID ?? 0];
         this.networkManager = new NetworkManager({ fadeSpeed: 0.1 });
         this.geometryManager = new GeometryManager();
         this.raycaster = new THREE.Raycaster();
@@ -548,8 +548,9 @@ class TelarisNetwork {
         if (!btn) return;
         btn.addEventListener('click', () => {
             if (this.navigationStack.length <= 1) return;
-            this.navigationStack.pop(); // Pop current
-            const previousId = this.navigationStack.pop(); // Pop target to reload it
+            this.navigationStack.pop(); // Remove current ID
+            const previousId = this.navigationStack[this.navigationStack.length - 1]; // Peek at the target ID
+            this.updateBackButtonVisibility();
             this.loadDataForConstellation(previousId);
         });
     }
@@ -642,12 +643,14 @@ class TelarisNetwork {
         this._portalTransition = {
             phase: 'camera_fade_out',
             startTime: performance.now(),
-            duration: 800, // Slower speed (was 500)
-            portalPos: portalPos.clone(),
+            duration: 800,
+            cameraEnd: portalPos.clone(),
+            targetEnd: portalPos.clone(),
             cameraStart: this.camera.position.clone(),
             targetStart: this.controls.target.clone(),
             targetId,
-            dataPromise
+            dataPromise,
+            targetFadeInDuration: 1000 // Slower fade in for portals
         };
         this.controls.enabled = false;
     }
@@ -1566,8 +1569,8 @@ class TelarisNetwork {
                 // Ease In Out Quad
                 const t = rawT < 0.5 ? 2 * rawT * rawT : 1 - Math.pow(-2 * rawT + 2, 2) / 2;
                 
-                this.camera.position.lerpVectors(tr.cameraStart, tr.portalPos, t);
-                this.controls.target.lerpVectors(tr.targetStart, tr.portalPos, t);
+                this.camera.position.lerpVectors(tr.cameraStart, tr.cameraEnd, t);
+                this.controls.target.lerpVectors(tr.targetStart, tr.targetEnd, t);
                 
                 // Fade OUT current network
                 this.nodes.forEach(n => {
@@ -1608,7 +1611,7 @@ class TelarisNetwork {
 
                                     this._portalTransition.phase = 'fade_in';
                                     this._portalTransition.fadeInStartTime = performance.now();
-                                    this._portalTransition.fadeInDuration = 1000;
+                                    this._portalTransition.fadeInDuration = tr.targetFadeInDuration || 1000;
                                     this._portalFadeInMultiplier = 0; // Explicitly 0 before any update occurs
                                 }
                             });

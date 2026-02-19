@@ -15,7 +15,8 @@ let navigationStack;
 
 function initTelaris() {
     try {
-        navigationStack = [];
+        const initialId = window.TELARIS_CONSTELLATION_ID ?? 0;
+        navigationStack = [initialId];
         const canvasContainer = document.getElementById('canvas-container');
         if (!canvasContainer) {
             console.error('Canvas container not found!');
