@@ -85,7 +85,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
     return [
         'en' => [
             'name' => $enName, 'description' => $enDescription, 'iframe_back_text' => 'Go back', 
-            'alert_message' => "Close this window when you're done to go back to {APPNAME}.", 
+            'alert_message' => "You are traversing to the Planar Dimension\nTo explore, zoom and scroll in all directions\nClose the browser window to return to the Cosmic Dimension.", 
             'edit_button_text' => 'Edit', 'loading_text' => 'Loading',
             'back_button_text' => 'Back', 'system_online_text' => 'System: Online',
             'reload_system_text' => 'Reload System', 'scan_system_text' => 'SCAN SYSTEM...',
@@ -95,7 +95,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
         ],
         'es' => [
             'name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 
-            'alert_message' => 'Cierra esta ventana cuando termines para volver a {APPNAME}.', 
+            'alert_message' => "Estás cruzando hacia la Dimensión Planar\nPara explorar, haz zoom y desplázate en todas las direcciones\nCierra la ventana del navegador para volver a la Dimensión Cósmica.", 
             'edit_button_text' => 'Editar', 'loading_text' => 'Cargando',
             'back_button_text' => 'Volver', 'system_online_text' => 'Sistema: En línea',
             'reload_system_text' => 'Recargar Sistema', 'scan_system_text' => 'ESCANEAR SISTEMA...',
@@ -105,7 +105,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
         ],
         'pt' => [
             'name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 
-            'alert_message' => 'Feche esta janela quando terminar para voltar a {APPNAME}.', 
+            'alert_message' => "Você está atravessando para a Dimensão Planar\nPara explorar, use o zoom e role em todas as direções\nFeche a janela do navegador para retornar à Dimensão Cósmica.", 
             'edit_button_text' => 'Editar', 'loading_text' => 'Carregando',
             'back_button_text' => 'Voltar', 'system_online_text' => 'Sistema: Online',
             'reload_system_text' => 'Recarregar Sistema', 'scan_system_text' => 'ESCANEAR SISTEMA...',

@@ -71,7 +71,7 @@ class TelarisNetwork {
         const g = (d && d.colorG !== undefined) ? d.colorG : 60;
         const b = (d && d.colorB !== undefined) ? d.colorB : 80;
         const app = typeof window.TELARIS_APP_NAME === 'string' ? window.TELARIS_APP_NAME : 'Telaris';
-        let alertMsg = typeof window.TELARIS_ALERT_MESSAGE === 'string' ? window.TELARIS_ALERT_MESSAGE : "Close this window when you're done to go back to " + app + ".";
+        let alertMsg = typeof window.TELARIS_ALERT_MESSAGE === 'string' ? window.TELARIS_ALERT_MESSAGE : "You are traversing to the Planar Dimension\nTo explore, zoom and scroll in all directions\nClose the browser window to return to the Cosmic Dimension.";
         alertMsg = alertMsg.replace(/\{APPNAME\}/g, app);
         const frameUrl = 'utils/frame.php?url=' + encodeURIComponent(url) + 
             '&r=' + r + '&g=' + g + '&b=' + b + 
@@ -940,7 +940,7 @@ class TelarisNetwork {
                 } else if (data.url) {
                     event.preventDefault();
                     event.stopPropagation();
-                    window.open(data.url, '_blank');
+                    this.openInFrame(targetNode, data.url);
                 }
             }
         }, true);

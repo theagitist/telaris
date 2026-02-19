@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Simplified Launch Interface: clean text, countdown, and a minimalist SVG rocket.
+ * Simplified Launch Interface: clean text and countdown.
  */
 
 $url = isset($_GET['url']) ? trim((string) $_GET['url']) : '';
@@ -10,6 +10,8 @@ $r = isset($_GET['r']) ? (int) $_GET['r'] : 0;
 $g = isset($_GET['g']) ? (int) $_GET['g'] : 255;
 $b = isset($_GET['b']) ? (int) $_GET['b'] : 204;
 $nodeName = isset($_GET['node_name']) ? trim((string) $_GET['node_name']) : 'System';
+$appName = isset($_GET['app']) ? trim((string) $_GET['app']) : 'Telaris';
+$alertMsg = isset($_GET['alert_msg']) ? trim((string) $_GET['alert_msg']) : 'Close this window to come back';
 
 $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>
@@ -18,7 +20,7 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Launching: <?php echo htmlspecialchars($nodeName); ?></title>
+    <title>Launching: <?php echo htmlspecialchars($nodeName); ?> - <?php echo htmlspecialchars($appName); ?></title>
     <style>
         :root {
             --accent: rgb(<?php echo "$r,$g,$b"; ?>);
@@ -41,6 +43,7 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
         .content {
             margin-bottom: 3rem;
             z-index: 10;
+            max-width: 80%;
         }
 
         .title {
@@ -56,6 +59,7 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
             text-transform: uppercase;
             letter-spacing: 0.05rem;
             margin-bottom: 2.5rem;
+            line-height: 1.4;
         }
 
         .countdown {
@@ -63,46 +67,6 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
             font-weight: bold;
             color: var(--accent);
             text-shadow: 0 0 20px var(--accent);
-        }
-
-        /* Rocket Animation */
-        .rocket-stage {
-            position: relative;
-            width: 60px;
-            height: 120px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .rocket-svg {
-            width: 40px;
-            height: auto;
-            transition: transform 0.8s cubic-bezier(0.45, 0, 0.55, 1);
-        }
-
-        body.launched .rocket-svg {
-            transform: translateY(-130vh);
-        }
-
-        .exhaust-flame {
-            width: 12px;
-            height: 40px;
-            background: linear-gradient(to bottom, var(--accent), transparent);
-            border-radius: 0 0 100px 100px;
-            margin-top: 4px;
-            opacity: 0;
-            filter: blur(4px);
-        }
-
-        body.shaking .exhaust-flame {
-            opacity: 1;
-            animation: flicker 0.1s infinite;
-        }
-
-        @keyframes flicker {
-            0%, 100% { height: 35px; opacity: 0.7; transform: scaleX(1); }
-            50% { height: 50px; opacity: 1; transform: scaleX(1.2); }
         }
 
         .footer-note {
@@ -118,20 +82,8 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
 <body>
     <div class="content">
         <div class="title">Launching <?php echo htmlspecialchars($nodeName); ?></div>
-        <div class="subtitle">Close this window to come back</div>
-        <div class="countdown" id="cd">3</div>
-    </div>
-
-    <div class="rocket-stage">
-        <svg class="rocket-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <!-- Rocket Body & Fins -->
-            <path fill="#ffffff" d="M12,2C12,2 7,5.66 7,12C7,14 7,15 7,15L5,17V19L10,18L12,22L14,18L19,19V17L17,15C17,15 17,14 17,12C17,5.66 12,2 12,2" />
-            <!-- Nose Cone (Red Tip) -->
-            <path fill="#ff4444" d="M12,2C12,2 9.5,3.8 8.5,6.5C10.5,5.5 13.5,5.5 15.5,6.5C14.5,3.8 12,2 12,2Z" />
-            <!-- Window -->
-            <circle fill="#333333" cx="12" cy="12" r="2" />
-        </svg>
-        <div class="exhaust-flame"></div>
+        <div class="subtitle"><?php echo nl2br(htmlspecialchars($alertMsg)); ?></div>
+        <div class="countdown" id="cd">5</div>
     </div>
 
     <div class="footer-note">
@@ -142,22 +94,18 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
         (function() {
             const url = <?php echo $urlJson; ?>;
             const cdEl = document.getElementById('cd');
-            let count = 3;
+            let count = 5;
 
             const timer = setInterval(() => {
                 count--;
                 if (count > 0) {
                     cdEl.innerText = count;
-                } else if (count === 0) {
-                    cdEl.innerText = "GO";
-                    document.body.classList.add('shaking');
                 } else {
                     clearInterval(timer);
-                    document.body.classList.remove('shaking');
-                    document.body.classList.add('launched');
+                    cdEl.innerText = "GO";
                     setTimeout(() => {
                         window.location.href = url;
-                    }, 600);
+                    }, 300);
                 }
             }, 1000);
         })();
