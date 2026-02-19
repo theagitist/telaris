@@ -87,6 +87,11 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
             z-index: 100;
             pointer-events: none;
             opacity: 0;
+            transition: opacity 0.4s ease-in;
+        }
+
+        body.traversing {
+            opacity: 0;
             transition: opacity 0.8s ease-in-out;
         }
 
@@ -162,20 +167,20 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
                     torus.rotation.y += 0.007;
                 } else {
                     const elapsed = performance.now() - launchStartTime;
-                    const duration = 800; // ms
+                    const duration = 1000; // ms
                     const progress = Math.min(elapsed / duration, 1);
                     
-                    // Ease-in progress
-                    const easeProgress = progress * progress;
+                    // Cubic ease-in for more dramatic acceleration
+                    const easeProgress = progress * progress * progress;
                     
-                    // Zoom camera into/through the torus
-                    camera.position.z = 5 - (easeProgress * 6);
+                    // Zoom camera deep through the torus
+                    camera.position.z = 5 - (easeProgress * 15);
                     
-                    // Spin up the torus
-                    torus.rotation.x += 0.005 + easeProgress * 0.1;
-                    torus.rotation.y += 0.007 + easeProgress * 0.15;
+                    // Rapidly spin up the torus
+                    torus.rotation.x += 0.005 + easeProgress * 0.2;
+                    torus.rotation.y += 0.007 + easeProgress * 0.3;
                     
-                    // Fade out torus towards the end
+                    // Fade out torus during warp
                     torus.material.opacity = 0.15 * (1 - easeProgress);
                 }
                 
@@ -198,18 +203,23 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
                     clearInterval(timer);
                     cdEl.innerText = "GO";
                     
-                    // Start warp effect
+                    // Start immersive warp effect
                     isLaunching = true;
                     launchStartTime = performance.now();
                     
-                    // Fade UI and background to black
-                    overlay.style.opacity = '1';
-                    content.style.transition = 'opacity 0.5s ease-out';
+                    // Phase 1: Rapid UI fade
+                    content.style.transition = 'opacity 0.3s ease-out';
                     content.style.opacity = '0';
                     
+                    // Phase 2: Fade entire viewport to black during the zoom
+                    setTimeout(() => {
+                        document.body.classList.add('traversing');
+                    }, 200);
+                    
+                    // Final navigation after the warp completes
                     setTimeout(() => {
                         window.location.href = url;
-                    }, 850);
+                    }, 1050);
                 }
             }, 1000);
         })();
