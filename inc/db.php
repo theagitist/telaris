@@ -63,7 +63,7 @@ function getDefaultApiKey(?PDO $pdo = null): ?string {
 // ---------------------------------------------------------------------------
 
 /** Column keys for project_info (one row per locale). */
-const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text'];
+const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text', 'back_button_text', 'system_online_text', 'reload_system_text', 'scan_system_text', 'clear_scan_text', 'systems_label_text', 'hyperlinks_label_text', 'initialize_auth_text', 'admin_label_text', 'logout_label_text'];
 
 /** Locales supported (one row per locale in project_info). */
 const PROJECT_INFO_LOCALES = ['en', 'es', 'pt'];
@@ -83,9 +83,36 @@ function db_has_project_table(): bool {
  */
 function db_default_project_info_rows(string $enName = 'Telaris', string $enDescription = 'Weaving memory'): array {
     return [
-        'en' => ['name' => $enName, 'description' => $enDescription, 'iframe_back_text' => 'Go back', 'alert_message' => "Close this window when you're done to go back to {APPNAME}.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading'],
-        'es' => ['name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 'alert_message' => 'Cierra esta ventana cuando termines para volver a {APPNAME}.', 'edit_button_text' => 'Editar', 'loading_text' => 'Cargando'],
-        'pt' => ['name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 'alert_message' => 'Feche esta janela quando terminar para voltar a {APPNAME}.', 'edit_button_text' => 'Editar', 'loading_text' => 'Carregando'],
+        'en' => [
+            'name' => $enName, 'description' => $enDescription, 'iframe_back_text' => 'Go back', 
+            'alert_message' => "Close this window when you're done to go back to {APPNAME}.", 
+            'edit_button_text' => 'Edit', 'loading_text' => 'Loading',
+            'back_button_text' => 'Back', 'system_online_text' => 'System: Online',
+            'reload_system_text' => 'Reload System', 'scan_system_text' => 'SCAN SYSTEM...',
+            'clear_scan_text' => 'Clear Scan', 'systems_label_text' => 'Systems:',
+            'hyperlinks_label_text' => 'Hyperlinks:', 'initialize_auth_text' => 'Initialize Auth',
+            'admin_label_text' => 'Admin', 'logout_label_text' => 'Logout'
+        ],
+        'es' => [
+            'name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 
+            'alert_message' => 'Cierra esta ventana cuando termines para volver a {APPNAME}.', 
+            'edit_button_text' => 'Editar', 'loading_text' => 'Cargando',
+            'back_button_text' => 'Volver', 'system_online_text' => 'Sistema: En línea',
+            'reload_system_text' => 'Recargar Sistema', 'scan_system_text' => 'ESCANEAR SISTEMA...',
+            'clear_scan_text' => 'Limpiar Escaneo', 'systems_label_text' => 'Sistemas:',
+            'hyperlinks_label_text' => 'Hipervínculos:', 'initialize_auth_text' => 'Inicializar Autenticación',
+            'admin_label_text' => 'Admin', 'logout_label_text' => 'Cerrar sesión'
+        ],
+        'pt' => [
+            'name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 
+            'alert_message' => 'Feche esta janela quando terminar para voltar a {APPNAME}.', 
+            'edit_button_text' => 'Editar', 'loading_text' => 'Carregando',
+            'back_button_text' => 'Voltar', 'system_online_text' => 'Sistema: Online',
+            'reload_system_text' => 'Recarregar Sistema', 'scan_system_text' => 'ESCANEAR SISTEMA...',
+            'clear_scan_text' => 'Limpar Varredura', 'systems_label_text' => 'Sistemas:',
+            'hyperlinks_label_text' => 'Hiperlinks:', 'initialize_auth_text' => 'Inicializar Autenticação',
+            'admin_label_text' => 'Admin', 'logout_label_text' => 'Sair'
+        ],
     ];
 }
 
@@ -98,18 +125,22 @@ function db_ensure_project_info_table(): void {
  */
 function db_insert_default_project_info_rows(PDO $pdo, string $enName = 'Telaris', string $enDescription = 'Weaving memory'): void {
     $defaults = db_default_project_info_rows($enName, $enDescription);
-    $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text) VALUES (:locale, :name, :description, :iframe_back_text, :alert_message, :edit_button_text, :loading_text) ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description), iframe_back_text = VALUES(iframe_back_text), alert_message = VALUES(alert_message), edit_button_text = VALUES(edit_button_text), loading_text = VALUES(loading_text)");
+    $keys = PROJECT_INFO_KEYS;
+    $cols = implode(', ', $keys);
+    $placeholders = ':' . implode(', :', $keys);
+    $updates = [];
+    foreach ($keys as $k) {
+        $updates[] = "$k = VALUES($k)";
+    }
+    $updateStr = implode(', ', $updates);
+    
+    $stmt = $pdo->prepare("INSERT INTO project_info (locale, $cols) VALUES (:locale, $placeholders) ON DUPLICATE KEY UPDATE $updateStr");
     foreach (PROJECT_INFO_LOCALES as $locale) {
-        $d = $defaults[$locale];
-        $stmt->execute([
-            ':locale' => $locale,
-            ':name' => $d['name'],
-            ':description' => $d['description'],
-            ':iframe_back_text' => $d['iframe_back_text'],
-            ':alert_message' => $d['alert_message'],
-            ':edit_button_text' => $d['edit_button_text'],
-            ':loading_text' => $d['loading_text'],
-        ]);
+        $params = [':locale' => $locale];
+        foreach ($keys as $k) {
+            $params[':' . $k] = $defaults[$locale][$k] ?? '';
+        }
+        $stmt->execute($params);
     }
 }
 
@@ -148,7 +179,7 @@ function db_get_project_info(): ?array {
 function db_upsert_project_info(string $name, string $description): void {
     db_ensure_project_info_table();
     $pdo = getDB();
-    $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text) VALUES ('en', :name, :description, 'Go back', 'Close this window when you''re done to go back to {APPNAME}.', 'Edit', 'Loading') ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description)");
+    $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description) VALUES ('en', :name, :description) ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description)");
     $stmt->execute([':name' => $name, ':description' => $description]);
 }
 
@@ -170,32 +201,30 @@ function db_get_project_info_all_locales(): ?array {
     try {
         db_ensure_project_info_table();
         $pdo = getDB();
-        $stmt = $pdo->query("SELECT locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text FROM project_info");
+        $stmt = $pdo->query("SELECT * FROM project_info");
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $out = [
-            'name' => 'Telaris', 'description' => '', 'iframe_back_text' => 'Go back',
-            'alert_message' => "Close this window when you're done to go back to {APPNAME}.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading',
-            'name_es' => '', 'name_pt' => '', 'description_es' => '', 'description_pt' => '',
-            'iframe_back_text_es' => '', 'iframe_back_text_pt' => '',
-            'alert_message_es' => '', 'alert_message_pt' => '', 'edit_button_text_es' => '', 'edit_button_text_pt' => '',
-            'loading_text_es' => '', 'loading_text_pt' => '',
-        ];
+        $out = [];
+        // Initialize with English defaults first
+        $defaults = db_default_project_info_rows();
+        foreach ($defaults['en'] as $key => $val) {
+            $out[$key] = $val;
+        }
+        foreach (['es', 'pt'] as $l) {
+            foreach ($defaults[$l] as $key => $val) {
+                $out[$key . '_' . $l] = $val;
+            }
+        }
+
         foreach ($rows as $r) {
             $locale = $r['locale'] ?? 'en';
-            if ($locale === 'en') {
-                $out['name'] = (string) ($r['name'] ?? '');
-                $out['description'] = (string) ($r['description'] ?? '');
-                $out['iframe_back_text'] = (string) ($r['iframe_back_text'] ?? '');
-                $out['alert_message'] = (string) ($r['alert_message'] ?? '');
-                $out['edit_button_text'] = (string) ($r['edit_button_text'] ?? 'Edit');
-                $out['loading_text'] = (string) ($r['loading_text'] ?? 'Loading');
-            } else {
-                $out['name_' . $locale] = (string) ($r['name'] ?? '');
-                $out['description_' . $locale] = (string) ($r['description'] ?? '');
-                $out['iframe_back_text_' . $locale] = (string) ($r['iframe_back_text'] ?? '');
-                $out['alert_message_' . $locale] = (string) ($r['alert_message'] ?? '');
-                $out['edit_button_text_' . $locale] = (string) ($r['edit_button_text'] ?? 'Editar');
-                $out['loading_text_' . $locale] = (string) ($r['loading_text'] ?? 'Cargando');
+            foreach (PROJECT_INFO_KEYS as $key) {
+                if (isset($r[$key])) {
+                    if ($locale === 'en') {
+                        $out[$key] = (string) $r[$key];
+                    } else {
+                        $out[$key . '_' . $locale] = (string) $r[$key];
+                    }
+                }
             }
         }
         return $out;
@@ -216,41 +245,33 @@ function db_get_project_info_for_locale(string $locale): array {
             $locale = 'en';
         }
         $pdo = getDB();
-        $stmt = $pdo->prepare("SELECT name, description, iframe_back_text, alert_message, edit_button_text, loading_text FROM project_info WHERE locale = :locale LIMIT 1");
+        $stmt = $pdo->prepare("SELECT * FROM project_info WHERE locale = :locale LIMIT 1");
         $stmt->execute([':locale' => $locale]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        $enStmt = $pdo->prepare("SELECT name, description, iframe_back_text, alert_message, edit_button_text, loading_text FROM project_info WHERE locale = 'en' LIMIT 1");
+        
+        $enStmt = $pdo->prepare("SELECT * FROM project_info WHERE locale = 'en' LIMIT 1");
         $enStmt->execute();
         $enRow = $enStmt->fetch(PDO::FETCH_ASSOC);
-        $en = [
-            'name' => (string) ($enRow['name'] ?? 'Telaris'),
-            'description' => (string) ($enRow['description'] ?? 'Weaving memory'),
-            'iframe_back_text' => (string) ($enRow['iframe_back_text'] ?? 'Go back'),
-            'alert_message' => (string) ($enRow['alert_message'] ?? "Close this window when you're done to go back to {APPNAME}."),
-            'edit_button_text' => (string) ($enRow['edit_button_text'] ?? 'Edit'),
-            'loading_text' => (string) ($enRow['loading_text'] ?? 'Loading'),
-        ];
-        if ($row) {
-            $out = [
-                'name' => (string) ($row['name'] ?? '') ?: $en['name'],
-                'description' => (string) ($row['description'] ?? '') ?: $en['description'],
-                'iframe_back_text' => (string) ($row['iframe_back_text'] ?? '') ?: $en['iframe_back_text'],
-                'alert_message' => (string) ($row['alert_message'] ?? '') ?: $en['alert_message'],
-                'edit_button_text' => (string) ($row['edit_button_text'] ?? '') ?: $en['edit_button_text'],
-                'loading_text' => (string) ($row['loading_text'] ?? '') ?: $en['loading_text'],
-            ];
-            return $out;
+        
+        $defaults = db_default_project_info_rows();
+        $enDefault = $defaults['en'];
+        
+        $out = [];
+        foreach (PROJECT_INFO_KEYS as $key) {
+            $val = '';
+            if ($row && isset($row[$key]) && (string)$row[$key] !== '') {
+                $val = (string)$row[$key];
+            } elseif ($enRow && isset($enRow[$key]) && (string)$enRow[$key] !== '') {
+                $val = (string)$enRow[$key];
+            } else {
+                $val = $enDefault[$key] ?? '';
+            }
+            $out[$key] = $val;
         }
-        return $en;
+        return $out;
     } catch (PDOException $e) {
-        return [
-            'name' => 'Telaris',
-            'description' => 'Weaving memory',
-            'iframe_back_text' => 'Go back',
-            'alert_message' => "Close this window when you're done to go back to {APPNAME}.",
-            'edit_button_text' => 'Edit',
-            'loading_text' => 'Loading',
-        ];
+        $defaults = db_default_project_info_rows();
+        return $defaults['en'];
     }
 }
 
@@ -260,28 +281,32 @@ function db_get_project_info_for_locale(string $locale): array {
 function db_update_project_settings_with_locales(array $en, array $es, array $pt): void {
     db_ensure_project_info_table();
     $pdo = getDB();
-    $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text) VALUES (:locale, :name, :description, :iframe_back_text, :alert_message, :edit_button_text, :loading_text) ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description), iframe_back_text = VALUES(iframe_back_text), alert_message = VALUES(alert_message), edit_button_text = VALUES(edit_button_text), loading_text = VALUES(loading_text)");
+    
+    $keys = PROJECT_INFO_KEYS;
+    $cols = implode(', ', $keys);
+    $placeholders = ':' . implode(', :', $keys);
+    $updates = [];
+    foreach ($keys as $k) {
+        $updates[] = "$k = VALUES($k)";
+    }
+    $updateStr = implode(', ', $updates);
+    
+    $stmt = $pdo->prepare("INSERT INTO project_info (locale, $cols) VALUES (:locale, $placeholders) ON DUPLICATE KEY UPDATE $updateStr");
+    
     $locales = ['en' => $en, 'es' => $es, 'pt' => $pt];
     $defaults = db_default_project_info_rows();
+    
     foreach (PROJECT_INFO_LOCALES as $locale) {
         $data = $locales[$locale] ?? [];
-        $d = [
-            'name' => (string) ($data['name'] ?? '') ?: $defaults[$locale]['name'],
-            'description' => (string) ($data['description'] ?? '') ?: $defaults[$locale]['description'],
-            'iframe_back_text' => (string) ($data['iframe_back_text'] ?? '') ?: $defaults[$locale]['iframe_back_text'],
-            'alert_message' => (string) ($data['alert_message'] ?? '') ?: $defaults[$locale]['alert_message'],
-            'edit_button_text' => (string) ($data['edit_button_text'] ?? '') ?: $defaults[$locale]['edit_button_text'],
-            'loading_text' => (string) ($data['loading_text'] ?? '') ?: $defaults[$locale]['loading_text'],
-        ];
-        $stmt->execute([
-            ':locale' => $locale,
-            ':name' => $d['name'],
-            ':description' => $d['description'],
-            ':iframe_back_text' => $d['iframe_back_text'],
-            ':alert_message' => $d['alert_message'],
-            ':edit_button_text' => $d['edit_button_text'],
-            ':loading_text' => $d['loading_text'],
-        ]);
+        $params = [':locale' => $locale];
+        foreach ($keys as $k) {
+            $val = trim((string)($data[$k] ?? ''));
+            if ($val === '' && isset($defaults[$locale][$k])) {
+                $val = $defaults[$locale][$k];
+            }
+            $params[':' . $k] = $val;
+        }
+        $stmt->execute($params);
     }
     // Keep default constellation (id=0) in sync with English app name and tagline when Settings are saved
     $enName = trim((string) ($en['name'] ?? ''));

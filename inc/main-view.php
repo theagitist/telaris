@@ -140,13 +140,13 @@
     </div>
 
     <div id="canvas-container" class="relative" style="position: relative; width: 100vw; height: 100vh; min-height: 100vh;">
-        <button type="button" id="portal-back-button" aria-label="Back to previous constellation"
+        <button type="button" id="portal-back-button" aria-label="<?php echo htmlspecialchars($projectBackButtonText ?? 'Back'); ?> to previous constellation"
                 class="absolute top-5 right-5 z-[80] cursor-pointer"
                 style="display: none; padding: 0.5rem 0.75rem; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: #00ffcc; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 2px; backdrop-filter: blur(4px); transition: all 0.2s;"
                 onmouseover="this.style.background='rgba(0, 255, 204, 0.1)'; this.style.borderColor='rgba(0, 255, 204, 0.8)';"
                 onmouseout="this.style.background='rgba(0, 0, 0, 0.4)'; this.style.borderColor='rgba(0, 255, 204, 0.3)';"
         >
-            ← BACK
+            ← <?php echo htmlspecialchars($projectBackButtonText ?? 'Back'); ?>
         </button>
         <div id="webgl-canvas-wrapper" class="absolute inset-0" style="z-index: 1;"></div>
         <div id="persistent-tooltips" class="absolute inset-0 pointer-events-none z-[150]"></div>
@@ -157,12 +157,12 @@
     <div id="info" class="absolute top-5 left-0 text-white z-[100] text-sm">
         <div class="mb-3 flex items-center">
             <span class="status-pulse"></span>
-            <span class="tracking-widest uppercase font-bold opacity-80 text-xs">System: Online</span>
+            <span class="tracking-widest uppercase font-bold opacity-80 text-xs"><?php echo htmlspecialchars($projectSystemOnlineText ?? 'System: Online'); ?></span>
         </div>
         
         <div class="hud-line"></div>
         
-        <div class="cursor-pointer group" onclick="location.reload()" title="Reload System">
+        <div class="cursor-pointer group" onclick="location.reload()" title="<?php echo htmlspecialchars($projectReloadSystemText ?? 'Reload System'); ?>">
             <h2 id="constellation-title" class="text-xl font-bold mb-1 tracking-tight uppercase group-hover:text-[#00ffcc] transition-colors">
                 <?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>
             </h2>
@@ -172,9 +172,9 @@
         <div class="hud-line"></div>
         
         <div class="mb-4 relative group/search">
-            <input type="text" id="hud-search" placeholder="SCAN SYSTEM..." 
+            <input type="text" id="hud-search" placeholder="<?php echo htmlspecialchars($projectScanSystemText ?? 'SCAN SYSTEM...'); ?>" 
                 class="w-full bg-white/5 border border-white/20 rounded px-2 py-1.5 pr-8 text-xs text-[#00ffcc] placeholder:text-white/20 focus:outline-none focus:border-[#00ffcc]/50 focus:bg-white/10 transition-all uppercase tracking-wider">
-            <button id="hud-search-clear" class="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-[#ff4444] transition-colors" style="display: none;" title="Clear Scan">
+            <button id="hud-search-clear" class="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-[#ff4444] transition-colors" style="display: none;" title="<?php echo htmlspecialchars($projectClearScanText ?? 'Clear Scan'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3">
                     <path d="M18 6L6 18M6 6l12 12"/>
                 </svg>
@@ -185,11 +185,11 @@
 
         <div class="space-y-2 opacity-80 mb-6 text-sm">
             <div class="flex justify-between gap-12">
-                <span class="uppercase">Systems:</span>
+                <span class="uppercase"><?php echo htmlspecialchars($projectSystemsLabelText ?? 'Systems:'); ?></span>
                 <span id="hud-nodes" class="font-bold text-[#00ffcc]">--</span>
             </div>
             <div class="flex justify-between gap-12">
-                <span class="uppercase">Hyperlinks:</span>
+                <span class="uppercase"><?php echo htmlspecialchars($projectHyperlinksLabelText ?? 'Hyperlinks:'); ?></span>
                 <span id="hud-connections" class="font-bold text-[#00ffcc]">--</span>
             </div>
             <div class="pt-2 text-xs opacity-60 flex gap-4">
@@ -203,11 +203,11 @@
             <?php if ($isEditorOrAdmin): ?>
                 <a href="edit/index.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectEditButtonText ?? 'Edit'); ?></a>
                 <?php if (isAdminLoggedIn()): ?>
-                    <a href="admin/index.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1">Admin</a>
+                    <a href="admin/index.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectAdminLabelText ?? 'Admin'); ?></a>
                 <?php endif; ?>
-                <a href="utils/logout.php" class="opacity-40 hover:opacity-100 transition-opacity">Logout</a>
+                <a href="utils/logout.php" class="opacity-40 hover:opacity-100 transition-opacity"><?php echo htmlspecialchars($projectLogoutLabelText ?? 'Logout'); ?></a>
             <?php else: ?>
-                <a href="utils/login.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1">Initialize Auth</a>
+                <a href="utils/login.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectInitializeAuthText ?? 'Initialize Auth'); ?></a>
             <?php endif; ?>
         </div>
     </div>

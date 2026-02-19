@@ -275,15 +275,24 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
             db_ensure_project_info_table();
             db_insert_default_project_info_rows($pdo, $websiteName, $websiteTagline);
         } catch (Throwable $e) {
-            $defaults = [
-                'en' => ['name' => $websiteName, 'description' => $websiteTagline, 'iframe_back_text' => 'Go back', 'alert_message' => "Close this window when you're done to go back to {APPNAME}.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading'],
-                'es' => ['name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 'alert_message' => 'Cierra esta ventana cuando termines para volver a {APPNAME}.', 'edit_button_text' => 'Editar', 'loading_text' => 'Cargando'],
-                'pt' => ['name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 'alert_message' => 'Feche esta janela quando terminar para voltar a {APPNAME}.', 'edit_button_text' => 'Editar', 'loading_text' => 'Carregando'],
-            ];
-            $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description, iframe_back_text, alert_message, edit_button_text, loading_text) VALUES (:locale, :name, :description, :iframe_back_text, :alert_message, :edit_button_text, :loading_text) ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description), iframe_back_text = VALUES(iframe_back_text), alert_message = VALUES(alert_message), edit_button_text = VALUES(edit_button_text), loading_text = VALUES(loading_text)");
+            require_once dirname(__DIR__) . '/inc/db.php';
+            $defaults = db_default_project_info_rows($websiteName, $websiteTagline);
+            $keys = PROJECT_INFO_KEYS;
+            $cols = implode(', ', $keys);
+            $placeholders = ':' . implode(', :', $keys);
+            $updates = [];
+            foreach ($keys as $k) {
+                $updates[] = "$k = VALUES($k)";
+            }
+            $updateStr = implode(', ', $updates);
+            
+            $stmt = $pdo->prepare("INSERT INTO project_info (locale, $cols) VALUES (:locale, $placeholders) ON DUPLICATE KEY UPDATE $updateStr");
             foreach (['en', 'es', 'pt'] as $locale) {
-                $d = $defaults[$locale];
-                $stmt->execute([':locale' => $locale, ':name' => $d['name'], ':description' => $d['description'], ':iframe_back_text' => $d['iframe_back_text'], ':alert_message' => $d['alert_message'], ':edit_button_text' => $d['edit_button_text'], ':loading_text' => $d['loading_text']]);
+                $params = [':locale' => $locale];
+                foreach ($keys as $k) {
+                    $params[':' . $k] = $defaults[$locale][$k] ?? '';
+                }
+                $stmt->execute($params);
             }
         }
         
@@ -504,7 +513,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     // Update project_info table with website info and ensure all locale/default columns exist
     try {
         require_once dirname(__DIR__) . '/config.php';
-        db_upsert_project_info($websiteName, $websiteTagline);
+        db_insert_default_project_info_rows(getDB(), $websiteName, $websiteTagline);
         db_ensure_project_info_columns();
     } catch (Exception $e) {
         // Ignore errors, continue to admin user creation
@@ -819,7 +828,7 @@ if (!$showForm && !$showWebsiteForm && file_exists($configPath)) {
             $projectName = $_SESSION['website_name'] ?? 'Telaris';
             $projectDescription = $_SESSION['website_tagline'] ?? 'Weaving memory';
             
-            db_upsert_project_info($projectName, $projectDescription);
+            db_insert_default_project_info_rows($pdo, $projectName, $projectDescription);
             db_ensure_project_info_columns();
             
             if (!isset($message)) {

@@ -30,34 +30,24 @@ if (isset($_GET['edit_constellation'])) {
 }
 
 // Load project info for Global Settings form
-$projectAll = db_get_project_info_all_locales();
-if (!$projectAll) {
-    $projectAll = [
-        'name' => 'Telaris', 'description' => '', 'iframe_back_text' => 'Go back',
-        'alert_message' => "Close this window when you're done to go back to {APPNAME}.", 'edit_button_text' => 'Edit', 'loading_text' => 'Loading',
-        'name_es' => '', 'name_pt' => '', 'description_es' => '', 'description_pt' => '',
-        'iframe_back_text_es' => '', 'iframe_back_text_pt' => '', 'alert_message_es' => '', 'alert_message_pt' => '',
-        'edit_button_text_es' => '', 'edit_button_text_pt' => '', 'loading_text_es' => '', 'loading_text_pt' => '',
-    ];
+$projectAll = db_get_project_info_all_locales() ?: [];
+
+$projectData = [];
+$defaults = db_default_project_info_rows();
+foreach (['en', 'es', 'pt'] as $l) {
+    foreach (PROJECT_INFO_KEYS as $k) {
+        $dataKey = ($l === 'en') ? $k : $k . '_' . $l;
+        $projectData[$dataKey] = $projectAll[$dataKey] ?? $defaults[$l][$k] ?? '';
+    }
 }
-$projectName = $projectAll['name'] ?? 'Telaris';
-$projectTagline = $projectAll['description'] ?? '';
-$projectIframeBackText = $projectAll['iframe_back_text'] ?? 'Go back';
-$projectAlertMessage = $projectAll['alert_message'] ?? "Close this window when you're done to go back to {APPNAME}.";
-$projectEditButtonText = $projectAll['edit_button_text'] ?? 'Edit';
-$projectLoadingText = $projectAll['loading_text'] ?? 'Loading';
-$name_es = $projectAll['name_es'] ?? '';
-$name_pt = $projectAll['name_pt'] ?? '';
-$description_es = $projectAll['description_es'] ?? '';
-$description_pt = $projectAll['description_pt'] ?? '';
-$iframe_back_text_es = $projectAll['iframe_back_text_es'] ?? '';
-$iframe_back_text_pt = $projectAll['iframe_back_text_pt'] ?? '';
-$alert_message_es = $projectAll['alert_message_es'] ?? '';
-$alert_message_pt = $projectAll['alert_message_pt'] ?? '';
-$edit_button_text_es = $projectAll['edit_button_text_es'] ?? 'Editar';
-$edit_button_text_pt = $projectAll['edit_button_text_pt'] ?? 'Editar';
-$loading_text_es = $projectAll['loading_text_es'] ?? 'Cargando';
-$loading_text_pt = $projectAll['loading_text_pt'] ?? 'Carregando';
+// Legacy variable names for backward compatibility if needed in this file
+$projectName = $projectData['name'];
+$projectTagline = $projectData['description'];
+$projectIframeBackText = $projectData['iframe_back_text'];
+$projectAlertMessage = $projectData['alert_message'];
+$projectEditButtonText = $projectData['edit_button_text'];
+$projectLoadingText = $projectData['loading_text'];
+
 
 // Handle API key actions and user management actions
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -230,34 +220,22 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             })(),
             
             'save_settings' => (function(): void {
-                global $message, $error, $settingsError, $activeTab;
-                global $projectName, $projectTagline, $projectIframeBackText, $projectAlertMessage, $projectEditButtonText, $projectLoadingText;
-                global $name_es, $name_pt, $description_es, $description_pt, $iframe_back_text_es, $iframe_back_text_pt;
-                global $alert_message_es, $alert_message_pt, $edit_button_text_es, $edit_button_text_pt, $loading_text_es, $loading_text_pt;
-                $en = [
-                    'name' => trim((string) ($_POST['project_name'] ?? '')),
-                    'description' => trim((string) ($_POST['project_tagline'] ?? '')),
-                    'iframe_back_text' => trim((string) ($_POST['iframe_back_text'] ?? 'Go back')),
-                    'alert_message' => trim((string) ($_POST['alert_message'] ?? "Close this window when you're done to go back to {APPNAME}.")),
-                    'edit_button_text' => trim((string) ($_POST['edit_button_text'] ?? 'Edit')),
-                    'loading_text' => trim((string) ($_POST['loading_text'] ?? 'Loading')),
-                ];
-                $es = [
-                    'name' => trim((string) ($_POST['project_name_es'] ?? '')),
-                    'description' => trim((string) ($_POST['project_tagline_es'] ?? '')),
-                    'iframe_back_text' => trim((string) ($_POST['iframe_back_text_es'] ?? '')),
-                    'alert_message' => trim((string) ($_POST['alert_message_es'] ?? '')),
-                    'edit_button_text' => trim((string) ($_POST['edit_button_text_es'] ?? 'Editar')),
-                    'loading_text' => trim((string) ($_POST['loading_text_es'] ?? 'Cargando')),
-                ];
-                $pt = [
-                    'name' => trim((string) ($_POST['project_name_pt'] ?? '')),
-                    'description' => trim((string) ($_POST['project_tagline_pt'] ?? '')),
-                    'iframe_back_text' => trim((string) ($_POST['iframe_back_text_pt'] ?? '')),
-                    'alert_message' => trim((string) ($_POST['alert_message_pt'] ?? '')),
-                    'edit_button_text' => trim((string) ($_POST['edit_button_text_pt'] ?? 'Editar')),
-                    'loading_text' => trim((string) ($_POST['loading_text_pt'] ?? 'Carregando')),
-                ];
+                global $message, $error, $settingsError, $activeTab, $projectData;
+                $en = []; $es = []; $pt = [];
+                foreach (PROJECT_INFO_KEYS as $k) {
+                    $en[$k] = trim((string)($_POST[$k] ?? ''));
+                    $es[$k] = trim((string)($_POST[$k . '_es'] ?? ''));
+                    $pt[$k] = trim((string)($_POST[$k . '_pt'] ?? ''));
+                }
+                
+                // Project name and description mapping
+                $en['name'] = trim((string) ($_POST['project_name'] ?? ''));
+                $en['description'] = trim((string) ($_POST['project_tagline'] ?? ''));
+                $es['name'] = trim((string) ($_POST['project_name_es'] ?? ''));
+                $es['description'] = trim((string) ($_POST['project_tagline_es'] ?? ''));
+                $pt['name'] = trim((string) ($_POST['project_name_pt'] ?? ''));
+                $pt['description'] = trim((string) ($_POST['project_tagline_pt'] ?? ''));
+
                 if ($en['name'] !== '' && $en['iframe_back_text'] !== '' && $en['alert_message'] !== '' && $en['edit_button_text'] !== '' && $en['loading_text'] !== '') {
                     try {
                         db_update_project_settings_with_locales($en, $es, $pt);
@@ -267,46 +245,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     } catch (Throwable $e) {
                         $settingsError = 'Failed to save settings. Please try again. (' . htmlspecialchars($e->getMessage()) . ')';
                         $activeTab = 'settings';
-                        $projectName = $en['name'];
-                        $projectTagline = $en['description'];
-                        $projectIframeBackText = $en['iframe_back_text'];
-                        $projectAlertMessage = $en['alert_message'];
-                        $projectEditButtonText = $en['edit_button_text'];
-                        $projectLoadingText = $en['loading_text'];
-                        $name_es = $es['name'];
-                        $name_pt = $pt['name'];
-                        $description_es = $es['description'];
-                        $description_pt = $pt['description'];
-                        $iframe_back_text_es = $es['iframe_back_text'];
-                        $iframe_back_text_pt = $pt['iframe_back_text'];
-                        $alert_message_es = $es['alert_message'];
-                        $alert_message_pt = $pt['alert_message'];
-                        $edit_button_text_es = $es['edit_button_text'];
-                        $edit_button_text_pt = $pt['edit_button_text'];
-                        $loading_text_es = $es['loading_text'];
-                        $loading_text_pt = $pt['loading_text'];
+                        foreach ($en as $k => $v) $projectData[$k] = $v;
+                        foreach ($es as $k => $v) $projectData[$k . '_es'] = $v;
+                        foreach ($pt as $k => $v) $projectData[$k . '_pt'] = $v;
                     }
                 } else {
                     $settingsError = 'English app name, iframe button text, alert message, Edit button label, and Loading text are required.';
                     $activeTab = 'settings';
-                    $projectName = $en['name'];
-                    $projectTagline = $en['description'];
-                    $projectIframeBackText = $en['iframe_back_text'];
-                    $projectAlertMessage = $en['alert_message'];
-                    $projectEditButtonText = $en['edit_button_text'];
-                    $projectLoadingText = $en['loading_text'];
-                    $name_es = $es['name'];
-                    $name_pt = $pt['name'];
-                    $description_es = $es['description'];
-                    $description_pt = $pt['description'];
-                    $iframe_back_text_es = $es['iframe_back_text'];
-                    $iframe_back_text_pt = $pt['iframe_back_text'];
-                    $alert_message_es = $es['alert_message'];
-                    $alert_message_pt = $pt['alert_message'];
-                    $edit_button_text_es = $es['edit_button_text'];
-                    $edit_button_text_pt = $pt['edit_button_text'];
-                    $loading_text_es = $es['loading_text'];
-                    $loading_text_pt = $pt['loading_text'];
+                    foreach ($en as $k => $v) $projectData[$k] = $v;
+                    foreach ($es as $k => $v) $projectData[$k . '_es'] = $v;
+                    foreach ($pt as $k => $v) $projectData[$k . '_pt'] = $v;
                 }
             })(),
             
@@ -398,6 +346,25 @@ $extensionStatus = [];
 foreach ($importantExtensions as $ext => $name) {
     $extensionStatus[$name] = @extension_loaded($ext);
 }
+
+$fieldMeta = [
+    'name' => ['label' => 'App name', 'desc' => 'Project title shown in the main view and in page metadata.', 'type' => 'text', 'post_name' => 'project_name'],
+    'description' => ['label' => 'Description', 'desc' => 'Tagline or short description shown under the title and in page metadata.', 'type' => 'text', 'post_name' => 'project_tagline'],
+    'iframe_back_text' => ['label' => 'Iframe button text', 'desc' => 'Text on the "Go back" button in the link window.', 'type' => 'text'],
+    'alert_message' => ['label' => 'Alert message', 'desc' => 'Message when a link cannot be embedded.', 'type' => 'textarea'],
+    'edit_button_text' => ['label' => 'Edit button label', 'desc' => 'Label for the Edit link shown to editors on the main view.', 'type' => 'text'],
+    'loading_text' => ['label' => 'Loading text', 'desc' => 'Text shown in the loading overlay (e.g. "Loading").', 'type' => 'text'],
+    'back_button_text' => ['label' => 'Back button text', 'desc' => 'Text on the back button when navigating between constellations.', 'type' => 'text'],
+    'system_online_text' => ['label' => 'System Online text', 'desc' => 'Status text shown in the HUD (e.g. "System: Online").', 'type' => 'text'],
+    'reload_system_text' => ['label' => 'Reload System text', 'desc' => 'Tooltip for the reload action.', 'type' => 'text'],
+    'scan_system_text' => ['label' => 'Scan System placeholder', 'desc' => 'Placeholder text for the search input.', 'type' => 'text'],
+    'clear_scan_text' => ['label' => 'Clear Scan tooltip', 'desc' => 'Tooltip for the clear search button.', 'type' => 'text'],
+    'systems_label_text' => ['label' => 'Systems label', 'desc' => 'Label for the nodes count in the HUD.', 'type' => 'text'],
+    'hyperlinks_label_text' => ['label' => 'Hyperlinks label', 'desc' => 'Label for the connections count in the HUD.', 'type' => 'text'],
+    'initialize_auth_text' => ['label' => 'Login label', 'desc' => 'Label for the login link (e.g. "Initialize Auth").', 'type' => 'text'],
+    'admin_label_text' => ['label' => 'Admin label', 'desc' => 'Label for the admin link.', 'type' => 'text'],
+    'logout_label_text' => ['label' => 'Logout label', 'desc' => 'Label for the logout link.', 'type' => 'text'],
+];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -932,102 +899,26 @@ foreach ($importantExtensions as $ext => $name) {
                                 <button type="button" onclick="showSettingsLang('pt')" id="settings-lang-tab-pt" class="px-5 py-3 font-medium text-sm border-b-2 <?php echo ($_GET['lang'] ?? '') === 'pt' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?>">Portuguese</button>
                             </nav>
                         </div>
-                        <div id="settings-lang-en" class="p-6 space-y-4 <?php echo ($_GET['lang'] ?? 'en') !== 'en' ? 'hidden' : ''; ?>">
+                        <?php foreach (['en', 'es', 'pt'] as $l): ?>
+                        <div id="settings-lang-<?php echo $l; ?>" class="p-6 space-y-4 <?php echo ($_GET['lang'] ?? 'en') !== $l ? 'hidden' : ''; ?>">
+                            <?php foreach ($fieldMeta as $k => $m): ?>
+                            <?php 
+                                $inputName = ($m['post_name'] ?? $k) . ($l === 'en' ? '' : '_' . $l); 
+                                $val = $projectData[($l === 'en' ? $k : $k . '_' . $l)] ?? '';
+                                $required = ($l === 'en' && $k !== 'description');
+                            ?>
                             <div>
-                                <label for="project_name" class="block mb-1.5 text-gray-800 font-medium">App name</label>
-                                <input type="text" id="project_name" name="project_name" value="<?php echo htmlspecialchars($projectName); ?>" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Project title shown in the main view and in page metadata.</span>
+                                <label for="<?php echo $inputName; ?>" class="block mb-1.5 text-gray-800 font-medium"><?php echo htmlspecialchars($m['label']); ?></label>
+                                <?php if ($m['type'] === 'textarea'): ?>
+                                <textarea id="<?php echo $inputName; ?>" name="<?php echo $inputName; ?>" rows="2" <?php echo $required ? 'required' : ''; ?> class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"><?php echo htmlspecialchars($val); ?></textarea>
+                                <?php else: ?>
+                                <input type="text" id="<?php echo $inputName; ?>" name="<?php echo $inputName; ?>" value="<?php echo htmlspecialchars($val); ?>" <?php echo $required ? 'required' : ''; ?> class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                <?php endif; ?>
+                                <span class="text-xs text-gray-500 mt-1 block"><?php echo htmlspecialchars($m['desc']); ?></span>
                             </div>
-                            <div>
-                                <label for="project_tagline" class="block mb-1.5 text-gray-800 font-medium">Description</label>
-                                <input type="text" id="project_tagline" name="project_tagline" value="<?php echo htmlspecialchars($projectTagline); ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Tagline or short description shown under the title and in page metadata.</span>
-                            </div>
-                            <div>
-                                <label for="iframe_back_text" class="block mb-1.5 text-gray-800 font-medium">Iframe button text</label>
-                                <input type="text" id="iframe_back_text" name="iframe_back_text" value="<?php echo htmlspecialchars($projectIframeBackText); ?>" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Text on the &quot;Go back&quot; button in the link window.</span>
-                            </div>
-                            <div>
-                                <label for="alert_message" class="block mb-1.5 text-gray-800 font-medium">Alert message</label>
-                                <textarea id="alert_message" name="alert_message" rows="3" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"><?php echo htmlspecialchars($projectAlertMessage); ?></textarea>
-                                <span class="text-xs text-gray-500 mt-1 block">Message when a link cannot be embedded.</span>
-                            </div>
-                            <div>
-                                <label for="edit_button_text" class="block mb-1.5 text-gray-800 font-medium">Edit button label</label>
-                                <input type="text" id="edit_button_text" name="edit_button_text" value="<?php echo htmlspecialchars($projectEditButtonText); ?>" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Label for the Edit link shown to editors on the main view.</span>
-                            </div>
-                            <div>
-                                <label for="loading_text" class="block mb-1.5 text-gray-800 font-medium">Loading text</label>
-                                <input type="text" id="loading_text" name="loading_text" value="<?php echo htmlspecialchars($projectLoadingText); ?>" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Text shown in the loading overlay (e.g. &quot;Loading&quot;).</span>
-                            </div>
+                            <?php endforeach; ?>
                         </div>
-                        <div id="settings-lang-es" class="p-6 space-y-4 <?php echo ($_GET['lang'] ?? '') !== 'es' ? 'hidden' : ''; ?>">
-                            <div>
-                                <label for="project_name_es" class="block mb-1.5 text-gray-800 font-medium">App name</label>
-                                <input type="text" id="project_name_es" name="project_name_es" value="<?php echo htmlspecialchars($name_es); ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Project title shown in the main view and in page metadata.</span>
-                            </div>
-                            <div>
-                                <label for="project_tagline_es" class="block mb-1.5 text-gray-800 font-medium">Description</label>
-                                <input type="text" id="project_tagline_es" name="project_tagline_es" value="<?php echo htmlspecialchars($description_es); ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Tagline or short description shown under the title and in page metadata.</span>
-                            </div>
-                            <div>
-                                <label for="iframe_back_text_es" class="block mb-1.5 text-gray-800 font-medium">Iframe button text</label>
-                                <input type="text" id="iframe_back_text_es" name="iframe_back_text_es" value="<?php echo htmlspecialchars($iframe_back_text_es); ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Text on the &quot;Go back&quot; button in the link window.</span>
-                            </div>
-                            <div>
-                                <label for="alert_message_es" class="block mb-1.5 text-gray-800 font-medium">Alert message</label>
-                                <textarea id="alert_message_es" name="alert_message_es" rows="3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"><?php echo htmlspecialchars($alert_message_es); ?></textarea>
-                                <span class="text-xs text-gray-500 mt-1 block">Message when a link cannot be embedded.</span>
-                            </div>
-                            <div>
-                                <label for="edit_button_text_es" class="block mb-1.5 text-gray-800 font-medium">Edit button label</label>
-                                <input type="text" id="edit_button_text_es" name="edit_button_text_es" value="<?php echo htmlspecialchars($edit_button_text_es); ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Label for the Edit link shown to editors on the main view.</span>
-                            </div>
-                            <div>
-                                <label for="loading_text_es" class="block mb-1.5 text-gray-800 font-medium">Loading text</label>
-                                <input type="text" id="loading_text_es" name="loading_text_es" value="<?php echo htmlspecialchars($loading_text_es); ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Text shown in the loading overlay (e.g. &quot;Loading&quot;).</span>
-                            </div>
-                        </div>
-                        <div id="settings-lang-pt" class="p-6 space-y-4 <?php echo ($_GET['lang'] ?? '') !== 'pt' ? 'hidden' : ''; ?>">
-                            <div>
-                                <label for="project_name_pt" class="block mb-1.5 text-gray-800 font-medium">App name</label>
-                                <input type="text" id="project_name_pt" name="project_name_pt" value="<?php echo htmlspecialchars($name_pt); ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Project title shown in the main view and in page metadata.</span>
-                            </div>
-                            <div>
-                                <label for="project_tagline_pt" class="block mb-1.5 text-gray-800 font-medium">Description</label>
-                                <input type="text" id="project_tagline_pt" name="project_tagline_pt" value="<?php echo htmlspecialchars($description_pt); ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Tagline or short description shown under the title and in page metadata.</span>
-                            </div>
-                            <div>
-                                <label for="iframe_back_text_pt" class="block mb-1.5 text-gray-800 font-medium">Iframe button text</label>
-                                <input type="text" id="iframe_back_text_pt" name="iframe_back_text_pt" value="<?php echo htmlspecialchars($iframe_back_text_pt); ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Text on the &quot;Go back&quot; button in the link window.</span>
-                            </div>
-                            <div>
-                                <label for="alert_message_pt" class="block mb-1.5 text-gray-800 font-medium">Alert message</label>
-                                <textarea id="alert_message_pt" name="alert_message_pt" rows="3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"><?php echo htmlspecialchars($alert_message_pt); ?></textarea>
-                                <span class="text-xs text-gray-500 mt-1 block">Message when a link cannot be embedded.</span>
-                            </div>
-                            <div>
-                                <label for="edit_button_text_pt" class="block mb-1.5 text-gray-800 font-medium">Edit button label</label>
-                                <input type="text" id="edit_button_text_pt" name="edit_button_text_pt" value="<?php echo htmlspecialchars($edit_button_text_pt); ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Label for the Edit link shown to editors on the main view.</span>
-                            </div>
-                            <div>
-                                <label for="loading_text_pt" class="block mb-1.5 text-gray-800 font-medium">Loading text</label>
-                                <input type="text" id="loading_text_pt" name="loading_text_pt" value="<?php echo htmlspecialchars($loading_text_pt); ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Text shown in the loading overlay (e.g. &quot;Loading&quot;).</span>
-                            </div>
-                        </div>
+                        <?php endforeach; ?>
                     </div>
                     <div class="mt-4">
                         <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">Save settings</button>

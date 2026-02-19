@@ -81,7 +81,17 @@ CREATE TABLE IF NOT EXISTS project_info (
     iframe_back_text VARCHAR(2000) NOT NULL DEFAULT '',
     alert_message VARCHAR(2000) NOT NULL DEFAULT '',
     edit_button_text VARCHAR(200) NOT NULL DEFAULT 'Edit',
-    loading_text VARCHAR(200) NOT NULL DEFAULT 'Loading'
+    loading_text VARCHAR(200) NOT NULL DEFAULT 'Loading',
+    back_button_text VARCHAR(200) NOT NULL DEFAULT 'Back',
+    system_online_text VARCHAR(200) NOT NULL DEFAULT 'System: Online',
+    reload_system_text VARCHAR(200) NOT NULL DEFAULT 'Reload System',
+    scan_system_text VARCHAR(200) NOT NULL DEFAULT 'SCAN SYSTEM...',
+    clear_scan_text VARCHAR(200) NOT NULL DEFAULT 'Clear Scan',
+    systems_label_text VARCHAR(200) NOT NULL DEFAULT 'Systems:',
+    hyperlinks_label_text VARCHAR(200) NOT NULL DEFAULT 'Hyperlinks:',
+    initialize_auth_text VARCHAR(200) NOT NULL DEFAULT 'Initialize Auth',
+    admin_label_text VARCHAR(200) NOT NULL DEFAULT 'Admin',
+    logout_label_text VARCHAR(200) NOT NULL DEFAULT 'Logout'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table for editor constellation access (user_id = users.id, constellation_id = constellations.id). Admins see all; editors see only rows here.

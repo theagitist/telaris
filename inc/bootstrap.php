@@ -84,6 +84,16 @@ $projectIframeBackText = $projectStrings['iframe_back_text'];
 $projectAlertMessage = $projectStrings['alert_message'];
 $projectEditButtonText = $projectStrings['edit_button_text'] ?? 'Edit';
 $projectLoadingText = $projectStrings['loading_text'] ?? 'Loading';
+$projectBackButtonText = $projectStrings['back_button_text'] ?? 'Back';
+$projectSystemOnlineText = $projectStrings['system_online_text'] ?? 'System: Online';
+$projectReloadSystemText = $projectStrings['reload_system_text'] ?? 'Reload System';
+$projectScanSystemText = $projectStrings['scan_system_text'] ?? 'SCAN SYSTEM...';
+$projectClearScanText = $projectStrings['clear_scan_text'] ?? 'Clear Scan';
+$projectSystemsLabelText = $projectStrings['systems_label_text'] ?? 'Systems:';
+$projectHyperlinksLabelText = $projectStrings['hyperlinks_label_text'] ?? 'Hyperlinks:';
+$projectInitializeAuthText = $projectStrings['initialize_auth_text'] ?? 'Initialize Auth';
+$projectAdminLabelText = $projectStrings['admin_label_text'] ?? 'Admin';
+$projectLogoutLabelText = $projectStrings['logout_label_text'] ?? 'Logout';
 
 // Constellation for main view: root URL = default (0); /{NUMBER} or ?constellation_id=NUMBER = that constellation
 $constellationId = 0;
