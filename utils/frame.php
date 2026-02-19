@@ -180,8 +180,8 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
                     torus.rotation.x += 0.005 + easeProgress * 0.2;
                     torus.rotation.y += 0.007 + easeProgress * 0.3;
                     
-                    // Fade out torus during warp
-                    torus.material.opacity = 0.15 * (1 - easeProgress);
+                    // Get brighter as we zoom in (from 0.15 up to 0.8)
+                    torus.material.opacity = 0.15 + (easeProgress * 0.65);
                 }
                 
                 renderer.render(scene, camera);
