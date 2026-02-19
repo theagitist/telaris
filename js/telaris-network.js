@@ -551,7 +551,7 @@ class TelarisNetwork {
             this.navigationStack.pop(); // Remove current ID
             const previousId = this.navigationStack[this.navigationStack.length - 1]; // Peek at the target ID
             this.updateBackButtonVisibility();
-            this.loadDataForConstellation(previousId);
+            this.runBackTransition(previousId);
         });
     }
 
@@ -656,6 +656,40 @@ class TelarisNetwork {
     }
 
     /**
+     * Run transition BACK: current constellation fades out while target constellation fades in.
+     */
+    runBackTransition(targetId) {
+        // Capture current state as "outgoing"
+        this._outgoingNodes = [...this.nodes];
+        this._outgoingConnections = [...this.connections];
+        
+        // Reset main arrays so new nodes don't mix with outgoing
+        this.nodes = [];
+        this.connections = [];
+
+        // Pre-fetch data immediately
+        const dataPromise = apiFetch(`api/nodes.php?constellation_id=${targetId}`)
+            .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
+            .then(json => Array.isArray(json) ? json : []);
+
+        this._portalTransition = {
+            phase: 'back_cross_fade',
+            startTime: performance.now(),
+            duration: 800,
+            targetId,
+            dataPromise
+        };
+        this.controls.enabled = false;
+
+        dataPromise.then(nodeData => {
+            if (this._portalTransition && this._portalTransition.phase === 'back_cross_fade') {
+                // Load new data WITHOUT clearing, and skip FIT to prevent jumps
+                this.loadDataForConstellation(targetId, nodeData, true, true);
+            }
+        });
+    }
+
+    /**
      * Fade out current network, fetch and render nodes for targetConstellationId, then fade in.
      */
     async transitionToConstellation(targetConstellationId) {
@@ -691,7 +725,7 @@ class TelarisNetwork {
     /**
      * Fetch nodes for a constellation and replace the current network (no fade).
      */
-    async loadDataForConstellation(constellationId, nodeData = null) {
+    async loadDataForConstellation(constellationId, nodeData = null, skipFit = false, skipClear = false, skipPhysics = false) {
         if (!window.TELARIS_API_KEY) throw new Error('API key not available');
         
         if (!nodeData) {
@@ -701,7 +735,9 @@ class TelarisNetwork {
             nodeData = Array.isArray(nodesJson) ? nodesJson : [];
         }
         
-        this.clearAll();
+        if (!skipClear) {
+            this.clearAll();
+        }
         if (constellationId !== 0) {
             console.log('[Telaris] loadDataForConstellation constellation_id=' + constellationId, { nodes: nodeData, nodesCount: nodeData.length });
         }
@@ -711,9 +747,15 @@ class TelarisNetwork {
             if (constellationId !== 0) {
                 console.log('[Telaris] loadDataForConstellation constellation_id=' + constellationId, { connectionsCount: this.connections.length });
             }
+            
+            // Warm up physics IMMEDIATELY so they are in final positions when they first appear
             this.warmupPhysics();
             this.syncNodePositionsFromPhysics();
-            this.fitCameraToNodes();
+            
+            if (!skipFit) {
+                this.fitCameraToNodes();
+            }
+            
             this.nodes.forEach(n => this.scene.add(n));
             if (this.connections.length > 0) {
                 this.connections.forEach(c => this.scene.add(c.mesh));
@@ -1396,6 +1438,7 @@ class TelarisNetwork {
     }
 
     updateNodes() {
+        if (!this.nodes || this.nodes.length === 0) return;
         const time = performance.now() * 0.001;
         const focused = this.networkManager.getFocusedNode();
         
@@ -1442,6 +1485,8 @@ class TelarisNetwork {
                 if (this._portalFadeInMultiplier === 0) forceInvisible = true;
             }
 
+            const isTransitioning = this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null;
+
             // Optimization: iterate cached materials directly
             d.cachedMaterials.forEach(m => {
                 m.opacity = opacity;
@@ -1452,21 +1497,33 @@ class TelarisNetwork {
                     
                     if (m.emissiveIntensity !== undefined) {
                         if (m._baseEmissiveIntensity === undefined) m._baseEmissiveIntensity = m.emissiveIntensity;
-                        const twinkle = 1.0 + Math.sin(time * 2.5 + d.phase) * 0.5;
-                        const hoverBoost = isActive ? 2.5 : 1.0;
-                        let flareBoost = 1.0;
-                        if (d.solarFlare > 0) {
-                            flareBoost = 8.0 * (d.solarFlare / 15);
-                            if (m === d.cachedMaterials[0]) d.solarFlare--; // Only decrement once per node
+                        
+                        // Disable twinkle and hover effects during transition for stability
+                        if (isTransitioning) {
+                            m.emissiveIntensity = m._baseEmissiveIntensity * brightness;
+                        } else {
+                            const twinkle = 1.0 + Math.sin(time * 2.5 + d.phase) * 0.5;
+                            const hoverBoost = isActive ? 2.5 : 1.0;
+                            let flareBoost = 1.0;
+                            if (d.solarFlare > 0) {
+                                flareBoost = 8.0 * (d.solarFlare / 15);
+                                if (m === d.cachedMaterials[0]) d.solarFlare--; // Only decrement once per node
+                            }
+                            m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverBoost * twinkle * flareBoost;
                         }
-                        m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverBoost * twinkle * flareBoost;
                     }
                 }
             });
 
             n.position.copy(d.originalPosition);
-            const s = 1.4 + Math.sin(time * 1.5 + d.phase) * 0.08;
-            n.scale.set(s, s, s);
+            
+            // Stable scale during transition, dynamic pulse otherwise
+            if (isTransitioning) {
+                n.scale.set(1.4, 1.4, 1.4);
+            } else {
+                const s = 1.4 + Math.sin(time * 1.5 + d.phase) * 0.08;
+                n.scale.set(s, s, s);
+            }
 
             // Optimization: iterate cached moons directly
             d.cachedMoons.forEach(moonGroup => {
@@ -1630,23 +1687,98 @@ class TelarisNetwork {
                     this._portalFadeInMultiplier = undefined;
                     this.controls.enabled = true;
                 }
+            } else if (tr.phase === 'back_cross_fade') {
+                const t = Math.min((now - tr.startTime) / tr.duration, 1);
+                // Ease In Out
+                const easeT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                
+                // 1. Zoom OUT and fade OUT outgoing
+                if (this._outgoingNodes) {
+                    const opacity = (1 - easeT) * 0.94;
+                    const posScale = 1 - (easeT * 0.4); // Recede positions toward center
+                    const nodeScale = 1 - (easeT * 0.6); // Shrink nodes too
+                    
+                    this._outgoingNodes.forEach(node => {
+                        // Move toward center
+                        if (node.userData.originalPosition) {
+                            node.position.copy(node.userData.originalPosition).multiplyScalar(posScale);
+                        }
+                        node.scale.set(nodeScale, nodeScale, nodeScale);
+                        
+                        node.traverse(c => {
+                            if (c.material && c.name !== 'portal_hitbox') {
+                                c.material.opacity = opacity;
+                                c.material.visible = opacity > 0.001;
+                            }
+                        });
+                    });
+                }
+                if (this._outgoingConnections) {
+                    this._outgoingConnections.forEach(c => {
+                        if (c.mesh.material) {
+                            // Scale by its existing currentOpacity so we don't flash lines that were hidden
+                            c.mesh.material.opacity = c.currentOpacity * (1 - easeT);
+                            c.mesh.visible = c.mesh.material.opacity > 0.001;
+                        }
+                    });
+                }
+
+                // 2. Fade IN new (using the shared multiplier)
+                this._portalFadeInMultiplier = easeT;
+                
+                if (this.nodes) {
+                    this.nodes.forEach(node => {
+                        node.visible = true;
+                        // Use original position during fade in to stay stable
+                        if (node.userData.originalPosition) {
+                            node.position.copy(node.userData.originalPosition);
+                        }
+                    });
+                }
+
+                if (t >= 1) {
+                    // Final cleanup of outgoing meshes
+                    if (this._outgoingNodes) {
+                        this._outgoingNodes.forEach(node => {
+                            this.scene.remove(node);
+                            node.traverse(c => {
+                                if (c.geometry) c.geometry.dispose();
+                                if (c.material) (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m.dispose());
+                            });
+                        });
+                        this._outgoingNodes = null;
+                    }
+                    if (this._outgoingConnections) {
+                        this._outgoingConnections.forEach(c => {
+                            this.scene.remove(c.mesh);
+                            if (c.mesh.geometry) c.mesh.geometry.dispose();
+                            if (c.mesh.material) c.mesh.material.dispose();
+                        });
+                        this._outgoingConnections = null;
+                    }
+
+                    this._portalTransition = null;
+                    this._portalFadeInMultiplier = undefined;
+                    this.controls.enabled = true;
+                }
             }
         }
 
         // 2. Normal updates (will use the _portalFadeInMultiplier set above)
         const isZooming = this._portalTransition && this._portalTransition.phase === 'camera_fade_out';
+        const isBackCrossFade = this._portalTransition && this._portalTransition.phase === 'back_cross_fade';
         
         if (!isZooming) {
             this.controls.autoRotate = (now - this.lastInteractionAt) > this.idleRotateDelayMs;
-            this.applyForces(dt, 0.05);
+            if (!isBackCrossFade) {
+                this.applyForces(dt, 0.05);
+            }
             this.controls.update();
+            this.updateNodes();
+            this.updateConnections(dt);
         }
         
         this.updatePersistentTooltips();
-        this.updateStarfield(now * 0.001);
-        this.updateNebulas(now * 0.001);
-        this.updateNodes();
-        this.updateConnections(dt);
         this.updateComet(dt);
         this.updateRocket(dt);
         this.updateUFO(dt);
