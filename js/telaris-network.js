@@ -683,8 +683,11 @@ class TelarisNetwork {
 
         dataPromise.then(nodeData => {
             if (this._portalTransition && this._portalTransition.phase === 'back_cross_fade') {
-                // Load new data WITHOUT clearing, and skip FIT to prevent jumps
-                this.loadDataForConstellation(targetId, nodeData, true, true);
+                // Load new data WITHOUT clearing
+                this.loadDataForConstellation(targetId, nodeData, true, true).then(() => {
+                    // Trigger a camera fit NOW while everything is invisible so it is ready for fade in
+                    this.fitCameraToNodes();
+                });
             }
         });
     }
