@@ -1202,32 +1202,44 @@ class TelarisNetwork {
                 
                 if (isTap && touchStartNode) {
                     const nodeData = touchStartNode.userData;
-                    if (nodeData.node_type === 'portal' && nodeData.target_constellation_id != null) {
-                        e.preventDefault();
-                        this.startPortalRev(touchStartNode, nodeData.target_constellation_id);
-                        this.networkManager.setFocusedNode(null);
-                    } else if (nodeData.node_type === 'object') {
-                        const hasMedia = !!(nodeData.image_url || nodeData.embed_code || nodeData.audio_url);
-                        const hasDesc = !!(nodeData.description && nodeData.description.trim() !== '');
+                    const currentlyFocused = this.networkManager.getFocusedNode();
 
-                        if (hasMedia) {
+                    if (currentlyFocused === touchStartNode) {
+                        // SECOND TAP: Open/Trigger action
+                        if (nodeData.node_type === 'portal' && nodeData.target_constellation_id != null) {
                             e.preventDefault();
-                            this.showRichMediaWindow(touchStartNode);
+                            this.startPortalRev(touchStartNode, nodeData.target_constellation_id);
                             this.networkManager.setFocusedNode(null);
-                        } else if (nodeData.url) {
-                            e.preventDefault();
-                            this.openInFrame(touchStartNode, nodeData.url);
-                            this.networkManager.setFocusedNode(null);
-                        } else if (hasDesc) {
-                            e.preventDefault();
-                            this.showRichMediaWindow(touchStartNode);
-                            this.networkManager.setFocusedNode(null);
+                        } else if (nodeData.node_type === 'object') {
+                            const hasMedia = !!(nodeData.image_url || nodeData.embed_code || nodeData.audio_url);
+                            const hasDesc = !!(nodeData.description && nodeData.description.trim() !== '');
+
+                            if (hasMedia) {
+                                e.preventDefault();
+                                this.showRichMediaWindow(touchStartNode);
+                                this.networkManager.setFocusedNode(null);
+                            } else if (nodeData.url) {
+                                e.preventDefault();
+                                this.openInFrame(touchStartNode, nodeData.url);
+                                this.networkManager.setFocusedNode(null);
+                            } else if (hasDesc) {
+                                e.preventDefault();
+                                this.showRichMediaWindow(touchStartNode);
+                                this.networkManager.setFocusedNode(null);
+                            } else {
+                                // If it has nothing to open, just keep it focused or refresh tooltip
+                                if (this.mainTooltipNodeTimeout) clearTimeout(this.mainTooltipNodeTimeout);
+                                this.networkManager.setFocusedNode(touchStartNode);
+                                showTooltipForNode(touchStartNode, touchStartPos.screenX, touchStartPos.screenY);
+                            }
                         } else {
                             if (this.mainTooltipNodeTimeout) clearTimeout(this.mainTooltipNodeTimeout);
                             this.networkManager.setFocusedNode(touchStartNode);
                             showTooltipForNode(touchStartNode, touchStartPos.screenX, touchStartPos.screenY);
                         }
                     } else {
+                        // FIRST TAP: Focus and show lines/tooltip
+                        e.preventDefault();
                         if (this.mainTooltipNodeTimeout) clearTimeout(this.mainTooltipNodeTimeout);
                         this.networkManager.setFocusedNode(touchStartNode);
                         showTooltipForNode(touchStartNode, touchStartPos.screenX, touchStartPos.screenY);
