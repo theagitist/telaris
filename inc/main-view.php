@@ -151,6 +151,63 @@
         <div id="webgl-canvas-wrapper" class="absolute inset-0" style="z-index: 1;"></div>
         <div id="persistent-tooltips" class="absolute inset-0 pointer-events-none z-[150]"></div>
         <div id="node-tooltip" class="absolute px-3 py-2 rounded text-base pointer-events-none z-[200]" style="opacity: 0; visibility: hidden;"></div>
+
+        <!-- Rich Media Window Overlay -->
+        <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md hidden" 
+             onclick="if(event.target === this) { 
+                 const audio = document.getElementById('rm-audio');
+                 if(audio) { audio.pause(); audio.src = ''; }
+                 const embed = document.getElementById('rm-embed');
+                 if(embed) { embed.innerHTML = ''; }
+                 this.classList.add('hidden'); 
+             }">
+            <div id="rich-media-window" class="bg-[#0a0a0c] border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative text-white">
+                <!-- Close Button -->
+                <button onclick="
+                    const audio = document.getElementById('rm-audio');
+                    if(audio) { audio.pause(); audio.src = ''; }
+                    const embed = document.getElementById('rm-embed');
+                    if(embed) { embed.innerHTML = ''; }
+                    document.getElementById('rich-media-overlay').classList.add('hidden');
+                " class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-10">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+
+                <!-- Content -->
+                <div class="p-6 md:p-8">
+                    <h2 id="rm-title" class="text-2xl font-bold mb-4 tracking-tight uppercase border-b border-white/10 pb-2"></h2>
+                    
+                    <div id="rm-media-container" class="space-y-6">
+                        <!-- Image -->
+                        <div id="rm-image-wrap" class="hidden">
+                            <img id="rm-image" src="" alt="" class="w-full h-auto rounded-md border border-white/10">
+                        </div>
+
+                        <!-- Embed -->
+                        <div id="rm-embed-wrap" class="hidden aspect-video">
+                            <div id="rm-embed" class="w-full h-full"></div>
+                        </div>
+
+                        <!-- Audio -->
+                        <div id="rm-audio-wrap" class="hidden">
+                            <audio id="rm-audio" controls class="w-full"></audio>
+                        </div>
+
+                        <!-- Description -->
+                        <div id="rm-description" class="text-gray-300 leading-relaxed text-sm md:text-base whitespace-pre-wrap"></div>
+
+                        <!-- URL / Action Button -->
+                        <div id="rm-url-wrap" class="hidden pt-4">
+                            <button id="rm-url-button" class="w-full py-3 bg-[#00ffcc]/10 hover:bg-[#00ffcc]/20 border border-[#00ffcc]/30 text-[#00ffcc] rounded font-bold uppercase tracking-widest transition-all">
+                                Open Source Link
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     
     <!-- Tactical HUD Navigation -->

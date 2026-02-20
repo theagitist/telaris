@@ -130,7 +130,11 @@ try {
             }
             $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : DEFAULT_CONSTELLATION_ID;
             $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
-            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId);
+            $imageUrl = (isset($data['image_url']) && !empty(trim((string)$data['image_url']))) ? trim((string)$data['image_url']) : null;
+            $embedCode = (isset($data['embed_code']) && !empty(trim((string)$data['embed_code']))) ? trim((string)$data['embed_code']) : null;
+            $audioUrl = (isset($data['audio_url']) && !empty(trim((string)$data['audio_url']))) ? trim((string)$data['audio_url']) : null;
+            
+            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl);
             if ($nodeId === 0) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to create node: Could not retrieve node ID'], JSON_THROW_ON_ERROR);
@@ -170,7 +174,11 @@ try {
             }
             $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : null;
             $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
-            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId);
+            $imageUrl = (isset($data['image_url']) && !empty(trim((string)$data['image_url']))) ? trim((string)$data['image_url']) : null;
+            $embedCode = (isset($data['embed_code']) && !empty(trim((string)$data['embed_code']))) ? trim((string)$data['embed_code']) : null;
+            $audioUrl = (isset($data['audio_url']) && !empty(trim((string)$data['audio_url']))) ? trim((string)$data['audio_url']) : null;
+            
+            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl);
             if (isset($data['keywords']) && is_array($data['keywords'])) {
                 db_save_node_keywords((int)$id, $data['keywords']);
             }

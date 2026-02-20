@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS nodes (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     url VARCHAR(500) NULL,
+    image_url VARCHAR(500) NULL,
+    embed_code TEXT NULL,
+    audio_url VARCHAR(500) NULL,
     -- NEW FIELDS START HERE --
     node_type ENUM('object', 'portal') NOT NULL DEFAULT 'object',
     target_constellation_id INT NULL,

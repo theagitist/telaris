@@ -194,6 +194,34 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <span class="text-xs text-gray-500 mt-1 block">URL to open when the node is clicked (optional)</span>
                     </div>
 
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="node-image-url" class="block mb-1.5 text-gray-800 font-medium">Image URL</label>
+                            <input type="url" 
+                                   id="node-image-url" 
+                                   name="image_url" 
+                                   placeholder="https://example.com/image.jpg"
+                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label for="node-audio-url" class="block mb-1.5 text-gray-800 font-medium">Audio URL</label>
+                            <input type="url" 
+                                   id="node-audio-url" 
+                                   name="audio_url" 
+                                   placeholder="https://example.com/audio.mp3"
+                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="node-embed-code" class="block mb-1.5 text-gray-800 font-medium">Embed Code (HTML)</label>
+                        <textarea id="node-embed-code" 
+                                  name="embed_code" 
+                                  rows="3"
+                                  placeholder='<iframe ...></iframe>'
+                                  class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
+                    </div>
+
                     <div class="flex gap-3">
                         <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
                             Add Node
@@ -586,6 +614,31 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                             <span class="text-xs text-gray-500 mt-1 block">URL to open when the node is clicked (optional)</span>
                         </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Image URL</label>
+                                <input type="url" 
+                                       id="edit-image-url-${node.id}" 
+                                       value="${escapeHtml(node.image_url || '')}" 
+                                       placeholder="https://example.com/image.jpg"
+                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Audio URL</label>
+                                <input type="url" 
+                                       id="edit-audio-url-${node.id}" 
+                                       value="${escapeHtml(node.audio_url || '')}" 
+                                       placeholder="https://example.com/audio.mp3"
+                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
+                            <textarea id="edit-embed-code-${node.id}" 
+                                      rows="3"
+                                      placeholder='<iframe ...></iframe>'
+                                      class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">${escapeHtml(node.embed_code || '')}</textarea>
+                        </div>
                         <div class="flex gap-3">
                             <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded text-sm cursor-pointer">
                                 Save
@@ -629,6 +682,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <div class="col-span-2 text-xs text-gray-600 truncate" title="${escapeHtml(constellationName)}">${escapeHtml(constellationName)}</div>
                         <div class="col-span-2">
                             ${node.url ? `<a href="${escapeHtml(node.url)}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline text-xs truncate block" title="${escapeHtml(node.url)}">${escapeHtml(node.url)}</a>` : '<span class="text-xs text-gray-400">—</span>'}
+                            <div class="flex flex-wrap gap-1 mt-1">
+                                ${node.url ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded" title="Has URL">URL</span>' : ''}
+                                ${node.description ? '<span class="text-[10px] bg-green-100 text-green-700 px-1 rounded" title="Has Description">DESC</span>' : ''}
+                                ${node.image_url ? '<span class="text-[10px] bg-purple-100 text-purple-700 px-1 rounded" title="Has Image">IMG</span>' : ''}
+                                ${node.embed_code ? '<span class="text-[10px] bg-pink-100 text-pink-700 px-1 rounded" title="Has Embed">EMB</span>' : ''}
+                                ${node.audio_url ? '<span class="text-[10px] bg-orange-100 text-orange-700 px-1 rounded" title="Has Audio">AUD</span>' : ''}
+                            </div>
                         </div>
                         <div class="col-span-2">
                             <div class="text-xs text-gray-600 truncate" title="${keywordsDisplay}">${keywordsDisplay}</div>
@@ -892,6 +952,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     name: nodeName,
                     description: document.getElementById(`edit-description-${nodeId}`).value.trim() || null,
                     url: document.getElementById(`edit-url-${nodeId}`).value.trim() || null,
+                    image_url: document.getElementById(`edit-image-url-${nodeId}`).value.trim() || null,
+                    embed_code: document.getElementById(`edit-embed-code-${nodeId}`).value.trim() || null,
+                    audio_url: document.getElementById(`edit-audio-url-${nodeId}`).value.trim() || null,
                     keywords: document.getElementById(`edit-keywords-${nodeId}`).value
                         .split(',')
                         .map(k => k.trim())
@@ -1012,6 +1075,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     name: nodeName,
                     description: document.getElementById('node-description').value.trim() || null,
                     url: urlValue || null,
+                    image_url: document.getElementById('node-image-url').value.trim() || null,
+                    embed_code: document.getElementById('node-embed-code').value.trim() || null,
+                    audio_url: document.getElementById('node-audio-url').value.trim() || null,
                     keywords: document.getElementById('node-keywords').value
                         .split(',')
                         .map(k => k.trim())
