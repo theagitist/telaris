@@ -58,7 +58,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 $currentConstellationParam = 'all';
                             }
                             ?>
-                            <option value="all"<?php echo $currentConstellationParam === 'all' ? ' selected' : ''; ?>>All constellations</option>
+                            <option value="all"<?php echo $currentConstellationParam === 'all' ? ' selected' : ''; ?>><?php echo $isAdmin ? 'All constellations' : 'All my constellations'; ?></option>
                             <?php foreach ($constellations as $c):
                                 $cid = (int)$c['id'];
                                 $sel = $currentConstellationParam === (string)$cid ? ' selected' : '';

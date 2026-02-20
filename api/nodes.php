@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once '../config.php';
 require_once 'auth.php';
+require_once '../utils/auth.php';
 
 // Set CORS headers for API responses
 if (php_sapi_name() !== 'cli') {
@@ -55,10 +56,13 @@ if ($method === 'POST' && isset($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']) && strt
 try {
     match ($method) {
         'GET' => (function(): void {
+            $currentUserId = $_SESSION['admin_user_id'] ?? null;
+            $isAdmin = isAdminLoggedIn();
+
             $constellationId = null;
             if (isset($_GET['constellation_id'])) {
                 if ($_GET['constellation_id'] === 'all') {
-                    $constellationId = null; // all nodes (e.g. for Edit page)
+                    $constellationId = null; // all nodes (respecting user access)
                 } elseif (is_numeric($_GET['constellation_id'])) {
                     $constellationId = (int) $_GET['constellation_id'];
                 }
@@ -66,7 +70,7 @@ try {
             if ($constellationId === null && !isset($_GET['constellation_id'])) {
                 $constellationId = DEFAULT_CONSTELLATION_ID; // main view without param: show default constellation only
             }
-            $nodes = db_get_nodes($constellationId);
+            $nodes = db_get_nodes($constellationId, $currentUserId, $isAdmin);
             $formatted = array_map(fn($node) => db_format_node($node), $nodes);
             echo json_encode($formatted, JSON_THROW_ON_ERROR);
         })(),

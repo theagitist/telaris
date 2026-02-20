@@ -718,12 +718,37 @@ function db_delete_constellation(int $id): void {
  * @return list<array<string, mixed>>
  */
 /**
- * @param int|null $constellationId If set, only return nodes in this constellation; null = all nodes
+ * @param int|null $constellationId If set, only return nodes in this constellation; null = all nodes (respecting user access)
+ * @param string|null $userId User ID for permission filtering
+ * @param bool $isAdmin Whether the user has admin access
  * @return list<array<string, mixed>>
  */
-function db_get_nodes(?int $constellationId = null): array {
+function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool $isAdmin = true): array {
     $pdo = getDB();
+    
+    // Admin or specific constellation requested
+    if ($isAdmin && $constellationId === null) {
+        $stmt = $pdo->query("
+            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.constellation_id,
+                   n.node_type, n.target_constellation_id,
+                   c.name AS constellation_name
+            FROM nodes n
+            LEFT JOIN constellations c ON c.id = n.constellation_id
+            ORDER BY n.id
+        ");
+        return $stmt->fetchAll();
+    }
+
     if ($constellationId !== null) {
+        // If not admin, verify access to this specific constellation
+        if (!$isAdmin && $userId !== null) {
+            $check = $pdo->prepare("SELECT 1 FROM user_constellations WHERE user_id = :user_id AND constellation_id = :cid LIMIT 1");
+            $check->execute([':user_id' => $userId, ':cid' => $constellationId]);
+            if (!$check->fetch()) {
+                return []; // No access
+            }
+        }
+
         $stmt = $pdo->prepare("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.constellation_id,
                    n.node_type, n.target_constellation_id,
@@ -736,15 +761,23 @@ function db_get_nodes(?int $constellationId = null): array {
         $stmt->execute([':constellation_id' => $constellationId]);
         return $stmt->fetchAll();
     }
-    $stmt = $pdo->query("
-        SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.constellation_id,
-               n.node_type, n.target_constellation_id,
-               c.name AS constellation_name
-        FROM nodes n
-        LEFT JOIN constellations c ON c.id = n.constellation_id
-        ORDER BY n.id
-    ");
-    return $stmt->fetchAll();
+
+    // Editor requesting "all" constellations - show only those they have access to
+    if (!$isAdmin && $userId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.constellation_id,
+                   n.node_type, n.target_constellation_id,
+                   c.name AS constellation_name
+            FROM nodes n
+            INNER JOIN user_constellations uc ON n.constellation_id = uc.constellation_id AND uc.user_id = :user_id
+            LEFT JOIN constellations c ON c.id = n.constellation_id
+            ORDER BY n.id
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        return $stmt->fetchAll();
+    }
+
+    return [];
 }
 
 /**
