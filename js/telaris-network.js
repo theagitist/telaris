@@ -1301,7 +1301,7 @@ class TelarisNetwork {
                     const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
                         ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
                         : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
-                    html += `<div style="opacity: 0.6; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid rgba(255,255,255,0.1); pt-1 mt-1;">${hintText}</div>`;
+                    html += `<div style="opacity: 0.6; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;">${hintText}</div>`;
                 }
 
                 this.tooltip.innerHTML = html;
