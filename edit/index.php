@@ -96,23 +96,23 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <div class="bg-white rounded-lg shadow-md mb-6">
             <div class="border-b border-gray-200">
                 <nav class="flex">
-                    <button type="button" onclick="showTab('content-add')" 
-                            id="tab-add"
-                            data-target="content-add"
-                            class="px-6 py-3 font-medium text-sm border-b-2 border-blue-500 text-blue-600 active">
-                        Add New Node
-                    </button>
                     <button type="button" onclick="showTab('content-list')" 
                             id="tab-list"
                             data-target="content-list"
-                            class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+                            class="px-6 py-3 font-medium text-sm border-b-2 border-blue-500 text-blue-600 active">
                         List Existing Nodes (<span id="tab-list-count">0</span>)
+                    </button>
+                    <button type="button" onclick="showTab('content-add')" 
+                            id="tab-add"
+                            data-target="content-add"
+                            class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">
+                        Add New Node
                     </button>
                 </nav>
             </div>
 
             <!-- Add New Node Tab -->
-            <div id="content-add" class="custom-tab-panel p-6">
+            <div id="content-add" class="custom-tab-panel p-6 hidden">
                 <form id="node-form" class="space-y-4" novalidate>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -167,13 +167,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label for="node-keywords" class="block mb-1.5 text-gray-800 font-medium">Keywords</label>
-                            <input type="text" 
-                                   id="node-keywords" 
-                                   name="keywords" 
-                                   placeholder="comma-separated"
-                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            <span class="text-xs text-gray-500 mt-1 block">Separate keywords with commas</span>
+                            <label class="block mb-1.5 text-gray-800 font-medium">Keywords</label>
+                            <div id="keywords-container-add" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
+                                <input type="text" 
+                                       id="node-keywords-input" 
+                                       placeholder="Add keyword..."
+                                       onkeydown="handleKeywordInput(event, 'add')"
+                                       class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
+                            </div>
+                            <input type="hidden" id="node-keywords" name="keywords">
+                            <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords</span>
                         </div>
                     </div>
 
@@ -238,7 +241,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </div>
 
             <!-- List Existing Nodes Tab -->
-            <div id="content-list" class="custom-tab-panel p-6 hidden">
+            <div id="content-list" class="custom-tab-panel p-6">
                 <!-- Search Controls -->
                 <div class="mb-6 flex flex-wrap items-center gap-4 p-4 bg-gray-50 rounded-lg">
                     <div class="flex items-center gap-2 flex-1 min-w-[200px]">
@@ -589,12 +592,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             </div>
                             <div>
                                 <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
-                                <input type="text" 
-                                       id="edit-keywords-${node.id}" 
-                                       value="${node.keywords ? escapeHtml(node.keywords.join(', ')) : ''}" 
-                                       placeholder="comma-separated"
-                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <span class="text-xs text-gray-500 mt-1 block">Separate keywords with commas</span>
+                                <div id="keywords-container-${node.id}" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
+                                    <input type="text" 
+                                           id="edit-keywords-input-${node.id}" 
+                                           placeholder="Add keyword..."
+                                           onkeydown="handleKeywordInput(event, ${node.id})"
+                                           class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
+                                </div>
+                                <input type="hidden" id="edit-keywords-${node.id}" value="${node.keywords ? escapeHtml(node.keywords.join(',')) : ''}">
+                                <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords</span>
                             </div>
                         </div>
                         <div id="edit-target-constellation-wrap-${node.id}" class="${showTarget ? '' : 'hidden'}">
@@ -701,8 +707,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     const createdDate = node.created_at ? new Date(node.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A';
                     const descriptionTruncated = node.description ? (node.description.length > 80 ? escapeHtml(node.description.substring(0, 80)) + '...' : escapeHtml(node.description)) : '';
                     const keywordsDisplay = node.keywords && node.keywords.length > 0 
-                        ? node.keywords.map(k => escapeHtml(k)).join(', ')
-                        : 'No keywords';
+                        ? node.keywords.map(k => `<span class="badge badge-sm border-current/20 ${getPastelColor(k)}">${escapeHtml(k)}</span>`).join(' ')
+                        : '<span class="text-xs text-gray-400">No keywords</span>';
                     const constellationName = (node.constellation_name || 'Default');
                     const nodeType = node.node_type || 'object';
                     const typeLabel = nodeType === 'portal' ? 'Portal' : 'Object';
@@ -736,7 +742,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             </div>
                         </div>
                         <div class="col-span-2">
-                            <div class="text-xs text-gray-600 truncate" title="${keywordsDisplay}">${keywordsDisplay}</div>
+                            <div class="flex flex-wrap gap-1">${keywordsDisplay}</div>
                         </div>
                         <div class="col-span-2 text-xs text-gray-500">
                             ${createdDate}
@@ -788,6 +794,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 // Set innerHTML with header + nodes
                 listDiv.innerHTML = headerHTML + html;
                 updateSortIndicators();
+
+                // Initialize keywords for the node being edited
+                if (editingNodeId !== null) {
+                    const editingNode = nodes.find(n => n.id === editingNodeId);
+                    if (editingNode) {
+                        keywordState[editingNodeId] = [...(editingNode.keywords || [])];
+                        updateKeywordTags(editingNodeId);
+                    }
+                }
             } catch (error) {
                 listDiv.innerHTML = '<p class="text-red-600">Error displaying nodes: ' + escapeHtml(error.message) + '</p>';
             }
@@ -1313,6 +1328,90 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             window.history.pushState({}, '', url);
         }
         
+        // Keyword Tag Management
+        const keywordState = {}; // Stores arrays of keywords for each context (nodeId or 'add')
+
+        // Helper for pastel colors
+        function getPastelColor(str) {
+            const pastelColors = [
+                'bg-red-100 text-red-700 border-red-200',
+                'bg-orange-100 text-orange-700 border-orange-200',
+                'bg-amber-100 text-amber-700 border-amber-200',
+                'bg-yellow-100 text-yellow-700 border-yellow-200',
+                'bg-lime-100 text-lime-700 border-lime-200',
+                'bg-green-100 text-green-700 border-green-200',
+                'bg-emerald-100 text-emerald-700 border-emerald-200',
+                'bg-teal-100 text-teal-700 border-teal-200',
+                'bg-cyan-100 text-cyan-700 border-cyan-200',
+                'bg-sky-100 text-sky-700 border-sky-200',
+                'bg-blue-100 text-blue-700 border-blue-200',
+                'bg-indigo-100 text-indigo-700 border-indigo-200',
+                'bg-violet-100 text-violet-700 border-violet-200',
+                'bg-purple-100 text-purple-700 border-purple-200',
+                'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',
+                'bg-pink-100 text-pink-700 border-pink-200',
+                'bg-rose-100 text-rose-700 border-rose-200'
+            ];
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const index = Math.abs(hash) % pastelColors.length;
+            return pastelColors[index];
+        }
+
+        function updateKeywordTags(contextId) {
+            const container = document.getElementById(`keywords-container-${contextId}`);
+            const hiddenInput = document.getElementById(contextId === 'add' ? 'node-keywords' : `edit-keywords-${contextId}`);
+            if (!container || !hiddenInput) return;
+
+            const keywords = keywordState[contextId] || [];
+            hiddenInput.value = keywords.join(',');
+
+            // Remove all existing badges
+            container.querySelectorAll('.badge').forEach(el => el.remove());
+
+            // Re-render badges before the input
+            const input = container.querySelector('input');
+            keywords.forEach((kw, index) => {
+                const colorClass = getPastelColor(kw);
+                const badge = document.createElement('div');
+                badge.className = `badge ${colorClass} gap-2 py-3 px-3 border border-current/20`;
+                badge.innerHTML = `
+                    ${escapeHtml(kw)}
+                    <svg onclick="removeKeyword('${contextId}', ${index})" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-4 h-4 stroke-current cursor-pointer hover:opacity-70"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                `;
+                container.insertBefore(badge, input);
+            });
+        }
+
+        function handleKeywordInput(event, contextId) {
+            if (event.key === 'Enter' || event.key === ',') {
+                event.preventDefault();
+                const text = event.target.value.trim().replace(/,$/, '');
+                if (text) {
+                    if (!keywordState[contextId]) keywordState[contextId] = [];
+                    if (!keywordState[contextId].includes(text)) {
+                        keywordState[contextId].push(text);
+                        updateKeywordTags(contextId);
+                    }
+                }
+                event.target.value = '';
+            } else if (event.key === 'Backspace' && event.target.value === '') {
+                if (keywordState[contextId] && keywordState[contextId].length > 0) {
+                    keywordState[contextId].pop();
+                    updateKeywordTags(contextId);
+                }
+            }
+        }
+
+        function removeKeyword(contextId, index) {
+            if (keywordState[contextId]) {
+                keywordState[contextId].splice(index, 1);
+                updateKeywordTags(contextId);
+            }
+        }
+
         // Initialize tab on page load
         document.addEventListener('DOMContentLoaded', function() {
             // Don't set tab here - let loadNodes determine default based on whether nodes exist
