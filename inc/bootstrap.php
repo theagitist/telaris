@@ -94,6 +94,8 @@ $projectHyperlinksLabelText = $projectStrings['hyperlinks_label_text'] ?? 'Hyper
 $projectInitializeAuthText = $projectStrings['initialize_auth_text'] ?? 'Initialize Auth';
 $projectAdminLabelText = $projectStrings['admin_label_text'] ?? 'Admin';
 $projectLogoutLabelText = $projectStrings['logout_label_text'] ?? 'Logout';
+$projectClickToViewText = $projectStrings['click_to_view_text'] ?? 'Click to view';
+$projectTapToViewText = $projectStrings['tap_to_view_text'] ?? 'Tap again to view';
 
 // Constellation for main view: root URL = default (0); /{NUMBER} or ?constellation_id=NUMBER = that constellation
 // NEW: Support for slugs /{SLUG}

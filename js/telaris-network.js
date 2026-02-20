@@ -1285,12 +1285,25 @@ class TelarisNetwork {
                 
                 let html = `<div style="font-weight:600; margin-bottom: 2px;">${node.userData.name}</div>`;
                 if (node.userData.keywords?.length > 0) {
-                    html += `<div style="opacity: 0.8; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 4px;">`;
+                    html += `<div style="opacity: 0.8; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px;">`;
                     node.userData.keywords.forEach(kw => {
                         html += `<span style="background: rgba(255,255,255,0.15); padding: 1px 4px; border-radius: 2px;">#${kw}</span>`;
                     });
                     html += `</div>`;
                 }
+
+                // Interaction hint
+                const hasMedia = !!(node.userData.image_url || node.userData.embed_code || node.userData.audio_url);
+                const hasDesc = !!(node.userData.description && node.userData.description.trim() !== '');
+                const isPortal = node.userData.node_type === 'portal';
+                
+                if (node.userData.url || hasMedia || hasDesc || isPortal) {
+                    const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
+                        ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
+                        : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
+                    html += `<div style="opacity: 0.6; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid rgba(255,255,255,0.1); pt-1 mt-1;">${hintText}</div>`;
+                }
+
                 this.tooltip.innerHTML = html;
 
                 const styles = this.getNodeTooltipStyles(node);

@@ -97,7 +97,9 @@ CREATE TABLE IF NOT EXISTS project_info (
     hyperlinks_label_text VARCHAR(200) NOT NULL DEFAULT 'Hyperlinks:',
     initialize_auth_text VARCHAR(200) NOT NULL DEFAULT 'Initialize Auth',
     admin_label_text VARCHAR(200) NOT NULL DEFAULT 'Admin',
-    logout_label_text VARCHAR(200) NOT NULL DEFAULT 'Logout'
+    logout_label_text VARCHAR(200) NOT NULL DEFAULT 'Logout',
+    click_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Click to view',
+    tap_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Tap again to view'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table for editor constellation access (user_id = users.id, constellation_id = constellations.id). Admins see all; editors see only rows here.

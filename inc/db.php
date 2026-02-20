@@ -63,7 +63,7 @@ function getDefaultApiKey(?PDO $pdo = null): ?string {
 // ---------------------------------------------------------------------------
 
 /** Column keys for project_info (one row per locale). */
-const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text', 'back_button_text', 'system_online_text', 'reload_system_text', 'scan_system_text', 'clear_scan_text', 'systems_label_text', 'hyperlinks_label_text', 'initialize_auth_text', 'admin_label_text', 'logout_label_text'];
+const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text', 'back_button_text', 'system_online_text', 'reload_system_text', 'scan_system_text', 'clear_scan_text', 'systems_label_text', 'hyperlinks_label_text', 'initialize_auth_text', 'admin_label_text', 'logout_label_text', 'click_to_view_text', 'tap_to_view_text'];
 
 /** Locales supported (one row per locale in project_info). */
 const PROJECT_INFO_LOCALES = ['en', 'es', 'pt'];
@@ -91,7 +91,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'reload_system_text' => 'Reload System', 'scan_system_text' => 'SCAN SYSTEM...',
             'clear_scan_text' => 'Clear Scan', 'systems_label_text' => 'Systems:',
             'hyperlinks_label_text' => 'Hyperlinks:', 'initialize_auth_text' => 'Initialize Auth',
-            'admin_label_text' => 'Admin', 'logout_label_text' => 'Logout'
+            'admin_label_text' => 'Admin', 'logout_label_text' => 'Logout',
+            'click_to_view_text' => 'Click to view', 'tap_to_view_text' => 'Tap again to view'
         ],
         'es' => [
             'name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 
@@ -101,7 +102,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'reload_system_text' => 'Recargar Sistema', 'scan_system_text' => 'ESCANEAR SISTEMA...',
             'clear_scan_text' => 'Limpiar Escaneo', 'systems_label_text' => 'Sistemas:',
             'hyperlinks_label_text' => 'Hipervínculos:', 'initialize_auth_text' => 'Inicializar Autenticación',
-            'admin_label_text' => 'Admin', 'logout_label_text' => 'Cerrar sesión'
+            'admin_label_text' => 'Admin', 'logout_label_text' => 'Cerrar sesión',
+            'click_to_view_text' => 'Haz clic para ver', 'tap_to_view_text' => 'Toca de nuevo para ver'
         ],
         'pt' => [
             'name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 
@@ -111,7 +113,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'reload_system_text' => 'Recarregar Sistema', 'scan_system_text' => 'ESCANEAR SISTEMA...',
             'clear_scan_text' => 'Limpar Varredura', 'systems_label_text' => 'Sistemas:',
             'hyperlinks_label_text' => 'Hiperlinks:', 'initialize_auth_text' => 'Inicializar Autenticação',
-            'admin_label_text' => 'Admin', 'logout_label_text' => 'Sair'
+            'admin_label_text' => 'Admin', 'logout_label_text' => 'Sair',
+            'click_to_view_text' => 'Clique para ver', 'tap_to_view_text' => 'Toque novamente para ver'
         ],
     ];
 }
@@ -144,8 +147,23 @@ function db_insert_default_project_info_rows(PDO $pdo, string $enName = 'Telaris
     }
 }
 
-/** No-op: schema is created by setup only. */
+/**
+ * Ensure project_info table has all required columns.
+ */
 function db_ensure_project_info_columns(): void {
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'click_to_view_text'");
+        if ($stmt->fetch() === false) {
+            $pdo->exec("ALTER TABLE project_info ADD COLUMN click_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Click to view'");
+        }
+        $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'tap_to_view_text'");
+        if ($stmt->fetch() === false) {
+            $pdo->exec("ALTER TABLE project_info ADD COLUMN tap_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Tap again to view'");
+        }
+    } catch (PDOException $e) {
+        // Table might not exist yet, which is fine during setup
+    }
 }
 
 /**
