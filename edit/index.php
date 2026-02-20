@@ -105,6 +105,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <h2 class="text-gray-800 text-xl font-semibold">Nodes (<span id="tab-list-count">0</span>)</h2>
                         <button type="button" onclick="openCreateNodeModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Node</button>
                     </div>
+                    
+                    <!-- Top Pagination Container -->
+                    <div id="nodes-pagination-header" class="flex-1 flex justify-center"></div>
+
                     <div class="flex items-center gap-2 min-w-[300px]">
                         <label for="search-nodes" class="text-sm font-medium text-gray-700">Search:</label>
                         <input type="text" 
@@ -392,37 +396,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 // Store nodes for sorting
                 allNodes = nodes;
 
-                // Update node count in tab label
+                // Update node count
                 const countEl = document.getElementById('tab-list-count');
                 if (countEl) countEl.textContent = nodes.length;
                 
-                // Check if this is the initial load and we should set default tab
-                const urlParams = new URLSearchParams(window.location.search);
-                if (!urlParams.has('tab')) {
-                    // No tab specified in URL, set default based on whether nodes exist
-                    const defaultTab = nodes.length > 0 ? 'list' : 'add';
-                    // Update URL without reload first
-                    urlParams.set('tab', defaultTab);
-                    window.history.replaceState({}, '', '?' + urlParams.toString());
-                    // Show the tab - if it's 'list', showTab will call loadNodes again, but that's okay
-                    // If it's 'add', we just show it and don't display nodes
-                    showTab(defaultTab);
-                    // For list tab, showTab will handle loading, for add tab we're done
-                    if (defaultTab === 'list') {
-                        // showTab already called loadNodes, which will call applySorting
-                        return;
-                    }
-                    // For add tab, we don't need to display nodes
-                    return;
-                }
-                
-                // Apply sorting if sort controls exist
-                const sortBy = document.getElementById('sort-by');
-                if (sortBy) {
-                    applySorting();
-                } else {
-                    displayNodes(nodes);
-                }
+                applySorting();
             } catch (error) {
                 const errorMsg = error.message || 'Unknown error';
                 if (listDiv) {
@@ -530,6 +508,45 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 
                 // Set innerHTML with header + nodes
                 listDiv.innerHTML = headerHTML + html;
+
+                // Add Pagination Controls (Top and Bottom)
+                const totalPages = Math.ceil(filteredNodes.length / itemsPerPage);
+                
+                // Clear any existing pagination
+                const headerContainer = document.getElementById('nodes-pagination-header');
+                if (headerContainer) headerContainer.innerHTML = '';
+                
+                const oldBottom = document.getElementById('nodes-pagination-bottom');
+                if (oldBottom) oldBottom.remove();
+
+                if (totalPages > 1) {
+                    const createPaginationHTML = (isTop) => {
+                        let html = `<div id="nodes-pagination-${isTop ? 'top' : 'bottom'}" class="flex items-center gap-2 ${isTop ? '' : 'mt-8 pb-4 flex justify-center'}">`;
+                        html += `<button onclick="changePage(${currentPage - 1})" class="btn btn-xs ${currentPage === 1 ? 'btn-disabled' : ''}">«</button>`;
+                        for (let i = 1; i <= totalPages; i++) {
+                            if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                                html += `<button onclick="changePage(${i})" class="btn btn-xs ${i === currentPage ? 'btn-primary' : ''}">${i}</button>`;
+                            } else if (i === currentPage - 3 || i === currentPage + 3) {
+                                html += `<span class="px-0.5 text-gray-400">...</span>`;
+                            }
+                        }
+                        html += `<button onclick="changePage(${currentPage + 1})" class="btn btn-xs ${currentPage === totalPages ? 'btn-disabled' : ''}">»</button>`;
+                        html += `</div>`;
+                        return html;
+                    };
+
+                    // Header pagination
+                    if (headerContainer) {
+                        headerContainer.innerHTML = createPaginationHTML(true);
+                    }
+
+                    // Bottom pagination
+                    const bottomPagination = document.createElement('div');
+                    bottomPagination.id = 'nodes-pagination-bottom';
+                    bottomPagination.innerHTML = createPaginationHTML(false);
+                    listDiv.appendChild(bottomPagination);
+                }
+
                 updateSortIndicators();
 
                 // Initialize keywords for the node being edited
@@ -563,6 +580,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         // Store all nodes for sorting
         let allNodes = [];
+        let filteredNodes = [];
+
+        // Pagination state
+        let currentPage = 1;
+        const itemsPerPage = 25;
 
         // Sort state
         let currentSortColumn = null;
@@ -602,18 +624,20 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         }
         
         // Apply sorting and filtering to displayed nodes
-        function applySorting() {
+        function applySorting(resetPage = true) {
             const searchInput = document.getElementById('search-nodes');
             
             if (!allNodes || allNodes.length === 0) {
                 return;
             }
+
+            if (resetPage) currentPage = 1;
             
             // Get search query
             const searchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
             
             // Filter nodes based on search query
-            let filteredNodes = [...allNodes];
+            filteredNodes = [...allNodes];
             if (searchQuery) {
                 filteredNodes = allNodes.filter(node => {
                     // Search in name
@@ -637,9 +661,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
             
             // Apply sorting to filtered nodes if a column is selected
-            let sortedNodes = filteredNodes;
             if (currentSortColumn) {
-                sortedNodes = filteredNodes.sort((a, b) => {
+                filteredNodes.sort((a, b) => {
                     let aVal, bVal;
                     
                     switch(currentSortColumn) {
@@ -677,7 +700,20 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 });
             }
             
-            displayNodes(sortedNodes);
+            // Calculate slice for pagination
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const paginatedNodes = filteredNodes.slice(start, end);
+
+            displayNodes(paginatedNodes);
+        }
+
+        function changePage(page) {
+            const totalPages = Math.ceil(filteredNodes.length / itemsPerPage);
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            applySorting(false);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         // Generate random animation values

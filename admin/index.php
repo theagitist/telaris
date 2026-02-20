@@ -456,13 +456,16 @@ $fieldMeta = [
         <div class="bg-white rounded-b-lg shadow-md mb-6 -mt-6 pt-6">
             <!-- Users Tab -->
             <div id="content-users" class="p-6 <?php echo $activeTab !== 'users' ? 'hidden' : ''; ?>">
-                <!-- Users list -->
                 <div>
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
                             <h2 class="text-gray-800 text-base font-semibold">Users (<?php echo count($users); ?>)</h2>
                             <button type="button" onclick="document.getElementById('create_user_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New User</button>
                         </div>
+                        
+                        <!-- Top Pagination -->
+                        <div id="users-pagination-header" class="flex-1 flex justify-center"></div>
+
                         <div class="flex items-center gap-2 min-w-[250px]">
                             <label for="search-users" class="text-sm font-medium text-gray-700">Search:</label>
                             <input type="text" 
@@ -669,6 +672,10 @@ $fieldMeta = [
                             <h2 class="text-gray-800 text-base font-semibold">Constellations (<?php echo count($constellations); ?>)</h2>
                             <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Constellation</button>
                         </div>
+
+                        <!-- Top Pagination -->
+                        <div id="constellations-pagination-header" class="flex-1 flex justify-center"></div>
+
                         <div class="flex items-center gap-2 min-w-[250px]">
                             <label for="search-constellations" class="text-sm font-medium text-gray-700">Search:</label>
                             <input type="text" 
@@ -897,6 +904,117 @@ $fieldMeta = [
         
         const userConstellationsMap = <?php echo json_encode($userConstellationsMap); ?>;
 
+        // Pagination State
+        const paginationState = {
+            users: { currentPage: 1, itemsPerPage: 20 },
+            constellations: { currentPage: 1, itemsPerPage: 20 }
+        };
+
+        function applyPagination(type) {
+            const state = paginationState[type];
+            const selector = type === 'users' ? 'tr.user-row' : 'tr.constellation-row';
+            const searchId = type === 'users' ? 'search-users' : 'search-constellations';
+            const query = document.getElementById(searchId).value.toLowerCase().trim();
+            
+            const allRows = Array.from(document.querySelectorAll(selector));
+            
+            // First filter based on search
+            const visibleFilteredRows = allRows.filter(row => {
+                let text = '';
+                if (type === 'users') {
+                    text = (row.dataset.name || '') + ' ' + (row.dataset.email || '');
+                } else {
+                    text = (row.dataset.name || '') + ' ' + (row.dataset.tagline || '') + ' ' + (row.dataset.id || '');
+                }
+                return text.toLowerCase().includes(query);
+            });
+
+            const totalItems = visibleFilteredRows.length;
+            const totalPages = Math.ceil(totalItems / state.itemsPerPage);
+            
+            if (state.currentPage > totalPages && totalPages > 0) state.currentPage = totalPages;
+            if (state.currentPage < 1) state.currentPage = 1;
+
+            const start = (state.currentPage - 1) * state.itemsPerPage;
+            const end = start + state.itemsPerPage;
+
+            // Hide all rows first
+            allRows.forEach(row => row.style.display = 'none');
+
+            // Show only rows for current page
+            visibleFilteredRows.forEach((row, index) => {
+                if (index >= start && index < end) {
+                    row.style.display = '';
+                }
+            });
+
+            updatePaginationControls(type, totalPages);
+        }
+
+        function updatePaginationControls(type, totalPages) {
+            const state = paginationState[type];
+            const positions = ['top', 'bottom'];
+            
+            positions.forEach(pos => {
+                const containerId = `${type}-pagination-${pos}`;
+                const headerContainerId = `${type}-pagination-header`;
+                let container = document.getElementById(containerId);
+
+                if (pos === 'top') {
+                    const header = document.getElementById(headerContainerId);
+                    if (!header) return;
+                    
+                    if (totalPages <= 1) {
+                        header.innerHTML = '';
+                        return;
+                    }
+
+                    let html = `<div id="${containerId}" class="flex items-center gap-2">`;
+                    html += `<button type="button" onclick="goToPage('${type}', ${state.currentPage - 1})" class="btn btn-xs ${state.currentPage === 1 ? 'btn-disabled' : ''}">«</button>`;
+                    for (let i = 1; i <= totalPages; i++) {
+                        if (i === 1 || i === totalPages || (i >= state.currentPage - 2 && i <= state.currentPage + 2)) {
+                            html += `<button type="button" onclick="goToPage('${type}', ${i})" class="btn btn-xs ${i === state.currentPage ? 'btn-primary' : ''}">${i}</button>`;
+                        } else if (i === state.currentPage - 3 || i === state.currentPage + 3) {
+                            html += `<span class="px-0.5 text-gray-400">...</span>`;
+                        }
+                    }
+                    html += `<button type="button" onclick="goToPage('${type}', ${state.currentPage + 1})" class="btn btn-xs ${state.currentPage === totalPages ? 'btn-disabled' : ''}">»</button>`;
+                    html += `</div>`;
+                    header.innerHTML = html;
+                } else {
+                    // Bottom pagination
+                    if (!container) {
+                        container = document.createElement('div');
+                        container.id = containerId;
+                        container.className = `flex justify-center items-center gap-2 mt-6 pb-4`;
+                        const tableWrap = document.querySelector(type === 'users' ? '#users-list' : 'table.w-full').parentNode;
+                        tableWrap.parentNode.insertBefore(container, tableWrap.nextSibling);
+                    }
+
+                    if (totalPages <= 1) {
+                        container.innerHTML = '';
+                        return;
+                    }
+
+                    let html = `<button type="button" onclick="goToPage('${type}', ${state.currentPage - 1})" class="btn btn-sm ${state.currentPage === 1 ? 'btn-disabled' : ''}">«</button>`;
+                    for (let i = 1; i <= totalPages; i++) {
+                        if (i === 1 || i === totalPages || (i >= state.currentPage - 2 && i <= state.currentPage + 2)) {
+                            html += `<button type="button" onclick="goToPage('${type}', ${i})" class="btn btn-sm ${i === state.currentPage ? 'btn-primary' : ''}">${i}</button>`;
+                        } else if (i === state.currentPage - 3 || i === state.currentPage + 3) {
+                            html += `<span class="px-1 text-gray-400">...</span>`;
+                        }
+                    }
+                    html += `<button type="button" onclick="goToPage('${type}', ${state.currentPage + 1})" class="btn btn-sm ${state.currentPage === totalPages ? 'btn-disabled' : ''}">»</button>`;
+                    container.innerHTML = html;
+                }
+            });
+        }
+
+        function goToPage(type, page) {
+            paginationState[type].currentPage = page;
+            applyPagination(type);
+        }
+
         function toggleModalUserConstellations() {
             const typeSelect = document.getElementById('modal-type');
             const section = document.getElementById('modal-user-constellations-section');
@@ -1019,6 +1137,10 @@ $fieldMeta = [
             initCreateUserModalLogic();
             toggleCreateUserConstellations();
             toggleCreateNewConstellationName();
+
+            // Initial pagination
+            applyPagination('users');
+            applyPagination('constellations');
 
             // Hide loading overlay
             const overlay = document.getElementById('admin-loading-overlay');
@@ -1172,31 +1294,18 @@ $fieldMeta = [
             sortedRows.forEach(row => {
                 tbody.appendChild(row);
             });
+
+            applyPagination('users');
         }
 
         function applyUserSearch() {
-            const query = document.getElementById('search-users').value.toLowerCase().trim();
-            const rows = document.querySelectorAll('tr.user-row');
-            
-            rows.forEach(row => {
-                const name = row.dataset.name || '';
-                const email = row.dataset.email || '';
-                const match = name.includes(query) || email.includes(query);
-                row.style.display = match ? '' : 'none';
-            });
+            paginationState.users.currentPage = 1;
+            applyPagination('users');
         }
 
         function applyConstellationSearch() {
-            const query = document.getElementById('search-constellations').value.toLowerCase().trim();
-            const rows = document.querySelectorAll('tr.constellation-row');
-            
-            rows.forEach(row => {
-                const name = row.dataset.name || '';
-                const tagline = row.dataset.tagline || '';
-                const id = row.dataset.id || '';
-                const match = name.includes(query) || tagline.includes(query) || id.includes(query);
-                row.style.display = match ? '' : 'none';
-            });
+            paginationState.constellations.currentPage = 1;
+            applyPagination('constellations');
         }
     </script>
     <!-- Create User Modal -->
