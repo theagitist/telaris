@@ -100,6 +100,29 @@
             50% { opacity: 1; transform: scale(1.1); }
             100% { opacity: 0.4; transform: scale(0.9); }
         }
+
+        /* Custom Scrollbar for Rich Media Window */
+        #rich-media-window::-webkit-scrollbar {
+            width: 6px;
+        }
+        #rich-media-window::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 0 8px 8px 0;
+        }
+        #rich-media-window::-webkit-scrollbar-thumb {
+            background: var(--node-accent-muted, rgba(0, 255, 204, 0.3));
+            border-radius: 10px;
+        }
+        #rich-media-window::-webkit-scrollbar-thumb:hover {
+            background: var(--node-accent, rgba(0, 255, 204, 0.6));
+        }
+        #rich-media-window {
+            scrollbar-width: thin;
+            scrollbar-color: var(--node-accent-muted, rgba(0, 255, 204, 0.3)) rgba(255, 255, 255, 0.05);
+            --node-accent: #00ffcc;
+            --node-accent-muted: rgba(0, 255, 204, 0.3);
+        }
+
         #hud-indicator {
             position: absolute;
             top: 1.25rem;
@@ -153,23 +176,14 @@
         <div id="node-tooltip" class="absolute px-3 py-2 rounded text-base pointer-events-none z-[200]" style="opacity: 0; visibility: hidden;"></div>
 
         <!-- Rich Media Window Overlay -->
-        <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md hidden" 
+        <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md hidden transition-opacity duration-500 opacity-0" 
              onclick="if(event.target === this) { 
-                 const audio = document.getElementById('rm-audio');
-                 if(audio) { audio.pause(); audio.src = ''; }
-                 const embed = document.getElementById('rm-embed');
-                 if(embed) { embed.innerHTML = ''; }
-                 this.classList.add('hidden'); 
+                 window.telarisNetwork.closeRichMediaWindow();
              }">
-            <div id="rich-media-window" class="bg-[#0a0a0c] border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative text-white">
+            <div id="rich-media-window" class="bg-[#0a0a0c]/90 border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative text-white transition-all duration-500 ease-out transform scale-50 opacity-0"
+                 style="box-shadow: 0 0 50px -10px rgba(0, 255, 204, 0.3);">
                 <!-- Close Button -->
-                <button onclick="
-                    const audio = document.getElementById('rm-audio');
-                    if(audio) { audio.pause(); audio.src = ''; }
-                    const embed = document.getElementById('rm-embed');
-                    if(embed) { embed.innerHTML = ''; }
-                    document.getElementById('rich-media-overlay').classList.add('hidden');
-                " class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-10">
+                <button onclick="window.telarisNetwork.closeRichMediaWindow()" class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-10">
                     <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M18 6L6 18M6 6l12 12"/>
                     </svg>
@@ -177,12 +191,12 @@
 
                 <!-- Content -->
                 <div class="p-6 md:p-8">
-                    <h2 id="rm-title" class="text-2xl font-bold mb-4 tracking-tight uppercase border-b border-white/10 pb-2"></h2>
+                    <h2 id="rm-title" class="text-2xl font-bold mb-4 tracking-tight uppercase border-b-2 pb-2" style="border-color: var(--node-accent-muted);"></h2>
                     
                     <div id="rm-media-container" class="space-y-6">
                         <!-- Image -->
                         <div id="rm-image-wrap" class="hidden">
-                            <img id="rm-image" src="" alt="" class="w-full h-auto rounded-md border border-white/10">
+                            <img id="rm-image" src="" alt="" class="w-full h-auto rounded-md border" style="border-color: var(--node-accent-muted);">
                         </div>
 
                         <!-- Embed -->
@@ -200,8 +214,9 @@
 
                         <!-- URL / Action Button -->
                         <div id="rm-url-wrap" class="hidden pt-4">
-                            <button id="rm-url-button" class="w-full py-3 bg-[#00ffcc]/10 hover:bg-[#00ffcc]/20 border border-[#00ffcc]/30 text-[#00ffcc] rounded font-bold uppercase tracking-widest transition-all">
-                                Open Source Link
+                            <button id="rm-url-button" class="w-full py-3 bg-transparent border text-xs font-bold uppercase tracking-widest transition-all hover:bg-white/10"
+                                    style="border-color: var(--node-accent-muted); color: var(--node-accent);">
+                                LAUNCH...
                             </button>
                         </div>
                     </div>
@@ -308,14 +323,14 @@
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "./telaris-network.js": "./js/telaris-network.js?v=3.5.0",
-                "./network-manager.js": "./js/network-manager.js?v=3.5.0",
-                "./geometry-manager.js": "./js/geometry-manager.js?v=3.5.0",
-                "./api.js": "./js/api.js?v=3.5.0",
-                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=3.5.0"
+                "./telaris-network.js": "./js/telaris-network.js?v=3.6.0",
+                "./network-manager.js": "./js/network-manager.js?v=3.6.0",
+                "./geometry-manager.js": "./js/geometry-manager.js?v=3.6.0",
+                "./api.js": "./js/api.js?v=3.6.0",
+                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=3.6.0"
             }
         }
     </script>
-    <script type="module" src="js/main.js?v=3.5.0"></script>
+    <script type="module" src="js/main.js?v=3.6.0"></script>
 </body>
 </html>

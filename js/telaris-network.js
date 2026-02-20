@@ -86,6 +86,7 @@ class TelarisNetwork {
         if (!d) return;
 
         const overlay = document.getElementById('rich-media-overlay');
+        const win = document.getElementById('rich-media-window');
         const titleEl = document.getElementById('rm-title');
         const descriptionEl = document.getElementById('rm-description');
         const imageWrap = document.getElementById('rm-image-wrap');
@@ -97,7 +98,8 @@ class TelarisNetwork {
         const urlWrap = document.getElementById('rm-url-wrap');
         const urlButton = document.getElementById('rm-url-button');
 
-        if (!overlay) return;
+        if (!overlay || !win) return;
+        window.telarisNetwork = this; // Ensure globally accessible for close button
 
         // Title
         if (titleEl) titleEl.textContent = d.name || 'System';
@@ -144,8 +146,9 @@ class TelarisNetwork {
         if (urlWrap && urlButton) {
             if (d.url) {
                 urlWrap.classList.remove('hidden');
+                urlButton.textContent = `LAUNCH ${d.name || 'SYSTEM'}`;
                 urlButton.onclick = () => {
-                    overlay.classList.add('hidden');
+                    this.closeRichMediaWindow();
                     this.openInFrame(node, d.url);
                 };
             } else {
@@ -153,8 +156,60 @@ class TelarisNetwork {
             }
         }
 
-        // Show overlay
+        // Calculate Spatial Origin
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        const projected = new THREE.Vector3();
+        node.getWorldPosition(projected);
+        
+        // 3D Tilt calculation (subtle perspective based on where the node is)
+        const tiltX = projected.y * 5; // Tilt up/down
+        const tiltY = -projected.x * 5; // Tilt left/right
+        
+        projected.project(this.camera);
+        const startX = (projected.x * 0.5 + 0.5) * rect.width;
+        const startY = (0.5 - projected.y * 0.5) * rect.height;
+
+        // Apply Color Glow to Window
+        const r = d.colorR || 0, g = d.colorG || 255, b = d.colorB || 204;
+        win.style.setProperty('--node-accent', `rgb(${r}, ${g}, ${b})`);
+        win.style.setProperty('--node-accent-muted', `rgba(${r}, ${g}, ${b}, 0.3)`);
+        win.style.boxShadow = `0 0 80px -20px rgba(${r}, ${g}, ${b}, 0.5), inset 0 0 20px rgba(${r}, ${g}, ${b}, 0.1)`;
+        win.style.borderColor = `rgba(${r}, ${g}, ${b}, 0.3)`;
+
+        // Reset and animate
         overlay.classList.remove('hidden');
+        win.style.transition = 'none';
+        win.style.transform = `translate(${startX - rect.width/2}px, ${startY - rect.height/2}px) scale(0) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+        win.style.opacity = '0';
+        overlay.style.opacity = '0';
+        
+        // Force reflow
+        win.offsetHeight;
+        
+        requestAnimationFrame(() => {
+            overlay.style.opacity = '1';
+            win.style.transition = 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)'; // Smooth spatial travel
+            win.style.transform = 'translate(0, 0) scale(1) rotateX(0deg) rotateY(0deg)';
+            win.style.opacity = '1';
+        });
+    }
+
+    closeRichMediaWindow() {
+        const overlay = document.getElementById('rich-media-overlay');
+        const win = document.getElementById('rich-media-window');
+        if (!overlay || !win) return;
+
+        overlay.style.opacity = '0';
+        win.style.transform = 'scale(0.9) translateY(20px)';
+        win.style.opacity = '0';
+
+        setTimeout(() => {
+            const audio = document.getElementById('rm-audio');
+            if(audio) { audio.pause(); audio.src = ''; }
+            const embed = document.getElementById('rm-embed');
+            if(embed) { embed.innerHTML = ''; }
+            overlay.classList.add('hidden');
+        }, 500);
     }
 
     markInteraction() {
@@ -1017,7 +1072,9 @@ class TelarisNetwork {
                     event.preventDefault();
                     event.stopPropagation();
                     
-                    const isRichMedia = (data.image_url || data.embed_code || data.audio_url || (data.description && data.description.trim() !== ''));
+                    const isRichMedia = !!(data.image_url || data.embed_code || data.audio_url || (data.description && data.description.trim() !== ''));
+                    console.log('[Telaris] Clicked object node', { name: data.name, isRichMedia, data });
+                    
                     if (isRichMedia) {
                         this.showRichMediaWindow(targetNode);
                     } else if (data.url) {
