@@ -1083,7 +1083,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         function updateKeywordTags(contextId) {
             const container = document.getElementById(`keywords-container-${contextId}`);
-            const hiddenInput = document.getElementById(contextId === 'add' ? 'node-keywords' : `edit-keywords-${contextId}`);
+            let hiddenInputId = '';
+            if (contextId === 'modal') {
+                hiddenInputId = 'edit-keywords-hidden';
+            } else if (contextId === 'create' || contextId === 'add') {
+                hiddenInputId = 'node-keywords';
+            } else {
+                hiddenInputId = `edit-keywords-${contextId}`;
+            }
+            const hiddenInput = document.getElementById(hiddenInputId);
             if (!container || !hiddenInput) return;
 
             const keywords = keywordState[contextId] || [];
