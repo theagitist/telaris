@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS constellations (
     id INT NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL DEFAULT '',
-    tagline VARCHAR(500) NOT NULL DEFAULT ''
+    tagline VARCHAR(500) NOT NULL DEFAULT '',
+    slug VARCHAR(255) NULL UNIQUE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- In SCHEMA.sql, locate the nodes table and update it:

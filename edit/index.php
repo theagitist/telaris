@@ -156,7 +156,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         const API_KEY = <?php echo $apiKey !== null ? json_encode($apiKey, JSON_THROW_ON_ERROR) : 'null'; ?>;
         const API_BASE = '../api/nodes.php';
         const CONSTELLATIONS_API = '../api/constellations.php';
-        const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name']], $constellations), JSON_THROW_ON_ERROR); ?>;
+        const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'slug' => $c['slug']], $constellations), JSON_THROW_ON_ERROR); ?>;
 
         /** Constellations from API (all), populated at load for target dropdown when Portal is selected. */
         let allConstellations = [];

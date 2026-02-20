@@ -184,10 +184,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 global $message, $error, $activeTab;
                 $name = trim($_POST['name'] ?? '');
                 $tagline = trim($_POST['tagline'] ?? '');
+                $slug = trim($_POST['slug'] ?? '');
                 if (empty($name)) {
                     throw new Exception('Constellation name is required');
                 }
-                db_create_constellation($name, $tagline);
+                db_create_constellation($name, $tagline, $slug !== '' ? $slug : null);
                 $message = 'Constellation created successfully.';
                 $activeTab = 'constellations';
             })(),
@@ -197,10 +198,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $id = (int)($_POST['id'] ?? -1);
                 $name = trim($_POST['name'] ?? '');
                 $tagline = trim($_POST['tagline'] ?? '');
+                $slug = trim($_POST['slug'] ?? '');
                 if (empty($name)) {
                     throw new Exception('Constellation name is required');
                 }
-                db_update_constellation($id, $name, $tagline);
+                db_update_constellation($id, $name, $tagline, $slug !== '' ? $slug : null);
                 $message = 'Constellation updated successfully.';
                 $activeTab = 'constellations';
             })(),
@@ -722,7 +724,8 @@ $fieldMeta = [
                                             $cData = [
                                                 'id' => $cId,
                                                 'name' => $c['name'],
-                                                'tagline' => $cTagline
+                                                'tagline' => $cTagline,
+                                                'slug' => $c['slug']
                                             ];
                                             $cJson = htmlspecialchars(json_encode($cData), ENT_QUOTES, 'UTF-8');
                                             $clickEditC = "editConstellation($cJson)";
@@ -1057,6 +1060,7 @@ $fieldMeta = [
         function editConstellation(c) {
             document.getElementById('modal-constellation-id').value = c.id;
             document.getElementById('modal-constellation-name').value = c.name;
+            document.getElementById('modal-constellation-slug').value = c.slug || '';
             document.getElementById('modal-constellation-tagline').value = c.tagline;
             document.getElementById('constellation_modal').showModal();
         }
@@ -1425,6 +1429,12 @@ $fieldMeta = [
                     <input type="text" id="create-constellation-name" name="name" required placeholder="e.g. Main network, Archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     <span class="text-xs text-gray-500 mt-1 block">Unique name for the new node network.</span>
                 </div>
+
+                <div class="mb-4">
+                    <label for="create-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">URL Slug (Optional)</label>
+                    <input type="text" id="create-constellation-slug" name="slug" placeholder="e.g. archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">Custom URL path (e.g., telaris.polivoxia.ca/archive). Letters, numbers, and underscores only.</span>
+                </div>
                 
                 <div class="mb-4">
                     <label for="create-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
@@ -1511,6 +1521,12 @@ $fieldMeta = [
                 <div class="mb-4">
                     <label for="modal-constellation-name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
                     <input type="text" id="modal-constellation-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div class="mb-4">
+                    <label for="modal-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">URL Slug (Optional)</label>
+                    <input type="text" id="modal-constellation-slug" name="slug" placeholder="e.g. archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">Custom URL path. Letters, numbers, and underscores only.</span>
                 </div>
                 
                 <div class="mb-4">

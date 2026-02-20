@@ -1324,7 +1324,11 @@ class TelarisNetwork {
                 // 1. Define the node data object from the API response first
                 const pos = new THREE.Vector3((Math.random() * 2 - 1) * b.x, (Math.random() * 2 - 1) * b.y, (Math.random() * 2 - 1) * b.z);
                 const hue = (i + 0.5) / nodeData.length;
-                const color = new THREE.Color().setHSL(hue, 0.7, 0.75);
+                let color = new THREE.Color().setHSL(hue, 0.7, 0.75);
+                if (!!data.is_accentuated) {
+                    // Pastel Red: Hue 0, Saturation 0.7, Lightness 0.7
+                    color = new THREE.Color().setHSL(0, 0.7, 0.7);
+                }
 
                 const node = {
                     name: data.name,
@@ -1364,7 +1368,7 @@ class TelarisNetwork {
 
                 // Accentuation: increase base size
                 if (node.is_accentuated) {
-                    mesh.scale.setScalar(1.8);
+                    mesh.scale.setScalar(2.0);
                     mesh.isAccentuated = true;
                 }
 
@@ -1719,8 +1723,8 @@ class TelarisNetwork {
                         if (isTransitioning) {
                             m.emissiveIntensity = m._baseEmissiveIntensity * brightness;
                         } else {
-                            const twinkleFreq = d.is_accentuated ? 4.5 : 2.5;
-                            const twinkleAmp = d.is_accentuated ? 1.2 : 0.5;
+                            const twinkleFreq = d.is_accentuated ? 3.0 : 2.5;
+                            const twinkleAmp = d.is_accentuated ? 0.8 : 0.5;
                             const twinkle = 1.0 + Math.sin(time * twinkleFreq + d.phase) * twinkleAmp;
                             
                             const hoverBoost = isActive ? 2.5 : 1.0;
@@ -1729,8 +1733,8 @@ class TelarisNetwork {
                                 flareBoost = 8.0 * (d.solarFlare / 15);
                                 if (m === d.cachedMaterials[0]) d.solarFlare--; // Only decrement once per node
                             }
-                            // Accentuated nodes get a permanent emissive boost
-                            const accentBoost = d.is_accentuated ? 2.0 : 1.0;
+                            // Accentuated nodes get a smaller emissive boost now
+                            const accentBoost = d.is_accentuated ? 1.4 : 1.0;
                             m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverBoost * twinkle * flareBoost * accentBoost;
                         }
                     }
@@ -1741,12 +1745,12 @@ class TelarisNetwork {
             
             // Stable scale during transition, dynamic pulse otherwise
             if (isTransitioning) {
-                const baseS = d.is_accentuated ? 2.5 : 1.4;
+                const baseS = d.is_accentuated ? 2.0 : 1.4;
                 n.scale.set(baseS, baseS, baseS);
             } else {
-                const pulseFreq = d.is_accentuated ? 3.0 : 1.5;
-                const pulseAmp = d.is_accentuated ? 0.25 : 0.08;
-                const baseS = d.is_accentuated ? 2.5 : 1.4;
+                const pulseFreq = d.is_accentuated ? 2.0 : 1.5;
+                const pulseAmp = d.is_accentuated ? 0.15 : 0.08;
+                const baseS = d.is_accentuated ? 2.0 : 1.4;
                 const s = baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp;
                 n.scale.set(s, s, s);
             }

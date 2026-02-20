@@ -96,17 +96,38 @@ $projectAdminLabelText = $projectStrings['admin_label_text'] ?? 'Admin';
 $projectLogoutLabelText = $projectStrings['logout_label_text'] ?? 'Logout';
 
 // Constellation for main view: root URL = default (0); /{NUMBER} or ?constellation_id=NUMBER = that constellation
+// NEW: Support for slugs /{SLUG}
 $constellationId = 0;
+$constellationName = $projectName;
+$constellationTagline = $projectTagline;
+
 $path = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
+
 if (preg_match('/^[0-9]+$/', $path)) {
     $constellationId = (int) $path;
+    $constellationInfo = db_get_constellation_by_id($constellationId);
+    if ($constellationInfo) {
+        $constellationName = $constellationInfo['name'];
+        $constellationTagline = $constellationInfo['tagline'];
+    } else {
+        $constellationId = 0;
+    }
+} elseif ($path !== '' && !str_contains($path, '.')) {
+    // Attempt to match as a slug
+    $constellationInfo = db_get_constellation_by_slug($path);
+    if ($constellationInfo) {
+        $constellationId = $constellationInfo['id'];
+        $constellationName = $constellationInfo['name'];
+        $constellationTagline = $constellationInfo['tagline'];
+    }
 } elseif (isset($_GET['constellation_id']) && is_numeric($_GET['constellation_id'])) {
     $constellationId = (int) $_GET['constellation_id'];
+    $constellationInfo = db_get_constellation_by_id($constellationId);
+    if ($constellationInfo) {
+        $constellationName = $constellationInfo['name'];
+        $constellationTagline = $constellationInfo['tagline'];
+    } else {
+        $constellationId = 0;
+    }
 }
-$constellationIds = array_column(db_get_constellations(), 'id');
-if (!in_array($constellationId, $constellationIds, true)) {
-    $constellationId = 0;
-}
-$constellationInfo = db_get_constellation_by_id($constellationId);
-$constellationName = $constellationInfo ? $constellationInfo['name'] : $projectName;
-$constellationTagline = $constellationInfo ? $constellationInfo['tagline'] : $projectTagline;
+
