@@ -1301,21 +1301,22 @@ class TelarisNetwork {
                     ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
                     : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
                 
-                // For testing: add hint even if condition fails but with low opacity if no content
                 const hasContent = (node.userData.url || hasMedia || hasDesc || isPortal);
-                html += `<div style="opacity: ${hasContent ? '1.0' : '0.4'}; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 6px; margin-top: 6px; color: ${hasContent ? '#ffcc00' : 'inherit'};">`;
-                html += `[ ${hintText} ]`;
+                html += `<div style="background: rgba(255, 204, 0, 0.9); color: #000; padding: 4px 8px; margin-top: 8px; border-radius: 2px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; text-align: center; display: block; width: 100%;">`;
+                html += hintText;
                 html += `</div>`;
 
                 this.tooltip.innerHTML = html;
 
                 const styles = this.getNodeTooltipStyles(node);
                 Object.assign(this.tooltip.style, {
-                    background: styles.background,
+                    background: styles.background.replace('0.35', '0.95'),
                     color: styles.color,
                     visibility: 'visible',
                     display: 'block',
-                    opacity: '0'
+                    opacity: '1',
+                    zIndex: '9999',
+                    border: '1px solid rgba(255,255,255,0.5)'
                 });
 
                 const rect = this.renderer.domElement.getBoundingClientRect();
