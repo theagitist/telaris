@@ -103,7 +103,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                        class="w-full p-2.5 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500 transition-colors">
             </div>
             
-            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white py-3 px-8 rounded text-base font-medium cursor-pointer w-full transition-colors shadow-lg">
+            <button type="submit" class="btn btn-neutral w-full">
                 Sign In
             </button>
         </form>

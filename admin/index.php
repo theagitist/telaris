@@ -359,7 +359,7 @@ $fieldMeta = [
 <body class="font-sans bg-gray-100 min-h-screen">
     <!-- Initial Loading Overlay -->
     <div id="admin-loading-overlay" class="fixed inset-0 z-[1000] bg-gray-100 flex flex-col items-center justify-center transition-opacity duration-300">
-        <span class="loading loading-spinner loading-lg text-primary mb-4"></span>
+        <span class="loading loading-spinner loading-lg text-neutral mb-4"></span>
         <p class="text-gray-600 font-medium">Loading Admin Console...</p>
     </div>
 
@@ -372,7 +372,7 @@ $fieldMeta = [
                     <p class="text-gray-600 mt-1">Welcome, <?php echo htmlspecialchars($_SESSION['admin_user_name'] ?? 'Admin'); ?></p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <a href="../edit/index.php" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded">
+                    <a href="../edit/index.php" class="btn btn-neutral">
                         Edit Content
                     </a>
                     <form method="POST" action="" class="inline">
@@ -398,7 +398,7 @@ $fieldMeta = [
                                value="<?php echo htmlspecialchars($newApiKey); ?>" 
                                readonly 
                                class="flex-1 p-2 border border-gray-300 rounded bg-gray-50 font-mono text-sm">
-                        <button onclick="copyApiKey()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        <button onclick="copyApiKey()" class="btn btn-neutral">
                             Copy
                         </button>
                     </div>
@@ -785,7 +785,7 @@ $fieldMeta = [
                         <?php endforeach; ?>
                     </div>
                     <div class="mt-4">
-                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">Save settings</button>
+                        <button type="submit" class="btn btn-neutral">Save settings</button>
                     </div>
                 </form>
             </div>
@@ -973,7 +973,7 @@ $fieldMeta = [
                     html += `<button type="button" onclick="goToPage('${type}', ${state.currentPage - 1})" class="btn btn-xs ${state.currentPage === 1 ? 'btn-disabled' : ''}">«</button>`;
                     for (let i = 1; i <= totalPages; i++) {
                         if (i === 1 || i === totalPages || (i >= state.currentPage - 2 && i <= state.currentPage + 2)) {
-                            html += `<button type="button" onclick="goToPage('${type}', ${i})" class="btn btn-xs ${i === state.currentPage ? 'btn-primary' : ''}">${i}</button>`;
+                            html += `<button type="button" onclick="goToPage('${type}', ${i})" class="btn btn-xs ${i === state.currentPage ? 'btn-neutral' : ''}">${i}</button>`;
                         } else if (i === state.currentPage - 3 || i === state.currentPage + 3) {
                             html += `<span class="px-0.5 text-gray-400">...</span>`;
                         }
@@ -999,7 +999,7 @@ $fieldMeta = [
                     let html = `<button type="button" onclick="goToPage('${type}', ${state.currentPage - 1})" class="btn btn-sm ${state.currentPage === 1 ? 'btn-disabled' : ''}">«</button>`;
                     for (let i = 1; i <= totalPages; i++) {
                         if (i === 1 || i === totalPages || (i >= state.currentPage - 2 && i <= state.currentPage + 2)) {
-                            html += `<button type="button" onclick="goToPage('${type}', ${i})" class="btn btn-sm ${i === state.currentPage ? 'btn-primary' : ''}">${i}</button>`;
+                            html += `<button type="button" onclick="goToPage('${type}', ${i})" class="btn btn-sm ${i === state.currentPage ? 'btn-neutral' : ''}">${i}</button>`;
                         } else if (i === state.currentPage - 3 || i === state.currentPage + 3) {
                             html += `<span class="px-1 text-gray-400">...</span>`;
                         }
@@ -1196,13 +1196,13 @@ $fieldMeta = [
             const button = event.target;
             const originalText = button.textContent;
             button.textContent = 'Copied!';
-            button.classList.add('bg-green-500');
-            button.classList.remove('bg-blue-500');
+            button.classList.add('btn-success');
+            button.classList.remove('btn-neutral');
             
             setTimeout(() => {
                 button.textContent = originalText;
-                button.classList.remove('bg-green-500');
-                button.classList.add('bg-blue-500');
+                button.classList.remove('btn-success');
+                button.classList.add('btn-neutral');
             }, 2000);
         }
         
@@ -1379,7 +1379,7 @@ $fieldMeta = [
                 </div>
                 
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-primary">Create User</button>
+                    <button type="submit" class="btn btn-neutral">Create User</button>
                     <button type="button" class="btn" onclick="document.getElementById('create_user_modal').close()">Cancel</button>
                 </div>
             </form>
@@ -1407,7 +1407,7 @@ $fieldMeta = [
                 </div>
                 
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-primary">Create Constellation</button>
+                    <button type="submit" class="btn btn-neutral">Create Constellation</button>
                     <button type="button" class="btn" onclick="document.getElementById('create_constellation_modal').close()">Cancel</button>
                 </div>
             </form>
@@ -1466,7 +1466,7 @@ $fieldMeta = [
                 </div>
                 
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-primary">Update User</button>
+                    <button type="submit" class="btn btn-neutral">Update User</button>
                     <button type="button" class="btn" onclick="document.getElementById('user_modal').close()">Cancel</button>
                 </div>
             </form>
@@ -1493,7 +1493,7 @@ $fieldMeta = [
                 </div>
                 
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-primary">Update Constellation</button>
+                    <button type="submit" class="btn btn-neutral">Update Constellation</button>
                     <button type="button" class="btn" onclick="document.getElementById('constellation_modal').close()">Cancel</button>
                 </div>
             </form>

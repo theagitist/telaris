@@ -76,7 +76,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div>
                 <div class="flex gap-3">
                     <?php if ($isAdmin): ?>
-                    <a href="../admin/index.php" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded">
+                    <a href="../admin/index.php" class="btn btn-neutral">
                         Admin Console
                     </a>
                     <?php endif; ?>
@@ -330,7 +330,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             
             listDiv.innerHTML = `
                 <div class="flex flex-col items-center justify-center py-12 text-gray-500">
-                    <span class="loading loading-spinner loading-lg text-primary mb-4"></span>
+                    <span class="loading loading-spinner loading-lg text-neutral mb-4"></span>
                     <p class="text-lg">Retrieving nodes...</p>
                 </div>
             `;
@@ -525,7 +525,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         html += `<button onclick="changePage(${currentPage - 1})" class="btn btn-xs ${currentPage === 1 ? 'btn-disabled' : ''}">«</button>`;
                         for (let i = 1; i <= totalPages; i++) {
                             if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-                                html += `<button onclick="changePage(${i})" class="btn btn-xs ${i === currentPage ? 'btn-primary' : ''}">${i}</button>`;
+                                html += `<button onclick="changePage(${i})" class="btn btn-xs ${i === currentPage ? 'btn-neutral' : ''}">${i}</button>`;
                             } else if (i === currentPage - 3 || i === currentPage + 3) {
                                 html += `<span class="px-0.5 text-gray-400">...</span>`;
                             }
@@ -1197,7 +1197,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <span class="text-xs text-gray-500 mt-1 block">Paste iframe or HTML code for videos or interactive content.</span>
                 </div>
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-primary">Add Node</button>
+                    <button type="submit" class="btn btn-neutral">Add Node</button>
                     <button type="button" class="btn" onclick="document.getElementById('create_node_modal').close()">Cancel</button>
                 </div>
             </form>
@@ -1289,7 +1289,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <textarea id="edit-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
                 </div>
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button type="submit" class="btn btn-neutral">Update Node</button>
                     <button type="button" class="btn" onclick="document.getElementById('edit_modal').close()">Cancel</button>
                 </div>
             </form>
