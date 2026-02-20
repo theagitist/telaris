@@ -270,31 +270,11 @@ $apiKeys = db_get_api_keys();
 $users = db_get_users();
 $constellations = db_get_constellations();
 
-// Get constellation to edit if specified
-$editConstellation = null;
-if (isset($_GET['edit_constellation'])) {
-    $editConstellationId = (int)$_GET['edit_constellation'];
-    foreach ($constellations as $c) {
-        if ((int)$c['id'] === $editConstellationId) {
-            $editConstellation = $c;
-            break;
-        }
-    }
-}
-
-// Get user to edit if specified
-$editUser = null;
-$editUserConstellationIds = [];
-if (isset($_GET['edit_user'])) {
-    $editUserId = trim($_GET['edit_user']);
-    foreach ($users as $user) {
-        if ($user['id'] === $editUserId) {
-            $editUser = $user;
-            break;
-        }
-    }
-    if ($editUser) {
-        $editUserConstellationIds = db_get_user_constellation_ids($editUser['id']);
+// Get constellation access mapping for JavaScript
+$userConstellationsMap = [];
+foreach ($users as $u) {
+    if ((int)$u['type'] === USER_TYPE_EDITOR) {
+        $userConstellationsMap[$u['id']] = db_get_user_constellation_ids($u['id']);
     }
 }
 
@@ -473,76 +453,42 @@ $fieldMeta = [
 
             <!-- Users Tab -->
             <div id="content-users" class="p-6 <?php echo $activeTab !== 'users' ? 'hidden' : ''; ?>">
-                <!-- Create/Edit User Form (hidden by default; shown when New User clicked or when editing) -->
-                <div id="user-form-panel" class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded <?php echo $editUser ? '' : 'hidden'; ?>">
-                    <h2 class="text-blue-800 text-xl font-semibold mb-4">
-                        <?php echo $editUser ? 'Edit User' : 'Create New User'; ?>
-                    </h2>
+                <!-- Create User Form (hidden by default; shown when New User clicked) -->
+                <div id="user-form-panel" class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded hidden">
+                    <h2 class="text-blue-800 text-xl font-semibold mb-4">Create New User</h2>
                     <form method="POST" action="">
-                        <input type="hidden" name="action" value="<?php echo $editUser ? 'update_user' : 'create_user'; ?>">
-                        <?php if ($editUser): ?>
-                            <input type="hidden" name="id" value="<?php echo htmlspecialchars($editUser['id']); ?>">
-                        <?php endif; ?>
+                        <input type="hidden" name="action" value="create_user">
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
                                 <label for="firstname" class="block mb-1.5 text-gray-800 font-medium">First Name *</label>
-                                <input type="text" 
-                                       id="firstname" 
-                                       name="firstname" 
-                                       required 
-                                       value="<?php echo htmlspecialchars($editUser['firstname'] ?? ''); ?>"
-                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                <input type="text" id="firstname" name="firstname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                             </div>
                             <div>
                                 <label for="lastname" class="block mb-1.5 text-gray-800 font-medium">Last Name *</label>
-                                <input type="text" 
-                                       id="lastname" 
-                                       name="lastname" 
-                                       required 
-                                       value="<?php echo htmlspecialchars($editUser['lastname'] ?? ''); ?>"
-                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                <input type="text" id="lastname" name="lastname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                             </div>
                         </div>
                         
                         <div class="mb-4">
                             <label for="email" class="block mb-1.5 text-gray-800 font-medium">Email *</label>
-                            <input type="email" 
-                                   id="email" 
-                                   name="email" 
-                                   required 
-                                   value="<?php echo htmlspecialchars($editUser['email'] ?? ''); ?>"
-                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            <input type="email" id="email" name="email" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
                         
                         <div class="mb-4">
-                            <label for="password" class="block mb-1.5 text-gray-800 font-medium">
-                                Password <?php echo $editUser ? '(leave blank to keep current)' : '*'; ?>
-                            </label>
-                            <input type="password" 
-                                   id="password" 
-                                   name="password" 
-                                   <?php echo $editUser ? '' : 'required'; ?>
-                                   minlength="8"
-                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            <label for="password" class="block mb-1.5 text-gray-800 font-medium">Password *</label>
+                            <input type="password" id="password" name="password" required minlength="8" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                             <span class="text-xs text-gray-500 mt-1 block">Minimum 8 characters</span>
                         </div>
                         
                         <div class="mb-4">
                             <label for="type" class="block mb-1.5 text-gray-800 font-medium">User Type *</label>
-                            <select id="type" 
-                                    name="type" 
-                                    required 
-                                    class="select select-bordered w-full bg-white">
-                                <option value="1" <?php echo ($editUser['type'] ?? 0) == 1 ? 'selected' : ''; ?>>Editor</option>
-                                <option value="2" <?php echo ($editUser['type'] ?? 0) == 2 ? 'selected' : ''; ?>>Admin</option>
+                            <select id="type" name="type" required class="select select-bordered w-full bg-white">
+                                <option value="1">Editor</option>
+                                <option value="2">Admin</option>
                             </select>
-                            <span class="text-xs text-gray-500 mt-1 block">
-                                Editor: Can edit nodes in assigned constellations only | Admin: Full access to all constellations
-                            </span>
                         </div>
                         
-                        <?php if (!$editUser): ?>
                         <div class="mb-4 p-3 border border-gray-200 rounded bg-white">
                             <label class="flex items-center gap-2 cursor-pointer mb-2">
                                 <input type="checkbox" id="create_constellation" name="create_constellation" value="1" class="rounded border-gray-300" checked>
@@ -551,25 +497,17 @@ $fieldMeta = [
                             <p class="text-xs text-gray-500 mb-2">A new constellation is created with the name below and the user is granted access to it (Editors only).</p>
                             <div id="new-constellation-name-wrap">
                                 <label for="new_constellation_name" class="block mb-1 text-gray-700 text-sm">Constellation name *</label>
-                                <input type="text" 
-                                       id="new_constellation_name" 
-                                       name="new_constellation_name" 
-                                       value=""
-                                       placeholder="Defaults to email above"
-                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                <input type="text" id="new_constellation_name" name="new_constellation_name" placeholder="Defaults to email above" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                             </div>
                         </div>
-                        <?php endif; ?>
                         
-                        <div id="user-constellations-section" class="mb-4 <?php echo ($editUser['type'] ?? 1) == USER_TYPE_EDITOR ? '' : 'hidden'; ?>">
+                        <div id="user-constellations-section" class="mb-4">
                             <label class="block mb-1.5 text-gray-800 font-medium">Constellation access (Editors only)</label>
-                            <p class="text-xs text-gray-500 mb-2">Editors can only see and edit nodes in the constellations checked below. Admins see all constellations.</p>
                             <div class="border border-gray-200 rounded p-3 bg-white max-h-48 overflow-y-auto">
                                 <?php foreach ($constellations as $c): ?>
-                                    <?php $cId = (int)$c['id']; $checked = in_array($cId, $editUserConstellationIds, true); ?>
                                     <label class="flex items-center gap-2 py-1 text-sm cursor-pointer hover:bg-gray-50 rounded px-2">
-                                        <input type="checkbox" name="constellation_ids[]" value="<?php echo $cId; ?>" <?php echo $checked ? 'checked' : ''; ?> class="rounded border-gray-300">
-                                        <span class="font-mono text-gray-600"><?php echo $cId; ?></span>
+                                        <input type="checkbox" name="constellation_ids[]" value="<?php echo (int)$c['id']; ?>" class="rounded border-gray-300">
+                                        <span class="font-mono text-gray-600"><?php echo (int)$c['id']; ?></span>
                                         <span class="text-gray-800"><?php echo htmlspecialchars($c['name']); ?></span>
                                     </label>
                                 <?php endforeach; ?>
@@ -577,18 +515,8 @@ $fieldMeta = [
                         </div>
                         
                         <div class="flex gap-2">
-                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                                <?php echo $editUser ? 'Update User' : 'Create User'; ?>
-                            </button>
-                            <?php if ($editUser): ?>
-                                <a href="index.php?tab=users" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer inline-block">
-                                    Cancel
-                                </a>
-                            <?php else: ?>
-                                <button type="button" onclick="document.getElementById('user-form-panel').classList.add('hidden');" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                                    Cancel
-                                </button>
-                            <?php endif; ?>
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">Create User</button>
+                            <button type="button" onclick="document.getElementById('user-form-panel').classList.add('hidden');" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">Cancel</button>
                         </div>
                     </form>
                 </div>
@@ -657,7 +585,15 @@ $fieldMeta = [
                                             </td>
                                             <td class="py-2 px-2 text-right">
                                                 <div class="flex gap-2 justify-end">
-                                                    <a href="index.php?tab=users&edit_user=<?php echo urlencode($user['id']); ?>" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">Edit</a>
+                                                    <button type="button" 
+                                                            onclick="editUser({
+                                                                id: '<?php echo addslashes($user['id']); ?>',
+                                                                firstname: '<?php echo addslashes($user['firstname']); ?>',
+                                                                lastname: '<?php echo addslashes($user['lastname']); ?>',
+                                                                email: '<?php echo addslashes($user['email']); ?>',
+                                                                type: '<?php echo $user['type']; ?>'
+                                                            })"
+                                                            class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">Edit</button>
                                                     <?php if (!$isCurrentUser): ?>
                                                         <form method="POST" action="" class="inline" onsubmit="return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
                                                             <input type="hidden" name="action" value="delete_user">
@@ -778,49 +714,22 @@ $fieldMeta = [
 
             <!-- Constellations Tab -->
             <div id="content-constellations" class="p-6 <?php echo $activeTab !== 'constellations' ? 'hidden' : ''; ?>">
-                <div id="constellation-form-panel" class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded <?php echo $editConstellation ? '' : 'hidden'; ?>">
-                    <h2 class="text-blue-800 text-xl font-semibold mb-4">
-                        <?php echo $editConstellation ? 'Edit Constellation' : 'Create New Constellation'; ?>
-                    </h2>
+                <div id="constellation-form-panel" class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded hidden">
+                    <h2 class="text-blue-800 text-xl font-semibold mb-4">Create New Constellation</h2>
                     <form method="POST" action="">
-                        <input type="hidden" name="action" value="<?php echo $editConstellation ? 'update_constellation' : 'create_constellation'; ?>">
-                        <?php if ($editConstellation): ?>
-                            <input type="hidden" name="id" value="<?php echo (int)$editConstellation['id']; ?>">
-                            <p class="text-sm text-gray-600 mb-4">ID: <?php echo (int)$editConstellation['id']; ?> (cannot be changed)</p>
-                        <?php endif; ?>
+                        <input type="hidden" name="action" value="create_constellation">
                         <div class="mb-4">
                             <label for="constellation_name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
-                            <input type="text" 
-                                   id="constellation_name" 
-                                   name="name" 
-                                   required 
-                                   value="<?php echo $editConstellation ? htmlspecialchars($editConstellation['name']) : ''; ?>"
-                                   placeholder="e.g. Main network, Archive"
-                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            <input type="text" id="constellation_name" name="name" required placeholder="e.g. Main network, Archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
                         <div class="mb-4">
                             <label for="constellation_tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
-                            <input type="text" 
-                                   id="constellation_tagline" 
-                                   name="tagline" 
-                                   value="<?php echo $editConstellation ? htmlspecialchars($editConstellation['tagline'] ?? '') : ''; ?>"
-                                   placeholder="e.g. Weaving memory"
-                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            <input type="text" id="constellation_tagline" name="tagline" placeholder="e.g. Weaving memory" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                             <span class="text-xs text-gray-500 mt-1 block">Shown in the main view when this constellation is open</span>
                         </div>
                         <div class="flex gap-2">
-                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                                <?php echo $editConstellation ? 'Update Constellation' : 'Create Constellation'; ?>
-                            </button>
-                            <?php if ($editConstellation): ?>
-                                <a href="index.php?tab=constellations" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer inline-block">
-                                    Cancel
-                                </a>
-                            <?php else: ?>
-                                <button type="button" onclick="document.getElementById('constellation-form-panel').classList.add('hidden');" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                                    Cancel
-                                </button>
-                            <?php endif; ?>
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">Create Constellation</button>
+                            <button type="button" onclick="document.getElementById('constellation-form-panel').classList.add('hidden');" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">Cancel</button>
                         </div>
                     </form>
                 </div>
@@ -863,7 +772,13 @@ $fieldMeta = [
                                             <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate" title="<?php echo htmlspecialchars($cTagline); ?>"><?php echo htmlspecialchars($cTagline); ?></td>
                                             <td class="py-2 px-2 text-right">
                                                 <div class="flex gap-2 justify-end items-center">
-                                                    <a href="index.php?tab=constellations&edit_constellation=<?php echo $cId; ?>" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">Edit</a>
+                                                    <button type="button" 
+                                                            onclick="editConstellation({
+                                                                id: '<?php echo $cId; ?>',
+                                                                name: '<?php echo addslashes($c['name']); ?>',
+                                                                tagline: '<?php echo addslashes($cTagline); ?>'
+                                                            })"
+                                                            class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">Edit</button>
                                                     <?php if (!$isDefault): ?>
                                                         <form method="POST" action="" class="inline" onsubmit="return confirm('Are you sure you want to delete this constellation? Nodes and keywords in this constellation must be moved or deleted first.');">
                                                             <input type="hidden" name="action" value="delete_constellation">
@@ -1039,6 +954,41 @@ $fieldMeta = [
             if (langInput) langInput.value = lang;
         }
         
+        const userConstellationsMap = <?php echo json_encode($userConstellationsMap); ?>;
+
+        function toggleModalUserConstellations() {
+            const typeSelect = document.getElementById('modal-type');
+            const section = document.getElementById('modal-user-constellations-section');
+            if (!typeSelect || !section) return;
+            section.classList.toggle('hidden', typeSelect.value !== '1');
+        }
+
+        function editUser(user) {
+            document.getElementById('modal-user-id').value = user.id;
+            document.getElementById('modal-firstname').value = user.firstname;
+            document.getElementById('modal-lastname').value = user.lastname;
+            document.getElementById('modal-email').value = user.email;
+            document.getElementById('modal-type').value = user.type;
+            document.getElementById('modal-password').value = '';
+
+            // Reset and set checkboxes
+            const checkboxes = document.querySelectorAll('.modal-user-constellation-checkbox');
+            const userAccess = userConstellationsMap[user.id] || [];
+            checkboxes.forEach(cb => {
+                cb.checked = userAccess.includes(parseInt(cb.value));
+            });
+
+            toggleModalUserConstellations();
+            document.getElementById('user_modal').showModal();
+        }
+
+        function editConstellation(c) {
+            document.getElementById('modal-constellation-id').value = c.id;
+            document.getElementById('modal-constellation-name').value = c.name;
+            document.getElementById('modal-constellation-tagline').value = c.tagline;
+            document.getElementById('constellation_modal').showModal();
+        }
+
         // Tab functionality
         function showTab(tabName) {
             // Hide all tabs
@@ -1077,15 +1027,9 @@ $fieldMeta = [
                 activeTabEl.classList.add('border-blue-500', 'text-blue-600');
             }
             
-            // Update URL without reload (preserve edit_user or edit_constellation when on that tab)
+            // Update URL without reload
             const url = new URL(window.location);
             url.searchParams.set('tab', tabName);
-            if (tabName !== 'users') {
-                url.searchParams.delete('edit_user');
-            }
-            if (tabName !== 'constellations') {
-                url.searchParams.delete('edit_constellation');
-            }
             window.history.pushState({}, '', url);
         }
         
@@ -1217,5 +1161,90 @@ $fieldMeta = [
             });
         }
     </script>
+    <!-- User Edit Modal -->
+    <dialog id="user_modal" class="modal">
+        <div class="modal-box max-w-2xl bg-white">
+            <h3 class="font-bold text-xl mb-4 text-gray-800">Edit User</h3>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="update_user">
+                <input type="hidden" id="modal-user-id" name="id">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="modal-firstname" class="block mb-1.5 text-gray-800 font-medium">First Name *</label>
+                        <input type="text" id="modal-firstname" name="firstname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="modal-lastname" class="block mb-1.5 text-gray-800 font-medium">Last Name *</label>
+                        <input type="text" id="modal-lastname" name="lastname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="modal-email" class="block mb-1.5 text-gray-800 font-medium">Email *</label>
+                    <input type="email" id="modal-email" name="email" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <div class="mb-4">
+                    <label for="modal-password" class="block mb-1.5 text-gray-800 font-medium">Password (leave blank to keep current)</label>
+                    <input type="password" id="modal-password" name="password" minlength="8" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <div class="mb-4">
+                    <label for="modal-type" class="block mb-1.5 text-gray-800 font-medium">User Type *</label>
+                    <select id="modal-type" name="type" required onchange="toggleModalUserConstellations()" class="select select-bordered w-full bg-white">
+                        <option value="1">Editor</option>
+                        <option value="2">Admin</option>
+                    </select>
+                </div>
+                
+                <div id="modal-user-constellations-section" class="mb-4 hidden">
+                    <label class="block mb-1.5 text-gray-800 font-medium">Constellation access (Editors only)</label>
+                    <div class="border border-gray-200 rounded p-3 bg-white max-h-48 overflow-y-auto">
+                        <?php foreach ($constellations as $c): ?>
+                            <label class="flex items-center gap-2 py-1 text-sm cursor-pointer hover:bg-gray-50 rounded px-2">
+                                <input type="checkbox" name="constellation_ids[]" value="<?php echo (int)$c['id']; ?>" class="modal-user-constellation-checkbox rounded border-gray-300">
+                                <span class="font-mono text-gray-600"><?php echo (int)$c['id']; ?></span>
+                                <span class="text-gray-800"><?php echo htmlspecialchars($c['name']); ?></span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                
+                <div class="modal-action">
+                    <button type="submit" class="btn btn-primary">Update User</button>
+                    <button type="button" class="btn" onclick="document.getElementById('user_modal').close()">Cancel</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Constellation Edit Modal -->
+    <dialog id="constellation_modal" class="modal">
+        <div class="modal-box bg-white">
+            <h3 class="font-bold text-xl mb-4 text-gray-800">Edit Constellation</h3>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="update_constellation">
+                <input type="hidden" id="modal-constellation-id" name="id">
+                
+                <div class="mb-4">
+                    <label for="modal-constellation-name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
+                    <input type="text" id="modal-constellation-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <div class="mb-4">
+                    <label for="modal-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
+                    <input type="text" id="modal-constellation-tagline" name="tagline" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <div class="modal-action">
+                    <button type="submit" class="btn btn-primary">Update Constellation</button>
+                    <button type="button" class="btn" onclick="document.getElementById('constellation_modal').close()">Cancel</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
 </body>
 </html>

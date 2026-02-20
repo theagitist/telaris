@@ -335,6 +335,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     const select = document.getElementById('node-target-constellation');
                     populateTargetConstellationDropdown(select);
                 }
+            } else if (context === 'modal') {
+                const wrap = document.getElementById('edit-target-constellation-wrap-modal');
+                if (wrap) wrap.classList.toggle('hidden', nodeType !== 'portal');
+                if (nodeType === 'portal') {
+                    const select = document.getElementById('edit-target-constellation-modal');
+                    const node = allNodes && allNodes.find(n => n.id === editingNodeId);
+                    populateTargetConstellationDropdown(select, node ? node.target_constellation_id : null);
+                }
             } else if (context === 'inline' && nodeId) {
                 const wrap = document.getElementById('edit-target-constellation-wrap-' + nodeId);
                 if (wrap) wrap.classList.toggle('hidden', nodeType !== 'portal');
@@ -380,6 +388,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     opt.value = newId;
                     opt.textContent = newName;
                     currentSelect.appendChild(opt);
+                }
+                // Update modal target constellation dropdown if open
+                if (context === 'modal') {
+                    const editSelect = document.getElementById('edit-target-constellation-modal');
+                    if (editSelect) {
+                        const opt = document.createElement('option');
+                        opt.value = newId;
+                        opt.textContent = newName;
+                        editSelect.appendChild(opt);
+                        editSelect.value = String(newId);
+                    }
                 }
                 // Update inline edit target constellation dropdown if open
                 if (context === 'inline' && inlineNodeId) {
@@ -554,153 +573,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const html = nodes.map(node => {
                     if (!node || !node.id) {
                         return '';
-                    }
-                    
-                    // Check if this node is being edited
-                    if (editingNodeId === node.id) {
-                        const constellationOptions = (typeof CONSTELLATIONS !== 'undefined' ? CONSTELLATIONS : []).map(c =>
-                            `<option value="${c.id}" ${(node.constellation_id === c.id) ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
-                        ).join('');
-                        const nodeType = node.node_type || 'object';
-                        const targetConstellationOptions = (typeof CONSTELLATIONS !== 'undefined' ? CONSTELLATIONS : []).map(c =>
-                            `<option value="${c.id}" ${(node.target_constellation_id === c.id) ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
-                        ).join('');
-                        const showTarget = nodeType === 'portal';
-                        return `
-                <div class="border-2 border-blue-500 rounded p-4 bg-blue-50">
-                    <h3 class="font-semibold text-gray-800 mb-4">Edit Node</h3>
-                    <form class="space-y-4" onsubmit="saveInlineEdit(event, ${node.id})">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Name *</label>
-                                <input type="text" 
-                                       id="edit-name-${node.id}" 
-                                       value="${escapeHtml(node.name)}" 
-                                       required 
-                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Constellation</label>
-                                <select id="edit-constellation-${node.id}" class="select select-bordered select-sm w-full bg-white">${constellationOptions}</select>
-                            </div>
-                            <div>
-                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Node type</label>
-                                <select id="edit-node-type-${node.id}" onchange="toggleTargetConstellation(this.value, 'inline', ${node.id})" class="select select-bordered select-sm w-full bg-white">
-                                    <option value="object" ${nodeType === 'object' ? 'selected' : ''}>Object</option>
-                                    <option value="portal" ${nodeType === 'portal' ? 'selected' : ''}>Portal</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
-                                <div id="keywords-container-${node.id}" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
-                                    <input type="text" 
-                                           id="edit-keywords-input-${node.id}" 
-                                           placeholder="Add keyword..."
-                                           onkeydown="handleKeywordInput(event, ${node.id})"
-                                           class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
-                                </div>
-                                <input type="hidden" id="edit-keywords-${node.id}" value="${node.keywords ? escapeHtml(node.keywords.join(',')) : ''}">
-                                <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords</span>
-                            </div>
-                        </div>
-                        <div id="edit-target-constellation-wrap-${node.id}" class="${showTarget ? '' : 'hidden'}">
-                            <div class="flex flex-wrap items-end gap-2 mb-2">
-                                <div class="min-w-[200px] flex-1">
-                                    <label class="block mb-1.5 text-gray-800 font-medium text-sm">Target Constellation</label>
-                                    <select id="edit-target-constellation-${node.id}" class="select select-bordered select-sm w-full bg-white">${targetConstellationOptions}</select>
-                                </div>
-                                <button type="button" onclick="createNewConstellation('inline', ${node.id})" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">Create New Constellation</button>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Description</label>
-                            <textarea id="edit-description-${node.id}" 
-                                      rows="3"
-                                      class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">${escapeHtml(node.description || '')}</textarea>
-                        </div>
-                        <div>
-                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">URL</label>
-                            <input type="url" 
-                                   id="edit-url-${node.id}" 
-                                   value="${escapeHtml(node.url || '')}" 
-                                   placeholder="https://example.com"
-                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            <span class="text-xs text-gray-500 mt-1 block">URL to open when the node is clicked (optional)</span>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Image URL / File</label>
-                                ${node.image_url && node.image_url.startsWith('uploads/') ? `
-                                    <div class="flex items-center gap-2 mb-2">
-                                        <input type="text" 
-                                               id="edit-image-url-${node.id}" 
-                                               value="${escapeHtml(node.image_url.split('/').pop())}" 
-                                               data-full-path="${escapeHtml(node.image_url)}"
-                                               readonly 
-                                               class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed focus:outline-none">
-                                        <button type="button" onclick="deleteNodeFile(${node.id}, 'image')" class="px-3 py-2.5 bg-red-100 text-red-700 hover:bg-red-200 rounded transition-colors" title="Delete File">
-                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                ` : `
-                                    <input type="text" 
-                                           id="edit-image-url-${node.id}" 
-                                           value="${escapeHtml(node.image_url || '')}" 
-                                           placeholder="https://example.com/image.jpg"
-                                           class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                                    <input type="file" id="edit-image-file-${node.id}" name="image_file" accept="image/*" class="text-xs">
-                                `}
-                            </div>
-                            <div>
-                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Audio URL / File</label>
-                                ${node.audio_url && node.audio_url.startsWith('uploads/') ? `
-                                    <div class="flex items-center gap-2 mb-2">
-                                        <input type="text" 
-                                               id="edit-audio-url-${node.id}" 
-                                               value="${escapeHtml(node.audio_url.split('/').pop())}" 
-                                               data-full-path="${escapeHtml(node.audio_url)}"
-                                               readonly 
-                                               class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed focus:outline-none">
-                                        <button type="button" onclick="deleteNodeFile(${node.id}, 'audio')" class="px-3 py-2.5 bg-red-100 text-red-700 hover:bg-red-200 rounded transition-colors" title="Delete File">
-                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                ` : `
-                                    <input type="text" 
-                                           id="edit-audio-url-${node.id}" 
-                                           value="${escapeHtml(node.audio_url || '')}" 
-                                           placeholder="https://example.com/audio.mp3"
-                                           class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                                    <input type="file" id="edit-audio-file-${node.id}" name="audio_file" accept="audio/*" class="text-xs">
-                                `}
-                                <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
-                                    <input type="checkbox" id="edit-audio-autoplay-${node.id}" name="audio_autoplay" ${node.audio_autoplay ? 'checked' : ''}>
-                                    Autoplay audio
-                                </label>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
-                            <textarea id="edit-embed-code-${node.id}" 
-                                      rows="3"
-                                      placeholder='<iframe ...></iframe>'
-                                      class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">${escapeHtml(node.embed_code || '')}</textarea>
-                        </div>
-                        <div class="flex gap-3">
-                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded text-sm cursor-pointer">
-                                Save
-                            </button>
-                            <button type="button" onclick="cancelInlineEdit()" class="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded text-sm cursor-pointer">
-                                Cancel
-                            </button>
-                        </div>
-                    </form>
-                </div>
-                        `;
                     }
                     
                     // Show normal display - compact spreadsheet-like layout
@@ -954,120 +826,126 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             };
         }
 
-        // Edit node - show inline form
-        async function editNode(id) {
-            try {
-                // Switch to list tab if not already there
-                showTab('list');
-                
-                editingNodeId = id;
-                // Reload nodes to show inline edit form
-                await loadNodes();
-                
-                // Scroll to the edited node
-                const editedNodeElement = document.querySelector(`#edit-name-${id}`);
-                if (editedNodeElement) {
-                    editedNodeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    editedNodeElement.focus();
-                }
-            } catch (error) {
-                showMessage('Error loading node for editing', 'error');
+        // Edit node - show modal
+        function editNode(id) {
+            const node = allNodes.find(n => n.id === id);
+            if (!node) return;
+            
+            editingNodeId = id;
+            
+            // Populate basic fields
+            document.getElementById('edit-id').value = node.id;
+            document.getElementById('edit-name').value = node.name || '';
+            document.getElementById('edit-constellation').value = node.constellation_id;
+            document.getElementById('edit-node-type').value = node.node_type || 'object';
+            document.getElementById('edit-description').value = node.description || '';
+            document.getElementById('edit-url').value = node.url || '';
+            document.getElementById('edit-embed-code').value = node.embed_code || '';
+            document.getElementById('edit-audio-autoplay').checked = !!node.audio_autoplay;
+
+            // Handle keywords
+            keywordState['modal'] = [...(node.keywords || [])];
+            updateKeywordTags('modal');
+
+            // Handle image fields
+            const imageFileWrap = document.getElementById('edit-image-file-wrap');
+            const imageExisting = document.getElementById('edit-image-existing');
+            const imageExistingName = document.getElementById('edit-image-existing-name');
+            const imageUrlInput = document.getElementById('edit-image-url');
+            
+            if (node.image_url && node.image_url.startsWith('uploads/')) {
+                imageFileWrap.classList.add('hidden');
+                imageExisting.classList.remove('hidden');
+                imageExistingName.value = node.image_url.split('/').pop();
+                imageUrlInput.value = node.image_url; // Hidden but holds path
+            } else {
+                imageFileWrap.classList.remove('hidden');
+                imageExisting.classList.add('hidden');
+                imageUrlInput.value = node.image_url || '';
             }
+
+            // Handle audio fields
+            const audioFileWrap = document.getElementById('edit-audio-file-wrap');
+            const audioExisting = document.getElementById('edit-audio-existing');
+            const audioExistingName = document.getElementById('edit-audio-existing-name');
+            const audioUrlInput = document.getElementById('edit-audio-url');
+
+            if (node.audio_url && node.audio_url.startsWith('uploads/')) {
+                audioFileWrap.classList.add('hidden');
+                audioExisting.classList.remove('hidden');
+                audioExistingName.value = node.audio_url.split('/').pop();
+                audioUrlInput.value = node.audio_url; // Hidden but holds path
+            } else {
+                audioFileWrap.classList.remove('hidden');
+                audioExisting.classList.add('hidden');
+                audioUrlInput.value = node.audio_url || '';
+            }
+
+            // Toggle target constellation if portal
+            toggleTargetConstellation(node.node_type || 'object', 'modal');
+            if (node.node_type === 'portal') {
+                document.getElementById('edit-target-constellation-modal').value = node.target_constellation_id || '';
+            }
+
+            document.getElementById('edit_modal').showModal();
         }
         
-        // Save inline edit
-        async function saveInlineEdit(event, nodeId) {
+        // Save node edit from modal
+        async function saveNodeEdit(event) {
             event.preventDefault();
             
-            const nodeName = document.getElementById(`edit-name-${nodeId}`).value.trim();
+            const nodeId = parseInt(document.getElementById('edit-id').value);
+            const nodeName = document.getElementById('edit-name').value.trim();
+            
             if (!nodeName) {
                 showMessage('Node name is required', 'error');
                 return;
             }
             
             if (!API_KEY) {
-                showMessage('API key is missing. Please contact an administrator.', 'error');
+                showMessage('API key is missing.', 'error');
                 return;
             }
+
+            const node = allNodes.find(n => n.id === nodeId);
             
-            // Get current node data to preserve animation
-            try {
-                const response = await fetch(API_BASE + '?constellation_id=all', {
-                    headers: {
-                        'X-API-Key': API_KEY
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to load node');
-                }
-                
-                const nodes = await response.json();
-                const node = nodes.find(n => n.id === nodeId);
-                
-                if (!node) {
-                    throw new Error('Node not found');
-                }
-                
-                const constellationSelect = document.getElementById(`edit-constellation-${nodeId}`);
-                const constellationId = constellationSelect ? parseInt(constellationSelect.value, 10) : node.constellation_id;
-                const nodeTypeEl = document.getElementById(`edit-node-type-${nodeId}`);
-                const nodeType = nodeTypeEl ? nodeTypeEl.value : (node.node_type || 'object');
-                const targetConstellationEl = document.getElementById(`edit-target-constellation-${nodeId}`);
-                const targetConstellationId = (nodeType === 'portal' && targetConstellationEl) ? parseInt(targetConstellationEl.value, 10) : null;
-                
-                const formData = new FormData();
-                formData.append('id', nodeId);
-                formData.append('name', nodeName);
-                formData.append('description', document.getElementById(`edit-description-${nodeId}`).value.trim() || '');
-                formData.append('url', document.getElementById(`edit-url-${nodeId}`).value.trim() || '');
-                
-                const imageUrlInput = document.getElementById(`edit-image-url-${nodeId}`);
-                const audioUrlInput = document.getElementById(`edit-audio-url-${nodeId}`);
-                
-                const imageUrl = (imageUrlInput.dataset.fullPath || imageUrlInput.value).trim();
-                const audioUrl = (audioUrlInput.dataset.fullPath || audioUrlInput.value).trim();
+            const formData = new FormData();
+            formData.append('id', nodeId);
+            formData.append('name', nodeName);
+            formData.append('description', document.getElementById('edit-description').value.trim());
+            formData.append('url', document.getElementById('edit-url').value.trim());
+            
+            const imageUrl = document.getElementById('edit-image-url').value.trim();
+            const audioUrl = document.getElementById('edit-audio-url').value.trim();
 
-                // Validate URLs if they are NOT uploaded files (don't start with uploads/)
-                if (imageUrl && !imageUrl.startsWith('uploads/') && !isValidUrl(imageUrl)) {
-                    showMessage('Please enter a valid Image URL (e.g. https://...)', 'error');
-                    return;
-                }
-                if (audioUrl && !audioUrl.startsWith('uploads/') && !isValidUrl(audioUrl)) {
-                    showMessage('Please enter a valid Audio URL (e.g. https://...)', 'error');
-                    return;
-                }
-
-                formData.append('image_url', imageUrl || '');
-                formData.append('audio_url', audioUrl || '');
-                formData.append('embed_code', document.getElementById(`edit-embed-code-${nodeId}`).value.trim() || '');
-                formData.append('audio_autoplay', document.getElementById(`edit-audio-autoplay-${nodeId}`).checked ? 1 : 0);
-                formData.append('constellation_id', isNaN(constellationId) ? node.constellation_id : constellationId);
-                formData.append('node_type', nodeType);
-                if (nodeType === 'portal' && !isNaN(targetConstellationId) && targetConstellationId !== null) {
-                    formData.append('target_constellation_id', targetConstellationId);
-                }
+            formData.append('image_url', imageUrl);
+            formData.append('audio_url', audioUrl);
+            formData.append('embed_code', document.getElementById('edit-embed-code').value.trim());
+            formData.append('audio_autoplay', document.getElementById('edit-audio-autoplay').checked ? 1 : 0);
+            formData.append('constellation_id', document.getElementById('edit-constellation').value);
+            
+            const nodeType = document.getElementById('edit-node-type').value;
+            formData.append('node_type', nodeType);
+            
+            if (nodeType === 'portal') {
+                formData.append('target_constellation_id', document.getElementById('edit-target-constellation-modal').value);
+            }
+            
+            if (node) {
                 formData.append('animation', JSON.stringify(node.animation));
-                
-                const keywords = document.getElementById(`edit-keywords-${nodeId}`).value
-                    .split(',')
-                    .map(k => k.trim())
-                    .filter(k => k.length > 0);
-                formData.append('keywords', keywords.join(','));
+            }
+            
+            formData.append('keywords', (keywordState['modal'] || []).join(','));
 
-                const imageFileInput = document.getElementById(`edit-image-file-${nodeId}`);
-                if (imageFileInput && imageFileInput.files[0]) {
-                    formData.append('image_file', imageFileInput.files[0]);
-                }
-                
-                const audioFileInput = document.getElementById(`edit-audio-file-${nodeId}`);
-                if (audioFileInput && audioFileInput.files[0]) {
-                    formData.append('audio_file', audioFileInput.files[0]);
-                }
-                
-                const updateResponse = await fetch(API_BASE, {
-                    method: 'POST', // Using POST with _method=PUT simulation for FormData if needed, but our API handles POST/PUT. 
-                    // Let's use POST for ease with FormData and files.
+            const imageFile = document.getElementById('edit-image-file').files[0];
+            if (imageFile) formData.append('image_file', imageFile);
+            
+            const audioFile = document.getElementById('edit-audio-file').files[0];
+            if (audioFile) formData.append('audio_file', audioFile);
+            
+            try {
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
                     headers: {
                         'X-API-Key': API_KEY,
                         'X-HTTP-Method-Override': 'PUT'
@@ -1075,62 +953,40 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     body: formData
                 });
                 
-                const responseText = await updateResponse.text();
+                if (!response.ok) throw new Error('Failed to update node');
                 
-                if (!updateResponse.ok) {
-                    let errorMessage = `HTTP ${updateResponse.status}: ${updateResponse.statusText}`;
-                    try {
-                        const errorData = JSON.parse(responseText);
-                        errorMessage = errorData.error || errorData.message || errorMessage;
-                    } catch (e) {
-                        errorMessage = responseText.substring(0, 200) || errorMessage;
-                    }
-                    throw new Error(errorMessage);
-                }
-                
-                // Parse successful response
-                try {
-                    JSON.parse(responseText);
-                } catch (e) {
-                    throw new Error('Invalid response from server');
-                }
-                
+                document.getElementById('edit_modal').close();
                 showMessage('Node updated successfully');
-                editingNodeId = null;
                 loadNodes();
             } catch (error) {
                 showMessage('Error saving node: ' + error.message, 'error');
             }
         }
-        
-        // Cancel inline edit
-        function cancelInlineEdit() {
-            editingNodeId = null;
-            loadNodes();
-        }
 
-        // Delete node file
-        async function deleteNodeFile(nodeId, type) {
-            if (!confirm(`Are you sure you want to delete this uploaded ${type} file?`)) {
-                return;
-            }
+        // Delete node file from modal context
+        async function deleteModalFile(type) {
+            const nodeId = document.getElementById('edit-id').value;
+            if (!nodeId || !confirm(`Are you sure you want to delete this uploaded ${type} file?`)) return;
 
             try {
                 const response = await fetch(`${API_BASE}?id=${nodeId}&file_type=${type}`, {
                     method: 'DELETE',
-                    headers: {
-                        'X-API-Key': API_KEY
-                    }
+                    headers: { 'X-API-Key': API_KEY }
                 });
                 
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to delete file');
-                }
+                if (!response.ok) throw new Error('Failed to delete file');
                 
-                showMessage(`${type.charAt(0).toUpperCase() + type.slice(1)} file deleted successfully`);
-                // If we are editing, we stay in edit mode
-                loadNodes();
+                showMessage(`${type.charAt(0).toUpperCase() + type.slice(1)} file deleted`);
+                
+                // Update UI in modal
+                document.getElementById(`edit-${type}-file-wrap`).classList.remove('hidden');
+                document.getElementById(`edit-${type}-existing`).classList.add('hidden');
+                document.getElementById(`edit-${type}-url`).value = '';
+                
+                // Update allNodes so if we close and re-open without reload it stays deleted
+                const node = allNodes.find(n => n.id === parseInt(nodeId));
+                if (node) node[`${type}_url`] = '';
+                
             } catch (error) {
                 showMessage('Error deleting file: ' + error.message, 'error');
             }
@@ -1434,5 +1290,98 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }, 100);
         }
     </script>
+    <dialog id="edit_modal" class="modal">
+        <div class="modal-box max-w-4xl bg-white">
+            <h3 class="font-bold text-xl mb-4 text-gray-800">Edit Node</h3>
+            <form id="edit-node-form" class="space-y-4" onsubmit="saveNodeEdit(event)">
+                <input type="hidden" id="edit-id" name="id">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Name *</label>
+                        <input type="text" id="edit-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Constellation</label>
+                        <select id="edit-constellation" name="constellation_id" class="select select-bordered select-sm w-full bg-white">
+                            <?php foreach ($constellations as $c): ?>
+                                <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Node type</label>
+                        <select id="edit-node-type" name="node_type" onchange="toggleTargetConstellation(this.value, 'modal')" class="select select-bordered select-sm w-full bg-white">
+                            <option value="object">Object</option>
+                            <option value="portal">Portal</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
+                        <div id="keywords-container-modal" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
+                            <input type="text" id="edit-keywords-input-modal" placeholder="Add keyword..." onkeydown="handleKeywordInput(event, 'modal')" class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
+                        </div>
+                        <input type="hidden" id="edit-keywords-hidden" name="keywords">
+                        <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords</span>
+                    </div>
+                </div>
+                <div id="edit-target-constellation-wrap-modal" class="hidden">
+                    <div class="flex flex-wrap items-end gap-2 mb-2">
+                        <div class="min-w-[200px] flex-1">
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Target Constellation</label>
+                            <select id="edit-target-constellation-modal" name="target_constellation_id" class="select select-bordered select-sm w-full bg-white"></select>
+                        </div>
+                        <button type="button" onclick="createNewConstellation('modal')" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">Create New Constellation</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block mb-1.5 text-gray-800 font-medium text-sm">Description</label>
+                    <textarea id="edit-description" name="description" rows="3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
+                </div>
+                <div>
+                    <label class="block mb-1.5 text-gray-800 font-medium text-sm">URL</label>
+                    <input type="url" id="edit-url" name="url" placeholder="https://example.com" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div id="edit-image-container">
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Image URL / File</label>
+                        <div id="edit-image-file-wrap">
+                            <input type="text" id="edit-image-url" name="image_url" placeholder="https://example.com/image.jpg" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="edit-image-file" name="image_file" accept="image/*" class="text-xs">
+                        </div>
+                        <div id="edit-image-existing" class="hidden flex items-center gap-2 mb-2">
+                            <input type="text" id="edit-image-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
+                            <button type="button" onclick="deleteModalFile('image')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                        </div>
+                    </div>
+                    <div id="edit-audio-container">
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Audio URL / File</label>
+                        <div id="edit-audio-file-wrap">
+                            <input type="text" id="edit-audio-url" name="audio_url" placeholder="https://example.com/audio.mp3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="edit-audio-file" name="audio_file" accept="audio/*" class="text-xs">
+                        </div>
+                        <div id="edit-audio-existing" class="hidden flex items-center gap-2 mb-2">
+                            <input type="text" id="edit-audio-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
+                            <button type="button" onclick="deleteModalFile('audio')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                        </div>
+                        <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
+                            <input type="checkbox" id="edit-audio-autoplay" name="audio_autoplay">
+                            Autoplay audio
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
+                    <textarea id="edit-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
+                </div>
+                <div class="modal-action">
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button type="button" class="btn" onclick="document.getElementById('edit_modal').close()">Cancel</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>close</button>
+        </form>
+    </dialog>
 </body>
 </html>
