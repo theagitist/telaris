@@ -1006,21 +1006,40 @@ class TelarisNetwork {
                     
                     let html = `<div style="font-weight:600; margin-bottom: 2px;">${hoveredNode.userData.name}</div>`;
                     if (hoveredNode.userData.keywords?.length > 0) {
-                        html += `<div style="opacity: 0.8; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 4px;">`;
+                        html += `<div style="opacity: 0.8; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px;">`;
                         hoveredNode.userData.keywords.forEach(kw => {
                             html += `<span style="background: rgba(255,255,255,0.15); padding: 1px 4px; border-radius: 2px;">#${kw}</span>`;
                         });
                         html += `</div>`;
                     }
+
+                    // Interaction hint
+                    const hasMedia = !!(hoveredNode.userData.image_url || hoveredNode.userData.embed_code || hoveredNode.userData.audio_url);
+                    const hasDesc = !!(hoveredNode.userData.description && hoveredNode.userData.description.trim() !== '');
+                    const isPortal = hoveredNode.userData.node_type === 'portal';
+                    
+                    const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
+                        ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
+                        : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
+                    
+                    const hasContent = (hoveredNode.userData.url || hasMedia || hasDesc || isPortal);
+                    html += `<div style="background: rgba(255, 204, 0, 0.9); color: #000; padding: 4px 8px; margin-top: 8px; border-radius: 2px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; text-align: center; display: block; width: 100%;">`;
+                    html += hintText;
+                    html += `</div>`;
+
                     this.tooltip.innerHTML = html;
 
                     const styles = this.getNodeTooltipStyles(hoveredNode);
                     Object.assign(this.tooltip.style, {
-                        background: styles.background,
+                        background: styles.background.replace('0.35', '0.95'),
                         color: styles.color,
                         visibility: 'visible',
                         display: 'block',
-                        opacity: '0'
+                        opacity: '1',
+                        zIndex: '9999',
+                        border: '1px solid rgba(255,255,255,0.5)',
+                        maxWidth: '220px',
+                        paddingBottom: '10px'
                     });
 
                     const projected = new THREE.Vector3();
@@ -1035,7 +1054,7 @@ class TelarisNetwork {
                     Object.assign(this.tooltip.style, {
                         left: x + 'px',
                         top: y + 'px',
-                        transform: 'translate(-50%, -50%) translate(-12px, 0)'
+                        transform: 'translate(-50%, -100%) translate(0, -30px)'
                     });
                     
                     requestAnimationFrame(() => requestAnimationFrame(() => { this.tooltip.style.opacity = '1'; }));
