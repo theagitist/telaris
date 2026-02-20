@@ -627,10 +627,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         function applySorting(resetPage = true) {
             const searchInput = document.getElementById('search-nodes');
             
-            if (!allNodes || allNodes.length === 0) {
-                return;
-            }
-
             if (resetPage) currentPage = 1;
             
             // Get search query
