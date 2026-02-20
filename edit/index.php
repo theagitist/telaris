@@ -196,20 +196,26 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label for="node-image-url" class="block mb-1.5 text-gray-800 font-medium">Image URL</label>
-                            <input type="url" 
+                            <label for="node-image-url" class="block mb-1.5 text-gray-800 font-medium">Image URL / File</label>
+                            <input type="text" 
                                    id="node-image-url" 
                                    name="image_url" 
                                    placeholder="https://example.com/image.jpg"
-                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="node-image-file" name="image_file" accept="image/*" class="text-xs">
                         </div>
                         <div>
-                            <label for="node-audio-url" class="block mb-1.5 text-gray-800 font-medium">Audio URL</label>
-                            <input type="url" 
+                            <label for="node-audio-url" class="block mb-1.5 text-gray-800 font-medium">Audio URL / File</label>
+                            <input type="text" 
                                    id="node-audio-url" 
                                    name="audio_url" 
                                    placeholder="https://example.com/audio.mp3"
-                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="node-audio-file" name="audio_file" accept="audio/*" class="text-xs">
+                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
+                                <input type="checkbox" id="node-audio-autoplay" name="audio_autoplay" checked>
+                                Autoplay audio
+                            </label>
                         </div>
                     </div>
 
@@ -616,20 +622,58 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Image URL</label>
-                                <input type="url" 
-                                       id="edit-image-url-${node.id}" 
-                                       value="${escapeHtml(node.image_url || '')}" 
-                                       placeholder="https://example.com/image.jpg"
-                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Image URL / File</label>
+                                ${node.image_url && node.image_url.startsWith('uploads/') ? `
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <input type="text" 
+                                               id="edit-image-url-${node.id}" 
+                                               value="${escapeHtml(node.image_url.split('/').pop())}" 
+                                               data-full-path="${escapeHtml(node.image_url)}"
+                                               readonly 
+                                               class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed focus:outline-none">
+                                        <button type="button" onclick="deleteNodeFile(${node.id}, 'image')" class="px-3 py-2.5 bg-red-100 text-red-700 hover:bg-red-200 rounded transition-colors" title="Delete File">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                ` : `
+                                    <input type="text" 
+                                           id="edit-image-url-${node.id}" 
+                                           value="${escapeHtml(node.image_url || '')}" 
+                                           placeholder="https://example.com/image.jpg"
+                                           class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                    <input type="file" id="edit-image-file-${node.id}" name="image_file" accept="image/*" class="text-xs">
+                                `}
                             </div>
                             <div>
-                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Audio URL</label>
-                                <input type="url" 
-                                       id="edit-audio-url-${node.id}" 
-                                       value="${escapeHtml(node.audio_url || '')}" 
-                                       placeholder="https://example.com/audio.mp3"
-                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Audio URL / File</label>
+                                ${node.audio_url && node.audio_url.startsWith('uploads/') ? `
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <input type="text" 
+                                               id="edit-audio-url-${node.id}" 
+                                               value="${escapeHtml(node.audio_url.split('/').pop())}" 
+                                               data-full-path="${escapeHtml(node.audio_url)}"
+                                               readonly 
+                                               class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed focus:outline-none">
+                                        <button type="button" onclick="deleteNodeFile(${node.id}, 'audio')" class="px-3 py-2.5 bg-red-100 text-red-700 hover:bg-red-200 rounded transition-colors" title="Delete File">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                ` : `
+                                    <input type="text" 
+                                           id="edit-audio-url-${node.id}" 
+                                           value="${escapeHtml(node.audio_url || '')}" 
+                                           placeholder="https://example.com/audio.mp3"
+                                           class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                    <input type="file" id="edit-audio-file-${node.id}" name="audio_file" accept="audio/*" class="text-xs">
+                                `}
+                                <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
+                                    <input type="checkbox" id="edit-audio-autoplay-${node.id}" name="audio_autoplay" ${node.audio_autoplay ? 'checked' : ''}>
+                                    Autoplay audio
+                                </label>
                             </div>
                         </div>
                         <div>
@@ -753,6 +797,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function isValidUrl(string) {
+            try {
+                new URL(string);
+                return true;
+            } catch (_) {
+                return false;  
+            }
         }
 
         // Store all nodes for sorting
@@ -947,31 +1000,63 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const targetConstellationEl = document.getElementById(`edit-target-constellation-${nodeId}`);
                 const targetConstellationId = (nodeType === 'portal' && targetConstellationEl) ? parseInt(targetConstellationEl.value, 10) : null;
                 
-                const formData = {
-                    id: nodeId,
-                    name: nodeName,
-                    description: document.getElementById(`edit-description-${nodeId}`).value.trim() || null,
-                    url: document.getElementById(`edit-url-${nodeId}`).value.trim() || null,
-                    image_url: document.getElementById(`edit-image-url-${nodeId}`).value.trim() || null,
-                    embed_code: document.getElementById(`edit-embed-code-${nodeId}`).value.trim() || null,
-                    audio_url: document.getElementById(`edit-audio-url-${nodeId}`).value.trim() || null,
-                    keywords: document.getElementById(`edit-keywords-${nodeId}`).value
-                        .split(',')
-                        .map(k => k.trim())
-                        .filter(k => k.length > 0),
-                    animation: node.animation, // Preserve existing animation
-                    constellation_id: isNaN(constellationId) ? node.constellation_id : constellationId,
-                    node_type: nodeType,
-                    target_constellation_id: nodeType === 'portal' && !isNaN(targetConstellationId) && targetConstellationId !== null ? targetConstellationId : null
-                };
+                const formData = new FormData();
+                formData.append('id', nodeId);
+                formData.append('name', nodeName);
+                formData.append('description', document.getElementById(`edit-description-${nodeId}`).value.trim() || '');
+                formData.append('url', document.getElementById(`edit-url-${nodeId}`).value.trim() || '');
+                
+                const imageUrlInput = document.getElementById(`edit-image-url-${nodeId}`);
+                const audioUrlInput = document.getElementById(`edit-audio-url-${nodeId}`);
+                
+                const imageUrl = (imageUrlInput.dataset.fullPath || imageUrlInput.value).trim();
+                const audioUrl = (audioUrlInput.dataset.fullPath || audioUrlInput.value).trim();
+
+                // Validate URLs if they are NOT uploaded files (don't start with uploads/)
+                if (imageUrl && !imageUrl.startsWith('uploads/') && !isValidUrl(imageUrl)) {
+                    showMessage('Please enter a valid Image URL (e.g. https://...)', 'error');
+                    return;
+                }
+                if (audioUrl && !audioUrl.startsWith('uploads/') && !isValidUrl(audioUrl)) {
+                    showMessage('Please enter a valid Audio URL (e.g. https://...)', 'error');
+                    return;
+                }
+
+                formData.append('image_url', imageUrl || '');
+                formData.append('audio_url', audioUrl || '');
+                formData.append('embed_code', document.getElementById(`edit-embed-code-${nodeId}`).value.trim() || '');
+                formData.append('audio_autoplay', document.getElementById(`edit-audio-autoplay-${nodeId}`).checked ? 1 : 0);
+                formData.append('constellation_id', isNaN(constellationId) ? node.constellation_id : constellationId);
+                formData.append('node_type', nodeType);
+                if (nodeType === 'portal' && !isNaN(targetConstellationId) && targetConstellationId !== null) {
+                    formData.append('target_constellation_id', targetConstellationId);
+                }
+                formData.append('animation', JSON.stringify(node.animation));
+                
+                const keywords = document.getElementById(`edit-keywords-${nodeId}`).value
+                    .split(',')
+                    .map(k => k.trim())
+                    .filter(k => k.length > 0);
+                formData.append('keywords', keywords.join(','));
+
+                const imageFileInput = document.getElementById(`edit-image-file-${nodeId}`);
+                if (imageFileInput && imageFileInput.files[0]) {
+                    formData.append('image_file', imageFileInput.files[0]);
+                }
+                
+                const audioFileInput = document.getElementById(`edit-audio-file-${nodeId}`);
+                if (audioFileInput && audioFileInput.files[0]) {
+                    formData.append('audio_file', audioFileInput.files[0]);
+                }
                 
                 const updateResponse = await fetch(API_BASE, {
-                    method: 'PUT',
+                    method: 'POST', // Using POST with _method=PUT simulation for FormData if needed, but our API handles POST/PUT. 
+                    // Let's use POST for ease with FormData and files.
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-Key': API_KEY
+                        'X-API-Key': API_KEY,
+                        'X-HTTP-Method-Override': 'PUT'
                     },
-                    body: JSON.stringify(formData)
+                    body: formData
                 });
                 
                 const responseText = await updateResponse.text();
@@ -1006,6 +1091,33 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         function cancelInlineEdit() {
             editingNodeId = null;
             loadNodes();
+        }
+
+        // Delete node file
+        async function deleteNodeFile(nodeId, type) {
+            if (!confirm(`Are you sure you want to delete this uploaded ${type} file?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}?id=${nodeId}&file_type=${type}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-API-Key': API_KEY
+                    }
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to delete file');
+                }
+                
+                showMessage(`${type.charAt(0).toUpperCase() + type.slice(1)} file deleted successfully`);
+                // If we are editing, we stay in edit mode
+                loadNodes();
+            } catch (error) {
+                showMessage('Error deleting file: ' + error.message, 'error');
+            }
         }
 
         // Delete node
@@ -1071,32 +1183,54 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const targetConstellationEl = document.getElementById('node-target-constellation');
                 const targetConstellationId = (nodeType === 'portal' && targetConstellationEl) ? parseInt(targetConstellationEl.value, 10) : null;
                 
-                const formData = {
-                    name: nodeName,
-                    description: document.getElementById('node-description').value.trim() || null,
-                    url: urlValue || null,
-                    image_url: document.getElementById('node-image-url').value.trim() || null,
-                    embed_code: document.getElementById('node-embed-code').value.trim() || null,
-                    audio_url: document.getElementById('node-audio-url').value.trim() || null,
-                    keywords: document.getElementById('node-keywords').value
-                        .split(',')
-                        .map(k => k.trim())
-                        .filter(k => k.length > 0),
-                    animation: animation,
-                    constellation_id: isNaN(constellationId) ? 0 : constellationId,
-                    node_type: nodeType,
-                    target_constellation_id: nodeType === 'portal' && !isNaN(targetConstellationId) && targetConstellationId !== null ? targetConstellationId : null
-                };
+                const formData = new FormData();
+                formData.append('name', nodeName);
+                formData.append('description', document.getElementById('node-description').value.trim() || '');
+                formData.append('url', urlValue || '');
+                
+                const imageUrl = document.getElementById('node-image-url').value.trim();
+                const audioUrl = document.getElementById('node-audio-url').value.trim();
+
+                if (imageUrl && !isValidUrl(imageUrl)) {
+                    showMessage('Please enter a valid Image URL (e.g. https://...)', 'error');
+                    return;
+                }
+                if (audioUrl && !isValidUrl(audioUrl)) {
+                    showMessage('Please enter a valid Audio URL (e.g. https://...)', 'error');
+                    return;
+                }
+
+                formData.append('image_url', imageUrl || '');
+                formData.append('audio_url', audioUrl || '');
+                formData.append('embed_code', document.getElementById('node-embed-code').value.trim() || '');
+                formData.append('audio_autoplay', document.getElementById('node-audio-autoplay').checked ? 1 : 0);
+                formData.append('constellation_id', isNaN(constellationId) ? 0 : constellationId);
+                formData.append('node_type', nodeType);
+                if (nodeType === 'portal' && !isNaN(targetConstellationId) && targetConstellationId !== null) {
+                    formData.append('target_constellation_id', targetConstellationId);
+                }
+                formData.append('animation', JSON.stringify(animation));
+                
+                const keywords = document.getElementById('node-keywords').value
+                    .split(',')
+                    .map(k => k.trim())
+                    .filter(k => k.length > 0);
+                formData.append('keywords', keywords.join(','));
+
+                const imageFile = document.getElementById('node-image-file').files[0];
+                if (imageFile) formData.append('image_file', imageFile);
+                
+                const audioFile = document.getElementById('node-audio-file').files[0];
+                if (audioFile) formData.append('audio_file', audioFile);
 
                 try {
                     const url = API_BASE;
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
                             'X-API-Key': API_KEY
                         },
-                        body: JSON.stringify(formData)
+                        body: formData
                     });
                     
                     // Get response text first

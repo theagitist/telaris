@@ -12,6 +12,7 @@ $b = isset($_GET['b']) ? (int) $_GET['b'] : 204;
 $nodeName = isset($_GET['node_name']) ? trim((string) $_GET['node_name']) : 'System';
 $appName = isset($_GET['app']) ? trim((string) $_GET['app']) : 'Telaris';
 $alertMsg = isset($_GET['alert_msg']) ? trim((string) $_GET['alert_msg']) : 'Close this window to come back';
+$description = isset($_GET['description']) ? trim((string) $_GET['description']) : '';
 
 $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>
@@ -60,6 +61,17 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
             letter-spacing: 0.05rem;
             margin-bottom: 2.5rem;
             line-height: 1.4;
+        }
+
+        .description {
+            font-size: 0.9rem;
+            max-width: 600px;
+            margin: 0 auto 2rem;
+            line-height: 1.6;
+            color: rgba(255,255,255,0.8);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 1.5rem 0;
         }
 
         .countdown {
@@ -120,6 +132,9 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
     <div class="content" id="main-content">
         <div class="title">Launching <?php echo htmlspecialchars($nodeName); ?></div>
         <div class="subtitle"><?php echo nl2br(htmlspecialchars($alertMsg)); ?></div>
+        <?php if ($description !== ''): ?>
+        <div class="description"><?php echo nl2br(htmlspecialchars($description)); ?></div>
+        <?php endif; ?>
         <div class="countdown" id="cd">5</div>
     </div>
 

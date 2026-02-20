@@ -206,7 +206,20 @@
 
                         <!-- Audio -->
                         <div id="rm-audio-wrap" class="hidden">
-                            <audio id="rm-audio" controls class="w-full"></audio>
+                            <audio id="rm-audio"></audio>
+                            <div class="flex items-center gap-4 bg-white/5 border border-white/10 rounded-lg p-3" style="border-color: var(--node-accent-muted);">
+                                <button id="rm-audio-play-pause" class="hover:opacity-80 transition-opacity" style="color: var(--node-accent);">
+                                    <svg id="rm-play-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                    <svg id="rm-pause-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" class="hidden"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                                </button>
+                                <button id="rm-audio-stop" class="hover:opacity-80 transition-opacity" style="color: var(--node-accent);">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                                </button>
+                                <div class="flex-1 h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer relative" id="rm-audio-progress-container">
+                                    <div id="rm-audio-progress" class="absolute top-0 left-0 h-full w-0 transition-all duration-100" style="background-color: var(--node-accent);"></div>
+                                </div>
+                                <span id="rm-audio-time" class="text-[10px] font-mono opacity-50 tabular-nums" style="color: var(--node-accent);">0:00</span>
+                            </div>
                         </div>
 
                         <!-- Description -->

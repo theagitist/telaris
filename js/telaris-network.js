@@ -77,7 +77,8 @@ class TelarisNetwork {
             '&r=' + r + '&g=' + g + '&b=' + b + 
             '&app=' + encodeURIComponent(app) + 
             '&alert_msg=' + encodeURIComponent(alertMsg) +
-            '&node_name=' + encodeURIComponent(d.name || 'System');
+            '&node_name=' + encodeURIComponent(d.name || 'System') +
+            '&description=' + encodeURIComponent(d.description || '');
         window.open(frameUrl, '_blank', 'noopener,noreferrer');
     }
 
@@ -136,6 +137,60 @@ class TelarisNetwork {
             if (d.audio_url) {
                 audioEl.src = d.audio_url;
                 audioWrap.classList.remove('hidden');
+                
+                const playPauseBtn = document.getElementById('rm-audio-play-pause');
+                const stopBtn = document.getElementById('rm-audio-stop');
+                const playIcon = document.getElementById('rm-play-icon');
+                const pauseIcon = document.getElementById('rm-pause-icon');
+                const progressBar = document.getElementById('rm-audio-progress');
+                const progressContainer = document.getElementById('rm-audio-progress-container');
+                const timeDisplay = document.getElementById('rm-audio-time');
+
+                const updateTime = () => {
+                    if (!audioEl.duration) return;
+                    const pct = (audioEl.currentTime / audioEl.duration) * 100;
+                    progressBar.style.width = pct + '%';
+                    const mins = Math.floor(audioEl.currentTime / 60);
+                    const secs = Math.floor(audioEl.currentTime % 60);
+                    timeDisplay.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+                };
+
+                const togglePlay = () => {
+                    if (audioEl.paused) audioEl.play();
+                    else audioEl.pause();
+                };
+
+                audioEl.onplay = () => {
+                    playIcon.classList.add('hidden');
+                    pauseIcon.classList.remove('hidden');
+                };
+                audioEl.onpause = () => {
+                    playIcon.classList.remove('hidden');
+                    pauseIcon.classList.add('hidden');
+                };
+                audioEl.onended = () => {
+                    playIcon.classList.remove('hidden');
+                    pauseIcon.classList.add('hidden');
+                    progressBar.style.width = '0%';
+                };
+                audioEl.ontimeupdate = updateTime;
+
+                playPauseBtn.onclick = togglePlay;
+                stopBtn.onclick = () => {
+                    audioEl.pause();
+                    audioEl.currentTime = 0;
+                };
+
+                progressContainer.onclick = (e) => {
+                    const rect = progressContainer.getBoundingClientRect();
+                    const pos = (e.clientX - rect.left) / rect.width;
+                    audioEl.currentTime = pos * audioEl.duration;
+                };
+
+                if (d.audio_autoplay) {
+                    audioEl.play().catch(err => {
+                    });
+                }
             } else {
                 audioEl.src = '';
                 audioWrap.classList.add('hidden');
@@ -205,7 +260,14 @@ class TelarisNetwork {
 
         setTimeout(() => {
             const audio = document.getElementById('rm-audio');
-            if(audio) { audio.pause(); audio.src = ''; }
+            if(audio) {
+                audio.pause();
+                audio.onplay = null;
+                audio.onpause = null;
+                audio.onended = null;
+                audio.ontimeupdate = null;
+                audio.src = '';
+            }
             const embed = document.getElementById('rm-embed');
             if(embed) { embed.innerHTML = ''; }
             overlay.classList.add('hidden');
@@ -644,15 +706,9 @@ class TelarisNetwork {
             
             const nodesJson = await response.json();
             const nodeData = Array.isArray(nodesJson) ? nodesJson : [];
-            if (constellationId !== 0) {
-                console.log('[Telaris] loadData constellation_id=' + constellationId, { nodes: nodeData, nodesCount: nodeData.length });
-            }
             if (nodeData.length > 0) {
                 this.createNodes(nodeData);
                 this.createConnections();
-                if (constellationId !== 0) {
-                    console.log('[Telaris] loadData constellation_id=' + constellationId, { connectionsCount: this.connections.length });
-                }
                 this.warmupPhysics();
                 this.syncNodePositionsFromPhysics();
                 this.fitCameraToNodes();
@@ -706,7 +762,6 @@ class TelarisNetwork {
                 if (taglineEl) taglineEl.textContent = c.tagline || '';
             }
         } catch (err) {
-            console.warn('Could not update constellation labels:', err);
         }
     }
 
@@ -872,15 +927,9 @@ class TelarisNetwork {
         if (!skipClear) {
             this.clearAll();
         }
-        if (constellationId !== 0) {
-            console.log('[Telaris] loadDataForConstellation constellation_id=' + constellationId, { nodes: nodeData, nodesCount: nodeData.length });
-        }
         if (nodeData.length > 0) {
             this.createNodes(nodeData);
             this.createConnections();
-            if (constellationId !== 0) {
-                console.log('[Telaris] loadDataForConstellation constellation_id=' + constellationId, { connectionsCount: this.connections.length });
-            }
             
             // Warm up physics IMMEDIATELY so they are in final positions when they first appear
             this.warmupPhysics();
@@ -1072,13 +1121,16 @@ class TelarisNetwork {
                     event.preventDefault();
                     event.stopPropagation();
                     
-                    const isRichMedia = !!(data.image_url || data.embed_code || data.audio_url || (data.description && data.description.trim() !== ''));
-                    console.log('[Telaris] Clicked object node', { name: data.name, isRichMedia, data });
+                    const hasMedia = !!(data.image_url || data.embed_code || data.audio_url);
+                    const hasDesc = !!(data.description && data.description.trim() !== '');
                     
-                    if (isRichMedia) {
+                    if (hasMedia) {
                         this.showRichMediaWindow(targetNode);
                     } else if (data.url) {
                         this.openInFrame(targetNode, data.url);
+                    } else if (hasDesc) {
+                        // If ONLY description (no media, no URL), still use rich-media window
+                        this.showRichMediaWindow(targetNode);
                     }
                 }
             }
@@ -1155,14 +1207,20 @@ class TelarisNetwork {
                         this.startPortalRev(touchStartNode, nodeData.target_constellation_id);
                         this.networkManager.setFocusedNode(null);
                     } else if (nodeData.node_type === 'object') {
-                        const isRichMedia = (nodeData.image_url || nodeData.embed_code || nodeData.audio_url || (nodeData.description && nodeData.description.trim() !== ''));
-                        if (isRichMedia) {
+                        const hasMedia = !!(nodeData.image_url || nodeData.embed_code || nodeData.audio_url);
+                        const hasDesc = !!(nodeData.description && nodeData.description.trim() !== '');
+
+                        if (hasMedia) {
                             e.preventDefault();
                             this.showRichMediaWindow(touchStartNode);
                             this.networkManager.setFocusedNode(null);
                         } else if (nodeData.url) {
                             e.preventDefault();
                             this.openInFrame(touchStartNode, nodeData.url);
+                            this.networkManager.setFocusedNode(null);
+                        } else if (hasDesc) {
+                            e.preventDefault();
+                            this.showRichMediaWindow(touchStartNode);
                             this.networkManager.setFocusedNode(null);
                         } else {
                             if (this.mainTooltipNodeTimeout) clearTimeout(this.mainTooltipNodeTimeout);
@@ -1276,6 +1334,7 @@ class TelarisNetwork {
                     image_url: data.image_url,
                     embed_code: data.embed_code,
                     audio_url: data.audio_url,
+                    audio_autoplay: !!data.audio_autoplay,
                     node_type: data.node_type ?? 'object',
                     target_constellation_id: (data.target_constellation_id !== undefined && data.target_constellation_id !== null && data.target_constellation_id !== '') ? Number(data.target_constellation_id) : null,
                     originalPosition: pos.clone(),

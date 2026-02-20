@@ -725,7 +725,7 @@ function db_get_nodes(?int $constellationId = null): array {
     $pdo = getDB();
     if ($constellationId !== null) {
         $stmt = $pdo->prepare("
-            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.animation, n.created_at, n.constellation_id,
+            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.constellation_id,
                    n.node_type, n.target_constellation_id,
                    c.name AS constellation_name
             FROM nodes n
@@ -737,7 +737,7 @@ function db_get_nodes(?int $constellationId = null): array {
         return $stmt->fetchAll();
     }
     $stmt = $pdo->query("
-        SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.animation, n.created_at, n.constellation_id,
+        SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.constellation_id,
                n.node_type, n.target_constellation_id,
                c.name AS constellation_name
         FROM nodes n
@@ -791,6 +791,7 @@ function db_format_node(array $node): array {
         'image_url' => $node['image_url'] ?? null,
         'embed_code' => $node['embed_code'] ?? null,
         'audio_url' => $node['audio_url'] ?? null,
+        'audio_autoplay' => (bool)($node['audio_autoplay'] ?? true),
         'keywords' => $keywords,
         'animation' => $animation,
         'created_at' => $createdAt,
@@ -838,16 +839,15 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
                 $nodeKeywordStmt->execute([':node_id' => $nodeId, ':keyword_id' => $keywordId]);
             }
         } catch (PDOException $e) {
-            error_log("Error saving keyword '{$keyword}' for node {$nodeId}: " . $e->getMessage());
         }
     }
 }
 
-function db_create_node(string $name, ?string $description, ?string $url, string $animation, int $constellationId = DEFAULT_CONSTELLATION_ID, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null): int {
+function db_create_node(string $name, ?string $description, ?string $url, string $animation, int $constellationId = DEFAULT_CONSTELLATION_ID, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true): int {
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        INSERT INTO nodes (name, description, url, image_url, embed_code, audio_url, animation, constellation_id, node_type, target_constellation_id)
-        VALUES (:name, :description, :url, :image_url, :embed_code, :audio_url, :animation, :constellation_id, :node_type, :target_constellation_id)
+        INSERT INTO nodes (name, description, url, image_url, embed_code, audio_url, audio_autoplay, animation, constellation_id, node_type, target_constellation_id)
+        VALUES (:name, :description, :url, :image_url, :embed_code, :audio_url, :audio_autoplay, :animation, :constellation_id, :node_type, :target_constellation_id)
     ");
     $stmt->execute([
         ':name' => $name,
@@ -856,6 +856,7 @@ function db_create_node(string $name, ?string $description, ?string $url, string
         ':image_url' => $imageUrl,
         ':embed_code' => $embedCode,
         ':audio_url' => $audioUrl,
+        ':audio_autoplay' => $audioAutoplay ? 1 : 0,
         ':animation' => $animation,
         ':constellation_id' => $constellationId,
         ':node_type' => $nodeType,
@@ -864,11 +865,11 @@ function db_create_node(string $name, ?string $description, ?string $url, string
     return (int)$pdo->lastInsertId();
 }
 
-function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null): void {
+function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true): void {
     $pdo = getDB();
     if ($constellationId !== null) {
         $stmt = $pdo->prepare("
-            UPDATE nodes SET name = :name, description = :description, url = :url, image_url = :image_url, embed_code = :embed_code, audio_url = :audio_url, animation = :animation, constellation_id = :constellation_id, node_type = :node_type, target_constellation_id = :target_constellation_id WHERE id = :id
+            UPDATE nodes SET name = :name, description = :description, url = :url, image_url = :image_url, embed_code = :embed_code, audio_url = :audio_url, audio_autoplay = :audio_autoplay, animation = :animation, constellation_id = :constellation_id, node_type = :node_type, target_constellation_id = :target_constellation_id WHERE id = :id
         ");
         $stmt->execute([
             ':id' => $id,
@@ -878,6 +879,7 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
             ':image_url' => $imageUrl,
             ':embed_code' => $embedCode,
             ':audio_url' => $audioUrl,
+            ':audio_autoplay' => $audioAutoplay ? 1 : 0,
             ':animation' => $animation,
             ':constellation_id' => $constellationId,
             ':node_type' => $nodeType,
@@ -885,7 +887,7 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
         ]);
     } else {
         $stmt = $pdo->prepare("
-            UPDATE nodes SET name = :name, description = :description, url = :url, image_url = :image_url, embed_code = :embed_code, audio_url = :audio_url, animation = :animation, node_type = :node_type, target_constellation_id = :target_constellation_id WHERE id = :id
+            UPDATE nodes SET name = :name, description = :description, url = :url, image_url = :image_url, embed_code = :embed_code, audio_url = :audio_url, audio_autoplay = :audio_autoplay, animation = :animation, node_type = :node_type, target_constellation_id = :target_constellation_id WHERE id = :id
         ");
         $stmt->execute([
             ':id' => $id,
@@ -895,6 +897,7 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
             ':image_url' => $imageUrl,
             ':embed_code' => $embedCode,
             ':audio_url' => $audioUrl,
+            ':audio_autoplay' => $audioAutoplay ? 1 : 0,
             ':animation' => $animation,
             ':node_type' => $nodeType,
             ':target_constellation_id' => $targetConstellationId
@@ -904,7 +907,44 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
 
 function db_delete_node(int $id): void {
     $pdo = getDB();
+    
+    // Also delete any associated uploaded files
+    $stmt = $pdo->prepare("SELECT image_url, audio_url FROM nodes WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $id]);
+    $row = $stmt->fetch();
+    if ($row) {
+        $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
+        if ($row['image_url'] && str_starts_with($row['image_url'], 'uploads/')) {
+            $fullPath = str_replace('uploads/', $uploadDir . '/', $row['image_url']);
+            if (file_exists($fullPath)) unlink($fullPath);
+        }
+        if ($row['audio_url'] && str_starts_with($row['audio_url'], 'uploads/')) {
+            $fullPath = str_replace('uploads/', $uploadDir . '/', $row['audio_url']);
+            if (file_exists($fullPath)) unlink($fullPath);
+        }
+    }
+
     $stmt = $pdo->prepare("DELETE FROM nodes WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+}
+
+function db_delete_node_file(int $id, string $type): void {
+    $pdo = getDB();
+    $column = ($type === 'image') ? 'image_url' : 'audio_url';
+    
+    $stmt = $pdo->prepare("SELECT $column FROM nodes WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $id]);
+    $row = $stmt->fetch();
+    
+    if ($row && $row[$column] && str_starts_with($row[$column], 'uploads/')) {
+        $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
+        $fullPath = str_replace('uploads/', $uploadDir . '/', $row[$column]);
+        if (file_exists($fullPath)) {
+            unlink($fullPath);
+        }
+    }
+    
+    $stmt = $pdo->prepare("UPDATE nodes SET $column = NULL WHERE id = :id");
     $stmt->execute([':id' => $id]);
 }
 
