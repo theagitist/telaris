@@ -515,43 +515,49 @@ $fieldMeta = [
                                         $lastLoginIso = $lastLoginTs !== false ? gmdate('c', $lastLoginTs) : null;
                                         $isCurrentUser = $user['id'] === ($_SESSION['admin_user_id'] ?? '');
                                         ?>
-                                        <tr class="user-row border-b border-gray-300 hover:bg-gray-50 cursor-pointer" 
-                                            onclick="editUser({
-                                                id: '<?php echo addslashes($user['id']); ?>',
-                                                firstname: '<?php echo addslashes($user['firstname']); ?>',
-                                                lastname: '<?php echo addslashes($user['lastname']); ?>',
-                                                email: '<?php echo addslashes($user['email']); ?>',
-                                                type: '<?php echo $user['type']; ?>'
-                                            })"
+                                        <tr class="user-row border-b border-gray-300 hover:bg-gray-50" 
                                             data-user-id="<?php echo htmlspecialchars($user['id']); ?>" 
                                             data-name="<?php echo htmlspecialchars(strtolower($user['firstname'] . ' ' . $user['lastname'])); ?>" 
                                             data-email="<?php echo htmlspecialchars(strtolower($user['email'])); ?>" 
                                             data-type="<?php echo $userType; ?>" 
                                             data-date-created="<?php echo $createdTs !== false ? $createdTs : '0'; ?>" 
                                             data-date-last-login="<?php echo $lastLoginTs !== false ? $lastLoginTs : '0'; ?>">
-                                            <td class="py-2 px-2 font-semibold text-gray-800 max-w-[12rem]">
+                                            <?php 
+                                            $userData = [
+                                                'id' => $user['id'],
+                                                'firstname' => $user['firstname'],
+                                                'lastname' => $user['lastname'],
+                                                'email' => $user['email'],
+                                                'type' => $user['type']
+                                            ];
+                                            $userJson = htmlspecialchars(json_encode($userData), ENT_QUOTES, 'UTF-8');
+                                            $clickEdit = "editUser($userJson)";
+                                            ?>
+                                            <td class="py-2 px-2 font-semibold text-gray-800 max-w-[12rem] cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <span class="block truncate" title="<?php echo $fullName; ?>"><?php echo $fullName; ?><?php if ($isCurrentUser): ?> <span class="ml-1 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">You</span><?php endif; ?></span>
                                             </td>
-                                            <td class="py-2 px-2 text-xs text-gray-600 max-w-[14rem]">
+                                            <td class="py-2 px-2 text-xs text-gray-600 max-w-[14rem] cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <span class="block truncate" title="<?php echo $email; ?>"><?php echo $email; ?></span>
                                             </td>
-                                            <td class="py-2 px-2">
+                                            <td class="py-2 px-2 cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <span class="text-xs <?php echo $typeColors[$userType]; ?> text-white px-2 py-1 rounded"><?php echo $typeLabels[$userType]; ?></span>
                                             </td>
-                                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap">
+                                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <?php if ($createdIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($createdIso); ?>"><?php echo date('M d, Y H:i', $createdTs); ?></span><?php else: ?>—<?php endif; ?>
                                             </td>
-                                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap">
+                                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <?php if ($lastLoginIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($lastLoginIso); ?>"><?php echo date('M d, Y H:i', $lastLoginTs); ?></span><?php else: ?>Never<?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-right">
                                                 <div class="flex gap-2 justify-end">
                                                     <?php if (!$isCurrentUser): ?>
-                                                        <form method="POST" action="" class="inline" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
-                                                            <input type="hidden" name="action" value="delete_user">
-                                                            <input type="hidden" name="id" value="<?php echo htmlspecialchars($user['id']); ?>">
-                                                            <button type="submit" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded" onclick="event.stopPropagation()">Delete</button>
-                                                        </form>
+                                                        <?php 
+                                                        $delMsg = "Are you sure you want to delete the user \"$fullName\"? This action cannot be undone.";
+                                                        $delMsgJs = htmlspecialchars(json_encode($delMsg), ENT_QUOTES, 'UTF-8');
+                                                        ?>
+                                                        <button type="button" 
+                                                                onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>)" 
+                                                                class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">Delete</button>
                                                     <?php endif; ?>
                                                 </div>
                                             </td>
@@ -708,31 +714,38 @@ $fieldMeta = [
                                         $cTagline = isset($c['tagline']) ? (string)$c['tagline'] : '';
                                         $viewRel = $cId === 0 ? '../index.php' : '../index.php?constellation_id=' . $cId;
                                         ?>
-                                        <tr class="constellation-row border-b border-gray-300 hover:bg-gray-50 cursor-pointer" 
-                                            onclick="editConstellation({
-                                                id: '<?php echo $cId; ?>',
-                                                name: '<?php echo addslashes($c['name']); ?>',
-                                                tagline: '<?php echo addslashes($cTagline); ?>'
-                                            })"
+                                        <tr class="constellation-row border-b border-gray-300 hover:bg-gray-50" 
                                             data-id="<?php echo $cId; ?>" 
                                             data-name="<?php echo htmlspecialchars(strtolower($c['name'])); ?>" 
                                             data-tagline="<?php echo htmlspecialchars(strtolower($cTagline)); ?>">
-                                            <td class="py-2 px-2 font-mono text-gray-800"><?php echo $cId; ?></td>
-                                            <td class="py-2 px-2 font-semibold text-gray-800">
+                                            <?php 
+                                            $cData = [
+                                                'id' => $cId,
+                                                'name' => $c['name'],
+                                                'tagline' => $cTagline
+                                            ];
+                                            $cJson = htmlspecialchars(json_encode($cData), ENT_QUOTES, 'UTF-8');
+                                            $clickEditC = "editConstellation($cJson)";
+                                            ?>
+                                            <td class="py-2 px-2 font-mono text-gray-800 cursor-pointer" onclick="<?php echo $clickEditC; ?>"><?php echo $cId; ?></td>
+                                            <td class="py-2 px-2 font-semibold text-gray-800 cursor-pointer" onclick="<?php echo $clickEditC; ?>">
                                                 <?php echo htmlspecialchars($c['name']); ?>
                                                 <?php if ($isDefault): ?>
                                                     <span class="ml-2 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">Default</span>
                                                 <?php endif; ?>
                                             </td>
-                                            <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate" title="<?php echo htmlspecialchars($cTagline); ?>"><?php echo htmlspecialchars($cTagline); ?></td>
+                                            <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="<?php echo $clickEditC; ?>" title="<?php echo htmlspecialchars($cTagline); ?>"><?php echo htmlspecialchars($cTagline); ?></td>
                                             <td class="py-2 px-2 text-right">
                                                 <div class="flex gap-2 justify-end items-center">
                                                     <?php if (!$isDefault): ?>
-                                                        <form method="POST" action="" class="inline" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete this constellation? Nodes and keywords in this constellation must be moved or deleted first.');">
-                                                            <input type="hidden" name="action" value="delete_constellation">
-                                                            <input type="hidden" name="id" value="<?php echo $cId; ?>">
-                                                            <button type="submit" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded" onclick="event.stopPropagation()">Delete</button>
-                                                        </form>
+                                                        <?php 
+                                                        $cName = $c['name'];
+                                                        $delMsgC = "Are you sure you want to delete the constellation \"$cName\"? Nodes and keywords in this constellation must be moved or deleted first.";
+                                                        $delMsgJsC = htmlspecialchars(json_encode($delMsgC), ENT_QUOTES, 'UTF-8');
+                                                        ?>
+                                                        <button type="button" 
+                                                                onclick="event.stopPropagation(); triggerDelete('delete_constellation', '<?php echo $cId; ?>', <?php echo $delMsgJsC; ?>)" 
+                                                                class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">Delete</button>
                                                     <?php endif; ?>
                                                     <a href="<?php echo htmlspecialchars($viewRel); ?>" target="_blank" rel="noopener" class="px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white text-xs rounded inline-flex items-center gap-1" onclick="event.stopPropagation()">View</a>
                                                     <button type="button" onclick="event.stopPropagation(); copyConstellationUrl('<?php echo htmlspecialchars($viewRel, ENT_QUOTES); ?>', this)" class="p-1.5 rounded border border-gray-300 hover:bg-gray-100 text-gray-600 hover:text-gray-800" title="Copy constellation URL">
@@ -1046,6 +1059,13 @@ $fieldMeta = [
             document.getElementById('modal-constellation-name').value = c.name;
             document.getElementById('modal-constellation-tagline').value = c.tagline;
             document.getElementById('constellation_modal').showModal();
+        }
+
+        function triggerDelete(action, id, message) {
+            document.getElementById('delete-action').value = action;
+            document.getElementById('delete-id').value = id;
+            document.getElementById('delete-confirm-message').textContent = message;
+            document.getElementById('delete_confirm_modal').showModal();
         }
 
         function toggleCreateUserConstellations() {
@@ -1497,6 +1517,23 @@ $fieldMeta = [
                     <button type="button" class="btn" onclick="document.getElementById('constellation_modal').close()">Cancel</button>
                 </div>
             </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Delete Confirmation Modal -->
+    <dialog id="delete_confirm_modal" class="modal">
+        <div class="modal-box bg-white border-t-4 border-error">
+            <h3 class="font-bold text-xl mb-4 text-gray-800">Confirm Deletion</h3>
+            <p id="delete-confirm-message" class="text-gray-600 mb-6"></p>
+            <div class="modal-action">
+                <form id="delete-form" method="POST" action="">
+                    <input type="hidden" name="action" id="delete-action" value="">
+                    <input type="hidden" name="id" id="delete-id" value="">
+                    <button type="submit" class="btn btn-error text-white">Delete</button>
+                </form>
+                <button type="button" class="btn" onclick="document.getElementById('delete_confirm_modal').close()">Cancel</button>
+            </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>

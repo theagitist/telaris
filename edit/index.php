@@ -864,59 +864,79 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
         }
 
+        // Helper for custom confirmation modal
+        function confirmAction(message, onConfirm) {
+            const modal = document.getElementById('delete_confirm_modal');
+            const messageEl = document.getElementById('delete-confirm-message');
+            const confirmBtn = document.getElementById('delete-confirm-btn');
+            
+            messageEl.textContent = message;
+            
+            // Clone button to remove old listeners
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            
+            newConfirmBtn.onclick = () => {
+                onConfirm();
+                modal.close();
+            };
+            
+            modal.showModal();
+        }
+
         // Delete node file from modal context
         async function deleteModalFile(type) {
             const nodeId = document.getElementById('edit-id').value;
-            if (!nodeId || !confirm(`Are you sure you want to delete this uploaded ${type} file?`)) return;
+            if (!nodeId) return;
 
-            try {
-                const response = await fetch(`${API_BASE}?id=${nodeId}&file_type=${type}`, {
-                    method: 'DELETE',
-                    headers: { 'X-API-Key': API_KEY }
-                });
-                
-                if (!response.ok) throw new Error('Failed to delete file');
-                
-                showMessage(`${type.charAt(0).toUpperCase() + type.slice(1)} file deleted`);
-                
-                // Update UI in modal
-                document.getElementById(`edit-${type}-file-wrap`).classList.remove('hidden');
-                document.getElementById(`edit-${type}-existing`).classList.add('hidden');
-                document.getElementById(`edit-${type}-url`).value = '';
-                
-                // Update allNodes so if we close and re-open without reload it stays deleted
-                const node = allNodes.find(n => n.id === parseInt(nodeId));
-                if (node) node[`${type}_url`] = '';
-                
-            } catch (error) {
-                showMessage('Error deleting file: ' + error.message, 'error');
-            }
+            confirmAction(`Are you sure you want to delete this uploaded ${type} file?`, async () => {
+                try {
+                    const response = await fetch(`${API_BASE}?id=${nodeId}&file_type=${type}`, {
+                        method: 'DELETE',
+                        headers: { 'X-API-Key': API_KEY }
+                    });
+                    
+                    if (!response.ok) throw new Error('Failed to delete file');
+                    
+                    showMessage(`${type.charAt(0).toUpperCase() + type.slice(1)} file deleted`);
+                    
+                    // Update UI in modal
+                    document.getElementById(`edit-${type}-file-wrap`).classList.remove('hidden');
+                    document.getElementById(`edit-${type}-existing`).classList.add('hidden');
+                    document.getElementById(`edit-${type}-url`).value = '';
+                    
+                    // Update allNodes so if we close and re-open without reload it stays deleted
+                    const node = allNodes.find(n => n.id === parseInt(nodeId));
+                    if (node) node[`${type}_url`] = '';
+                    
+                } catch (error) {
+                    showMessage('Error deleting file: ' + error.message, 'error');
+                }
+            });
         }
 
         // Delete node
         async function deleteNode(id, name) {
-            if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE}?id=${id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-API-Key': API_KEY
+            confirmAction(`Are you sure you want to delete "${name}"? This action cannot be undone.`, async () => {
+                try {
+                    const response = await fetch(`${API_BASE}?id=${id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-API-Key': API_KEY
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error || 'Failed to delete node');
                     }
-                });
-                
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to delete node');
+                    
+                    showMessage('Node deleted successfully');
+                    loadNodes();
+                } catch (error) {
+                    showMessage('Error deleting node: ' + error.message, 'error');
                 }
-                
-                showMessage('Node deleted successfully');
-                loadNodes();
-            } catch (error) {
-                showMessage('Error deleting node: ' + error.message, 'error');
-            }
+            });
         }
 
         // Open Create Node Modal
@@ -1297,6 +1317,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <form method="dialog" class="modal-backdrop">
             <button>close</button>
         </form>
+    </dialog>
+
+    <!-- Delete Confirmation Modal -->
+    <dialog id="delete_confirm_modal" class="modal">
+        <div class="modal-box bg-white border-t-4 border-error">
+            <h3 class="font-bold text-xl mb-4 text-gray-800">Confirm Deletion</h3>
+            <p id="delete-confirm-message" class="text-gray-600 mb-6"></p>
+            <div class="modal-action">
+                <button id="delete-confirm-btn" class="btn btn-error text-white">Delete</button>
+                <button type="button" class="btn" onclick="document.getElementById('delete_confirm_modal').close()">Cancel</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 </body>
 </html>
