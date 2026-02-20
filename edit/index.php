@@ -439,9 +439,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">Name<span id="sort-indicator-name"></span></div>
                             <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('node_type')">Type<span id="sort-indicator-node_type"></span></div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('constellation_name')">Constellation<span id="sort-indicator-constellation_name"></span></div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')">URL<span id="sort-indicator-url"></span></div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">Keywords<span id="sort-indicator-keywords"></span></div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">Created<span id="sort-indicator-created_at"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')">URL<span id="sort-indicator-url"></span></div>
+                            <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">Keywords<span id="sort-indicator-keywords"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('is_accentuated')" title="Accentuated Status">Acc<span id="sort-indicator-is_accentuated"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">Created<span id="sort-indicator-created_at"></span></div>
                             <div class="col-span-1 text-right pr-2">Actions</div>
                         </div>
                     </div>
@@ -453,7 +454,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     }
                     
                     // Show normal display - compact spreadsheet-like layout
-                    const createdDate = node.created_at ? new Date(node.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A';
+                    const dateObj = node.created_at ? new Date(node.created_at) : null;
+                    const createdDate = dateObj 
+                        ? `${dateObj.getFullYear().toString().slice(-2)}-${(dateObj.getMonth()+1).toString().padStart(2,'0')}-${dateObj.getDate().toString().padStart(2,'0')} ${dateObj.getHours().toString().padStart(2,'0')}:${dateObj.getMinutes().toString().padStart(2,'0')}` 
+                        : 'N/A';
                     const descriptionTruncated = node.description ? (node.description.length > 80 ? escapeHtml(node.description.substring(0, 80)) + '...' : escapeHtml(node.description)) : '';
                     const keywordsDisplay = node.keywords && node.keywords.length > 0 
                         ? node.keywords.map(k => `<span class="badge badge-sm border-current/20 ${getPastelColor(k)}">${escapeHtml(k)}</span>`).join(' ')
@@ -480,9 +484,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             ${typeDisplay}
                         </div>
                         <div class="col-span-2 text-xs text-gray-600 truncate" title="${escapeHtml(constellationName)}">${escapeHtml(constellationName)}</div>
-                        <div class="col-span-2">
+                        <div class="col-span-1">
                             ${node.url ? `<a href="${escapeHtml(node.url)}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline text-xs truncate block" title="${escapeHtml(node.url)}" onclick="event.stopPropagation()">${escapeHtml(node.url)}</a>` : '<span class="text-xs text-gray-400">—</span>'}
                             <div class="flex flex-wrap gap-1 mt-1">
+                                ${node.is_accentuated ? '<span class="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded border border-yellow-200 font-bold" title="Accentuated Node">ACC</span>' : ''}
                                 ${node.url ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded" title="Has URL">URL</span>' : ''}
                                 ${node.description ? '<span class="text-[10px] bg-green-100 text-green-700 px-1 rounded" title="Has Description">DESC</span>' : ''}
                                 ${node.image_url ? '<span class="text-[10px] bg-purple-100 text-purple-700 px-1 rounded" title="Has Image">IMG</span>' : ''}
@@ -490,10 +495,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 ${node.audio_url ? '<span class="text-[10px] bg-orange-100 text-orange-700 px-1 rounded" title="Has Audio">AUD</span>' : ''}
                             </div>
                         </div>
-                        <div class="col-span-2">
+                        <div class="col-span-3">
                             <div class="flex flex-wrap gap-1">${keywordsDisplay}</div>
                         </div>
-                        <div class="col-span-2 text-xs text-gray-500">
+                        <div class="col-span-1 text-center">
+                            ${node.is_accentuated ? '<span class="text-yellow-600 font-bold" title="Accentuated">✓</span>' : '<span class="text-gray-300">—</span>'}
+                        </div>
+                        <div class="col-span-1 text-xs text-gray-500 whitespace-nowrap">
                             ${createdDate}
                         </div>
                         <div class="col-span-1 flex gap-2 justify-end pr-2">
@@ -607,7 +615,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Update sort indicators in header
         function updateSortIndicators() {
             // Reset all indicators
-            ['name', 'node_type', 'constellation_name', 'url', 'keywords', 'created_at'].forEach(col => {
+            ['name', 'node_type', 'constellation_name', 'url', 'keywords', 'is_accentuated', 'created_at'].forEach(col => {
                 const indicator = document.getElementById('sort-indicator-' + col);
                 if (indicator) {
                     indicator.innerHTML = '';
@@ -686,6 +694,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             aVal = (a.node_type || 'object').toLowerCase();
                             bVal = (b.node_type || 'object').toLowerCase();
                             break;
+                        case 'is_accentuated':
+                            aVal = a.is_accentuated ? 1 : 0;
+                            bVal = b.is_accentuated ? 1 : 0;
+                            break;
                         default:
                             return 0;
                     }
@@ -739,6 +751,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             document.getElementById('edit-url').value = node.url || '';
             document.getElementById('edit-embed-code').value = node.embed_code || '';
             document.getElementById('edit-audio-autoplay').checked = !!node.audio_autoplay;
+            document.getElementById('edit-accentuated').checked = !!node.is_accentuated;
 
             // Handle keywords
             keywordState['modal'] = [...(node.keywords || [])];
@@ -819,6 +832,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('audio_url', audioUrl);
             formData.append('embed_code', document.getElementById('edit-embed-code').value.trim());
             formData.append('audio_autoplay', document.getElementById('edit-audio-autoplay').checked ? 1 : 0);
+            formData.append('is_accentuated', document.getElementById('edit-accentuated').checked ? 1 : 0);
             formData.append('constellation_id', document.getElementById('edit-constellation').value);
             
             const nodeType = document.getElementById('edit-node-type').value;
@@ -982,6 +996,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('audio_url', document.getElementById('node-audio-url').value.trim());
             formData.append('embed_code', document.getElementById('node-embed-code').value.trim());
             formData.append('audio_autoplay', document.getElementById('node-audio-autoplay').checked ? 1 : 0);
+            formData.append('is_accentuated', document.getElementById('node-accentuated').checked ? 1 : 0);
             formData.append('constellation_id', isNaN(constellationId) ? 0 : constellationId);
             formData.append('node_type', nodeType);
             
@@ -1164,6 +1179,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <input type="hidden" id="node-keywords" name="keywords">
                         <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords.</span>
                     </div>
+                    <div class="flex flex-col justify-center">
+                        <label class="label cursor-pointer justify-start gap-4">
+                            <input type="checkbox" id="node-accentuated" name="is_accentuated" class="toggle toggle-neutral">
+                            <span class="label-text font-medium text-gray-800">Accentuate Node</span>
+                        </label>
+                        <span class="text-xs text-gray-500 block ml-1">Make this node larger and more prominent in the network.</span>
+                    </div>
                 </div>
                 <div id="create-target-constellation-wrap" class="hidden">
                     <div class="flex flex-wrap items-end gap-2 mb-2">
@@ -1253,6 +1275,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </div>
                         <input type="hidden" id="edit-keywords-hidden" name="keywords">
                         <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords</span>
+                    </div>
+                    <div class="flex flex-col justify-center">
+                        <label class="label cursor-pointer justify-start gap-4">
+                            <input type="checkbox" id="edit-accentuated" name="is_accentuated" class="toggle toggle-neutral">
+                            <span class="label-text font-medium text-gray-800">Accentuate Node</span>
+                        </label>
+                        <span class="text-xs text-gray-500 block ml-1">Make this node larger and more prominent in the network.</span>
                     </div>
                 </div>
                 <div id="edit-target-constellation-wrap-modal" class="hidden">

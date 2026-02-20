@@ -1143,7 +1143,13 @@ $fieldMeta = [
                 const iso = span.getAttribute('data-datetime-iso');
                 if (iso) {
                     try {
-                        span.textContent = new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+                        const d = new Date(iso);
+                        const yy = d.getFullYear().toString().slice(-2);
+                        const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+                        const dd = d.getDate().toString().padStart(2, '0');
+                        const hh = d.getHours().toString().padStart(2, '0');
+                        const min = d.getMinutes().toString().padStart(2, '0');
+                        span.textContent = `${yy}-${mm}-${dd} ${hh}:${min}`;
                     } catch (e) {}
                 }
             });

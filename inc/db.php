@@ -730,7 +730,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
     if ($isAdmin && $constellationId === null) {
         $stmt = $pdo->query("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.constellation_id,
-                   n.node_type, n.target_constellation_id,
+                   n.node_type, n.target_constellation_id, n.is_accentuated,
                    c.name AS constellation_name
             FROM nodes n
             LEFT JOIN constellations c ON c.id = n.constellation_id
@@ -751,7 +751,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
 
         $stmt = $pdo->prepare("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.constellation_id,
-                   n.node_type, n.target_constellation_id,
+                   n.node_type, n.target_constellation_id, n.is_accentuated,
                    c.name AS constellation_name
             FROM nodes n
             LEFT JOIN constellations c ON c.id = n.constellation_id
@@ -766,7 +766,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
     if (!$isAdmin && $userId !== null) {
         $stmt = $pdo->prepare("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.constellation_id,
-                   n.node_type, n.target_constellation_id,
+                   n.node_type, n.target_constellation_id, n.is_accentuated,
                    c.name AS constellation_name
             FROM nodes n
             INNER JOIN user_constellations uc ON n.constellation_id = uc.constellation_id AND uc.user_id = :user_id
@@ -831,7 +831,8 @@ function db_format_node(array $node): array {
         'constellation_id' => isset($node['constellation_id']) ? (int)$node['constellation_id'] : DEFAULT_CONSTELLATION_ID,
         'constellation_name' => isset($node['constellation_name']) && (string)$node['constellation_name'] !== '' ? (string)$node['constellation_name'] : 'Default',
         'node_type' => $nodeType,
-        'target_constellation_id' => $targetConstellationId
+        'target_constellation_id' => $targetConstellationId,
+        'is_accentuated' => (bool)($node['is_accentuated'] ?? false)
     ];
 }
 
@@ -876,11 +877,11 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
     }
 }
 
-function db_create_node(string $name, ?string $description, ?string $url, string $animation, int $constellationId = DEFAULT_CONSTELLATION_ID, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true): int {
+function db_create_node(string $name, ?string $description, ?string $url, string $animation, int $constellationId = DEFAULT_CONSTELLATION_ID, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false): int {
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        INSERT INTO nodes (name, description, url, image_url, embed_code, audio_url, audio_autoplay, animation, constellation_id, node_type, target_constellation_id)
-        VALUES (:name, :description, :url, :image_url, :embed_code, :audio_url, :audio_autoplay, :animation, :constellation_id, :node_type, :target_constellation_id)
+        INSERT INTO nodes (name, description, url, image_url, embed_code, audio_url, audio_autoplay, animation, constellation_id, node_type, target_constellation_id, is_accentuated)
+        VALUES (:name, :description, :url, :image_url, :embed_code, :audio_url, :audio_autoplay, :animation, :constellation_id, :node_type, :target_constellation_id, :is_accentuated)
     ");
     $stmt->execute([
         ':name' => $name,
@@ -893,16 +894,17 @@ function db_create_node(string $name, ?string $description, ?string $url, string
         ':animation' => $animation,
         ':constellation_id' => $constellationId,
         ':node_type' => $nodeType,
-        ':target_constellation_id' => $targetConstellationId
+        ':target_constellation_id' => $targetConstellationId,
+        ':is_accentuated' => $isAccentuated ? 1 : 0
     ]);
     return (int)$pdo->lastInsertId();
 }
 
-function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true): void {
+function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false): void {
     $pdo = getDB();
     if ($constellationId !== null) {
         $stmt = $pdo->prepare("
-            UPDATE nodes SET name = :name, description = :description, url = :url, image_url = :image_url, embed_code = :embed_code, audio_url = :audio_url, audio_autoplay = :audio_autoplay, animation = :animation, constellation_id = :constellation_id, node_type = :node_type, target_constellation_id = :target_constellation_id WHERE id = :id
+            UPDATE nodes SET name = :name, description = :description, url = :url, image_url = :image_url, embed_code = :embed_code, audio_url = :audio_url, audio_autoplay = :audio_autoplay, animation = :animation, constellation_id = :constellation_id, node_type = :node_type, target_constellation_id = :target_constellation_id, is_accentuated = :is_accentuated WHERE id = :id
         ");
         $stmt->execute([
             ':id' => $id,
@@ -916,11 +918,12 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
             ':animation' => $animation,
             ':constellation_id' => $constellationId,
             ':node_type' => $nodeType,
-            ':target_constellation_id' => $targetConstellationId
+            ':target_constellation_id' => $targetConstellationId,
+            ':is_accentuated' => $isAccentuated ? 1 : 0
         ]);
     } else {
         $stmt = $pdo->prepare("
-            UPDATE nodes SET name = :name, description = :description, url = :url, image_url = :image_url, embed_code = :embed_code, audio_url = :audio_url, audio_autoplay = :audio_autoplay, animation = :animation, node_type = :node_type, target_constellation_id = :target_constellation_id WHERE id = :id
+            UPDATE nodes SET name = :name, description = :description, url = :url, image_url = :image_url, embed_code = :embed_code, audio_url = :audio_url, audio_autoplay = :audio_autoplay, animation = :animation, node_type = :node_type, target_constellation_id = :target_constellation_id, is_accentuated = :is_accentuated WHERE id = :id
         ");
         $stmt->execute([
             ':id' => $id,
@@ -933,7 +936,8 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
             ':audio_autoplay' => $audioAutoplay ? 1 : 0,
             ':animation' => $animation,
             ':node_type' => $nodeType,
-            ':target_constellation_id' => $targetConstellationId
+            ':target_constellation_id' => $targetConstellationId,
+            ':is_accentuated' => $isAccentuated ? 1 : 0
         ]);
     }
 }

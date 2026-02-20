@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     -- NEW FIELDS START HERE --
     node_type ENUM('object', 'portal') NOT NULL DEFAULT 'object',
     target_constellation_id INT NULL,
+    is_accentuated BOOLEAN NOT NULL DEFAULT FALSE,
     -- NEW FIELDS END HERE --
     created_by VARCHAR(255) NULL,
     animation JSON NOT NULL DEFAULT (JSON_OBJECT('radius', 5.0, 'theta', 0, 'phi', 0, 'speed', 0.0025, 'phase', 0)),
