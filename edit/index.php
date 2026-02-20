@@ -28,13 +28,14 @@ $userType = (int)($_SESSION['admin_user_type'] ?? 0);
 $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.png" type="image/png">
     <title>Edit Nodes - <?php echo htmlspecialchars($projectName); ?></title>
     <script src="../js/tailwind.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
 </head>
 <body class="font-sans bg-gray-100 min-h-screen">
     <div class="max-w-7xl mx-auto py-8 px-5">
@@ -49,7 +50,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <label for="current-constellation" class="text-sm font-medium text-gray-700">Current Constellation:</label>
                     <select id="current-constellation" 
                             onchange="switchConstellation(this.value)"
-                            class="p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 bg-white min-w-[180px]">
+                            class="select select-bordered select-sm min-w-[180px] bg-white">
                         <?php
                         $currentConstellationParam = isset($_GET['constellation_id']) ? trim((string)$_GET['constellation_id']) : 'all';
                         if (!is_numeric($currentConstellationParam) && $currentConstellationParam !== 'all') {
@@ -111,7 +112,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </div>
 
             <!-- Add New Node Tab -->
-            <div id="content-add" class="tab-content p-6">
+            <div id="content-add" class="custom-tab-panel p-6">
                 <form id="node-form" class="space-y-4" novalidate>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -127,7 +128,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <label for="node-constellation" class="block mb-1.5 text-gray-800 font-medium">Constellation</label>
                             <select id="node-constellation" 
                                     name="constellation_id" 
-                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                    class="select select-bordered w-full bg-white">
                                 <?php foreach ($constellations as $c): ?>
                                     <option value="<?php echo (int)$c['id']; ?>" <?php echo (int)$c['id'] === 0 ? 'selected' : ''; ?>><?php echo htmlspecialchars($c['name']); ?></option>
                                 <?php endforeach; ?>
@@ -139,7 +140,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <select id="node-type" 
                                     name="node_type" 
                                     onchange="toggleTargetConstellation(this.value, 'add')"
-                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                    class="select select-bordered w-full bg-white">
                                 <option value="object">Object</option>
                                 <option value="portal">Portal</option>
                             </select>
@@ -151,7 +152,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 <label for="node-target-constellation" class="block mb-1.5 text-gray-800 font-medium">Target Constellation</label>
                                 <select id="node-target-constellation" 
                                         name="target_constellation_id" 
-                                        class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                        class="select select-bordered w-full bg-white">
                                     <?php foreach ($constellations as $c): ?>
                                         <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
                                     <?php endforeach; ?>
@@ -237,7 +238,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </div>
 
             <!-- List Existing Nodes Tab -->
-            <div id="content-list" class="tab-content p-6 hidden">
+            <div id="content-list" class="custom-tab-panel p-6 hidden">
                 <!-- Search Controls -->
                 <div class="mb-6 flex flex-wrap items-center gap-4 p-4 bg-gray-50 rounded-lg">
                     <div class="flex items-center gap-2 flex-1 min-w-[200px]">
@@ -577,11 +578,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             </div>
                             <div>
                                 <label class="block mb-1.5 text-gray-800 font-medium text-sm">Constellation</label>
-                                <select id="edit-constellation-${node.id}" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">${constellationOptions}</select>
+                                <select id="edit-constellation-${node.id}" class="select select-bordered select-sm w-full bg-white">${constellationOptions}</select>
                             </div>
                             <div>
                                 <label class="block mb-1.5 text-gray-800 font-medium text-sm">Node type</label>
-                                <select id="edit-node-type-${node.id}" onchange="toggleTargetConstellation(this.value, 'inline', ${node.id})" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                <select id="edit-node-type-${node.id}" onchange="toggleTargetConstellation(this.value, 'inline', ${node.id})" class="select select-bordered select-sm w-full bg-white">
                                     <option value="object" ${nodeType === 'object' ? 'selected' : ''}>Object</option>
                                     <option value="portal" ${nodeType === 'portal' ? 'selected' : ''}>Portal</option>
                                 </select>
@@ -596,11 +597,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 <span class="text-xs text-gray-500 mt-1 block">Separate keywords with commas</span>
                             </div>
                         </div>
-                        <div id="edit-target-constellation-wrap-${node.id}" class="${showTarget ? '' : 'hidden'}">
+                        <div id="edit-target-constellation-wrap-${nodeId}" class="${showTarget ? '' : 'hidden'}">
                             <div class="flex flex-wrap items-end gap-2 mb-2">
                                 <div class="min-w-[200px] flex-1">
                                     <label class="block mb-1.5 text-gray-800 font-medium text-sm">Target Constellation</label>
-                                    <select id="edit-target-constellation-${node.id}" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">${targetConstellationOptions}</select>
+                                    <select id="edit-target-constellation-${nodeId}" class="select select-bordered select-sm w-full bg-white">${targetConstellationOptions}</select>
                                 </div>
                                 <button type="button" onclick="createNewConstellation('inline', ${node.id})" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">Create New Constellation</button>
                             </div>
@@ -1286,8 +1287,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const panel = document.getElementById(contentId);
             if (!panel) return;
 
-            // Hide all tab-content elements
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            // Hide all custom-tab-panel elements
+            document.querySelectorAll('.custom-tab-panel').forEach(el => el.classList.add('hidden'));
 
             // Show the panel matching tabId
             panel.classList.remove('hidden');

@@ -367,13 +367,14 @@ $fieldMeta = [
 ];
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.png" type="image/png">
     <title>Admin Console - Telaris</title>
     <script src="../js/tailwind.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
 </head>
 <body class="font-sans bg-gray-100 min-h-screen">
     <div class="max-w-6xl mx-auto py-8 px-5">
@@ -532,7 +533,7 @@ $fieldMeta = [
                             <select id="type" 
                                     name="type" 
                                     required 
-                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                                    class="select select-bordered w-full bg-white">
                                 <option value="1" <?php echo ($editUser['type'] ?? 0) == 1 ? 'selected' : ''; ?>>Editor</option>
                                 <option value="2" <?php echo ($editUser['type'] ?? 0) == 2 ? 'selected' : ''; ?>>Admin</option>
                             </select>

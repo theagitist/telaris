@@ -528,13 +528,14 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
 if ($showWebsiteForm) {
     ?>
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" data-theme="light">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="icon" href="/favicon.png" type="image/png">
         <title>Telaris - Setup</title>
         <script src="../js/tailwind.min.js"></script>
+        <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     </head>
     <body class="font-sans max-w-2xl mx-auto my-12 px-5 bg-gray-100">
         <div class="bg-white p-8 rounded-lg shadow-md">
@@ -575,13 +576,14 @@ if ($showWebsiteForm) {
 if ($showForm) {
     ?>
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" data-theme="light">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="icon" href="/favicon.png" type="image/png">
         <title>Telaris - Setup</title>
         <script src="../js/tailwind.min.js"></script>
+        <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     </head>
     <body class="font-sans max-w-2xl mx-auto my-12 px-5 bg-gray-100">
         <div class="bg-white p-8 rounded-lg shadow-md">
@@ -889,13 +891,14 @@ if ($pdo && !$adminUserCreated) {
 // Show results page
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.png" type="image/png">
     <title>Telaris - Setup</title>
     <script src="js/tailwind.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
 </head>
 <body class="font-sans max-w-2xl mx-auto my-12 px-5 bg-gray-100">
     <div class="bg-white p-8 rounded-lg shadow-md">
