@@ -1331,7 +1331,9 @@ class TelarisNetwork {
                 Object.assign(this.tooltip.style, {
                     left: screenX + 'px',
                     top: screenY + 'px',
-                    transform: 'translate(-50%, -50%) translate(-12px, 0)'
+                    transform: 'translate(-50%, -100%) translate(0, -30px)',
+                    maxWidth: '220px',
+                    paddingBottom: '10px'
                 });
                 requestAnimationFrame(() => requestAnimationFrame(() => { this.tooltip.style.opacity = '1'; }));
             }
