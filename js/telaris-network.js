@@ -1297,12 +1297,15 @@ class TelarisNetwork {
                 const hasDesc = !!(node.userData.description && node.userData.description.trim() !== '');
                 const isPortal = node.userData.node_type === 'portal';
                 
-                if (node.userData.url || hasMedia || hasDesc || isPortal) {
-                    const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
-                        ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
-                        : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
-                    html += `<div style="opacity: 0.6; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;">${hintText}</div>`;
-                }
+                const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
+                    ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
+                    : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
+                
+                // For testing: add hint even if condition fails but with low opacity if no content
+                const hasContent = (node.userData.url || hasMedia || hasDesc || isPortal);
+                html += `<div style="opacity: ${hasContent ? '1.0' : '0.4'}; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 6px; margin-top: 6px; color: ${hasContent ? '#ffcc00' : 'inherit'};">`;
+                html += `[ ${hintText} ]`;
+                html += `</div>`;
 
                 this.tooltip.innerHTML = html;
 
