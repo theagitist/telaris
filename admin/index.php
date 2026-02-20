@@ -372,9 +372,6 @@ $fieldMeta = [
                     <p class="text-gray-600 mt-1">Welcome, <?php echo htmlspecialchars($_SESSION['admin_user_name'] ?? 'Admin'); ?></p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <a href="../index.php" class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded">
-                        View Network
-                    </a>
                     <a href="../edit/index.php" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded">
                         Edit Content
                     </a>
@@ -426,37 +423,37 @@ $fieldMeta = [
         <?php endif; ?>
 
         <!-- Tabs -->
-        <div class="bg-white rounded-lg shadow-md mb-6">
-            <div class="border-b border-gray-200">
-                <nav class="flex">
-                    <button onclick="showTab('constellations')" 
-                            id="tab-constellations"
-                            class="px-6 py-3 font-medium text-sm border-b-2 <?php echo $activeTab === 'constellations' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?>">
-                        Constellations
-                    </button>
-                    <button onclick="showTab('users')" 
-                            id="tab-users"
-                            class="px-6 py-3 font-medium text-sm border-b-2 <?php echo $activeTab === 'users' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?>">
-                        Users
-                    </button>
-                    <button onclick="showTab('api-keys')" 
-                            id="tab-api-keys"
-                            class="px-6 py-3 font-medium text-sm border-b-2 <?php echo $activeTab === 'api-keys' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?>">
-                        API Keys
-                    </button>
-                    <button onclick="showTab('settings')" 
-                            id="tab-settings"
-                            class="px-6 py-3 font-medium text-sm border-b-2 <?php echo $activeTab === 'settings' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?>">
-                        Global Settings
-                    </button>
-                    <button onclick="showTab('php-info')" 
-                            id="tab-php-info"
-                            class="px-6 py-3 font-medium text-sm border-b-2 <?php echo $activeTab === 'php-info' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?>">
-                        PHP Information
-                    </button>
-                </nav>
+        <div class="mb-6">
+            <div class="tabs tabs-lifted">
+                <button onclick="showTab('constellations')" 
+                        id="tab-constellations"
+                        class="tab tab-lg <?php echo $activeTab === 'constellations' ? 'tab-active' : ''; ?>">
+                    Constellations
+                </button>
+                <button onclick="showTab('users')" 
+                        id="tab-users"
+                        class="tab tab-lg <?php echo $activeTab === 'users' ? 'tab-active' : ''; ?>">
+                    Users
+                </button>
+                <button onclick="showTab('api-keys')" 
+                        id="tab-api-keys"
+                        class="tab tab-lg <?php echo $activeTab === 'api-keys' ? 'tab-active' : ''; ?>">
+                    API Keys
+                </button>
+                <button onclick="showTab('settings')" 
+                        id="tab-settings"
+                        class="tab tab-lg <?php echo $activeTab === 'settings' ? 'tab-active' : ''; ?>">
+                    Global Settings
+                </button>
+                <button onclick="showTab('php-info')" 
+                        id="tab-php-info"
+                        class="tab tab-lg <?php echo $activeTab === 'php-info' ? 'tab-active' : ''; ?>">
+                    PHP Information
+                </button>
             </div>
+        </div>
 
+        <div class="bg-white rounded-b-lg shadow-md mb-6 -mt-6 pt-6">
             <!-- Users Tab -->
             <div id="content-users" class="p-6 <?php echo $activeTab !== 'users' ? 'hidden' : ''; ?>">
                 <!-- Users list -->
@@ -971,8 +968,7 @@ $fieldMeta = [
             tabs.forEach(tab => {
                 const tabElement = document.getElementById('tab-' + tab);
                 if (tabElement) {
-                    tabElement.classList.remove('border-blue-500', 'text-blue-600');
-                    tabElement.classList.add('border-transparent', 'text-gray-500');
+                    tabElement.classList.remove('tab-active');
                 }
             });
             
@@ -989,8 +985,7 @@ $fieldMeta = [
             // Add active styling to selected tab
             const activeTabEl = document.getElementById('tab-' + tabName);
             if (activeTabEl) {
-                activeTabEl.classList.remove('border-transparent', 'text-gray-500');
-                activeTabEl.classList.add('border-blue-500', 'text-blue-600');
+                activeTabEl.classList.add('tab-active');
             }
             
             // Update URL without reload

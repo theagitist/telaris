@@ -46,30 +46,35 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <h1 class="text-gray-800 text-3xl font-semibold">Edit Nodes</h1>
                     <p class="text-gray-600 mt-1">Welcome, <?php echo htmlspecialchars($userName); ?> (<?php echo $isAdmin ? 'Admin' : 'Editor'; ?>)</p>
                 </div>
-                <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
                     <label for="current-constellation" class="text-sm font-medium text-gray-700">Current Constellation:</label>
-                    <select id="current-constellation" 
-                            onchange="switchConstellation(this.value)"
-                            class="select select-bordered select-sm min-w-[180px] bg-white">
-                        <?php
-                        $currentConstellationParam = isset($_GET['constellation_id']) ? trim((string)$_GET['constellation_id']) : 'all';
-                        if (!is_numeric($currentConstellationParam) && $currentConstellationParam !== 'all') {
-                            $currentConstellationParam = 'all';
-                        }
-                        ?>
-                        <option value="all"<?php echo $currentConstellationParam === 'all' ? ' selected' : ''; ?>>All constellations</option>
-                        <?php foreach ($constellations as $c):
-                            $cid = (int)$c['id'];
-                            $sel = $currentConstellationParam === (string)$cid ? ' selected' : '';
-                        ?>
-                            <option value="<?php echo $cid; ?>"<?php echo $sel; ?>><?php echo htmlspecialchars($c['name']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <div class="join">
+                        <select id="current-constellation" 
+                                onchange="switchConstellation(this.value)"
+                                class="select select-bordered select-sm min-w-[180px] bg-white join-item">
+                            <?php
+                            $currentConstellationParam = isset($_GET['constellation_id']) ? trim((string)$_GET['constellation_id']) : 'all';
+                            if (!is_numeric($currentConstellationParam) && $currentConstellationParam !== 'all') {
+                                $currentConstellationParam = 'all';
+                            }
+                            ?>
+                            <option value="all"<?php echo $currentConstellationParam === 'all' ? ' selected' : ''; ?>>All constellations</option>
+                            <?php foreach ($constellations as $c):
+                                $cid = (int)$c['id'];
+                                $sel = $currentConstellationParam === (string)$cid ? ' selected' : '';
+                            ?>
+                                <option value="<?php echo $cid; ?>"<?php echo $sel; ?>><?php echo htmlspecialchars($c['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="button" onclick="viewNetwork()" class="btn btn-sm btn-neutral join-item">
+                            View
+                        </button>
+                        <button type="button" onclick="copyCurrentConstellationUrl(this)" class="btn btn-sm btn-outline join-item" title="Copy constellation URL">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="flex gap-3">
-                    <a href="../index.php" class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded">
-                        View Network
-                    </a>
                     <?php if ($isAdmin): ?>
                     <a href="../admin/index.php" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded">
                         Admin Console
@@ -167,6 +172,32 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const url = new URL(window.location.href);
             url.searchParams.set('constellation_id', value);
             window.location.assign(url.toString());
+        }
+
+        // Open the current constellation in the network view
+        function viewNetwork() {
+            const constellationId = document.getElementById('current-constellation').value;
+            const targetId = constellationId === 'all' ? '0' : constellationId;
+            const url = targetId === '0' ? '../index.php' : `../index.php?constellation_id=${targetId}`;
+            window.open(url, '_blank');
+        }
+
+        // Copy the absolute URL of the current constellation to clipboard
+        function copyCurrentConstellationUrl(buttonEl) {
+            const constellationId = document.getElementById('current-constellation').value;
+            const targetId = constellationId === 'all' ? '0' : constellationId;
+            const relativeUrl = targetId === '0' ? '../index.php' : `../index.php?constellation_id=${targetId}`;
+            const absoluteUrl = new URL(relativeUrl, window.location.origin + window.location.pathname).href;
+            
+            navigator.clipboard.writeText(absoluteUrl).then(() => {
+                const origTitle = buttonEl.getAttribute('title');
+                buttonEl.setAttribute('title', 'Copied!');
+                // Using alert or a more subtle way since we don't have the toast div here yet
+                showMessage('URL copied to clipboard');
+                setTimeout(() => {
+                    buttonEl.setAttribute('title', origTitle || 'Copy constellation URL');
+                }, 1500);
+            });
         }
 
         // Populate a target-constellation select with options from API list (allConstellations)
