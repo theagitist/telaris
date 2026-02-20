@@ -92,166 +92,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <!-- Messages -->
         <div id="message" class="hidden mb-5 p-4 rounded"></div>
 
-        <!-- Tabs -->
+        <!-- Nodes List -->
         <div class="bg-white rounded-lg shadow-md mb-6">
-            <div class="border-b border-gray-200">
-                <nav class="flex">
-                    <button type="button" onclick="showTab('content-list')" 
-                            id="tab-list"
-                            data-target="content-list"
-                            class="px-6 py-3 font-medium text-sm border-b-2 border-blue-500 text-blue-600 active">
-                        List Existing Nodes (<span id="tab-list-count">0</span>)
-                    </button>
-                    <button type="button" onclick="showTab('content-add')" 
-                            id="tab-add"
-                            data-target="content-add"
-                            class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">
-                        Add New Node
-                    </button>
-                </nav>
-            </div>
-
-            <!-- Add New Node Tab -->
-            <div id="content-add" class="custom-tab-panel p-6 hidden">
-                <form id="node-form" class="space-y-4" novalidate>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label for="node-name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
-                            <input type="text" 
-                                   id="node-name" 
-                                   name="name" 
-                                   required 
-                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            <span class="text-xs text-gray-500 mt-1 block">Primary title of the node shown in the network.</span>
-                        </div>
-                        <div>
-                            <label for="node-constellation" class="block mb-1.5 text-gray-800 font-medium">Constellation</label>
-                            <select id="node-constellation" 
-                                    name="constellation_id" 
-                                    class="select select-bordered w-full bg-white">
-                                <?php foreach ($constellations as $c): ?>
-                                    <option value="<?php echo (int)$c['id']; ?>" <?php echo (int)$c['id'] === 0 ? 'selected' : ''; ?>><?php echo htmlspecialchars($c['name']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <span class="text-xs text-gray-500 mt-1 block">Which constellation this node belongs to.</span>
-                        </div>
-                        <div>
-                            <label for="node-type" class="block mb-1.5 text-gray-800 font-medium">Node type</label>
-                            <select id="node-type" 
-                                    name="node_type" 
-                                    onchange="toggleTargetConstellation(this.value, 'add')"
-                                    class="select select-bordered w-full bg-white">
-                                <option value="object">Object</option>
-                                <option value="portal">Portal</option>
-                            </select>
-                            <span class="text-xs text-gray-500 mt-1 block">Object is a standard item; Portal links to another constellation.</span>
-                        </div>
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <h2 class="text-gray-800 text-xl font-semibold">Nodes (<span id="tab-list-count">0</span>)</h2>
+                        <button type="button" onclick="openCreateNodeModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Node</button>
                     </div>
-                    <div id="add-target-constellation-wrap" class="hidden">
-                        <div class="flex flex-wrap items-end gap-2 mb-2">
-                            <div class="min-w-[200px] flex-1">
-                                <label for="node-target-constellation" class="block mb-1.5 text-gray-800 font-medium">Target Constellation</label>
-                                <select id="node-target-constellation" 
-                                        name="target_constellation_id" 
-                                        class="select select-bordered w-full bg-white">
-                                    <?php foreach ($constellations as $c): ?>
-                                        <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <span class="text-xs text-gray-500 mt-1 block">The destination constellation this portal leads to.</span>
-                            </div>
-                            <button type="button" 
-                                    onclick="createNewConstellation('add')"
-                                    class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">
-                                Create New Constellation
-                            </button>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block mb-1.5 text-gray-800 font-medium">Keywords</label>
-                            <div id="keywords-container-add" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
-                                <input type="text" 
-                                       id="node-keywords-input" 
-                                       placeholder="Add keyword..."
-                                       onkeydown="handleKeywordInput(event, 'add')"
-                                       class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
-                            </div>
-                            <input type="hidden" id="node-keywords" name="keywords">
-                            <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords.</span>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label for="node-description" class="block mb-1.5 text-gray-800 font-medium">Description</label>
-                        <textarea id="node-description" 
-                                  name="description" 
-                                  rows="3"
-                                  class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
-                        <span class="text-xs text-gray-500 mt-1 block">Detailed text displayed when the node is selected.</span>
-                    </div>
-
-                    <div>
-                        <label for="node-url" class="block mb-1.5 text-gray-800 font-medium">URL</label>
-                        <input type="url" 
-                               id="node-url" 
-                               name="url" 
-                               placeholder="https://example.com"
-                               class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span class="text-xs text-gray-500 mt-1 block">URL to open when the node is clicked (optional).</span>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label for="node-image-url" class="block mb-1.5 text-gray-800 font-medium">Image URL / File</label>
-                            <input type="text" 
-                                   id="node-image-url" 
-                                   name="image_url" 
-                                   placeholder="https://example.com/image.jpg"
-                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="node-image-file" name="image_file" accept="image/*" class="text-xs">
-                            <span class="text-xs text-gray-500 mt-1 block">Upload an image or provide a link to be displayed.</span>
-                        </div>
-                        <div>
-                            <label for="node-audio-url" class="block mb-1.5 text-gray-800 font-medium">Audio URL / File</label>
-                            <input type="text" 
-                                   id="node-audio-url" 
-                                   name="audio_url" 
-                                   placeholder="https://example.com/audio.mp3"
-                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="node-audio-file" name="audio_file" accept="audio/*" class="text-xs">
-                            <span class="text-xs text-gray-500 mt-1 block">Upload an audio file or provide a link for background sound.</span>
-                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
-                                <input type="checkbox" id="node-audio-autoplay" name="audio_autoplay" checked>
-                                Autoplay audio
-                            </label>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label for="node-embed-code" class="block mb-1.5 text-gray-800 font-medium">Embed Code (HTML)</label>
-                        <textarea id="node-embed-code" 
-                                  name="embed_code" 
-                                  rows="3"
-                                  placeholder='<iframe ...></iframe>'
-                                  class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
-                        <span class="text-xs text-gray-500 mt-1 block">Paste iframe or HTML code for videos or interactive content.</span>
-                    </div>
-
-                    <div class="flex gap-3">
-                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                            Add Node
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- List Existing Nodes Tab -->
-            <div id="content-list" class="custom-tab-panel p-6">
-                <!-- Search Controls -->
-                <div class="mb-6 flex flex-wrap items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                    <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+                    <div class="flex items-center gap-2 min-w-[300px]">
                         <label for="search-nodes" class="text-sm font-medium text-gray-700">Search:</label>
                         <input type="text" 
                                id="search-nodes" 
@@ -260,7 +109,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     </div>
                 </div>
-                
+            </div>
+
+            <!-- List Existing Nodes Content -->
+            <div id="content-list" class="custom-tab-panel p-6">
                 <div id="nodes-list" class="space-y-0">
                     <!-- Header row -->
                     <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
@@ -335,12 +187,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         // Show/hide Target Constellation block when node type is portal; populate target dropdown from API list
         function toggleTargetConstellation(nodeType, context, nodeId) {
-            if (context === 'add') {
-                const wrap = document.getElementById('add-target-constellation-wrap');
+            if (context === 'add' || context === 'create') {
+                const wrap = document.getElementById(context === 'add' ? 'add-target-constellation-wrap' : 'create-target-constellation-wrap');
                 if (wrap) wrap.classList.toggle('hidden', nodeType !== 'portal');
                 if (nodeType === 'portal') {
-                    const select = document.getElementById('node-target-constellation');
-                    populateTargetConstellationDropdown(select);
+                    const select = document.getElementById(context === 'add' ? 'node-target-constellation' : 'node-target-constellation');
+                    // Note: both use same ID in template above for simplicity or unique ones
+                    const actualSelect = context === 'add' ? document.getElementById('node-target-constellation') : document.getElementById('node-target-constellation');
+                    populateTargetConstellationDropdown(actualSelect);
                 }
             } else if (context === 'modal') {
                 const wrap = document.getElementById('edit-target-constellation-wrap-modal');
@@ -396,29 +250,23 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     opt.textContent = newName;
                     currentSelect.appendChild(opt);
                 }
-                // Update modal target constellation dropdown if open
-                if (context === 'modal') {
-                    const editSelect = document.getElementById('edit-target-constellation-modal');
-                    if (editSelect) {
-                        const opt = document.createElement('option');
-                        opt.value = newId;
-                        opt.textContent = newName;
-                        editSelect.appendChild(opt);
-                        editSelect.value = String(newId);
-                    }
+                // Update modal target constellation dropdowns
+                const modalSelect = document.getElementById('edit-target-constellation-modal');
+                if (modalSelect && context === 'modal') {
+                    const opt = document.createElement('option');
+                    opt.value = newId;
+                    opt.textContent = newName;
+                    modalSelect.appendChild(opt);
+                    modalSelect.value = String(newId);
                 }
-                // Update inline edit target constellation dropdown if open
-                if (context === 'inline' && inlineNodeId) {
-                    const editSelect = document.getElementById('edit-target-constellation-' + inlineNodeId);
-                    if (editSelect) {
-                        const opt = document.createElement('option');
-                        opt.value = newId;
-                        opt.textContent = newName;
-                        editSelect.appendChild(opt);
-                        editSelect.value = String(newId);
-                    }
+                const createSelect = document.getElementById('node-target-constellation');
+                if (createSelect && (context === 'create' || context === 'add')) {
+                    const opt = document.createElement('option');
+                    opt.value = newId;
+                    opt.textContent = newName;
+                    createSelect.appendChild(opt);
+                    createSelect.value = String(newId);
                 }
-                if (addSelect && context === 'add') addSelect.value = String(newId);
                 showMessage('Constellation "' + newName + '" created.');
             } catch (e) {
                 showMessage('Error creating constellation: ' + e.message, 'error');
@@ -439,17 +287,18 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Load nodes
         async function loadNodes() {
             const listDiv = document.getElementById('nodes-list');
-            if (!listDiv) {
-                return;
-            }
+            if (!listDiv) return;
 
             // Show loading state
-            const loadingMsg = listDiv.querySelector('#loading-message');
-            if (loadingMsg) {
-                loadingMsg.textContent = 'Loading nodes...';
-            } else {
-                listDiv.innerHTML = '<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10"><div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700"><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'name\')">Name<span id="sort-indicator-name"></span></div><div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'node_type\')">Type<span id="sort-indicator-node_type"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'constellation_name\')">Constellation<span id="sort-indicator-constellation_name"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'url\')">URL<span id="sort-indicator-url"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'keywords\')">Keywords<span id="sort-indicator-keywords"></span></div><div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'created_at\')">Created<span id="sort-indicator-created_at"></span></div><div class="col-span-1 text-right">Actions</div></div></div><p class="text-gray-500 p-4" id="loading-message">Loading nodes...</p>';
-            }
+            const countEl = document.getElementById('tab-list-count');
+            if (countEl) countEl.textContent = '...';
+            
+            listDiv.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-12 text-gray-500">
+                    <span class="loading loading-spinner loading-lg text-primary mb-4"></span>
+                    <p class="text-lg">Retrieving nodes...</p>
+                </div>
+            `;
 
             // Check if API key exists
             if (!API_KEY) {
@@ -556,27 +405,39 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Display nodes
         function displayNodes(nodes) {
             const listDiv = document.getElementById('nodes-list');
-            
-            if (!listDiv) {
-                return;
-            }
+            if (!listDiv) return;
             
             if (!Array.isArray(nodes)) {
-                listDiv.innerHTML = '<p class="text-red-600">Error: Invalid data format received. Expected array, got ' + typeof nodes + '</p>';
+                listDiv.innerHTML = '<p class="text-red-600 p-4">Error: Invalid data format received.</p>';
                 return;
             }
             
             if (nodes.length === 0) {
-                // Remove header if no nodes
-                const headerRow = listDiv.querySelector('.bg-gray-100');
-                if (headerRow) {
-                    headerRow.remove();
-                }
-                listDiv.innerHTML = '<p class="text-gray-500 p-4">No nodes found.</p>';
+                listDiv.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-12 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                        <svg class="w-12 h-12 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                        <p class="text-lg font-medium">No nodes found.</p>
+                        <p class="text-sm">Try adjusting your search or add a new node to get started.</p>
+                    </div>
+                `;
                 return;
             }
 
             try {
+                const headerHTML = `
+                    <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
+                        <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">Name<span id="sort-indicator-name"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('node_type')">Type<span id="sort-indicator-node_type"></span></div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('constellation_name')">Constellation<span id="sort-indicator-constellation_name"></span></div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')">URL<span id="sort-indicator-url"></span></div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">Keywords<span id="sort-indicator-keywords"></span></div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">Created<span id="sort-indicator-created_at"></span></div>
+                            <div class="col-span-1 text-right pr-2">Actions</div>
+                        </div>
+                    </div>
+                `;
+
                 const html = nodes.map(node => {
                     if (!node || !node.id) {
                         return '';
@@ -638,37 +499,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div>
                     `;
                 }).filter(html => html.length > 0).join('');
-                
-                // Preserve header if it exists, otherwise create it
-                const headerRow = listDiv.querySelector('.bg-gray-100');
-                let headerHTML = '';
-                if (headerRow) {
-                    headerHTML = headerRow.outerHTML;
-                } else {
-                    // Create header if it doesn't exist
-                                    headerHTML = `<div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
-                        <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">
-                                Name<span id="sort-indicator-name"></span>
-                            </div>
-                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('node_type')">
-                                Type<span id="sort-indicator-node_type"></span>
-                            </div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('constellation_name')">
-                                Constellation<span id="sort-indicator-constellation_name"></span>
-                            </div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')">URL<span id="sort-indicator-url"></span></div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">
-                                Keywords<span id="sort-indicator-keywords"></span>
-                            </div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">
-                                Created<span id="sort-indicator-created_at"></span>
-                            </div>
-                            <div class="col-span-1 text-right">Actions</div>
-                        </div>
-                    </div>`;
-                    updateSortIndicators();
-                }
                 
                 // Set innerHTML with header + nodes
                 listDiv.innerHTML = headerHTML + html;
@@ -1025,124 +855,87 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
         }
 
-        // Reset add form
-        function cancelEdit() {
-            document.getElementById('node-form').reset();
+        // Open Create Node Modal
+        function openCreateNodeModal() {
+            const form = document.getElementById('create-node-form');
+            form.reset();
+            
+            // Set initial constellation for Add form based on current selection
+            const currentConstellation = document.getElementById('current-constellation');
+            const nodeConstellation = document.getElementById('node-constellation');
+            if (currentConstellation && nodeConstellation) {
+                const val = currentConstellation.value;
+                nodeConstellation.value = val === 'all' ? '0' : val;
+            }
+
+            keywordState['create'] = [];
+            updateKeywordTags('create');
+            toggleTargetConstellation('object', 'create');
+            
+            document.getElementById('create_node_modal').showModal();
+        }
+
+        // Save new node from modal
+        async function saveNewNode(event) {
+            event.preventDefault();
+            
+            const nodeName = document.getElementById('node-name').value.trim();
+            if (!nodeName) {
+                showMessage('Node name is required', 'error');
+                return;
+            }
+
+            if (!API_KEY) {
+                showMessage('API key is missing.', 'error');
+                return;
+            }
+
+            const animation = generateRandomAnimation();
+            const constellationId = parseInt(document.getElementById('node-constellation').value);
+            const nodeType = document.getElementById('node-type').value;
+            
+            const formData = new FormData();
+            formData.append('name', nodeName);
+            formData.append('description', document.getElementById('node-description').value.trim());
+            formData.append('url', document.getElementById('node-url').value.trim());
+            formData.append('image_url', document.getElementById('node-image-url').value.trim());
+            formData.append('audio_url', document.getElementById('node-audio-url').value.trim());
+            formData.append('embed_code', document.getElementById('node-embed-code').value.trim());
+            formData.append('audio_autoplay', document.getElementById('node-audio-autoplay').checked ? 1 : 0);
+            formData.append('constellation_id', isNaN(constellationId) ? 0 : constellationId);
+            formData.append('node_type', nodeType);
+            
+            if (nodeType === 'portal') {
+                formData.append('target_constellation_id', document.getElementById('node-target-constellation').value);
+            }
+            formData.append('animation', JSON.stringify(animation));
+            formData.append('keywords', (keywordState['create'] || []).join(','));
+
+            const imageFile = document.getElementById('node-image-file').files[0];
+            if (imageFile) formData.append('image_file', imageFile);
+            
+            const audioFile = document.getElementById('node-audio-file').files[0];
+            if (audioFile) formData.append('audio_file', audioFile);
+
+            try {
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': API_KEY },
+                    body: formData
+                });
+                
+                if (!response.ok) throw new Error('Failed to create node');
+
+                document.getElementById('create_node_modal').close();
+                showMessage('Node created successfully');
+                loadNodes();
+            } catch (error) {
+                showMessage('Error saving node: ' + error.message, 'error');
+            }
         }
 
         // Wait for DOM to be ready
         document.addEventListener('DOMContentLoaded', () => {
-            // Handle form submission (only for adding new nodes)
-            const nodeForm = document.getElementById('node-form');
-            if (nodeForm) {
-                nodeForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-
-                // Validate required fields
-                const nodeName = document.getElementById('node-name').value.trim();
-                if (!nodeName) {
-                    showMessage('Node name is required', 'error');
-                    return;
-                }
-
-                // Check API key
-                if (!API_KEY) {
-                    showMessage('API key is missing. Please contact an administrator.', 'error');
-                    return;
-                }
-
-                // This form is only for adding new nodes
-                const animation = generateRandomAnimation();
-                
-                const urlValue = document.getElementById('node-url').value.trim();
-                const constellationSelect = document.getElementById('node-constellation');
-                const constellationId = constellationSelect ? parseInt(constellationSelect.value, 10) : 0;
-                const nodeTypeEl = document.getElementById('node-type');
-                const nodeType = nodeTypeEl ? nodeTypeEl.value : 'object';
-                const targetConstellationEl = document.getElementById('node-target-constellation');
-                const targetConstellationId = (nodeType === 'portal' && targetConstellationEl) ? parseInt(targetConstellationEl.value, 10) : null;
-                
-                const formData = new FormData();
-                formData.append('name', nodeName);
-                formData.append('description', document.getElementById('node-description').value.trim() || '');
-                formData.append('url', urlValue || '');
-                
-                const imageUrl = document.getElementById('node-image-url').value.trim();
-                const audioUrl = document.getElementById('node-audio-url').value.trim();
-
-                if (imageUrl && !isValidUrl(imageUrl)) {
-                    showMessage('Please enter a valid Image URL (e.g. https://...)', 'error');
-                    return;
-                }
-                if (audioUrl && !isValidUrl(audioUrl)) {
-                    showMessage('Please enter a valid Audio URL (e.g. https://...)', 'error');
-                    return;
-                }
-
-                formData.append('image_url', imageUrl || '');
-                formData.append('audio_url', audioUrl || '');
-                formData.append('embed_code', document.getElementById('node-embed-code').value.trim() || '');
-                formData.append('audio_autoplay', document.getElementById('node-audio-autoplay').checked ? 1 : 0);
-                formData.append('constellation_id', isNaN(constellationId) ? 0 : constellationId);
-                formData.append('node_type', nodeType);
-                if (nodeType === 'portal' && !isNaN(targetConstellationId) && targetConstellationId !== null) {
-                    formData.append('target_constellation_id', targetConstellationId);
-                }
-                formData.append('animation', JSON.stringify(animation));
-                
-                const keywords = document.getElementById('node-keywords').value
-                    .split(',')
-                    .map(k => k.trim())
-                    .filter(k => k.length > 0);
-                formData.append('keywords', keywords.join(','));
-
-                const imageFile = document.getElementById('node-image-file').files[0];
-                if (imageFile) formData.append('image_file', imageFile);
-                
-                const audioFile = document.getElementById('node-audio-file').files[0];
-                if (audioFile) formData.append('audio_file', audioFile);
-
-                try {
-                    const url = API_BASE;
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'X-API-Key': API_KEY
-                        },
-                        body: formData
-                    });
-                    
-                    // Get response text first
-                    const responseText = await response.text();
-
-                    if (!response.ok) {
-                        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-                        try {
-                            const errorData = JSON.parse(responseText);
-                            errorMessage = errorData.error || errorData.message || errorMessage;
-                        } catch (e) {
-                            errorMessage = responseText.substring(0, 200) || errorMessage;
-                        }
-                        throw new Error(errorMessage);
-                    }
-
-                    // Parse successful response
-                    try {
-                        JSON.parse(responseText);
-                    } catch (e) {
-                        throw new Error('Invalid response from server');
-                    }
-
-                    showMessage('Node created successfully');
-                    cancelEdit();
-                    // Switch to list tab to see the new node
-                    showTab('list');
-                } catch (error) {
-                    showMessage('Error saving node: ' + error.message, 'error');
-                }
-                });
-            }
-
             // Load nodes on page load
             try {
                 loadNodes().catch(error => {
@@ -1159,37 +952,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
         });
         
-        // Tab functionality: tabId is the content element id (e.g. 'content-add') or shorthand ('add'/'list')
-        function showTab(tabId) {
-            const contentId = (tabId === 'add' || tabId === 'list') ? ('content-' + tabId) : tabId;
-            const panel = document.getElementById(contentId);
-            if (!panel) return;
 
-            // Hide all custom-tab-panel elements
-            document.querySelectorAll('.custom-tab-panel').forEach(el => el.classList.add('hidden'));
-
-            // Show the panel matching tabId
-            panel.classList.remove('hidden');
-
-            // Update 'active' class on navigation buttons (buttons with data-target)
-            document.querySelectorAll('nav button[data-target]').forEach(btn => {
-                const isActive = btn.getAttribute('data-target') === contentId;
-                btn.classList.toggle('active', isActive);
-                btn.classList.toggle('border-blue-500', isActive);
-                btn.classList.toggle('text-blue-600', isActive);
-                btn.classList.toggle('border-transparent', !isActive);
-                btn.classList.toggle('text-gray-500', !isActive);
-            });
-
-            if (contentId === 'content-list') {
-                loadNodes();
-            }
-
-            const tabName = contentId.replace('content-', '');
-            const url = new URL(window.location);
-            url.searchParams.set('tab', tabName);
-            window.history.pushState({}, '', url);
-        }
         
         // Keyword Tag Management
         const keywordState = {}; // Stores arrays of keywords for each context (nodeId or 'add')
@@ -1275,36 +1038,109 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
         }
 
-        // Initialize tab on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            // Set initial constellation for Add form based on current selection
-            const currentConstellation = document.getElementById('current-constellation');
-            const nodeConstellation = document.getElementById('node-constellation');
-            if (currentConstellation && nodeConstellation) {
-                const val = currentConstellation.value;
-                nodeConstellation.value = val === 'all' ? '0' : val;
-            }
-
-            // Don't set tab here - let loadNodes determine default based on whether nodes exist
-            // Only set tab if explicitly specified in URL
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.has('tab')) {
-                showTab(urlParams.get('tab'));
-            }
-            // Otherwise, wait for loadNodes to set default based on node count
-        });
-        
-        // Fallback: If DOMContentLoaded already fired
-        if (document.readyState !== 'loading') {
-            setTimeout(() => {
-                const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.has('tab')) {
-                    showTab(urlParams.get('tab'));
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadNodes().catch(error => {
+                const listDiv = document.getElementById('nodes-list');
+                if (listDiv) {
+                    listDiv.innerHTML = `<p class="text-red-600">Fatal error loading nodes: ${escapeHtml(error.message)}</p>`;
                 }
-                // Otherwise, wait for loadNodes to set default based on node count
-            }, 100);
-        }
+            });
+        });
     </script>
+    <!-- Create Node Modal -->
+    <dialog id="create_node_modal" class="modal">
+        <div class="modal-box max-w-4xl bg-white">
+            <h3 class="font-bold text-xl mb-4 text-gray-800">Add New Node</h3>
+            <form id="create-node-form" class="space-y-4" onsubmit="saveNewNode(event)">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="node-name" class="block mb-1.5 text-gray-800 font-medium text-sm">Name *</label>
+                        <input type="text" id="node-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <span class="text-xs text-gray-500 mt-1 block">Primary title of the node shown in the network.</span>
+                    </div>
+                    <div>
+                        <label for="node-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Constellation</label>
+                        <select id="node-constellation" name="constellation_id" class="select select-bordered select-sm w-full bg-white">
+                            <?php foreach ($constellations as $c): ?>
+                                <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="text-xs text-gray-500 mt-1 block">Which constellation this node belongs to.</span>
+                    </div>
+                    <div>
+                        <label for="node-type" class="block mb-1.5 text-gray-800 font-medium text-sm">Node type</label>
+                        <select id="node-type" name="node_type" onchange="toggleTargetConstellation(this.value, 'create')" class="select select-bordered select-sm w-full bg-white">
+                            <option value="object">Object</option>
+                            <option value="portal">Portal</option>
+                        </select>
+                        <span class="text-xs text-gray-500 mt-1 block">Object is a standard item; Portal links to another constellation.</span>
+                    </div>
+                    <div>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
+                        <div id="keywords-container-create" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
+                            <input type="text" id="node-keywords-input" placeholder="Add keyword..." onkeydown="handleKeywordInput(event, 'create')" class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
+                        </div>
+                        <input type="hidden" id="node-keywords" name="keywords">
+                        <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords.</span>
+                    </div>
+                </div>
+                <div id="create-target-constellation-wrap" class="hidden">
+                    <div class="flex flex-wrap items-end gap-2 mb-2">
+                        <div class="min-w-[200px] flex-1">
+                            <label for="node-target-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Target Constellation</label>
+                            <select id="node-target-constellation" name="target_constellation_id" class="select select-bordered select-sm w-full bg-white">
+                                <?php foreach ($constellations as $c): ?>
+                                    <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <span class="text-xs text-gray-500 mt-1 block">The destination constellation this portal leads to.</span>
+                        </div>
+                        <button type="button" onclick="createNewConstellation('create')" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">Create New Constellation</button>
+                    </div>
+                </div>
+                <div>
+                    <label for="node-description" class="block mb-1.5 text-gray-800 font-medium text-sm">Description</label>
+                    <textarea id="node-description" name="description" rows="3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
+                    <span class="text-xs text-gray-500 mt-1 block">Detailed text displayed when the node is selected.</span>
+                </div>
+                <div>
+                    <label for="node-url" class="block mb-1.5 text-gray-800 font-medium text-sm">URL</label>
+                    <input type="url" id="node-url" name="url" placeholder="https://example.com" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">URL to open when the node is clicked (optional).</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="node-image-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Image URL / File</label>
+                        <input type="text" id="node-image-url" name="image_url" placeholder="https://example.com/image.jpg" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                        <input type="file" id="node-image-file" name="image_file" accept="image/*" class="text-xs">
+                        <span class="text-xs text-gray-500 mt-1 block">Upload an image or provide a link to be displayed.</span>
+                    </div>
+                    <div>
+                        <label for="node-audio-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Audio URL / File</label>
+                        <input type="text" id="node-audio-url" name="audio_url" placeholder="https://example.com/audio.mp3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                        <input type="file" id="node-audio-file" name="audio_file" accept="audio/*" class="text-xs">
+                        <span class="text-xs text-gray-500 mt-1 block">Upload an audio file or provide a link for background sound.</span>
+                        <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
+                            <input type="checkbox" id="node-audio-autoplay" name="audio_autoplay" checked>
+                            Autoplay audio
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label for="node-embed-code" class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
+                    <textarea id="node-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
+                    <span class="text-xs text-gray-500 mt-1 block">Paste iframe or HTML code for videos or interactive content.</span>
+                </div>
+                <div class="modal-action">
+                    <button type="submit" class="btn btn-primary">Add Node</button>
+                    <button type="button" class="btn" onclick="document.getElementById('create_node_modal').close()">Cancel</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <dialog id="edit_modal" class="modal">
         <div class="modal-box max-w-4xl bg-white">
             <h3 class="font-bold text-xl mb-4 text-gray-800">Edit Node</h3>

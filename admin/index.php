@@ -357,6 +357,12 @@ $fieldMeta = [
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
 </head>
 <body class="font-sans bg-gray-100 min-h-screen">
+    <!-- Initial Loading Overlay -->
+    <div id="admin-loading-overlay" class="fixed inset-0 z-[1000] bg-gray-100 flex flex-col items-center justify-center transition-opacity duration-300">
+        <span class="loading loading-spinner loading-lg text-primary mb-4"></span>
+        <p class="text-gray-600 font-medium">Loading Admin Console...</p>
+    </div>
+
     <div class="max-w-6xl mx-auto py-8 px-5">
         <!-- Header -->
         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
@@ -455,9 +461,19 @@ $fieldMeta = [
             <div id="content-users" class="p-6 <?php echo $activeTab !== 'users' ? 'hidden' : ''; ?>">
                 <!-- Users list -->
                 <div>
-                    <div class="flex items-center gap-3 mb-4">
-                        <h2 class="text-gray-800 text-base font-semibold">Users (<?php echo count($users); ?>)</h2>
-                        <button type="button" onclick="document.getElementById('create_user_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New User</button>
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <h2 class="text-gray-800 text-base font-semibold">Users (<?php echo count($users); ?>)</h2>
+                            <button type="button" onclick="document.getElementById('create_user_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New User</button>
+                        </div>
+                        <div class="flex items-center gap-2 min-w-[250px]">
+                            <label for="search-users" class="text-sm font-medium text-gray-700">Search:</label>
+                            <input type="text" 
+                                   id="search-users" 
+                                   placeholder="Search users..." 
+                                   oninput="applyUserSearch()"
+                                   class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        </div>
                     </div>
                     
                     <?php if (empty($users)): ?>
@@ -647,9 +663,19 @@ $fieldMeta = [
             <!-- Constellations Tab -->
             <div id="content-constellations" class="p-6 <?php echo $activeTab !== 'constellations' ? 'hidden' : ''; ?>">
                 <div>
-                    <div class="flex items-center gap-3 mb-4">
-                        <h2 class="text-gray-800 text-base font-semibold">Constellations (<?php echo count($constellations); ?>)</h2>
-                        <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Constellation</button>
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <h2 class="text-gray-800 text-base font-semibold">Constellations (<?php echo count($constellations); ?>)</h2>
+                            <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Constellation</button>
+                        </div>
+                        <div class="flex items-center gap-2 min-w-[250px]">
+                            <label for="search-constellations" class="text-sm font-medium text-gray-700">Search:</label>
+                            <input type="text" 
+                                   id="search-constellations" 
+                                   placeholder="Search constellations..." 
+                                   oninput="applyConstellationSearch()"
+                                   class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        </div>
                     </div>
                     <p class="text-sm text-gray-600 mb-4">Each constellation is a separate set of nodes and keywords. The default constellation (ID 0) cannot be deleted.</p>
                     <div id="copy-url-toast" class="hidden fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded shadow-lg text-sm" role="status" aria-live="polite">URL copied to clipboard.</div>
@@ -674,7 +700,7 @@ $fieldMeta = [
                                         $cTagline = isset($c['tagline']) ? (string)$c['tagline'] : '';
                                         $viewRel = $cId === 0 ? '../index.php' : '../index.php?constellation_id=' . $cId;
                                         ?>
-                                        <tr class="border-b border-gray-300 hover:bg-gray-50">
+                                        <tr class="constellation-row border-b border-gray-300 hover:bg-gray-50" data-id="<?php echo $cId; ?>" data-name="<?php echo htmlspecialchars(strtolower($c['name'])); ?>" data-tagline="<?php echo htmlspecialchars(strtolower($cTagline)); ?>">
                                             <td class="py-2 px-2 font-mono text-gray-800"><?php echo $cId; ?></td>
                                             <td class="py-2 px-2 font-semibold text-gray-800">
                                                 <?php echo htmlspecialchars($c['name']); ?>
@@ -993,6 +1019,13 @@ $fieldMeta = [
             initCreateUserModalLogic();
             toggleCreateUserConstellations();
             toggleCreateNewConstellationName();
+
+            // Hide loading overlay
+            const overlay = document.getElementById('admin-loading-overlay');
+            if (overlay) {
+                overlay.style.opacity = '0';
+                setTimeout(() => overlay.remove(), 300);
+            }
         });
 
         function copyConstellationUrl(relativePath, buttonEl) {
@@ -1138,6 +1171,31 @@ $fieldMeta = [
             // Re-append sorted rows to tbody
             sortedRows.forEach(row => {
                 tbody.appendChild(row);
+            });
+        }
+
+        function applyUserSearch() {
+            const query = document.getElementById('search-users').value.toLowerCase().trim();
+            const rows = document.querySelectorAll('tr.user-row');
+            
+            rows.forEach(row => {
+                const name = row.dataset.name || '';
+                const email = row.dataset.email || '';
+                const match = name.includes(query) || email.includes(query);
+                row.style.display = match ? '' : 'none';
+            });
+        }
+
+        function applyConstellationSearch() {
+            const query = document.getElementById('search-constellations').value.toLowerCase().trim();
+            const rows = document.querySelectorAll('tr.constellation-row');
+            
+            rows.forEach(row => {
+                const name = row.dataset.name || '';
+                const tagline = row.dataset.tagline || '';
+                const id = row.dataset.id || '';
+                const match = name.includes(query) || tagline.includes(query) || id.includes(query);
+                row.style.display = match ? '' : 'none';
             });
         }
     </script>
