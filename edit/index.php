@@ -597,11 +597,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 <span class="text-xs text-gray-500 mt-1 block">Separate keywords with commas</span>
                             </div>
                         </div>
-                        <div id="edit-target-constellation-wrap-${nodeId}" class="${showTarget ? '' : 'hidden'}">
+                        <div id="edit-target-constellation-wrap-${node.id}" class="${showTarget ? '' : 'hidden'}">
                             <div class="flex flex-wrap items-end gap-2 mb-2">
                                 <div class="min-w-[200px] flex-1">
                                     <label class="block mb-1.5 text-gray-800 font-medium text-sm">Target Constellation</label>
-                                    <select id="edit-target-constellation-${nodeId}" class="select select-bordered select-sm w-full bg-white">${targetConstellationOptions}</select>
+                                    <select id="edit-target-constellation-${node.id}" class="select select-bordered select-sm w-full bg-white">${targetConstellationOptions}</select>
                                 </div>
                                 <button type="button" onclick="createNewConstellation('inline', ${node.id})" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">Create New Constellation</button>
                             </div>
