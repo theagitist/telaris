@@ -453,79 +453,11 @@ $fieldMeta = [
 
             <!-- Users Tab -->
             <div id="content-users" class="p-6 <?php echo $activeTab !== 'users' ? 'hidden' : ''; ?>">
-                <!-- Create User Form (hidden by default; shown when New User clicked) -->
-                <div id="user-form-panel" class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded hidden">
-                    <h2 class="text-blue-800 text-xl font-semibold mb-4">Create New User</h2>
-                    <form method="POST" action="">
-                        <input type="hidden" name="action" value="create_user">
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label for="firstname" class="block mb-1.5 text-gray-800 font-medium">First Name *</label>
-                                <input type="text" id="firstname" name="firstname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label for="lastname" class="block mb-1.5 text-gray-800 font-medium">Last Name *</label>
-                                <input type="text" id="lastname" name="lastname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            </div>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <label for="email" class="block mb-1.5 text-gray-800 font-medium">Email *</label>
-                            <input type="email" id="email" name="email" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        </div>
-                        
-                        <div class="mb-4">
-                            <label for="password" class="block mb-1.5 text-gray-800 font-medium">Password *</label>
-                            <input type="password" id="password" name="password" required minlength="8" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            <span class="text-xs text-gray-500 mt-1 block">Minimum 8 characters</span>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <label for="type" class="block mb-1.5 text-gray-800 font-medium">User Type *</label>
-                            <select id="type" name="type" required class="select select-bordered w-full bg-white">
-                                <option value="1">Editor</option>
-                                <option value="2">Admin</option>
-                            </select>
-                        </div>
-                        
-                        <div class="mb-4 p-3 border border-gray-200 rounded bg-white">
-                            <label class="flex items-center gap-2 cursor-pointer mb-2">
-                                <input type="checkbox" id="create_constellation" name="create_constellation" value="1" class="rounded border-gray-300" checked>
-                                <span class="text-gray-800 font-medium">Create a new constellation for this user</span>
-                            </label>
-                            <p class="text-xs text-gray-500 mb-2">A new constellation is created with the name below and the user is granted access to it (Editors only).</p>
-                            <div id="new-constellation-name-wrap">
-                                <label for="new_constellation_name" class="block mb-1 text-gray-700 text-sm">Constellation name *</label>
-                                <input type="text" id="new_constellation_name" name="new_constellation_name" placeholder="Defaults to email above" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            </div>
-                        </div>
-                        
-                        <div id="user-constellations-section" class="mb-4">
-                            <label class="block mb-1.5 text-gray-800 font-medium">Constellation access (Editors only)</label>
-                            <div class="border border-gray-200 rounded p-3 bg-white max-h-48 overflow-y-auto">
-                                <?php foreach ($constellations as $c): ?>
-                                    <label class="flex items-center gap-2 py-1 text-sm cursor-pointer hover:bg-gray-50 rounded px-2">
-                                        <input type="checkbox" name="constellation_ids[]" value="<?php echo (int)$c['id']; ?>" class="rounded border-gray-300">
-                                        <span class="font-mono text-gray-600"><?php echo (int)$c['id']; ?></span>
-                                        <span class="text-gray-800"><?php echo htmlspecialchars($c['name']); ?></span>
-                                    </label>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                        
-                        <div class="flex gap-2">
-                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">Create User</button>
-                            <button type="button" onclick="document.getElementById('user-form-panel').classList.add('hidden');" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">Cancel</button>
-                        </div>
-                    </form>
-                </div>
-                
                 <!-- Users list -->
                 <div>
                     <div class="flex items-center gap-3 mb-4">
                         <h2 class="text-gray-800 text-base font-semibold">Users (<?php echo count($users); ?>)</h2>
-                        <a href="#" onclick="document.getElementById('user-form-panel').classList.remove('hidden'); return false;" class="text-blue-600 hover:text-blue-800 font-medium text-base">New User</a>
+                        <button type="button" onclick="document.getElementById('create_user_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New User</button>
                     </div>
                     
                     <?php if (empty($users)): ?>
@@ -714,29 +646,10 @@ $fieldMeta = [
 
             <!-- Constellations Tab -->
             <div id="content-constellations" class="p-6 <?php echo $activeTab !== 'constellations' ? 'hidden' : ''; ?>">
-                <div id="constellation-form-panel" class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded hidden">
-                    <h2 class="text-blue-800 text-xl font-semibold mb-4">Create New Constellation</h2>
-                    <form method="POST" action="">
-                        <input type="hidden" name="action" value="create_constellation">
-                        <div class="mb-4">
-                            <label for="constellation_name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
-                            <input type="text" id="constellation_name" name="name" required placeholder="e.g. Main network, Archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        </div>
-                        <div class="mb-4">
-                            <label for="constellation_tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
-                            <input type="text" id="constellation_tagline" name="tagline" placeholder="e.g. Weaving memory" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            <span class="text-xs text-gray-500 mt-1 block">Shown in the main view when this constellation is open</span>
-                        </div>
-                        <div class="flex gap-2">
-                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">Create Constellation</button>
-                            <button type="button" onclick="document.getElementById('constellation-form-panel').classList.add('hidden');" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">Cancel</button>
-                        </div>
-                    </form>
-                </div>
                 <div>
                     <div class="flex items-center gap-3 mb-4">
                         <h2 class="text-gray-800 text-base font-semibold">Constellations (<?php echo count($constellations); ?>)</h2>
-                        <a href="#" onclick="document.getElementById('constellation-form-panel').classList.remove('hidden'); return false;" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Constellation</a>
+                        <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Constellation</button>
                     </div>
                     <p class="text-sm text-gray-600 mb-4">Each constellation is a separate set of nodes and keywords. The default constellation (ID 0) cannot be deleted.</p>
                     <div id="copy-url-toast" class="hidden fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded shadow-lg text-sm" role="status" aria-live="polite">URL copied to clipboard.</div>
@@ -989,6 +902,33 @@ $fieldMeta = [
             document.getElementById('constellation_modal').showModal();
         }
 
+        function toggleCreateUserConstellations() {
+            const typeSelect = document.getElementById('create-type');
+            const section = document.getElementById('create-user-constellations-section');
+            if (!typeSelect || !section) return;
+            section.classList.toggle('hidden', typeSelect.value !== '1');
+        }
+
+        function toggleCreateNewConstellationName() {
+            const cb = document.getElementById('create_constellation_cb');
+            const wrap = document.getElementById('create-new-constellation-name-wrap');
+            if (cb && wrap) wrap.classList.toggle('hidden', !cb.checked);
+        }
+
+        function initCreateUserModalLogic() {
+            const emailEl = document.getElementById('create-email');
+            const nameEl = document.getElementById('create_new_constellation_name');
+            if (emailEl && nameEl) {
+                emailEl.addEventListener('input', function() {
+                    if (nameEl.value === '' || nameEl.getAttribute('data-auto') === '1') {
+                        nameEl.value = emailEl.value;
+                        nameEl.setAttribute('data-auto', '1');
+                    }
+                });
+                nameEl.addEventListener('input', function() { nameEl.removeAttribute('data-auto'); });
+            }
+        }
+
         // Tab functionality
         function showTab(tabName) {
             // Hide all tabs
@@ -1050,7 +990,47 @@ $fieldMeta = [
             const tab = new URLSearchParams(window.location.search).get('tab') || 'users';
             showTab(tab);
             formatLocalDatetimes();
+            initCreateUserModalLogic();
+            toggleCreateUserConstellations();
+            toggleCreateNewConstellationName();
         });
+
+        function copyConstellationUrl(relativePath, buttonEl) {
+            const absoluteUrl = new URL(relativePath, window.location.origin + window.location.pathname).href;
+            navigator.clipboard.writeText(absoluteUrl).then(function() {
+                const toast = document.getElementById('copy-url-toast');
+                if (toast) {
+                    toast.classList.remove('hidden');
+                    setTimeout(function() { toast.classList.add('hidden'); }, 3000);
+                }
+                if (buttonEl) {
+                    const origTitle = buttonEl.getAttribute('title');
+                    buttonEl.setAttribute('title', 'Copied!');
+                    setTimeout(function() { buttonEl.setAttribute('title', origTitle || 'Copy constellation URL'); }, 1500);
+                }
+            });
+        }
+
+        // Settings language sub-tabs (English / Spanish / Portuguese)
+        function showSettingsLang(lang) {
+            if (!['en', 'es', 'pt'].includes(lang)) lang = 'en';
+            ['en', 'es', 'pt'].forEach(l => {
+                const panel = document.getElementById('settings-lang-' + l);
+                const tabBtn = document.getElementById('settings-lang-tab-' + l);
+                if (panel) panel.classList.toggle('hidden', l !== lang);
+                if (tabBtn) {
+                    if (l === lang) {
+                        tabBtn.classList.remove('border-transparent', 'text-gray-500');
+                        tabBtn.classList.add('border-blue-500', 'text-blue-600');
+                    } else {
+                        tabBtn.classList.remove('border-blue-500', 'text-blue-600');
+                        tabBtn.classList.add('border-transparent', 'text-gray-500');
+                    }
+                }
+            });
+            const langInput = document.getElementById('settings_lang');
+            if (langInput) langInput.value = lang;
+        }
         
         function copyApiKey() {
             const input = document.getElementById('new-api-key');
@@ -1161,6 +1141,113 @@ $fieldMeta = [
             });
         }
     </script>
+    <!-- Create User Modal -->
+    <dialog id="create_user_modal" class="modal">
+        <div class="modal-box max-w-2xl bg-white">
+            <h3 class="font-bold text-xl mb-4 text-gray-800">Create New User</h3>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="create_user">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="create-firstname" class="block mb-1.5 text-gray-800 font-medium">First Name *</label>
+                        <input type="text" id="create-firstname" name="firstname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <span class="text-xs text-gray-500 mt-1 block">The user's given name.</span>
+                    </div>
+                    <div>
+                        <label for="create-lastname" class="block mb-1.5 text-gray-800 font-medium">Last Name *</label>
+                        <input type="text" id="create-lastname" name="lastname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <span class="text-xs text-gray-500 mt-1 block">The user's family name.</span>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="create-email" class="block mb-1.5 text-gray-800 font-medium">Email *</label>
+                    <input type="email" id="create-email" name="email" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">Login identifier and contact address.</span>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="create-password" class="block mb-1.5 text-gray-800 font-medium">Password *</label>
+                    <input type="password" id="create-password" name="password" required minlength="8" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">Minimum 8 characters.</span>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="create-type" class="block mb-1.5 text-gray-800 font-medium">User Type *</label>
+                    <select id="create-type" name="type" required onchange="toggleCreateUserConstellations()" class="select select-bordered w-full bg-white">
+                        <option value="1">Editor</option>
+                        <option value="2">Admin</option>
+                    </select>
+                    <span class="text-xs text-gray-500 mt-1 block">
+                        Editor: Can edit nodes in assigned constellations only | Admin: Full access to all constellations.
+                    </span>
+                </div>
+                
+                <div class="mb-4 p-3 border border-gray-200 rounded bg-white">
+                    <label class="flex items-center gap-2 cursor-pointer mb-2">
+                        <input type="checkbox" id="create_constellation_cb" name="create_constellation" value="1" class="rounded border-gray-300" checked onchange="toggleCreateNewConstellationName()">
+                        <span class="text-gray-800 font-medium">Create a new constellation for this user</span>
+                    </label>
+                    <p class="text-xs text-gray-500 mb-2">A new constellation is created with the name below and the user is granted access to it (Editors only).</p>
+                    <div id="create-new-constellation-name-wrap">
+                        <label for="create_new_constellation_name" class="block mb-1 text-gray-700 text-sm">Constellation name *</label>
+                        <input type="text" id="create_new_constellation_name" name="new_constellation_name" placeholder="Defaults to email above" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <span class="text-xs text-gray-500 mt-1 block">Name for the automatically created constellation.</span>
+                    </div>
+                </div>
+                
+                <div id="create-user-constellations-section" class="mb-4">
+                    <label class="block mb-1.5 text-gray-800 font-medium">Constellation access (Editors only)</label>
+                    <div class="border border-gray-200 rounded p-3 bg-white max-h-48 overflow-y-auto">
+                        <?php foreach ($constellations as $c): ?>
+                            <label class="flex items-center gap-2 py-1 text-sm cursor-pointer hover:bg-gray-50 rounded px-2">
+                                <input type="checkbox" name="constellation_ids[]" value="<?php echo (int)$c['id']; ?>" class="rounded border-gray-300">
+                                <span class="font-mono text-gray-600"><?php echo (int)$c['id']; ?></span>
+                                <span class="text-gray-800"><?php echo htmlspecialchars($c['name']); ?></span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <span class="text-xs text-gray-500 mt-1 block">Editors can only see and edit nodes in the constellations checked above. Admins see all constellations.</span>
+                </div>
+                
+                <div class="modal-action">
+                    <button type="submit" class="btn btn-primary">Create User</button>
+                    <button type="button" class="btn" onclick="document.getElementById('create_user_modal').close()">Cancel</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Create Constellation Modal -->
+    <dialog id="create_constellation_modal" class="modal">
+        <div class="modal-box bg-white">
+            <h3 class="font-bold text-xl mb-4 text-gray-800">Create New Constellation</h3>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="create_constellation">
+                
+                <div class="mb-4">
+                    <label for="create-constellation-name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
+                    <input type="text" id="create-constellation-name" name="name" required placeholder="e.g. Main network, Archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">Unique name for the new node network.</span>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="create-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
+                    <input type="text" id="create-constellation-tagline" name="tagline" placeholder="e.g. Weaving memory" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">Shown in the main view when this constellation is open.</span>
+                </div>
+                
+                <div class="modal-action">
+                    <button type="submit" class="btn btn-primary">Create Constellation</button>
+                    <button type="button" class="btn" onclick="document.getElementById('create_constellation_modal').close()">Cancel</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <!-- User Edit Modal -->
     <dialog id="user_modal" class="modal">
         <div class="modal-box max-w-2xl bg-white">

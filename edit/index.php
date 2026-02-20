@@ -123,6 +123,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                    name="name" 
                                    required 
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            <span class="text-xs text-gray-500 mt-1 block">Primary title of the node shown in the network.</span>
                         </div>
                         <div>
                             <label for="node-constellation" class="block mb-1.5 text-gray-800 font-medium">Constellation</label>
@@ -133,7 +134,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                     <option value="<?php echo (int)$c['id']; ?>" <?php echo (int)$c['id'] === 0 ? 'selected' : ''; ?>><?php echo htmlspecialchars($c['name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <span class="text-xs text-gray-500 mt-1 block">Which constellation this node belongs to</span>
+                            <span class="text-xs text-gray-500 mt-1 block">Which constellation this node belongs to.</span>
                         </div>
                         <div>
                             <label for="node-type" class="block mb-1.5 text-gray-800 font-medium">Node type</label>
@@ -144,6 +145,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 <option value="object">Object</option>
                                 <option value="portal">Portal</option>
                             </select>
+                            <span class="text-xs text-gray-500 mt-1 block">Object is a standard item; Portal links to another constellation.</span>
                         </div>
                     </div>
                     <div id="add-target-constellation-wrap" class="hidden">
@@ -157,6 +159,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                         <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
                                     <?php endforeach; ?>
                                 </select>
+                                <span class="text-xs text-gray-500 mt-1 block">The destination constellation this portal leads to.</span>
                             </div>
                             <button type="button" 
                                     onclick="createNewConstellation('add')"
@@ -176,7 +179,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                        class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
                             </div>
                             <input type="hidden" id="node-keywords" name="keywords">
-                            <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords</span>
+                            <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords.</span>
                         </div>
                     </div>
 
@@ -186,6 +189,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                   name="description" 
                                   rows="3"
                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
+                        <span class="text-xs text-gray-500 mt-1 block">Detailed text displayed when the node is selected.</span>
                     </div>
 
                     <div>
@@ -195,7 +199,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                name="url" 
                                placeholder="https://example.com"
                                class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span class="text-xs text-gray-500 mt-1 block">URL to open when the node is clicked (optional)</span>
+                        <span class="text-xs text-gray-500 mt-1 block">URL to open when the node is clicked (optional).</span>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -207,6 +211,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                    placeholder="https://example.com/image.jpg"
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                             <input type="file" id="node-image-file" name="image_file" accept="image/*" class="text-xs">
+                            <span class="text-xs text-gray-500 mt-1 block">Upload an image or provide a link to be displayed.</span>
                         </div>
                         <div>
                             <label for="node-audio-url" class="block mb-1.5 text-gray-800 font-medium">Audio URL / File</label>
@@ -216,6 +221,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                    placeholder="https://example.com/audio.mp3"
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                             <input type="file" id="node-audio-file" name="audio_file" accept="audio/*" class="text-xs">
+                            <span class="text-xs text-gray-500 mt-1 block">Upload an audio file or provide a link for background sound.</span>
                             <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
                                 <input type="checkbox" id="node-audio-autoplay" name="audio_autoplay" checked>
                                 Autoplay audio
@@ -230,6 +236,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                   rows="3"
                                   placeholder='<iframe ...></iframe>'
                                   class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
+                        <span class="text-xs text-gray-500 mt-1 block">Paste iframe or HTML code for videos or interactive content.</span>
                     </div>
 
                     <div class="flex gap-3">
@@ -1270,6 +1277,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         // Initialize tab on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // Set initial constellation for Add form based on current selection
+            const currentConstellation = document.getElementById('current-constellation');
+            const nodeConstellation = document.getElementById('node-constellation');
+            if (currentConstellation && nodeConstellation) {
+                const val = currentConstellation.value;
+                nodeConstellation.value = val === 'all' ? '0' : val;
+            }
+
             // Don't set tab here - let loadNodes determine default based on whether nodes exist
             // Only set tab if explicitly specified in URL
             const urlParams = new URLSearchParams(window.location.search);
