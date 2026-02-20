@@ -512,7 +512,20 @@ $fieldMeta = [
                                         $lastLoginIso = $lastLoginTs !== false ? gmdate('c', $lastLoginTs) : null;
                                         $isCurrentUser = $user['id'] === ($_SESSION['admin_user_id'] ?? '');
                                         ?>
-                                        <tr class="user-row border-b border-gray-300 hover:bg-gray-50" data-user-id="<?php echo htmlspecialchars($user['id']); ?>" data-name="<?php echo htmlspecialchars(strtolower($user['firstname'] . ' ' . $user['lastname'])); ?>" data-email="<?php echo htmlspecialchars(strtolower($user['email'])); ?>" data-type="<?php echo $userType; ?>" data-date-created="<?php echo $createdTs !== false ? $createdTs : '0'; ?>" data-date-last-login="<?php echo $lastLoginTs !== false ? $lastLoginTs : '0'; ?>">
+                                        <tr class="user-row border-b border-gray-300 hover:bg-gray-50 cursor-pointer" 
+                                            onclick="editUser({
+                                                id: '<?php echo addslashes($user['id']); ?>',
+                                                firstname: '<?php echo addslashes($user['firstname']); ?>',
+                                                lastname: '<?php echo addslashes($user['lastname']); ?>',
+                                                email: '<?php echo addslashes($user['email']); ?>',
+                                                type: '<?php echo $user['type']; ?>'
+                                            })"
+                                            data-user-id="<?php echo htmlspecialchars($user['id']); ?>" 
+                                            data-name="<?php echo htmlspecialchars(strtolower($user['firstname'] . ' ' . $user['lastname'])); ?>" 
+                                            data-email="<?php echo htmlspecialchars(strtolower($user['email'])); ?>" 
+                                            data-type="<?php echo $userType; ?>" 
+                                            data-date-created="<?php echo $createdTs !== false ? $createdTs : '0'; ?>" 
+                                            data-date-last-login="<?php echo $lastLoginTs !== false ? $lastLoginTs : '0'; ?>">
                                             <td class="py-2 px-2 font-semibold text-gray-800 max-w-[12rem]">
                                                 <span class="block truncate" title="<?php echo $fullName; ?>"><?php echo $fullName; ?><?php if ($isCurrentUser): ?> <span class="ml-1 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">You</span><?php endif; ?></span>
                                             </td>
@@ -530,20 +543,11 @@ $fieldMeta = [
                                             </td>
                                             <td class="py-2 px-2 text-right">
                                                 <div class="flex gap-2 justify-end">
-                                                    <button type="button" 
-                                                            onclick="editUser({
-                                                                id: '<?php echo addslashes($user['id']); ?>',
-                                                                firstname: '<?php echo addslashes($user['firstname']); ?>',
-                                                                lastname: '<?php echo addslashes($user['lastname']); ?>',
-                                                                email: '<?php echo addslashes($user['email']); ?>',
-                                                                type: '<?php echo $user['type']; ?>'
-                                                            })"
-                                                            class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">Edit</button>
                                                     <?php if (!$isCurrentUser): ?>
-                                                        <form method="POST" action="" class="inline" onsubmit="return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
+                                                        <form method="POST" action="" class="inline" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
                                                             <input type="hidden" name="action" value="delete_user">
                                                             <input type="hidden" name="id" value="<?php echo htmlspecialchars($user['id']); ?>">
-                                                            <button type="submit" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">Delete</button>
+                                                            <button type="submit" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded" onclick="event.stopPropagation()">Delete</button>
                                                         </form>
                                                     <?php endif; ?>
                                                 </div>
@@ -697,7 +701,15 @@ $fieldMeta = [
                                         $cTagline = isset($c['tagline']) ? (string)$c['tagline'] : '';
                                         $viewRel = $cId === 0 ? '../index.php' : '../index.php?constellation_id=' . $cId;
                                         ?>
-                                        <tr class="constellation-row border-b border-gray-300 hover:bg-gray-50" data-id="<?php echo $cId; ?>" data-name="<?php echo htmlspecialchars(strtolower($c['name'])); ?>" data-tagline="<?php echo htmlspecialchars(strtolower($cTagline)); ?>">
+                                        <tr class="constellation-row border-b border-gray-300 hover:bg-gray-50 cursor-pointer" 
+                                            onclick="editConstellation({
+                                                id: '<?php echo $cId; ?>',
+                                                name: '<?php echo addslashes($c['name']); ?>',
+                                                tagline: '<?php echo addslashes($cTagline); ?>'
+                                            })"
+                                            data-id="<?php echo $cId; ?>" 
+                                            data-name="<?php echo htmlspecialchars(strtolower($c['name'])); ?>" 
+                                            data-tagline="<?php echo htmlspecialchars(strtolower($cTagline)); ?>">
                                             <td class="py-2 px-2 font-mono text-gray-800"><?php echo $cId; ?></td>
                                             <td class="py-2 px-2 font-semibold text-gray-800">
                                                 <?php echo htmlspecialchars($c['name']); ?>
@@ -708,22 +720,15 @@ $fieldMeta = [
                                             <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate" title="<?php echo htmlspecialchars($cTagline); ?>"><?php echo htmlspecialchars($cTagline); ?></td>
                                             <td class="py-2 px-2 text-right">
                                                 <div class="flex gap-2 justify-end items-center">
-                                                    <button type="button" 
-                                                            onclick="editConstellation({
-                                                                id: '<?php echo $cId; ?>',
-                                                                name: '<?php echo addslashes($c['name']); ?>',
-                                                                tagline: '<?php echo addslashes($cTagline); ?>'
-                                                            })"
-                                                            class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">Edit</button>
                                                     <?php if (!$isDefault): ?>
-                                                        <form method="POST" action="" class="inline" onsubmit="return confirm('Are you sure you want to delete this constellation? Nodes and keywords in this constellation must be moved or deleted first.');">
+                                                        <form method="POST" action="" class="inline" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete this constellation? Nodes and keywords in this constellation must be moved or deleted first.');">
                                                             <input type="hidden" name="action" value="delete_constellation">
                                                             <input type="hidden" name="id" value="<?php echo $cId; ?>">
-                                                            <button type="submit" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">Delete</button>
+                                                            <button type="submit" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded" onclick="event.stopPropagation()">Delete</button>
                                                         </form>
                                                     <?php endif; ?>
-                                                    <a href="<?php echo htmlspecialchars($viewRel); ?>" target="_blank" rel="noopener" class="px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white text-xs rounded inline-flex items-center gap-1">View</a>
-                                                    <button type="button" onclick="copyConstellationUrl('<?php echo htmlspecialchars($viewRel, ENT_QUOTES); ?>', this)" class="p-1.5 rounded border border-gray-300 hover:bg-gray-100 text-gray-600 hover:text-gray-800" title="Copy constellation URL">
+                                                    <a href="<?php echo htmlspecialchars($viewRel); ?>" target="_blank" rel="noopener" class="px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white text-xs rounded inline-flex items-center gap-1" onclick="event.stopPropagation()">View</a>
+                                                    <button type="button" onclick="event.stopPropagation(); copyConstellationUrl('<?php echo htmlspecialchars($viewRel, ENT_QUOTES); ?>', this)" class="p-1.5 rounded border border-gray-300 hover:bg-gray-100 text-gray-600 hover:text-gray-800" title="Copy constellation URL">
                                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                                                     </button>
                                                 </div>
