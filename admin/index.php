@@ -346,6 +346,8 @@ $fieldMeta = [
     'initialize_auth_text' => ['label' => 'Login label', 'desc' => 'Label for the login link (e.g. "Initialize Auth").', 'type' => 'text'],
     'admin_label_text' => ['label' => 'Admin label', 'desc' => 'Label for the admin link.', 'type' => 'text'],
     'logout_label_text' => ['label' => 'Logout label', 'desc' => 'Label for the logout link.', 'type' => 'text'],
+    'click_to_view_text' => ['label' => 'Click to view hint', 'desc' => 'Interaction hint shown in node tooltips for mouse users.', 'type' => 'text'],
+    'tap_to_view_text' => ['label' => 'Tap to view hint', 'desc' => 'Interaction hint shown in node tooltips for touch users.', 'type' => 'text'],
 ];
 ?>
 <!DOCTYPE html>

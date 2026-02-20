@@ -148,7 +148,7 @@ function db_insert_default_project_info_rows(PDO $pdo, string $enName = 'Telaris
 }
 
 /**
- * Ensure project_info table has all required columns.
+ * Ensure project_info table has all required columns and default values.
  */
 function db_ensure_project_info_columns(): void {
     try {
@@ -160,6 +160,27 @@ function db_ensure_project_info_columns(): void {
         $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'tap_to_view_text'");
         if ($stmt->fetch() === false) {
             $pdo->exec("ALTER TABLE project_info ADD COLUMN tap_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Tap again to view'");
+        }
+
+        // Fill empty values for localized hints in existing rows
+        $defaults = db_default_project_info_rows();
+        foreach (['en', 'es', 'pt'] as $locale) {
+            $pdo->prepare("
+                UPDATE project_info 
+                SET click_to_view_text = :click 
+                WHERE locale = :locale AND (click_to_view_text IS NULL OR click_to_view_text = '' OR click_to_view_text = 'Click to view')
+            ")->execute([
+                ':click' => $defaults[$locale]['click_to_view_text'],
+                ':locale' => $locale
+            ]);
+            $pdo->prepare("
+                UPDATE project_info 
+                SET tap_to_view_text = :tap 
+                WHERE locale = :locale AND (tap_to_view_text IS NULL OR tap_to_view_text = '' OR tap_to_view_text = 'Tap again to view')
+            ")->execute([
+                ':tap' => $defaults[$locale]['tap_to_view_text'],
+                ':locale' => $locale
+            ]);
         }
     } catch (PDOException $e) {
         // Table might not exist yet, which is fine during setup

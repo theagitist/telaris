@@ -24,6 +24,7 @@ try {
         header('Location: admin/setup.php');
         exit();
     }
+    db_ensure_project_info_columns();
 } catch (PDOException $e) {
     header('Location: admin/setup.php');
     exit();
