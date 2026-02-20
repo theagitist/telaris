@@ -339,14 +339,14 @@
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "./telaris-network.js": "./js/telaris-network.js?v=3.6.0",
-                "./network-manager.js": "./js/network-manager.js?v=3.6.0",
-                "./geometry-manager.js": "./js/geometry-manager.js?v=3.6.0",
-                "./api.js": "./js/api.js?v=3.6.0",
-                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=3.6.0"
+                "./telaris-network.js": "./js/telaris-network.js?v=3.6.1",
+                "./network-manager.js": "./js/network-manager.js?v=3.6.1",
+                "./geometry-manager.js": "./js/geometry-manager.js?v=3.6.1",
+                "./api.js": "./js/api.js?v=3.6.1",
+                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=3.6.1"
             }
         }
     </script>
-    <script type="module" src="js/main.js?v=3.6.0"></script>
+    <script type="module" src="js/main.js?v=3.6.1"></script>
 </body>
 </html>
