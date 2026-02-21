@@ -140,20 +140,25 @@
             opacity: 0.6;
             transition: opacity 0.3s ease;
             cursor: pointer;
-            z-index: 90;
+            z-index: 110;
         }
-        body.info-visible #hud-indicator {
-            opacity: 0;
-            pointer-events: none;
+        #hud-indicator:hover {
+            opacity: 1;
+            background: rgba(255, 255, 255, 0.2);
+        }
+        #hud-indicator:focus {
+            outline: 2px solid #00ffcc;
+            outline-offset: 2px;
+            opacity: 1;
         }
     </style>
 </head>
 <body class="overflow-hidden bg-black">
-    <div id="hud-indicator" aria-hidden="true">
+    <button id="hud-indicator" aria-label="Toggle navigation menu" aria-expanded="false" type="button">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 12h18M3 6h18M3 18h18"/>
         </svg>
-    </div>
+    </button>
 
     <div id="loading-overlay" aria-live="polite" aria-busy="true">
         <p class="loading-text"><?php echo htmlspecialchars($projectLoadingText ?? 'Loading'); ?></p>
@@ -240,7 +245,7 @@
     </div>
     
     <!-- Tactical HUD Navigation -->
-    <div id="info" class="absolute top-5 left-0 text-white z-[100] text-sm">
+    <div id="info" class="absolute top-5 left-0 text-white z-[100] text-sm pt-14">
         <div class="mb-3 flex items-center">
             <span class="status-pulse"></span>
             <span class="tracking-widest uppercase font-bold opacity-80 text-xs"><?php echo htmlspecialchars($projectSystemOnlineText ?? 'System: Online'); ?></span>
@@ -308,30 +313,53 @@
     </script>
     <script>
     (function() {
-        var zoneW = 400, zoneH = 400;
-        function inZone(x, y) { return x < zoneW && y < zoneH; }
-        function update(e) {
-            var x = e.clientX, y = e.clientY;
-            var isVisible = inZone(x, y);
-            var wasVisible = document.body.classList.contains('info-visible');
-            document.body.classList.toggle('info-visible', isVisible);
-            
-            if (isVisible && !wasVisible) {
-                var searchInput = document.getElementById('hud-search');
-                if (searchInput) {
-                    setTimeout(function() { searchInput.focus(); }, 50);
-                }
+        var hudIndicator = document.getElementById('hud-indicator');
+        var infoPanel = document.getElementById('info');
+        var searchInput = document.getElementById('hud-search');
+
+        function updateIcon(isVisible) {
+            var svg = hudIndicator.querySelector('svg');
+            if (isVisible) {
+                svg.innerHTML = '<path d="M18 6L6 18M6 6l12 12"/>';
+                hudIndicator.setAttribute('aria-expanded', 'true');
+            } else {
+                svg.innerHTML = '<path d="M3 12h18M3 6h18M3 18h18"/>';
+                hudIndicator.setAttribute('aria-expanded', 'false');
             }
         }
-        document.addEventListener('mousemove', update);
-        document.addEventListener('touchmove', function(e) {
-            if (e.touches.length) update(e.touches[0]);
-        }, { passive: true });
-        document.addEventListener('mouseleave', function() { 
-            document.body.classList.remove('info-visible'); 
-            var searchInput = document.getElementById('hud-search');
-            if (searchInput) searchInput.blur();
+
+        function toggleMenu(e) {
+            e.stopPropagation();
+            var isVisible = document.body.classList.toggle('info-visible');
+            updateIcon(isVisible);
+            if (isVisible && searchInput) {
+                setTimeout(function() { searchInput.focus(); }, 150);
+            } else if (!isVisible && searchInput) {
+                searchInput.blur();
+            }
+        }
+
+        if (hudIndicator) {
+            hudIndicator.addEventListener('click', toggleMenu);
+        }
+
+        // Close when clicking outside
+        document.addEventListener('click', function(e) {
+            if (document.body.classList.contains('info-visible')) {
+                if (!infoPanel.contains(e.target) && !hudIndicator.contains(e.target)) {
+                    document.body.classList.remove('info-visible');
+                    updateIcon(false);
+                    if (searchInput) searchInput.blur();
+                }
+            }
         });
+
+        // Prevent panel clicks from closing it
+        if (infoPanel) {
+            infoPanel.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
     })();
     </script>
     <script type="importmap">
