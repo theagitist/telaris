@@ -412,7 +412,7 @@ $fieldMeta = [
 
         <!-- Messages -->
         <?php if ($newApiKey): ?>
-            <div class="mb-5 p-4 bg-green-50 border-2 border-green-500 rounded">
+            <div class="alert-message mb-5 p-4 bg-green-50 border-2 border-green-500 rounded">
                 <h3 class="text-green-800 font-semibold mb-2">✓ API Key Generated Successfully!</h3>
                 <p class="text-gray-700 mb-3"><strong>Name:</strong> <?php echo htmlspecialchars($newApiKeyName); ?></p>
                 <div class="mb-3">
@@ -433,18 +433,18 @@ $fieldMeta = [
         <?php endif; ?>
         
         <?php if ($message): ?>
-            <div class="bg-green-50 text-green-600 p-4 rounded mb-5"><?php echo htmlspecialchars($message); ?></div>
+            <div class="alert-message bg-green-50 text-green-600 p-4 rounded mb-5"><?php echo htmlspecialchars($message); ?></div>
         <?php endif; ?>
         
         <?php if ($error): ?>
-            <div class="bg-red-50 text-red-700 p-4 rounded mb-5"><?php echo htmlspecialchars($error); ?></div>
+            <div class="alert-message bg-red-50 text-red-700 p-4 rounded mb-5"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
         
         <?php if (isset($_GET['saved']) && $_GET['saved'] === '1'): ?>
-            <div class="mb-5 p-4 bg-green-50 border border-green-500 rounded text-green-800">Global settings saved.</div>
+            <div class="alert-message mb-5 p-4 bg-green-50 border border-green-500 rounded text-green-800">Global settings saved.</div>
         <?php endif; ?>
         <?php if ($settingsError): ?>
-            <div class="mb-5 p-4 bg-red-50 border border-red-500 rounded text-red-800"><?php echo htmlspecialchars($settingsError); ?></div>
+            <div class="alert-message mb-5 p-4 bg-red-50 border border-red-500 rounded text-red-800"><?php echo htmlspecialchars($settingsError); ?></div>
         <?php endif; ?>
 
         <!-- Tabs -->
@@ -1395,6 +1395,21 @@ $fieldMeta = [
             initCreateUserModalLogic();
             toggleCreateUserConstellations();
             toggleCreateNewConstellationName();
+
+            // Auto-hide alert messages after 8 seconds
+            setTimeout(() => {
+                document.querySelectorAll('.alert-message').forEach(el => {
+                    el.style.transition = 'opacity 1s ease, margin 1s ease, padding 1s ease, height 1s ease';
+                    el.style.opacity = '0';
+                    setTimeout(() => {
+                        el.style.margin = '0';
+                        el.style.padding = '0';
+                        el.style.height = '0';
+                        el.style.overflow = 'hidden';
+                        setTimeout(() => el.remove(), 1000);
+                    }, 1000);
+                });
+            }, 8000);
 
             // Initial pagination
             applyPagination('users');

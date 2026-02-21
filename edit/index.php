@@ -95,7 +95,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
 
         <!-- Messages -->
-        <div id="message" class="hidden mb-5 p-4 rounded"></div>
+        <div id="notification-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+        <div id="message" class="hidden"></div> <!-- Legacy hidden div to avoid JS errors if referenced elsewhere -->
 
         <!-- Bulk Actions Bar -->
         <div id="bulk-actions-bar" class="hidden sticky top-4 z-[30] bg-neutral text-neutral-content p-4 rounded-lg shadow-xl mb-6 flex items-center justify-between transition-all">
@@ -449,15 +450,29 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
         }
 
-        // Show message
+        // Show message as a temporary toast
         function showMessage(text, type = 'success') {
-            const messageDiv = document.getElementById('message');
-            messageDiv.className = `mb-5 p-4 rounded ${type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`;
-            messageDiv.textContent = text;
-            messageDiv.classList.remove('hidden');
+            const container = document.getElementById('notification-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `p-4 rounded shadow-lg text-white font-medium pointer-events-auto transition-all duration-500 transform translate-x-full opacity-0 ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`;
+            toast.textContent = text;
+            
+            container.appendChild(toast);
+
+            // Trigger animation
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-x-full', 'opacity-0');
+            });
+
+            // Auto-remove after 8 seconds
             setTimeout(() => {
-                messageDiv.classList.add('hidden');
-            }, 5000);
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => {
+                    toast.remove();
+                }, 500);
+            }, 8000);
         }
 
         // Load nodes
