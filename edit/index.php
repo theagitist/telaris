@@ -456,11 +456,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     // Show normal display - compact spreadsheet-like layout
                     const dateObj = node.created_at ? new Date(node.created_at) : null;
                     const createdDate = dateObj 
-                        ? `${dateObj.getFullYear()}-${(dateObj.getMonth()+1).toString().padStart(2,'0')}-${dateObj.getDate().toString().padStart(2,'0')} ${dateObj.getHours().toString().padStart(2,'0')}:${dateObj.getMinutes().toString().padStart(2,'0')}` 
+                        ? `${dateObj.getFullYear().toString().slice(-2)}-${(dateObj.getMonth()+1).toString().padStart(2,'0')}-${dateObj.getDate().toString().padStart(2,'0')} ${dateObj.getHours().toString().padStart(2,'0')}:${dateObj.getMinutes().toString().padStart(2,'0')}` 
                         : 'N/A';
                     const updatedDateObj = node.updated_at ? new Date(node.updated_at) : null;
                     const updatedDate = updatedDateObj 
-                        ? `${updatedDateObj.getFullYear()}-${(updatedDateObj.getMonth()+1).toString().padStart(2,'0')}-${updatedDateObj.getDate().toString().padStart(2,'0')} ${updatedDateObj.getHours().toString().padStart(2,'0')}:${updatedDateObj.getMinutes().toString().padStart(2,'0')}` 
+                        ? `${updatedDateObj.getFullYear().toString().slice(-2)}-${(updatedDateObj.getMonth()+1).toString().padStart(2,'0')}-${updatedDateObj.getDate().toString().padStart(2,'0')} ${updatedDateObj.getHours().toString().padStart(2,'0')}:${updatedDateObj.getMinutes().toString().padStart(2,'0')}` 
                         : 'N/A';
                     const descriptionTruncated = node.description ? (node.description.length > 80 ? escapeHtml(node.description.substring(0, 80)) + '...' : escapeHtml(node.description)) : '';
                     const keywordsDisplay = node.keywords && node.keywords.length > 0 

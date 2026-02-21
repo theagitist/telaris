@@ -573,13 +573,13 @@ $fieldMeta = [
                                                 <span class="text-xs <?php echo $typeColors[$userType]; ?> text-white px-2 py-1 rounded"><?php echo $typeLabels[$userType]; ?></span>
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
-                                                <?php if ($createdIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($createdIso); ?>"><?php echo date('Y-m-d H:i', $createdTs); ?></span><?php else: ?>—<?php endif; ?>
+                                                <?php if ($createdIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($createdIso); ?>"><?php echo date('y-m-d H:i', $createdTs); ?></span><?php else: ?>—<?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
-                                                <?php if ($lastLoginIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($lastLoginIso); ?>"><?php echo date('Y-m-d H:i', $lastLoginTs); ?></span><?php else: ?>Never<?php endif; ?>
+                                                <?php if ($lastLoginIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($lastLoginIso); ?>"><?php echo date('y-m-d H:i', $lastLoginTs); ?></span><?php else: ?>Never<?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
-                                                <?php if ($updatedIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($updatedIso); ?>"><?php echo date('Y-m-d H:i', $updatedTs); ?></span><?php else: ?>—<?php endif; ?>
+                                                <?php if ($updatedIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($updatedIso); ?>"><?php echo date('y-m-d H:i', $updatedTs); ?></span><?php else: ?>—<?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-right">
                                                 <div class="flex gap-2 justify-end">
@@ -690,14 +690,14 @@ $fieldMeta = [
                                         $keyCreatedIso = $keyCreatedTs !== false ? gmdate('c', $keyCreatedTs) : '';
                                         $keyUpdatedIso = $keyUpdatedTs !== false ? gmdate('c', $keyUpdatedTs) : '';
                                         ?>
-                                        <p><strong>Created:</strong> <?php if ($keyCreatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyCreatedIso); ?>"><?php echo date('Y-m-d H:i', $keyCreatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
+                                        <p><strong>Created:</strong> <?php if ($keyCreatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyCreatedIso); ?>"><?php echo date('y-m-d H:i', $keyCreatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
                                         <?php if (!empty($key['last_used_at'])): ?>
                                             <?php $keyLastUsedTs = strtotime($key['last_used_at']); $keyLastUsedIso = $keyLastUsedTs !== false ? gmdate('c', $keyLastUsedTs) : ''; ?>
-                                            <p><strong>Last Used:</strong> <?php if ($keyLastUsedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyLastUsedIso); ?>"><?php echo date('Y-m-d H:i', $keyLastUsedTs); ?></span><?php else: ?>—<?php endif; ?></p>
+                                            <p><strong>Last Used:</strong> <?php if ($keyLastUsedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyLastUsedIso); ?>"><?php echo date('y-m-d H:i', $keyLastUsedTs); ?></span><?php else: ?>—<?php endif; ?></p>
                                         <?php else: ?>
                                             <p><strong>Last Used:</strong> Never</p>
                                         <?php endif; ?>
-                                        <p><strong>Last Updated:</strong> <?php if ($keyUpdatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyUpdatedIso); ?>"><?php echo date('Y-m-d H:i', $keyUpdatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
+                                        <p><strong>Last Updated:</strong> <?php if ($keyUpdatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyUpdatedIso); ?>"><?php echo date('y-m-d H:i', $keyUpdatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -798,10 +798,10 @@ $fieldMeta = [
                                             </td>
                                             <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="<?php echo $clickEditC; ?>" title="<?php echo htmlspecialchars($cTagline); ?>"><?php echo htmlspecialchars($cTagline); ?></td>
                                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEditC; ?>">
-                                                <?php if ($cCreatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($cCreatedIso); ?>"><?php echo date('Y-m-d H:i', $cCreatedTs); ?></span><?php else: ?>—<?php endif; ?>
+                                                <?php if ($cCreatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($cCreatedIso); ?>"><?php echo date('y-m-d H:i', $cCreatedTs); ?></span><?php else: ?>—<?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEditC; ?>">
-                                                <?php if ($cUpdatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($cUpdatedIso); ?>"><?php echo date('Y-m-d H:i', $cUpdatedTs); ?></span><?php else: ?>—<?php endif; ?>
+                                                <?php if ($cUpdatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($cUpdatedIso); ?>"><?php echo date('y-m-d H:i', $cUpdatedTs); ?></span><?php else: ?>—<?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-right">
                                                 <div class="flex gap-2 justify-end items-center">
@@ -1330,12 +1330,12 @@ $fieldMeta = [
                 if (iso) {
                     try {
                         const d = new Date(iso);
-                        const yyyy = d.getFullYear();
+                        const yy = d.getFullYear().toString().slice(-2);
                         const mm = (d.getMonth() + 1).toString().padStart(2, '0');
                         const dd = d.getDate().toString().padStart(2, '0');
                         const hh = d.getHours().toString().padStart(2, '0');
                         const min = d.getMinutes().toString().padStart(2, '0');
-                        span.textContent = `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+                        span.textContent = `${yy}-${mm}-${dd} ${hh}:${min}`;
                     } catch (e) {}
                 }
             });
