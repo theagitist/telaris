@@ -1200,8 +1200,6 @@ class TelarisNetwork {
         const showTooltipForNode = (node, x, y) => {
             if (this.tooltip && node?.userData?.name) {
                 if (this.tooltipHideTimeout) clearTimeout(this.tooltipHideTimeout);
-                this.cancelHideTooltip();
-                this._lastTooltipNode = node;
                 
                 let html = `<div style="font-weight:600; margin-bottom: 2px;">${node.userData.name}</div>`;
                 if (node.userData.keywords?.length > 0) {
@@ -1679,7 +1677,8 @@ class TelarisNetwork {
                             const twinkleAmp = d.is_accentuated ? 0.8 : 0.5;
                             const twinkle = 1.0 + Math.sin(time * twinkleFreq + d.phase) * twinkleAmp;
                             
-                            const hoverBoost = isActive ? 2.5 : 1.0;
+                            // Dim the node when it is active (tooltip is shown) to improve readability
+                            const hoverDim = isActive ? 0.15 : 1.0;
                             let flareBoost = 1.0;
                             if (d.solarFlare > 0) {
                                 flareBoost = 8.0 * (d.solarFlare / 15);
@@ -1687,7 +1686,7 @@ class TelarisNetwork {
                             }
                             // Accentuated nodes get a smaller emissive boost now
                             const accentBoost = d.is_accentuated ? 1.4 : 1.0;
-                            m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverBoost * twinkle * flareBoost * accentBoost;
+                            m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost;
                         }
                     }
                 }
@@ -1779,14 +1778,11 @@ class TelarisNetwork {
                 this.mainTooltipNodeTimeout = null;
             }
 
-            this.cancelHideTooltip();
-
             // ONLY update if it's a NEW node
             if (currentFocused !== hoveredNode) {
                 this.networkManager.setFocusedNode(hoveredNode);
-                this._lastTooltipNode = hoveredNode;
                 
-                const isPortal = hoveredNode.userData.node_type === 'portal' && hoveredNode.userData.target_constellation_id != null;
+                const isPortal = hoveredNode && hoveredNode.userData.node_type === 'portal' && hoveredNode.userData.target_constellation_id != null;
                 const isObjectWithLink = hoveredNode.userData.node_type === 'object' && hoveredNode.userData.url;
                 
                 this.renderer.domElement.style.cursor = (isPortal || isObjectWithLink) ? 'pointer' : 'default';
@@ -2186,6 +2182,10 @@ class TelarisNetwork {
             if (clearBtn) clearBtn.style.display = this.searchQuery ? 'block' : 'none';
             
             // Clear focus immediately so no connections related to hidden nodes remain
+            const focused = this.networkManager.getFocusedNode();
+            if (focused) {
+                this.setNodeDimmed(focused, false);
+            }
             this.networkManager.setFocusedNode(null);
             if (this.tooltip) this.hideMainTooltip();
             
