@@ -407,17 +407,6 @@ function db_update_project_settings_with_locales(array $en, array $es, array $pt
         }
         $stmt->execute($params);
     }
-    
-    // Keep the chosen default constellation in sync with English app name and tagline
-    $enName = trim((string) ($en['name'] ?? ''));
-    $enDescription = trim((string) ($en['description'] ?? ''));
-    $syncId = $defaultConstellationId ?? db_get_default_constellation_id();
-    
-    $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline WHERE id = :id")->execute([
-        ':name' => $enName !== '' ? $enName : 'Default',
-        ':tagline' => $enDescription,
-        ':id' => $syncId
-    ]);
 }
 
 // ---------------------------------------------------------------------------

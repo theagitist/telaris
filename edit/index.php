@@ -97,6 +97,18 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <!-- Messages -->
         <div id="message" class="hidden mb-5 p-4 rounded"></div>
 
+        <!-- Bulk Actions Bar -->
+        <div id="bulk-actions-bar" class="hidden sticky top-4 z-[30] bg-neutral text-neutral-content p-4 rounded-lg shadow-xl mb-6 flex items-center justify-between transition-all">
+            <div class="flex items-center gap-4">
+                <span class="font-bold"><span id="selected-count">0</span> nodes selected</span>
+                <div class="h-6 w-px bg-neutral-content/30"></div>
+                <button onclick="clearSelection()" class="btn btn-sm btn-ghost normal-case font-normal hover:bg-white/10">Clear Selection</button>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="bulkDelete()" class="btn btn-sm btn-error text-white">Delete Selected</button>
+            </div>
+        </div>
+
         <!-- Nodes List -->
         <div class="bg-white rounded-lg shadow-md mb-6">
             <div class="p-6 border-b border-gray-200">
@@ -170,6 +182,135 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         })();
 
         let editingNodeId = null;
+        let selectedNodeIds = new Set();
+
+        function toggleNodeSelection(id, event) {
+            if (event) {
+                // If it's a click on the row but not the checkbox itself, we might want to still toggle
+                // but we must be careful not to trigger when clicking "Edit" or "Delete"
+                if (event.target.closest('button') || event.target.closest('a')) {
+                    return;
+                }
+            }
+
+            if (selectedNodeIds.has(id)) {
+                selectedNodeIds.delete(id);
+            } else {
+                selectedNodeIds.add(id);
+            }
+            
+            updateBulkActionsBar();
+            // Re-render to show selection (more efficient way would be to just toggle class)
+            // For now, let's just toggle the class and checkbox manually for speed
+            const row = document.querySelector(`.node-checkbox[data-id="${id}"]`)?.closest('.border-b');
+            const checkbox = document.querySelector(`.node-checkbox[data-id="${id}"]`);
+            if (row) row.classList.toggle('bg-blue-50/50', selectedNodeIds.has(id));
+            if (checkbox) checkbox.checked = selectedNodeIds.has(id);
+            
+            updateSelectAllCheckbox();
+        }
+
+        function toggleSelectAll(checkbox) {
+            const isChecked = checkbox.checked;
+            if (isChecked) {
+                // Select all currently filtered nodes
+                filteredNodes.forEach(node => selectedNodeIds.add(node.id));
+            } else {
+                // Unselect all currently filtered nodes
+                filteredNodes.forEach(node => selectedNodeIds.delete(node.id));
+            }
+            updateBulkActionsBar();
+            // Re-render to show updated checkbox states and header checkbox through updateSelectAllCheckbox
+            applySorting(false);
+        }
+
+        function updateSelectAllCheckbox() {
+            const selectAllCb = document.getElementById('select-all-nodes');
+            if (!selectAllCb) return;
+            
+            const currentPageNodes = filteredNodes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+            if (currentPageNodes.length === 0) {
+                selectAllCb.checked = false;
+                selectAllCb.indeterminate = false;
+                return;
+            }
+
+            const allSelected = currentPageNodes.every(node => selectedNodeIds.has(node.id));
+            const someSelected = currentPageNodes.some(node => selectedNodeIds.has(node.id));
+            
+            selectAllCb.checked = allSelected;
+            selectAllCb.indeterminate = someSelected && !allSelected;
+        }
+
+        function updateBulkActionsBar() {
+            const bar = document.getElementById('bulk-actions-bar');
+            const countEl = document.getElementById('selected-count');
+            
+            if (selectedNodeIds.size > 0) {
+                bar.classList.remove('hidden');
+                countEl.textContent = selectedNodeIds.size;
+            } else {
+                bar.classList.add('hidden');
+            }
+        }
+
+        function clearSelection() {
+            selectedNodeIds.clear();
+            updateBulkActionsBar();
+            const selectAllCb = document.getElementById('select-all-nodes');
+            if (selectAllCb) {
+                selectAllCb.checked = false;
+                selectAllCb.indeterminate = false;
+            }
+            // Simple re-render
+            applySorting(false);
+        }
+
+        async function bulkDelete() {
+            const count = selectedNodeIds.size;
+            if (count === 0) return;
+
+            confirmAction(`Are you sure you want to delete ${count} selected nodes? This action cannot be undone.`, async () => {
+                const ids = Array.from(selectedNodeIds);
+                let successCount = 0;
+                let errorCount = 0;
+
+                // Show loading message or disable bar
+                const bar = document.getElementById('bulk-actions-bar');
+                bar.classList.add('opacity-50', 'pointer-events-none');
+
+                try {
+                    // We call the API for each ID. If we update the API to handle bulk, we can do it in one call.
+                    // For now, let's do it sequentially or in parallel batches.
+                    const promises = ids.map(id => 
+                        fetch(`${API_BASE}?id=${id}`, {
+                            method: 'DELETE',
+                            headers: { 'X-API-Key': API_KEY }
+                        }).then(r => {
+                            if (r.ok) successCount++;
+                            else errorCount++;
+                        }).catch(() => errorCount++)
+                    );
+
+                    await Promise.all(promises);
+
+                    if (successCount > 0) {
+                        showMessage(`Successfully deleted ${successCount} nodes.`);
+                    }
+                    if (errorCount > 0) {
+                        showMessage(`Failed to delete ${errorCount} nodes.`, 'error');
+                    }
+
+                    selectedNodeIds.clear();
+                    updateBulkActionsBar();
+                    loadNodes();
+                } catch (e) {
+                    showMessage('An error occurred during bulk deletion.', 'error');
+                } finally {
+                    bar.classList.remove('opacity-50', 'pointer-events-none');
+                }
+            });
+        }
 
         // Switch current constellation (reload page so list shows only that constellation)
         function switchConstellation(value) {
@@ -435,14 +576,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             try {
                 const headerHTML = `
                     <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
-                        <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
-                            <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">Name<span id="sort-indicator-name"></span></div>
-                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('node_type')">Type<span id="sort-indicator-node_type"></span></div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('constellation_name')">Constellation<span id="sort-indicator-constellation_name"></span></div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">Keywords<span id="sort-indicator-keywords"></span></div>
-                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('is_accentuated')" title="Accentuated Status">Acc<span id="sort-indicator-is_accentuated"></span></div>
-                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">Created<span id="sort-indicator-created_at"></span></div>
-                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('updated_at')">Updated<span id="sort-indicator-updated_at"></span></div>
+                        <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700 items-center">
+                            <div class="col-span-1 flex justify-center">
+                                <input type="checkbox" id="select-all-nodes" onclick="toggleSelectAll(this)" class="checkbox checkbox-xs border-gray-400">
+                            </div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'name\')">Name<span id="sort-indicator-name"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'node_type\')">Type<span id="sort-indicator-node_type"></span></div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'constellation_name\')">Constellation<span id="sort-indicator-constellation_name"></span></div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'keywords\')">Keywords<span id="sort-indicator-keywords"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'is_accentuated\')" title="Accentuated Status">Acc<span id="sort-indicator-is_accentuated"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'created_at\')">Created<span id="sort-indicator-created_at"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'updated_at\')">Updated<span id="sort-indicator-updated_at"></span></div>
                             <div class="col-span-1 text-right pr-2">Actions</div>
                         </div>
                     </div>
@@ -453,6 +597,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         return '';
                     }
                     
+                    const isSelected = selectedNodeIds.has(node.id);
                     // Show normal display - compact spreadsheet-like layout
                     const dateObj = node.created_at ? new Date(node.created_at) : null;
                     const createdDate = dateObj 
@@ -462,7 +607,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     const updatedDate = updatedDateObj 
                         ? `${updatedDateObj.getFullYear().toString().slice(-2)}-${(updatedDateObj.getMonth()+1).toString().padStart(2,'0')}-${updatedDateObj.getDate().toString().padStart(2,'0')} ${updatedDateObj.getHours().toString().padStart(2,'0')}:${updatedDateObj.getMinutes().toString().padStart(2,'0')}` 
                         : 'N/A';
-                    const descriptionTruncated = node.description ? (node.description.length > 80 ? escapeHtml(node.description.substring(0, 80)) + '...' : escapeHtml(node.description)) : '';
                     const keywordsDisplay = node.keywords && node.keywords.length > 0 
                         ? node.keywords.map(k => `<span class="badge badge-sm border-current/20 ${getPastelColor(k)}">${escapeHtml(k)}</span>`).join(' ')
                         : '<span class="text-xs text-gray-400">No keywords</span>';
@@ -478,9 +622,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         ? `<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeBadgeClass}" title="Target: ${escapeHtml(targetConstellationName)}">${escapeHtml(typeLabel)}</span> <span class="text-xs text-gray-500 truncate block" title="${escapeHtml(targetConstellationName)}">→ ${escapeHtml(targetConstellationName)}</span>`
                         : `<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeBadgeClass}">${escapeHtml(typeLabel)}</span>`;
                     return `
-                <div class="border-b border-gray-300 hover:bg-gray-50 py-2 cursor-pointer" onclick="editNode(${node.id})">
+                <div class="border-b border-gray-300 hover:bg-gray-50 py-2 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50/50' : ''}" onclick="toggleNodeSelection(${node.id}, event)">
                     <div class="grid grid-cols-12 gap-3 items-center text-sm">
-                        <div class="col-span-3 min-w-0">
+                        <div class="col-span-1 flex justify-center" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="node-checkbox checkbox checkbox-xs" data-id="${node.id}" ${isSelected ? 'checked' : ''} onclick="toggleNodeSelection(${node.id}, event)">
+                        </div>
+                        <div class="col-span-2 min-w-0" onclick="editNode(${node.id}); event.stopPropagation();">
                             <div class="font-semibold text-gray-800 truncate" title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</div>
                             <div class="flex flex-wrap gap-1 mt-1">
                                 ${node.is_accentuated ? '<span class="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded border border-yellow-200 font-bold" title="Accentuated Node">ACC</span>' : ''}
@@ -519,6 +666,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 
                 // Set innerHTML with header + nodes
                 listDiv.innerHTML = headerHTML + html;
+
+                // Update Select All checkbox state after rendering
+                const selectAllCb = document.getElementById('select-all-nodes');
+                if (selectAllCb) {
+                    const currentPageNodes = nodes;
+                    const allSelected = currentPageNodes.length > 0 && currentPageNodes.every(node => selectedNodeIds.has(node.id));
+                    const someSelected = currentPageNodes.some(node => selectedNodeIds.has(node.id));
+                    
+                    selectAllCb.checked = allSelected;
+                    selectAllCb.indeterminate = someSelected && !allSelected;
+                }
 
                 // Add Pagination Controls (Top and Bottom)
                 const totalPages = Math.ceil(filteredNodes.length / itemsPerPage);
@@ -721,6 +879,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const paginatedNodes = filteredNodes.slice(start, end);
 
             displayNodes(paginatedNodes);
+            updateSelectAllCheckbox();
         }
 
         function changePage(page) {
@@ -728,6 +887,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (page < 1 || page > totalPages) return;
             currentPage = page;
             applySorting(false);
+            updateSelectAllCheckbox();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
