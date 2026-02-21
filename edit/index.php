@@ -466,13 +466,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 toast.classList.remove('-translate-y-4', 'opacity-0');
             });
 
-            // Auto-remove after 5 seconds
+            // Auto-remove after 2 seconds
             setTimeout(() => {
                 toast.classList.add('-translate-y-4', 'opacity-0');
                 setTimeout(() => {
                     toast.remove();
                 }, 500);
-            }, 5000);
+            }, 2000);
         }
 
         // Load nodes
