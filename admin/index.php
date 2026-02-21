@@ -522,6 +522,9 @@ $fieldMeta = [
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
                                             <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('date_last_login')">Last Login<span id="sort-indicator-date_last_login"></span></span>
                                         </th>
+                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('updated_at')">Last Updated<span id="sort-indicator-updated_at"></span></span>
+                                        </th>
                                         <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">Actions</th>
                                     </tr>
                                 </thead>
@@ -535,8 +538,10 @@ $fieldMeta = [
                                         $email = htmlspecialchars($user['email']);
                                         $createdTs = strtotime($user['date_created'] ?? '');
                                         $lastLoginTs = !empty($user['date_last_login']) ? strtotime($user['date_last_login']) : false;
+                                        $updatedTs = !empty($user['updated_at']) ? strtotime($user['updated_at']) : false;
                                         $createdIso = $createdTs !== false ? gmdate('c', $createdTs) : '';
                                         $lastLoginIso = $lastLoginTs !== false ? gmdate('c', $lastLoginTs) : null;
+                                        $updatedIso = $updatedTs !== false ? gmdate('c', $updatedTs) : null;
                                         $isCurrentUser = $user['id'] === ($_SESSION['admin_user_id'] ?? '');
                                         ?>
                                         <tr class="user-row border-b border-gray-300 hover:bg-gray-50" 
@@ -545,7 +550,8 @@ $fieldMeta = [
                                             data-email="<?php echo htmlspecialchars(strtolower($user['email'])); ?>" 
                                             data-type="<?php echo $userType; ?>" 
                                             data-date-created="<?php echo $createdTs !== false ? $createdTs : '0'; ?>" 
-                                            data-date-last-login="<?php echo $lastLoginTs !== false ? $lastLoginTs : '0'; ?>">
+                                            data-date-last-login="<?php echo $lastLoginTs !== false ? $lastLoginTs : '0'; ?>"
+                                            data-updated-at="<?php echo $updatedTs !== false ? $updatedTs : '0'; ?>">
                                             <?php 
                                             $userData = [
                                                 'id' => $user['id'],
@@ -571,6 +577,9 @@ $fieldMeta = [
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <?php if ($lastLoginIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($lastLoginIso); ?>"><?php echo date('Y-m-d H:i', $lastLoginTs); ?></span><?php else: ?>Never<?php endif; ?>
+                                            </td>
+                                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
+                                                <?php if ($updatedIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($updatedIso); ?>"><?php echo date('Y-m-d H:i', $updatedTs); ?></span><?php else: ?>—<?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-right">
                                                 <div class="flex gap-2 justify-end">
@@ -677,7 +686,9 @@ $fieldMeta = [
                                     <div class="mt-2 text-xs text-gray-500 space-y-1">
                                         <?php
                                         $keyCreatedTs = isset($key['created_at']) && $key['created_at'] !== '' ? strtotime($key['created_at']) : false;
+                                        $keyUpdatedTs = isset($key['updated_at']) && $key['updated_at'] !== '' ? strtotime($key['updated_at']) : false;
                                         $keyCreatedIso = $keyCreatedTs !== false ? gmdate('c', $keyCreatedTs) : '';
+                                        $keyUpdatedIso = $keyUpdatedTs !== false ? gmdate('c', $keyUpdatedTs) : '';
                                         ?>
                                         <p><strong>Created:</strong> <?php if ($keyCreatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyCreatedIso); ?>"><?php echo date('Y-m-d H:i', $keyCreatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
                                         <?php if (!empty($key['last_used_at'])): ?>
@@ -686,6 +697,7 @@ $fieldMeta = [
                                         <?php else: ?>
                                             <p><strong>Last Used:</strong> Never</p>
                                         <?php endif; ?>
+                                        <p><strong>Last Updated:</strong> <?php if ($keyUpdatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyUpdatedIso); ?>"><?php echo date('Y-m-d H:i', $keyUpdatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -739,6 +751,9 @@ $fieldMeta = [
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
                                             <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('created_at')">Created<span id="sort-indicator-const-created_at"></span></span>
                                         </th>
+                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('updated_at')">Last Updated<span id="sort-indicator-const-updated_at"></span></span>
+                                        </th>
                                         <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">Actions</th>
                                     </tr>
                                 </thead>
@@ -755,6 +770,7 @@ $fieldMeta = [
                                             data-name="<?php echo htmlspecialchars(strtolower($c['name'])); ?>" 
                                             data-slug="<?php echo htmlspecialchars(strtolower($c['slug'] ?? '')); ?>"
                                             data-date-created="<?php echo isset($c['created_at']) ? strtotime($c['created_at']) : 0; ?>"
+                                            data-updated-at="<?php echo isset($c['updated_at']) ? strtotime($c['updated_at']) : 0; ?>"
                                             data-tagline="<?php echo htmlspecialchars(strtolower($cTagline)); ?>">
                                             <?php 
                                             $cData = [
@@ -766,7 +782,9 @@ $fieldMeta = [
                                             $cJson = htmlspecialchars(json_encode($cData), ENT_QUOTES, 'UTF-8');
                                             $clickEditC = "editConstellation($cJson)";
                                             $cCreatedTs = isset($c['created_at']) ? strtotime($c['created_at']) : false;
+                                            $cUpdatedTs = isset($c['updated_at']) ? strtotime($c['updated_at']) : false;
                                             $cCreatedIso = $cCreatedTs !== false ? gmdate('c', $cCreatedTs) : '';
+                                            $cUpdatedIso = $cUpdatedTs !== false ? gmdate('c', $cUpdatedTs) : '';
                                             ?>
                                             <td class="py-2 px-2 font-mono text-gray-800 cursor-pointer whitespace-nowrap" onclick="<?php echo $clickEditC; ?>"><?php echo $cId; ?></td>
                                             <td class="py-2 px-2 font-semibold text-gray-800 cursor-pointer" onclick="<?php echo $clickEditC; ?>">
@@ -781,6 +799,9 @@ $fieldMeta = [
                                             <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="<?php echo $clickEditC; ?>" title="<?php echo htmlspecialchars($cTagline); ?>"><?php echo htmlspecialchars($cTagline); ?></td>
                                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEditC; ?>">
                                                 <?php if ($cCreatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($cCreatedIso); ?>"><?php echo date('Y-m-d H:i', $cCreatedTs); ?></span><?php else: ?>—<?php endif; ?>
+                                            </td>
+                                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEditC; ?>">
+                                                <?php if ($cUpdatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($cUpdatedIso); ?>"><?php echo date('Y-m-d H:i', $cUpdatedTs); ?></span><?php else: ?>—<?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-right">
                                                 <div class="flex gap-2 justify-end items-center">
@@ -1416,7 +1437,7 @@ $fieldMeta = [
         
         function updateUserSortIndicators() {
             // Reset all indicators
-            ['name', 'email', 'type', 'date_created', 'date_last_login'].forEach(col => {
+            ['name', 'email', 'type', 'date_created', 'date_last_login', 'updated_at'].forEach(col => {
                 const indicator = document.getElementById('sort-indicator-' + col);
                 if (indicator) {
                     indicator.innerHTML = '';
@@ -1472,6 +1493,10 @@ $fieldMeta = [
                         aVal = parseInt(a.dataset.dateLastLogin) || 0;
                         bVal = parseInt(b.dataset.dateLastLogin) || 0;
                         break;
+                    case 'updated_at':
+                        aVal = parseInt(a.dataset.updatedAt) || 0;
+                        bVal = parseInt(b.dataset.updatedAt) || 0;
+                        break;
                     default:
                         return 0;
                 }
@@ -1505,7 +1530,7 @@ $fieldMeta = [
         }
 
         function updateConstellationSortIndicators() {
-            ['id', 'name', 'slug', 'tagline', 'created_at'].forEach(col => {
+            ['id', 'name', 'slug', 'tagline', 'created_at', 'updated_at'].forEach(col => {
                 const indicator = document.getElementById('sort-indicator-const-' + col);
                 if (indicator) {
                     indicator.innerHTML = '';
@@ -1552,6 +1577,10 @@ $fieldMeta = [
                     case 'created_at':
                         aVal = parseInt(a.dataset.dateCreated) || 0;
                         bVal = parseInt(b.dataset.dateCreated) || 0;
+                        break;
+                    case 'updated_at':
+                        aVal = parseInt(a.dataset.updatedAt) || 0;
+                        bVal = parseInt(b.dataset.updatedAt) || 0;
                         break;
                     default:
                         return 0;

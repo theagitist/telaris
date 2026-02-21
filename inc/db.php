@@ -197,6 +197,28 @@ function db_ensure_constellation_columns(): void {
 }
 
 /**
+ * Ensure tables have updated_at columns.
+ */
+function db_ensure_updated_at_columns(): void {
+    try {
+        $pdo = getDB();
+        $tables = [
+            'users' => 'updated_at',
+            'constellations' => 'updated_at',
+            'api_keys' => 'updated_at'
+        ];
+        foreach ($tables as $table => $column) {
+            $stmt = $pdo->query("SHOW COLUMNS FROM `$table` LIKE '$column'");
+            if ($stmt->fetch() === false) {
+                $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+            }
+        }
+    } catch (PDOException $e) {
+        // Tables might not exist yet
+    }
+}
+
+/**
  * Read the description for English (Edit form).
  */
 function db_get_project_description(): string {
@@ -396,7 +418,7 @@ function db_validate_api_key(string $apiKey): bool {
 function db_get_api_keys(): array {
     $pdo = getDB();
     $stmt = $pdo->query("
-        SELECT id, api_key, name, description, created_at, last_used_at, is_active
+        SELECT id, api_key, name, description, created_at, last_used_at, updated_at, is_active
         FROM api_keys
         ORDER BY created_at DESC
     ");
@@ -492,7 +514,7 @@ function db_user_email_exists(string $email, ?string $excludeId = null): bool {
 function db_get_users(): array {
     $pdo = getDB();
     $stmt = $pdo->query("
-        SELECT id, email, firstname, lastname, type, date_created, date_last_login
+        SELECT id, email, firstname, lastname, type, date_created, date_last_login, updated_at
         FROM users
         ORDER BY date_created DESC
     ");
@@ -689,7 +711,7 @@ function db_default_constellation_tagline(PDO $pdo): string {
  */
 function db_get_constellations(): array {
     $pdo = getDB();
-    $stmt = $pdo->query("SELECT id, name, tagline, slug, created_at FROM constellations ORDER BY id");
+    $stmt = $pdo->query("SELECT id, name, tagline, slug, created_at, updated_at FROM constellations ORDER BY id");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -708,7 +730,7 @@ function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
     }
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        SELECT c.id, c.name, c.tagline, c.slug, c.created_at
+        SELECT c.id, c.name, c.tagline, c.slug, c.created_at, c.updated_at
         FROM constellations c
         INNER JOIN user_constellations uc ON uc.constellation_id = c.id AND uc.user_id = :user_id
         ORDER BY c.id
@@ -887,7 +909,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
     // Admin or specific constellation requested
     if ($isAdmin && $constellationId === null) {
         $stmt = $pdo->query("
-            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.constellation_id,
+            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated,
                    c.name AS constellation_name
             FROM nodes n
@@ -908,7 +930,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         }
 
         $stmt = $pdo->prepare("
-            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.constellation_id,
+            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated,
                    c.name AS constellation_name
             FROM nodes n
@@ -923,7 +945,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
     // Editor requesting "all" constellations - show only those they have access to
     if (!$isAdmin && $userId !== null) {
         $stmt = $pdo->prepare("
-            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.constellation_id,
+            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated,
                    c.name AS constellation_name
             FROM nodes n
@@ -964,10 +986,15 @@ function db_format_node(array $node): array {
     $keywords = db_get_keywords_for_node((int)$node['id']);
     $animation = json_decode($node['animation'], true, 512, JSON_THROW_ON_ERROR);
     $createdAt = $node['created_at'] ?? null;
-    // Return created_at as ISO 8601 UTC so the client can display in user's timezone
+    $updatedAt = $node['updated_at'] ?? null;
+    // Return timestamps as ISO 8601 UTC so the client can display in user's timezone
     if ($createdAt !== null && $createdAt !== '') {
         $ts = strtotime($createdAt);
         $createdAt = $ts !== false ? gmdate('c', $ts) : $createdAt;
+    }
+    if ($updatedAt !== null && $updatedAt !== '') {
+        $ts = strtotime($updatedAt);
+        $updatedAt = $ts !== false ? gmdate('c', $ts) : $updatedAt;
     }
     $targetConstellationId = null;
     if (isset($node['target_constellation_id']) && $node['target_constellation_id'] !== null && $node['target_constellation_id'] !== '') {
@@ -986,6 +1013,7 @@ function db_format_node(array $node): array {
         'keywords' => $keywords,
         'animation' => $animation,
         'created_at' => $createdAt,
+        'updated_at' => $updatedAt,
         'constellation_id' => isset($node['constellation_id']) ? (int)$node['constellation_id'] : DEFAULT_CONSTELLATION_ID,
         'constellation_name' => isset($node['constellation_name']) && (string)$node['constellation_name'] !== '' ? (string)$node['constellation_name'] : 'Default',
         'node_type' => $nodeType,

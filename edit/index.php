@@ -440,9 +440,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('node_type')">Type<span id="sort-indicator-node_type"></span></div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('constellation_name')">Constellation<span id="sort-indicator-constellation_name"></span></div>
                             <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')">URL<span id="sort-indicator-url"></span></div>
-                            <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">Keywords<span id="sort-indicator-keywords"></span></div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">Keywords<span id="sort-indicator-keywords"></span></div>
                             <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('is_accentuated')" title="Accentuated Status">Acc<span id="sort-indicator-is_accentuated"></span></div>
                             <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">Created<span id="sort-indicator-created_at"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('updated_at')">Updated<span id="sort-indicator-updated_at"></span></div>
                             <div class="col-span-1 text-right pr-2">Actions</div>
                         </div>
                     </div>
@@ -457,6 +458,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     const dateObj = node.created_at ? new Date(node.created_at) : null;
                     const createdDate = dateObj 
                         ? `${dateObj.getFullYear()}-${(dateObj.getMonth()+1).toString().padStart(2,'0')}-${dateObj.getDate().toString().padStart(2,'0')} ${dateObj.getHours().toString().padStart(2,'0')}:${dateObj.getMinutes().toString().padStart(2,'0')}` 
+                        : 'N/A';
+                    const updatedDateObj = node.updated_at ? new Date(node.updated_at) : null;
+                    const updatedDate = updatedDateObj 
+                        ? `${updatedDateObj.getFullYear()}-${(updatedDateObj.getMonth()+1).toString().padStart(2,'0')}-${updatedDateObj.getDate().toString().padStart(2,'0')} ${updatedDateObj.getHours().toString().padStart(2,'0')}:${updatedDateObj.getMinutes().toString().padStart(2,'0')}` 
                         : 'N/A';
                     const descriptionTruncated = node.description ? (node.description.length > 80 ? escapeHtml(node.description.substring(0, 80)) + '...' : escapeHtml(node.description)) : '';
                     const keywordsDisplay = node.keywords && node.keywords.length > 0 
@@ -495,7 +500,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 ${node.audio_url ? '<span class="text-[10px] bg-orange-100 text-orange-700 px-1 rounded" title="Has Audio">AUD</span>' : ''}
                             </div>
                         </div>
-                        <div class="col-span-3">
+                        <div class="col-span-2">
                             <div class="flex flex-wrap gap-1">${keywordsDisplay}</div>
                         </div>
                         <div class="col-span-1 text-center">
@@ -503,6 +508,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </div>
                         <div class="col-span-1 text-xs text-gray-500 whitespace-nowrap">
                             ${createdDate}
+                        </div>
+                        <div class="col-span-1 text-xs text-gray-500 whitespace-nowrap">
+                            ${updatedDate}
                         </div>
                         <div class="col-span-1 flex gap-2 justify-end pr-2">
                             <button onclick="event.stopPropagation(); deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">
@@ -615,7 +623,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Update sort indicators in header
         function updateSortIndicators() {
             // Reset all indicators
-            ['name', 'node_type', 'constellation_name', 'url', 'keywords', 'is_accentuated', 'created_at'].forEach(col => {
+            ['name', 'node_type', 'constellation_name', 'url', 'keywords', 'is_accentuated', 'created_at', 'updated_at'].forEach(col => {
                 const indicator = document.getElementById('sort-indicator-' + col);
                 if (indicator) {
                     indicator.innerHTML = '';
@@ -677,6 +685,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         case 'created_at':
                             aVal = a.created_at ? new Date(a.created_at).getTime() : 0;
                             bVal = b.created_at ? new Date(b.created_at).getTime() : 0;
+                            break;
+                        case 'updated_at':
+                            aVal = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+                            bVal = b.updated_at ? new Date(b.updated_at).getTime() : 0;
                             break;
                         case 'url':
                             aVal = (a.url || '').toLowerCase();

@@ -26,6 +26,7 @@ try {
     }
     db_ensure_project_info_columns();
     db_ensure_constellation_columns();
+    db_ensure_updated_at_columns();
 } catch (PDOException $e) {
     header('Location: admin/setup.php');
     exit();

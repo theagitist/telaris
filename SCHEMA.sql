@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
     type INT NOT NULL DEFAULT 0,
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     date_last_login TIMESTAMP NULL DEFAULT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY unique_email (email),
     INDEX idx_type (type),
     INDEX idx_date_created (date_created),
@@ -23,7 +24,8 @@ CREATE TABLE IF NOT EXISTS constellations (
     name VARCHAR(255) NOT NULL DEFAULT '',
     tagline VARCHAR(500) NOT NULL DEFAULT '',
     slug VARCHAR(255) NULL UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- In SCHEMA.sql, locate the nodes table and update it:
@@ -122,7 +124,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_used_at TIMESTAMP NULL DEFAULT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY unique_api_key (api_key),
     INDEX idx_api_key (api_key),
     INDEX idx_is_active (is_active)
