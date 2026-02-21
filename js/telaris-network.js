@@ -1013,51 +1013,48 @@ class TelarisNetwork {
                         html += `</div>`;
                     }
 
-                    // Interaction hint
-                    const hasMedia = !!(hoveredNode.userData.image_url || hoveredNode.userData.embed_code || hoveredNode.userData.audio_url);
-                    const hasDesc = !!(hoveredNode.userData.description && hoveredNode.userData.description.trim() !== '');
-                    const isPortal = hoveredNode.userData.node_type === 'portal';
+                                        // Interaction hint
+                                        const hasMedia = !!(hoveredNode.userData.image_url || hoveredNode.userData.embed_code || hoveredNode.userData.audio_url);
+                                        const hasDesc = !!(hoveredNode.userData.description && hoveredNode.userData.description.trim() !== '');
+                                        const isPortal = hoveredNode.userData.node_type === 'portal';
+                                        
+                                        if (hoveredNode.userData.url || hasMedia || hasDesc || isPortal) {
+                                            const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
+                                                ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
+                                                : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
+                                            html += `<div style="opacity: 0.5; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px; text-align: center;">${hintText}</div>`;
+                                        }
                     
-                    const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
-                        ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
-                        : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
+                                        this.tooltip.innerHTML = html;
                     
-                    const hasContent = (hoveredNode.userData.url || hasMedia || hasDesc || isPortal);
-                    html += `<div style="background: rgba(255, 204, 0, 0.9); color: #000; padding: 4px 8px; margin-top: 8px; border-radius: 2px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; text-align: center; display: block; width: 100%;">`;
-                    html += hintText;
-                    html += `</div>`;
-
-                    this.tooltip.innerHTML = html;
-
-                    const styles = this.getNodeTooltipStyles(hoveredNode);
-                    Object.assign(this.tooltip.style, {
-                        background: styles.background.replace('0.35', '0.95'),
-                        color: styles.color,
-                        visibility: 'visible',
-                        display: 'block',
-                        opacity: '1',
-                        zIndex: '9999',
-                        border: '1px solid rgba(255,255,255,0.5)',
-                        maxWidth: '220px',
-                        paddingBottom: '10px'
-                    });
-
-                    const projected = new THREE.Vector3();
-                    hoveredNode.getWorldPosition(projected);
-                    const dist = projected.distanceTo(this.camera.position);
-                    projected.project(this.camera);
+                                        const styles = this.getNodeTooltipStyles(hoveredNode);
+                                        Object.assign(this.tooltip.style, {
+                                            background: styles.background,
+                                            color: styles.color,
+                                            visibility: 'visible',
+                                            display: 'block',
+                                            opacity: '0',
+                                            zIndex: '200',
+                                            border: 'none',
+                                            maxWidth: 'none',
+                                            paddingBottom: '8px'
+                                        });
                     
-                    const tooltipYOffset = 34 + Math.max(0, (18 - dist) * 1.5);
-                    const x = (projected.x * 0.5 + 0.5) * rect.width;
-                    const y = (0.5 - projected.y * 0.5) * rect.height + tooltipYOffset;
-                    
-                    Object.assign(this.tooltip.style, {
-                        left: x + 'px',
-                        top: y + 'px',
-                        transform: 'translate(-50%, -100%) translate(0, -30px)'
-                    });
-                    
-                    requestAnimationFrame(() => requestAnimationFrame(() => { this.tooltip.style.opacity = '1'; }));
+                                        const projected = new THREE.Vector3();
+                                        hoveredNode.getWorldPosition(projected);
+                                        const dist = projected.distanceTo(this.camera.position);
+                                        projected.project(this.camera);
+                                        
+                                        const tooltipYOffset = 34 + Math.max(0, (18 - dist) * 1.5);
+                                        const x = (projected.x * 0.5 + 0.5) * rect.width;
+                                        const y = (0.5 - projected.y * 0.5) * rect.height + tooltipYOffset;
+                                        
+                                        Object.assign(this.tooltip.style, {
+                                            left: x + 'px',
+                                            top: y + 'px',
+                                            transform: 'translate(-50%, -100%) translate(0, -20px)'
+                                        });
+                                        requestAnimationFrame(() => requestAnimationFrame(() => { this.tooltip.style.opacity = '1'; }));
                 }
             } else {
                 this.renderer.domElement.style.cursor = 'default';
@@ -1316,26 +1313,26 @@ class TelarisNetwork {
                 const hasDesc = !!(node.userData.description && node.userData.description.trim() !== '');
                 const isPortal = node.userData.node_type === 'portal';
                 
-                const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
-                    ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
-                    : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
-                
-                const hasContent = (node.userData.url || hasMedia || hasDesc || isPortal);
-                html += `<div style="background: rgba(255, 204, 0, 0.9); color: #000; padding: 4px 8px; margin-top: 8px; border-radius: 2px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; text-align: center; display: block; width: 100%;">`;
-                html += hintText;
-                html += `</div>`;
+                if (node.userData.url || hasMedia || hasDesc || isPortal) {
+                    const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
+                        ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
+                        : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
+                    html += `<div style="opacity: 0.5; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px; text-align: center;">${hintText}</div>`;
+                }
 
                 this.tooltip.innerHTML = html;
 
                 const styles = this.getNodeTooltipStyles(node);
                 Object.assign(this.tooltip.style, {
-                    background: styles.background.replace('0.35', '0.95'),
+                    background: styles.background,
                     color: styles.color,
                     visibility: 'visible',
                     display: 'block',
-                    opacity: '1',
-                    zIndex: '9999',
-                    border: '1px solid rgba(255,255,255,0.5)'
+                    opacity: '0',
+                    zIndex: '200',
+                    border: 'none',
+                    maxWidth: 'none',
+                    paddingBottom: '8px'
                 });
 
                 const rect = this.renderer.domElement.getBoundingClientRect();
@@ -1351,9 +1348,7 @@ class TelarisNetwork {
                 Object.assign(this.tooltip.style, {
                     left: screenX + 'px',
                     top: screenY + 'px',
-                    transform: 'translate(-50%, -100%) translate(0, -30px)',
-                    maxWidth: '220px',
-                    paddingBottom: '10px'
+                    transform: 'translate(-50%, -100%) translate(0, -20px)'
                 });
                 requestAnimationFrame(() => requestAnimationFrame(() => { this.tooltip.style.opacity = '1'; }));
             }
