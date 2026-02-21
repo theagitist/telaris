@@ -15,7 +15,7 @@ if (!file_exists(__DIR__ . '/../config.php')) {
 require_once __DIR__ . '/../utils/auth.php';
 requireAdminLogin();
 
-require_once '../config.php';
+require_once __DIR__ . '/../config.php';
 
 $message = null;
 $error = null;

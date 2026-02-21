@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-require_once '../config.php';
-require_once 'auth.php';
-require_once '../utils/auth.php';
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/../utils/auth.php';
 
 // Set CORS headers for API responses
 if (php_sapi_name() !== 'cli') {

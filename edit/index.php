@@ -4,10 +4,10 @@ declare(strict_types=1);
 // Set Content-Type header
 header('Content-Type: text/html; charset=UTF-8');
 
-require_once '../utils/auth.php';
+require_once __DIR__ . '/../utils/auth.php';
 requireEditorOrAdminLogin();
 
-require_once '../config.php';
+require_once __DIR__ . '/../config.php';
 
 $pdo = getDB();
 

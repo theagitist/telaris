@@ -31,12 +31,6 @@ function getDB(): PDO {
         );
         return $pdo;
     } catch (PDOException $e) {
-        if (php_sapi_name() !== 'cli') {
-            http_response_code(500);
-            header('Content-Type: application/json');
-            echo json_encode(['error' => 'Database connection failed: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
-            exit;
-        }
         throw $e;
     }
 }

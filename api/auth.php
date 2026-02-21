@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Validates API key from request headers or query parameters
  */
 
-require_once '../config.php';
+require_once __DIR__ . '/../config.php';
 
 /**
  * Validate API key and return true if valid, false otherwise
