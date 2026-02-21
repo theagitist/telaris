@@ -28,7 +28,8 @@
         }
 
         #node-tooltip {
-            /* Transition handled in JS for responsiveness */
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            border-radius: 12px;
         }
         .persistent-tooltip-item {
             transition: opacity 0.75s ease-in-out;

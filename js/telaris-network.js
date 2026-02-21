@@ -380,10 +380,11 @@ class TelarisNetwork {
             clearTimeout(this.tooltipHideTimeout);
         }
         this.tooltip.style.opacity = '0';
+        this.tooltip.style.transform = 'translate(-50%, -100%) translate(0, -10px) scale(0.95)';
         this.tooltipHideTimeout = setTimeout(() => {
             this.tooltip.style.visibility = 'hidden';
             this.tooltipHideTimeout = null;
-        }, 780);
+        }, 300);
     }
 
     init() {
@@ -1752,10 +1753,8 @@ class TelarisNetwork {
         const x = (this._scratchVec.x * 0.5 + 0.5) * rect.width;
         const y = (0.5 - this._scratchVec.y * 0.5) * rect.height + tooltipYOffset;
 
-        Object.assign(this.tooltip.style, {
-            left: x + 'px',
-            top: y + 'px'
-        });
+        this.tooltip.style.left = x + 'px';
+        this.tooltip.style.top = y + 'px';
     }
 
     updateHoverState() {
@@ -1822,37 +1821,40 @@ class TelarisNetwork {
                     this.tooltip.innerHTML = html;
 
                     const styles = this.getNodeTooltipStyles(hoveredNode);
-                    Object.assign(this.tooltip.style, {
-                        background: styles.background,
-                        color: styles.color,
-                        backdropFilter: 'blur(8px)',
-                        webkitBackdropFilter: 'blur(8px)',
-                        visibility: 'visible',
-                        display: 'block',
-                        opacity: '0',
-                        zIndex: '200',
-                        border: 'none',
-                        maxWidth: 'none',
-                        paddingBottom: '8px'
-                    });                    
-                    
-                    const rect = this.renderer.domElement.getBoundingClientRect();
-                    const projected = new THREE.Vector3();
-                    hoveredNode.getWorldPosition(projected);
-                    const dist = projected.distanceTo(this.camera.position);
-                    projected.project(this.camera);
-                    
-                    const tooltipYOffset = 34 + Math.max(0, (18 - dist) * 1.5);
-                    const x = (projected.x * 0.5 + 0.5) * rect.width;
-                    const y = (0.5 - projected.y * 0.5) * rect.height + tooltipYOffset;
-                    
-                    Object.assign(this.tooltip.style, {
-                        left: x + 'px',
-                        top: y + 'px',
-                        transform: 'translate(-50%, -100%) translate(0, -20px)'
-                    });
-                    requestAnimationFrame(() => requestAnimationFrame(() => { this.tooltip.style.opacity = '1'; }));
-                }
+                        Object.assign(this.tooltip.style, {
+                            background: styles.background,
+                            color: styles.color,
+                            backdropFilter: 'blur(8px)',
+                            webkitBackdropFilter: 'blur(8px)',
+                            visibility: 'visible',
+                            display: 'block',
+                            opacity: '0',
+                            zIndex: '200',
+                            border: 'none',
+                            maxWidth: 'none',
+                            paddingBottom: '8px',
+                            transform: 'translate(-50%, -100%) translate(0, -10px) scale(0.95)'
+                        });                    
+                        
+                        const rect = this.renderer.domElement.getBoundingClientRect();
+                        const projected = new THREE.Vector3();
+                        hoveredNode.getWorldPosition(projected);
+                        const dist = projected.distanceTo(this.camera.position);
+                        projected.project(this.camera);
+                        
+                        const tooltipYOffset = 34 + Math.max(0, (18 - dist) * 1.5);
+                        const x = (projected.x * 0.5 + 0.5) * rect.width;
+                        const y = (0.5 - projected.y * 0.5) * rect.height + tooltipYOffset;
+                        
+                        Object.assign(this.tooltip.style, {
+                            left: x + 'px',
+                            top: y + 'px'
+                        });
+                        requestAnimationFrame(() => requestAnimationFrame(() => { 
+                            this.tooltip.style.opacity = '1'; 
+                            this.tooltip.style.transform = 'translate(-50%, -100%) translate(0, -20px) scale(1)';
+                        }));
+                    }
             }
         } else {
             this.renderer.domElement.style.cursor = 'default';
