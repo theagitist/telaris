@@ -55,12 +55,12 @@ class TelarisNetwork {
 
     getNodeTooltipStyles(node) {
         const d = node.userData;
-        if (!d || d.colorR === undefined) return { background: 'rgba(0,0,0,0.35)', color: 'rgb(255,255,255)' };
+        if (!d || d.colorR === undefined) return { backgroundColor: 'rgba(0,0,0,0.35)', color: 'rgb(255,255,255)' };
         const r = d.colorR, g = d.colorG, b = d.colorB;
         const darken = 0.5;
         const dr = Math.round(r * darken), dg = Math.round(g * darken), db = Math.round(b * darken);
         return {
-            background: `rgba(${dr},${dg},${db},0.35)`,
+            backgroundColor: `rgba(${dr},${dg},${db},0.35)`,
             color: `rgb(${r},${g},${b})`
         };
     }
@@ -1226,7 +1226,7 @@ class TelarisNetwork {
 
                 const styles = this.getNodeTooltipStyles(node);
                 Object.assign(this.tooltip.style, {
-                    background: styles.background,
+                    backgroundColor: styles.backgroundColor,
                     color: styles.color,
                     backdropFilter: 'blur(8px)',
                     webkitBackdropFilter: 'blur(8px)',
@@ -1816,10 +1816,11 @@ class TelarisNetwork {
 
                     this.tooltip.innerHTML = html;
 
-                    const styles = this.getNodeTooltipStyles(hoveredNode);
-                        Object.assign(this.tooltip.style, {
-                            background: styles.background,
-                            color: styles.color,
+                                        const styles = this.getNodeTooltipStyles(hoveredNode);
+                                        Object.assign(this.tooltip.style, {
+                                            backgroundColor: styles.backgroundColor,
+                                            color: styles.color,
+                    
                             backdropFilter: 'blur(8px)',
                             webkitBackdropFilter: 'blur(8px)',
                             visibility: 'visible',

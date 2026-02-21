@@ -187,6 +187,14 @@ Stores API keys for authentication.
 
 ## Version History
 
+### Version 4.0.0
+- **Selectable Default Constellation**: Implemented dynamic default constellation support. Administrators can now choose which network appears at the root of the site via the Admin Console.
+- **Bulk Node Actions**: Added checkboxes and a bulk action bar to the Node Editor, allowing for simultaneous deletion or moving of multiple nodes across constellations.
+- **Safe Constellation Deletion**: Enhanced the deletion workflow with mandatory name confirmation and automatic cascading cleanup of referencing portals from other networks.
+- **CRT-Style Tooltips**: Upgraded the node tooltip system with real-time 3D tracking, continuous hover detection, CRT-style rounded corners, and a subtle interlaced background effect.
+- **Improved UI Notifications**: Replaced static layout-disrupting messages with floating, auto-hiding top-center toasts in both Admin and Edit views.
+- **Automatic Schema Updates**: Integrated the new `default_constellation_id` setting into the automated database synchronization logic.
+
 ### Version 3.5.0
 - **Tactical HUD Interface**: Completely redesigned the navigation panel into a cockpit-inspired HUD with glassmorphism and coordinate tracking.
 - **Fuzzy Search**: Added real-time "SCAN SYSTEM" functionality to the HUD, allowing users to filter nodes and connections instantly.

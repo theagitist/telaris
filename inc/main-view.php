@@ -16,7 +16,7 @@
     <meta property="og:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <meta name="twitter:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
     <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
-    <script src="js/tailwind.min.js?v=3.5.0"></script>
+    <script src="js/tailwind.min.js?v=4.0.0"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <style>
         :root {
@@ -30,6 +30,12 @@
         #node-tooltip {
             transition: opacity 0.3s ease, transform 0.3s ease;
             border-radius: 12px;
+            /* CRT Scanline / Interlace effect */
+            background-image: linear-gradient(
+                rgba(0, 0, 0, 0.1) 50%, 
+                rgba(0, 0, 0, 0) 50%
+            );
+            background-size: 100% 4px;
         }
         .persistent-tooltip-item {
             transition: opacity 0.75s ease-in-out;
@@ -368,14 +374,14 @@
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "./telaris-network.js": "./js/telaris-network.js?v=3.6.8",
-                "./network-manager.js": "./js/network-manager.js?v=3.6.8",
-                "./geometry-manager.js": "./js/geometry-manager.js?v=3.6.8",
-                "./api.js": "./js/api.js?v=3.6.8",
-                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=3.6.8"
+                "./telaris-network.js": "./js/telaris-network.js?v=4.0.0",
+                "./network-manager.js": "./js/network-manager.js?v=4.0.0",
+                "./geometry-manager.js": "./js/geometry-manager.js?v=4.0.0",
+                "./api.js": "./js/api.js?v=4.0.0",
+                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=4.0.0"
             }
         }
     </script>
-    <script type="module" src="js/main.js?v=3.6.8"></script>
+    <script type="module" src="js/main.js?v=4.0.0"></script>
 </body>
 </html>
