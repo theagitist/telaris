@@ -884,7 +884,23 @@ function db_update_constellation(int $id, string $name, string $tagline = '', ?s
 }
 
 /**
- * Delete a constellation. Fails if id is the default (0); nodes/keywords in other constellations are unaffected.
+ * Find all portal nodes that point to a specific constellation.
+ * @return list<array{id: int, name: string, constellation_id: int, constellation_name: string}>
+ */
+function db_get_referencing_portals(int $constellationId): array {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT n.id, n.name, n.constellation_id, c.name AS constellation_name
+        FROM nodes n
+        JOIN constellations c ON n.constellation_id = c.id
+        WHERE n.node_type = 'portal' AND n.target_constellation_id = :id
+    ");
+    $stmt->execute([':id' => $constellationId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Delete a constellation. Fails if id is the default; nodes/keywords in other constellations are unaffected.
  */
 function db_delete_constellation(int $id): void {
     if ($id === db_get_default_constellation_id()) {
@@ -893,9 +909,12 @@ function db_delete_constellation(int $id): void {
     $pdo = getDB();
     $pdo->beginTransaction();
     try {
-        // 1. Delete node_keywords associations first (though FK might handle it, let's be explicit if needed)
-        // Actually, node_keywords has ON DELETE CASCADE for node_id and keyword_id.
-        
+        // 1. Delete portals in OTHER constellations that point to THIS constellation
+        $referencing = db_get_referencing_portals($id);
+        foreach ($referencing as $ref) {
+            db_delete_node((int)$ref['id']);
+        }
+
         // 2. Delete nodes in this constellation
         // db_delete_node handles file deletion, so we should call it for each node
         $stmt = $pdo->prepare("SELECT id FROM nodes WHERE constellation_id = :id");

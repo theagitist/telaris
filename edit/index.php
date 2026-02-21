@@ -106,6 +106,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 <button onclick="clearSelection()" class="btn btn-sm btn-ghost normal-case font-normal hover:bg-white/10">Clear Selection</button>
             </div>
             <div class="flex items-center gap-2">
+                <button onclick="openBulkMoveModal()" class="btn btn-sm btn-outline text-white border-white/30 hover:bg-white/10 hover:border-white">Move Selected</button>
                 <button onclick="bulkDelete()" class="btn btn-sm btn-error text-white">Delete Selected</button>
             </div>
         </div>
@@ -252,6 +253,70 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 countEl.textContent = selectedNodeIds.size;
             } else {
                 bar.classList.add('hidden');
+            }
+        }
+
+        function openBulkMoveModal() {
+            const count = selectedNodeIds.size;
+            if (count === 0) return;
+            
+            document.getElementById('bulk-move-count').textContent = count;
+            document.getElementById('bulk_move_modal').showModal();
+        }
+
+        async function bulkMove() {
+            const constellationId = document.getElementById('bulk-move-constellation').value;
+            if (!constellationId) return;
+
+            const ids = Array.from(selectedNodeIds);
+            let successCount = 0;
+            let errorCount = 0;
+
+            const bar = document.getElementById('bulk-actions-bar');
+            bar.classList.add('opacity-50', 'pointer-events-none');
+            document.getElementById('bulk_move_modal').close();
+
+            try {
+                // Update each node. We need to fetch the node data first or send a partial update if the API supports it.
+                // Our API handles PUT with partial data if we provide ID and Name.
+                const promises = ids.map(id => {
+                    const node = allNodes.find(n => n.id === id);
+                    if (!node) return Promise.resolve();
+
+                    const formData = new FormData();
+                    formData.append('id', id);
+                    formData.append('name', node.name);
+                    formData.append('constellation_id', constellationId);
+                    
+                    return fetch(API_BASE, {
+                        method: 'POST',
+                        headers: {
+                            'X-API-Key': API_KEY,
+                            'X-HTTP-Method-Override': 'PUT'
+                        },
+                        body: formData
+                    }).then(r => {
+                        if (r.ok) successCount++;
+                        else errorCount++;
+                    }).catch(() => errorCount++);
+                });
+
+                await Promise.all(promises);
+
+                if (successCount > 0) {
+                    showMessage(`Successfully moved ${successCount} nodes.`);
+                }
+                if (errorCount > 0) {
+                    showMessage(`Failed to move ${errorCount} nodes.`, 'error');
+                }
+
+                selectedNodeIds.clear();
+                updateBulkActionsBar();
+                loadNodes();
+            } catch (e) {
+                showMessage('An error occurred during bulk move.', 'error');
+            } finally {
+                bar.classList.remove('opacity-50', 'pointer-events-none');
             }
         }
 
@@ -1614,6 +1679,29 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             <div class="modal-action">
                 <button id="delete-confirm-btn" class="btn btn-error text-white">Delete</button>
                 <button type="button" class="btn" onclick="document.getElementById('delete_confirm_modal').close()">Cancel</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Bulk Move Modal -->
+    <dialog id="bulk_move_modal" class="modal">
+        <div class="modal-box bg-white">
+            <h3 class="font-bold text-xl mb-4 text-gray-800">Move Nodes</h3>
+            <p class="text-gray-600 mb-4">Move <span id="bulk-move-count" class="font-bold">0</span> selected nodes to another constellation.</p>
+            
+            <div class="mb-6">
+                <label for="bulk-move-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Constellation</label>
+                <select id="bulk-move-constellation" class="select select-bordered w-full bg-white">
+                    <?php foreach ($constellations as $c): ?>
+                        <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="modal-action">
+                <button onclick="bulkMove()" class="btn btn-neutral">Move Nodes</button>
+                <button type="button" class="btn" onclick="document.getElementById('bulk_move_modal').close()">Cancel</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>

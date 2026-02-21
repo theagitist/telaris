@@ -577,7 +577,7 @@ $fieldMeta = [
                                                         $delMsgJs = htmlspecialchars(json_encode($delMsg), ENT_QUOTES, 'UTF-8');
                                                         ?>
                                                         <button type="button" 
-                                                                onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>)" 
+                                                                onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, null)" 
                                                                 class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">Delete</button>
                                                     <?php endif; ?>
                                                 </div>
@@ -1286,20 +1286,49 @@ $fieldMeta = [
             document.getElementById('constellation_modal').showModal();
         }
 
-        function triggerDelete(action, id, message, confirmName = null) {
+        async function triggerDelete(action, id, message, confirmName = null) {
             document.getElementById('delete-action').value = action;
             document.getElementById('delete-id').value = id;
-            document.getElementById('delete-confirm-message').textContent = message;
+            document.getElementById('delete-confirm-message').innerHTML = message;
             
             const confirmWrap = document.getElementById('delete-name-confirm-wrap');
             const confirmInput = document.getElementById('delete-confirm-name-input');
             const deleteBtn = document.getElementById('delete-confirm-btn');
+            const impactWrap = document.getElementById('delete-impact-wrap');
             
+            // Reset impact wrap
+            impactWrap.innerHTML = '';
+            impactWrap.classList.add('hidden');
+
             if (confirmName) {
                 confirmWrap.classList.remove('hidden');
                 confirmInput.value = '';
                 confirmInput.setAttribute('data-expected', confirmName);
                 deleteBtn.disabled = true;
+
+                // Fetch impact for constellation deletion
+                if (action === 'delete_constellation') {
+                    try {
+                        const response = await fetch(`../api/constellations.php?action=impact&id=${id}`, {
+                            headers: { 'X-API-Key': API_KEY }
+                        });
+                        const data = await response.json();
+                        if (data.referencing_portals && data.referencing_portals.length > 0) {
+                            let html = `<div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 text-xs">`;
+                            html += `<p class="font-bold mb-2 uppercase tracking-wide">⚠️ Deletion Impact:</p>`;
+                            html += `<p class="mb-2">The following portal nodes in other constellations point to this network and will also be deleted:</p>`;
+                            html += `<ul class="list-disc list-inside space-y-1">`;
+                            data.referencing_portals.forEach(p => {
+                                html += `<li><strong>${p.name}</strong> (in constellation: ${p.constellation_name})</li>`;
+                            });
+                            html += `</ul></div>`;
+                            impactWrap.innerHTML = html;
+                            impactWrap.classList.remove('hidden');
+                        }
+                    } catch (e) {
+                        console.error('Failed to fetch deletion impact', e);
+                    }
+                }
             } else {
                 confirmWrap.classList.add('hidden');
                 deleteBtn.disabled = false;
@@ -1894,8 +1923,10 @@ $fieldMeta = [
     <dialog id="delete_confirm_modal" class="modal">
         <div class="modal-box bg-white border-t-4 border-error">
             <h3 class="font-bold text-xl mb-4 text-gray-800">Confirm Deletion</h3>
-            <p id="delete-confirm-message" class="text-gray-600 mb-6"></p>
+            <div id="delete-confirm-message" class="text-gray-600 mb-6"></div>
             
+            <div id="delete-impact-wrap" class="mb-6 hidden"></div>
+
             <div id="delete-name-confirm-wrap" class="mb-6 hidden">
                 <label for="delete-confirm-name-input" class="block mb-2 text-sm font-medium text-gray-700">Please type the name of the constellation to confirm:</label>
                 <input type="text" 

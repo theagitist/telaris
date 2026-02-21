@@ -23,6 +23,19 @@ $method = $_SERVER['REQUEST_METHOD'];
 try {
     match ($method) {
         'GET' => (function(): void {
+            if (isset($_GET['action']) && $_GET['action'] === 'impact' && isset($_GET['id'])) {
+                $id = (int)$_GET['id'];
+                $portals = db_get_referencing_portals($id);
+                echo json_encode([
+                    'referencing_portals' => array_map(fn($p) => [
+                        'id' => (int)$p['id'],
+                        'name' => $p['name'],
+                        'constellation_id' => (int)$p['constellation_id'],
+                        'constellation_name' => $p['constellation_name']
+                    ], $portals)
+                ], JSON_THROW_ON_ERROR);
+                return;
+            }
             $list = db_get_constellations();
             $out = array_map(fn(array $row) => [
                 'id' => (int)$row['id'],
