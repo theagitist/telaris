@@ -62,6 +62,20 @@ const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_mes
 /** Locales supported (one row per locale in project_info). */
 const PROJECT_INFO_LOCALES = ['en', 'es', 'pt'];
 
+/**
+ * Get the default constellation ID from project settings.
+ */
+function db_get_default_constellation_id(): int {
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->query("SELECT default_constellation_id FROM project_info WHERE locale = 'en' LIMIT 1");
+        $row = $stmt->fetch();
+        return $row ? (int)$row['default_constellation_id'] : 0;
+    } catch (PDOException $e) {
+        return 0;
+    }
+}
+
 function db_has_project_table(): bool {
     try {
         $pdo = getDB();
@@ -287,6 +301,9 @@ function db_get_project_info_all_locales(): ?array {
 
         foreach ($rows as $r) {
             $locale = $r['locale'] ?? 'en';
+            if ($locale === 'en') {
+                $out['default_constellation_id'] = (int)($r['default_constellation_id'] ?? 0);
+            }
             foreach (PROJECT_INFO_KEYS as $key) {
                 if (isset($r[$key])) {
                     if ($locale === 'en') {
@@ -338,6 +355,7 @@ function db_get_project_info_for_locale(string $locale): array {
             }
             $out[$key] = $val;
         }
+        $out['default_constellation_id'] = (int)($enRow['default_constellation_id'] ?? 0);
         return $out;
     } catch (PDOException $e) {
         $defaults = db_default_project_info_rows();
@@ -348,7 +366,7 @@ function db_get_project_info_for_locale(string $locale): array {
 /**
  * Update project settings for all locales (one row per locale in project_info).
  */
-function db_update_project_settings_with_locales(array $en, array $es, array $pt): void {
+function db_update_project_settings_with_locales(array $en, array $es, array $pt, ?int $defaultConstellationId = null): void {
     db_ensure_project_info_table();
     $pdo = getDB();
     
@@ -361,7 +379,15 @@ function db_update_project_settings_with_locales(array $en, array $es, array $pt
     }
     $updateStr = implode(', ', $updates);
     
-    $stmt = $pdo->prepare("INSERT INTO project_info (locale, $cols) VALUES (:locale, $placeholders) ON DUPLICATE KEY UPDATE $updateStr");
+    // Check if column exists (it should, but just in case for older migrations)
+    $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'default_constellation_id'");
+    $hasDefaultCol = $stmt->fetch() !== false;
+    
+    $sql = "INSERT INTO project_info (locale, $cols" . ($hasDefaultCol ? ", default_constellation_id" : "") . ") 
+            VALUES (:locale, $placeholders" . ($hasDefaultCol ? ", :default_constellation_id" : "") . ") 
+            ON DUPLICATE KEY UPDATE $updateStr" . ($hasDefaultCol ? ", default_constellation_id = VALUES(default_constellation_id)" : "");
+    
+    $stmt = $pdo->prepare($sql);
     
     $locales = ['en' => $en, 'es' => $es, 'pt' => $pt];
     $defaults = db_default_project_info_rows();
@@ -376,15 +402,21 @@ function db_update_project_settings_with_locales(array $en, array $es, array $pt
             }
             $params[':' . $k] = $val;
         }
+        if ($hasDefaultCol) {
+            $params[':default_constellation_id'] = $defaultConstellationId ?? 0;
+        }
         $stmt->execute($params);
     }
-    // Keep default constellation (id=0) in sync with English app name and tagline when Settings are saved
+    
+    // Keep the chosen default constellation in sync with English app name and tagline
     $enName = trim((string) ($en['name'] ?? ''));
     $enDescription = trim((string) ($en['description'] ?? ''));
+    $syncId = $defaultConstellationId ?? db_get_default_constellation_id();
+    
     $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline WHERE id = :id")->execute([
         ':name' => $enName !== '' ? $enName : 'Default',
         ':tagline' => $enDescription,
-        ':id' => DEFAULT_CONSTELLATION_ID
+        ':id' => $syncId
     ]);
 }
 
@@ -659,9 +691,6 @@ function createUser(PDO $pdo, string $email, string $hashedPassword, string $fir
 // Constellations
 // ---------------------------------------------------------------------------
 
-/** Default constellation id (created by setup, cannot be erased). */
-const DEFAULT_CONSTELLATION_ID = 0;
-
 /**
  * Generate a URL-friendly slug from a string.
  * Replaces spaces with hyphens, omits special characters, and converts to lowercase.
@@ -869,7 +898,7 @@ function db_update_constellation(int $id, string $name, string $tagline = '', ?s
  * Delete a constellation. Fails if id is the default (0); nodes/keywords in other constellations are unaffected.
  */
 function db_delete_constellation(int $id): void {
-    if ($id === DEFAULT_CONSTELLATION_ID) {
+    if ($id === db_get_default_constellation_id()) {
         throw new InvalidArgumentException('The default constellation cannot be deleted.');
     }
     $pdo = getDB();
@@ -1014,7 +1043,7 @@ function db_format_node(array $node): array {
         'animation' => $animation,
         'created_at' => $createdAt,
         'updated_at' => $updatedAt,
-        'constellation_id' => isset($node['constellation_id']) ? (int)$node['constellation_id'] : DEFAULT_CONSTELLATION_ID,
+        'constellation_id' => isset($node['constellation_id']) ? (int)$node['constellation_id'] : db_get_default_constellation_id(),
         'constellation_name' => isset($node['constellation_name']) && (string)$node['constellation_name'] !== '' ? (string)$node['constellation_name'] : 'Default',
         'node_type' => $nodeType,
         'target_constellation_id' => $targetConstellationId,
@@ -1027,7 +1056,7 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
     $nodeStmt = $pdo->prepare("SELECT constellation_id FROM nodes WHERE id = :id LIMIT 1");
     $nodeStmt->execute([':id' => $nodeId]);
     $nodeRow = $nodeStmt->fetch();
-    $constellationId = $nodeRow ? (int)$nodeRow['constellation_id'] : DEFAULT_CONSTELLATION_ID;
+    $constellationId = $nodeRow ? (int)$nodeRow['constellation_id'] : db_get_default_constellation_id();
     $pdo->prepare("DELETE FROM node_keywords WHERE node_id = :node_id")->execute([':node_id' => $nodeId]);
     if ($keywords === []) {
         return;
@@ -1063,7 +1092,10 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
     }
 }
 
-function db_create_node(string $name, ?string $description, ?string $url, string $animation, int $constellationId = DEFAULT_CONSTELLATION_ID, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false): int {
+function db_create_node(string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false): int {
+    if ($constellationId === null) {
+        $constellationId = db_get_default_constellation_id();
+    }
     $pdo = getDB();
     $stmt = $pdo->prepare("
         INSERT INTO nodes (name, description, url, image_url, embed_code, audio_url, audio_autoplay, animation, constellation_id, node_type, target_constellation_id, is_accentuated)
@@ -1201,11 +1233,14 @@ function db_get_keywords(?int $nodeId = null): array {
         GROUP BY k.id, k.keyword
         ORDER BY k.keyword
     ");
-    $stmt->execute([':constellation_id' => DEFAULT_CONSTELLATION_ID]);
+    $stmt->execute([':constellation_id' => db_get_default_constellation_id()]);
     return $stmt->fetchAll();
 }
 
-function db_create_keyword(string $keyword, int $constellationId = DEFAULT_CONSTELLATION_ID): int {
+function db_create_keyword(string $keyword, ?int $constellationId = null): int {
+    if ($constellationId === null) {
+        $constellationId = db_get_default_constellation_id();
+    }
     $pdo = getDB();
     $stmt = $pdo->prepare("
         INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :constellation_id)

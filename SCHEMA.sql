@@ -102,7 +102,8 @@ CREATE TABLE IF NOT EXISTS project_info (
     admin_label_text VARCHAR(200) NOT NULL DEFAULT 'Admin',
     logout_label_text VARCHAR(200) NOT NULL DEFAULT 'Logout',
     click_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Click to view',
-    tap_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Tap again to view'
+    tap_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Tap again to view',
+    default_constellation_id INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table for editor constellation access (user_id = users.id, constellation_id = constellations.id). Admins see all; editors see only rows here.

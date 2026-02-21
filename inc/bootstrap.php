@@ -99,10 +99,11 @@ $projectAdminLabelText = $projectStrings['admin_label_text'] ?? 'Admin';
 $projectLogoutLabelText = $projectStrings['logout_label_text'] ?? 'Logout';
 $projectClickToViewText = $projectStrings['click_to_view_text'] ?? 'Click to view';
 $projectTapToViewText = $projectStrings['tap_to_view_text'] ?? 'Tap again to view';
+$defaultConstellationId = $projectStrings['default_constellation_id'] ?? 0;
 
-// Constellation for main view: root URL = default (0); /{NUMBER} or ?constellation_id=NUMBER = that constellation
+// Constellation for main view: root URL = default; /{NUMBER} or ?constellation_id=NUMBER = that constellation
 // NEW: Support for slugs /{SLUG}
-$constellationId = 0;
+$constellationId = $defaultConstellationId;
 $constellationName = $projectName;
 $constellationTagline = $projectTagline;
 
@@ -115,7 +116,7 @@ if (preg_match('/^[0-9]+$/', $path)) {
         $constellationName = $constellationInfo['name'];
         $constellationTagline = $constellationInfo['tagline'];
     } else {
-        $constellationId = 0;
+        $constellationId = $defaultConstellationId;
     }
 } elseif ($path !== '' && !str_contains($path, '.')) {
     // Attempt to match as a slug
@@ -132,7 +133,7 @@ if (preg_match('/^[0-9]+$/', $path)) {
         $constellationName = $constellationInfo['name'];
         $constellationTagline = $constellationInfo['tagline'];
     } else {
-        $constellationId = 0;
+        $constellationId = $defaultConstellationId;
     }
 }
 

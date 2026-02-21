@@ -260,7 +260,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
 
                 if ($en['name'] !== '' && $en['iframe_back_text'] !== '' && $en['alert_message'] !== '' && $en['edit_button_text'] !== '' && $en['loading_text'] !== '') {
                     try {
-                        db_update_project_settings_with_locales($en, $es, $pt);
+                        $defaultConstellationId = isset($_POST['default_constellation_id']) ? (int)$_POST['default_constellation_id'] : null;
+                        db_update_project_settings_with_locales($en, $es, $pt, $defaultConstellationId);
                         $lang = isset($_POST['settings_lang']) && in_array($_POST['settings_lang'], ['en', 'es', 'pt'], true) ? $_POST['settings_lang'] : 'en';
                         header('Location: index.php?tab=settings&saved=1&lang=' . urlencode($lang));
                         exit;
@@ -727,7 +728,17 @@ $fieldMeta = [
                                    class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
                     </div>
-                    <p class="text-sm text-gray-600 mb-4">Each constellation is a separate set of nodes and keywords. The default constellation (ID 0) cannot be deleted.</p>
+                    <?php 
+                        $defaultId = (int)($projectAll['default_constellation_id'] ?? 0); 
+                        $defaultName = 'ID ' . $defaultId;
+                        foreach($constellations as $c) {
+                            if ((int)$c['id'] === $defaultId) {
+                                $defaultName = htmlspecialchars($c['name']) . ' (ID ' . $defaultId . ')';
+                                break;
+                            }
+                        }
+                    ?>
+                    <p class="text-sm text-gray-600 mb-4">Each constellation is a separate set of nodes and keywords. The current default constellation, <strong><?php echo $defaultName; ?></strong>, cannot be deleted. You can change the default constellation in the <button onclick="showTab(\'settings\')" class="text-blue-600 hover:underline">Global Settings</button> tab.</p>
                     <div id="copy-url-toast" class="hidden fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded shadow-lg text-sm" role="status" aria-live="polite">URL copied to clipboard.</div>
                     <?php if (empty($constellations)): ?>
                         <p class="text-gray-600">No constellations found.</p>
@@ -761,9 +772,9 @@ $fieldMeta = [
                                     <?php foreach ($constellations as $c): ?>
                                         <?php
                                         $cId = (int)$c['id'];
-                                        $isDefault = $cId === 0;
+                                        $isDefault = $cId === (int)($projectAll['default_constellation_id'] ?? 0);
                                         $cTagline = isset($c['tagline']) ? (string)$c['tagline'] : '';
-                                        $viewRel = $cId === 0 ? '../index.php' : '../index.php?constellation_id=' . $cId;
+                                        $viewRel = $cId === (int)($projectAll['default_constellation_id'] ?? 0) ? '../index.php' : '../index.php?constellation_id=' . $cId;
                                         ?>
                                         <tr class="constellation-row border-b border-gray-300 hover:bg-gray-50" 
                                             data-id="<?php echo $cId; ?>" 
@@ -836,6 +847,19 @@ $fieldMeta = [
                 <form method="post" action="" class="max-w-2xl">
                     <input type="hidden" name="action" value="save_settings">
                     <input type="hidden" name="settings_lang" id="settings_lang" value="<?php echo htmlspecialchars($_GET['lang'] ?? 'en'); ?>">
+                    
+                    <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <label for="default_constellation_id" class="block mb-1.5 text-gray-800 font-medium">Default Constellation</label>
+                        <select id="default_constellation_id" name="default_constellation_id" class="select select-bordered w-full bg-white">
+                            <?php foreach ($constellations as $c): ?>
+                                <option value="<?php echo (int)$c['id']; ?>" <?php echo (isset($projectAll['default_constellation_id']) && (int)$projectAll['default_constellation_id'] === (int)$c['id']) ? 'selected' : ''; ?>>
+                                    [ID: <?php echo (int)$c['id']; ?>] <?php echo htmlspecialchars($c['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="text-xs text-gray-500 mt-1 block">Choose which constellation is shown at the root of the website. The chosen constellation will also have its name and tagline synced with the "App name" and "Description" fields below.</span>
+                    </div>
+
                     <div class="border border-gray-200 rounded-lg bg-white overflow-hidden">
                         <div class="border-b border-gray-200 bg-gray-50">
                             <nav class="flex">

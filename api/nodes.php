@@ -68,7 +68,7 @@ try {
                 }
             }
             if ($constellationId === null && !isset($_GET['constellation_id'])) {
-                $constellationId = DEFAULT_CONSTELLATION_ID; // main view without param: show default constellation only
+                $constellationId = db_get_default_constellation_id(); // main view without param: show default constellation only
             }
             $nodes = db_get_nodes($constellationId, $currentUserId, $isAdmin);
             $formatted = array_map(fn($node) => db_format_node($node), $nodes);
@@ -136,7 +136,7 @@ try {
                 echo json_encode(['error' => 'Node name cannot be empty'], JSON_THROW_ON_ERROR);
                 return;
             }
-            $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : DEFAULT_CONSTELLATION_ID;
+            $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : db_get_default_constellation_id();
             $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
             $imageUrl = (isset($data['image_url']) && !empty(trim((string)$data['image_url']))) ? trim((string)$data['image_url']) : null;
             $embedCode = (isset($data['embed_code']) && !empty(trim((string)$data['embed_code']))) ? trim((string)$data['embed_code']) : null;
