@@ -95,7 +95,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
 
         <!-- Messages -->
-        <div id="notification-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+        <div id="notification-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[2000] flex flex-col gap-2 w-full max-w-md pointer-events-none"></div>
         <div id="message" class="hidden"></div> <!-- Legacy hidden div to avoid JS errors if referenced elsewhere -->
 
         <!-- Bulk Actions Bar -->
@@ -456,19 +456,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (!container) return;
 
             const toast = document.createElement('div');
-            toast.className = `p-4 rounded shadow-lg text-white font-medium pointer-events-auto transition-all duration-500 transform translate-x-full opacity-0 ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`;
-            toast.textContent = text;
+            toast.className = `alert ${type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg mb-2 pointer-events-auto transition-all duration-500 transform -translate-y-4 opacity-0 text-white`;
+            toast.innerHTML = `<div class="text-sm font-medium">${text}</div>`;
             
             container.appendChild(toast);
 
             // Trigger animation
             requestAnimationFrame(() => {
-                toast.classList.remove('translate-x-full', 'opacity-0');
+                toast.classList.remove('-translate-y-4', 'opacity-0');
             });
 
             // Auto-remove after 8 seconds
             setTimeout(() => {
-                toast.classList.add('translate-x-full', 'opacity-0');
+                toast.classList.add('-translate-y-4', 'opacity-0');
                 setTimeout(() => {
                     toast.remove();
                 }, 500);

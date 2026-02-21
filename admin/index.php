@@ -382,6 +382,9 @@ $fieldMeta = [
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
 </head>
 <body class="font-sans bg-gray-100 min-h-screen">
+    <!-- Notification Container -->
+    <div id="notification-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[2000] flex flex-col gap-2 w-full max-w-md pointer-events-none"></div>
+
     <!-- Initial Loading Overlay -->
     <div id="admin-loading-overlay" class="fixed inset-0 z-[1000] bg-gray-100 flex flex-col items-center justify-center transition-opacity duration-300">
         <span class="loading loading-spinner loading-lg text-neutral mb-4"></span>
@@ -410,42 +413,26 @@ $fieldMeta = [
             </div>
         </div>
 
-        <!-- Messages -->
-        <?php if ($newApiKey): ?>
-            <div class="alert-message mb-5 p-4 bg-green-50 border-2 border-green-500 rounded">
-                <h3 class="text-green-800 font-semibold mb-2">✓ API Key Generated Successfully!</h3>
-                <p class="text-gray-700 mb-3"><strong>Name:</strong> <?php echo htmlspecialchars($newApiKeyName); ?></p>
-                <div class="mb-3">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Your API Key:</label>
-                    <div class="flex items-center gap-2">
-                        <input type="text" 
-                               id="new-api-key" 
-                               value="<?php echo htmlspecialchars($newApiKey); ?>" 
-                               readonly 
-                               class="flex-1 p-2 border border-gray-300 rounded bg-gray-50 font-mono text-sm">
-                        <button onclick="copyApiKey()" class="btn btn-neutral">
-                            Copy
-                        </button>
-                    </div>
+        <!-- Messages Data (Hidden) -->
+        <div id="php-messages" class="hidden">
+            <?php if ($newApiKey): ?>
+                <div data-type="success" data-title="✓ API Key Generated">
+                    Your API Key: <?php echo htmlspecialchars($newApiKey); ?> (Name: <?php echo htmlspecialchars($newApiKeyName); ?>). PLEASE COPY IT NOW.
                 </div>
-                <p class="text-sm text-red-600 font-semibold">⚠️ Save this key now! You won't be able to see it again.</p>
-            </div>
-        <?php endif; ?>
-        
-        <?php if ($message): ?>
-            <div class="alert-message bg-green-50 text-green-600 p-4 rounded mb-5"><?php echo htmlspecialchars($message); ?></div>
-        <?php endif; ?>
-        
-        <?php if ($error): ?>
-            <div class="alert-message bg-red-50 text-red-700 p-4 rounded mb-5"><?php echo htmlspecialchars($error); ?></div>
-        <?php endif; ?>
-        
-        <?php if (isset($_GET['saved']) && $_GET['saved'] === '1'): ?>
-            <div class="alert-message mb-5 p-4 bg-green-50 border border-green-500 rounded text-green-800">Global settings saved.</div>
-        <?php endif; ?>
-        <?php if ($settingsError): ?>
-            <div class="alert-message mb-5 p-4 bg-red-50 border border-red-500 rounded text-red-800"><?php echo htmlspecialchars($settingsError); ?></div>
-        <?php endif; ?>
+            <?php endif; ?>
+            <?php if ($message): ?>
+                <div data-type="success"><?php echo htmlspecialchars($message); ?></div>
+            <?php endif; ?>
+            <?php if ($error): ?>
+                <div data-type="error"><?php echo htmlspecialchars($error); ?></div>
+            <?php endif; ?>
+            <?php if (isset($_GET['saved']) && $_GET['saved'] === '1'): ?>
+                <div data-type="success">Global settings saved.</div>
+            <?php endif; ?>
+            <?php if ($settingsError): ?>
+                <div data-type="error"><?php echo htmlspecialchars($settingsError); ?></div>
+            <?php endif; ?>
+        </div>
 
         <!-- Tabs -->
         <div class="mb-6">
@@ -954,6 +941,33 @@ $fieldMeta = [
             }
         }
 
+        function showMessage(text, type = 'success', title = null) {
+            const container = document.getElementById('notification-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            // Using DaisyUI alert classes for styling
+            toast.className = `alert ${type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg mb-2 pointer-events-auto transition-all duration-500 transform -translate-y-4 opacity-0 text-white`;
+            
+            let content = `<div>`;
+            if (title) content += `<h3 class="font-bold text-xs uppercase opacity-80 mb-1">${title}</h3>`;
+            content += `<div class="text-sm font-medium">${text}</div></div>`;
+            
+            toast.innerHTML = content;
+            container.appendChild(toast);
+
+            // Trigger animation
+            requestAnimationFrame(() => {
+                toast.classList.remove('-translate-y-4', 'opacity-0');
+            });
+
+            // Auto-remove after 8 seconds
+            setTimeout(() => {
+                toast.classList.add('-translate-y-4', 'opacity-0');
+                setTimeout(() => toast.remove(), 500);
+            }, 8000);
+        }
+
         function toggleUserConstellationsSection() {
             const typeSelect = document.getElementById('type');
             const section = document.getElementById('user-constellations-section');
@@ -1396,20 +1410,10 @@ $fieldMeta = [
             toggleCreateUserConstellations();
             toggleCreateNewConstellationName();
 
-            // Auto-hide alert messages after 8 seconds
-            setTimeout(() => {
-                document.querySelectorAll('.alert-message').forEach(el => {
-                    el.style.transition = 'opacity 1s ease, margin 1s ease, padding 1s ease, height 1s ease';
-                    el.style.opacity = '0';
-                    setTimeout(() => {
-                        el.style.margin = '0';
-                        el.style.padding = '0';
-                        el.style.height = '0';
-                        el.style.overflow = 'hidden';
-                        setTimeout(() => el.remove(), 1000);
-                    }, 1000);
-                });
-            }, 8000);
+            // Toastify any PHP-rendered messages
+            document.querySelectorAll('#php-messages > div').forEach(msg => {
+                showMessage(msg.innerHTML, msg.dataset.type, msg.dataset.title);
+            });
 
             // Initial pagination
             applyPagination('users');
