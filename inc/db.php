@@ -632,6 +632,22 @@ function createUser(PDO $pdo, string $email, string $hashedPassword, string $fir
 const DEFAULT_CONSTELLATION_ID = 0;
 
 /**
+ * Generate a URL-friendly slug from a string.
+ * Replaces spaces with hyphens, omits special characters, and converts to lowercase.
+ */
+function db_slugify(string $text): string {
+    // Replace spaces with hyphens
+    $text = str_replace(' ', '-', $text);
+    // Remove all characters that are not alphanumeric or hyphens
+    $text = preg_replace('/[^a-z0-9\-]/i', '', $text);
+    // Convert to lowercase
+    $text = strtolower($text);
+    // Collapse multiple hyphens and trim them from ends
+    $text = preg_replace('/-+/', '-', $text);
+    return trim($text, '-');
+}
+
+/**
  * Return the display name for the default constellation: app name from project_info (en) if non-empty, else 'Default'.
  */
 function db_default_constellation_name(PDO $pdo): string {
@@ -720,6 +736,18 @@ function db_get_constellation_by_slug(string $slug): ?array {
     $stmt = $pdo->prepare("SELECT id, name, tagline FROM constellations WHERE slug = :slug LIMIT 1");
     $stmt->execute([':slug' => $slug]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$row) {
+        // Fallback: check if any constellation name slugifies to this value
+        $all = $pdo->query("SELECT id, name, tagline, slug FROM constellations");
+        while ($c = $all->fetch(PDO::FETCH_ASSOC)) {
+            if (db_slugify($c['name']) === strtolower($slug)) {
+                $row = $c;
+                break;
+            }
+        }
+    }
+
     if (!$row) {
         return null;
     }
@@ -731,6 +759,40 @@ function db_get_constellation_by_slug(string $slug): ?array {
 }
 
 /**
+ * Check if a constellation name or slug already exists.
+ * @return array{name: bool, slug: bool}
+ */
+function db_constellation_exists(string $name, ?string $slug = null, ?int $excludeId = null): array {
+    $pdo = getDB();
+    $name = trim($name);
+    $slug = ($slug !== null) ? trim($slug) : null;
+    
+    $out = ['name' => false, 'slug' => false];
+    
+    // Check name
+    $sql = "SELECT id FROM constellations WHERE name = :name";
+    if ($excludeId !== null) $sql .= " AND id != :exclude_id";
+    $stmt = $pdo->prepare($sql);
+    $params = [':name' => $name];
+    if ($excludeId !== null) $params[':exclude_id'] = $excludeId;
+    $stmt->execute($params);
+    if ($stmt->fetch()) $out['name'] = true;
+    
+    // Check slug
+    if ($slug !== null && $slug !== '') {
+        $sql = "SELECT id FROM constellations WHERE slug = :slug";
+        if ($excludeId !== null) $sql .= " AND id != :exclude_id";
+        $stmt = $pdo->prepare($sql);
+        $params = [':slug' => $slug];
+        if ($excludeId !== null) $params[':exclude_id'] = $excludeId;
+        $stmt->execute($params);
+        if ($stmt->fetch()) $out['slug'] = true;
+    }
+    
+    return $out;
+}
+
+/**
  * Create a new constellation with the next available id. Returns the new id.
  */
 function db_create_constellation(string $name, string $tagline = '', ?string $slug = null): int {
@@ -738,11 +800,17 @@ function db_create_constellation(string $name, string $tagline = '', ?string $sl
     $stmt = $pdo->query("SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM constellations");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     $nextId = (int)($row['next_id'] ?? 1);
+    
+    $name = trim($name) ?: 'Unnamed';
+    if ($slug === null || trim($slug) === '') {
+        $slug = db_slugify($name);
+    }
+
     $pdo->prepare("INSERT INTO constellations (id, name, tagline, slug) VALUES (:id, :name, :tagline, :slug)")->execute([
         ':id' => $nextId,
-        ':name' => trim($name) ?: 'Unnamed',
+        ':name' => $name,
         ':tagline' => trim($tagline),
-        ':slug' => ($slug !== null && trim($slug) !== '') ? trim($slug) : null
+        ':slug' => trim($slug)
     ]);
     return $nextId;
 }
@@ -752,10 +820,16 @@ function db_create_constellation(string $name, string $tagline = '', ?string $sl
  */
 function db_update_constellation(int $id, string $name, string $tagline = '', ?string $slug = null): void {
     $pdo = getDB();
+    
+    $name = trim($name) ?: 'Unnamed';
+    if ($slug === null || trim($slug) === '') {
+        $slug = db_slugify($name);
+    }
+
     $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline, slug = :slug WHERE id = :id")->execute([
-        ':name' => trim($name) ?: 'Unnamed',
+        ':name' => $name,
         ':tagline' => trim($tagline),
-        ':slug' => ($slug !== null && trim($slug) !== '') ? trim($slug) : null,
+        ':slug' => trim($slug),
         ':id' => $id
     ]);
 }
@@ -769,6 +843,20 @@ function db_delete_constellation(int $id): void {
     }
     $pdo = getDB();
     $pdo->prepare("DELETE FROM constellations WHERE id = :id")->execute([':id' => $id]);
+}
+
+/**
+ * Check if a node name already exists in a given constellation.
+ */
+function db_node_exists(string $name, int $constellationId, ?int $excludeId = null): bool {
+    $pdo = getDB();
+    $sql = "SELECT id FROM nodes WHERE name = :name AND constellation_id = :constellation_id";
+    if ($excludeId !== null) $sql .= " AND id != :exclude_id";
+    $stmt = $pdo->prepare($sql);
+    $params = [':name' => trim($name), ':constellation_id' => $constellationId];
+    if ($excludeId !== null) $params[':exclude_id'] = $excludeId;
+    $stmt->execute($params);
+    return $stmt->fetch() !== false;
 }
 
 // ---------------------------------------------------------------------------

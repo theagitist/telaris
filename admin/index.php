@@ -188,6 +188,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 if (empty($name)) {
                     throw new Exception('Constellation name is required');
                 }
+                
+                $finalSlug = ($slug !== '') ? $slug : db_slugify($name);
+                $exists = db_constellation_exists($name, $finalSlug);
+                if ($exists['name'] || $exists['slug']) {
+                    $errs = [];
+                    if ($exists['name']) $errs[] = 'name "' . htmlspecialchars($name) . '"';
+                    if ($exists['slug']) $errs[] = 'slug "' . htmlspecialchars($finalSlug) . '"';
+                    throw new Exception('A constellation with this ' . implode(' and ', $errs) . ' already exists.');
+                }
+
                 db_create_constellation($name, $tagline, $slug !== '' ? $slug : null);
                 $message = 'Constellation created successfully.';
                 $activeTab = 'constellations';
@@ -202,6 +212,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 if (empty($name)) {
                     throw new Exception('Constellation name is required');
                 }
+
+                $finalSlug = ($slug !== '') ? $slug : db_slugify($name);
+                $exists = db_constellation_exists($name, $finalSlug, $id);
+                if ($exists['name'] || $exists['slug']) {
+                    $errs = [];
+                    if ($exists['name']) $errs[] = 'name "' . htmlspecialchars($name) . '"';
+                    if ($exists['slug']) $errs[] = 'slug "' . htmlspecialchars($finalSlug) . '"';
+                    throw new Exception('A constellation with this ' . implode(' and ', $errs) . ' already exists.');
+                }
+
                 db_update_constellation($id, $name, $tagline, $slug !== '' ? $slug : null);
                 $message = 'Constellation updated successfully.';
                 $activeTab = 'constellations';
@@ -704,8 +724,9 @@ $fieldMeta = [
                             <table class="w-full border-collapse">
                                 <thead>
                                     <tr class="border-b-2 border-gray-400 bg-gray-100">
-                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">ID</th>
+                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">ID</th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">Name</th>
+                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">Slug</th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">Tagline</th>
                                         <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">Actions</th>
                                     </tr>
@@ -732,12 +753,15 @@ $fieldMeta = [
                                             $cJson = htmlspecialchars(json_encode($cData), ENT_QUOTES, 'UTF-8');
                                             $clickEditC = "editConstellation($cJson)";
                                             ?>
-                                            <td class="py-2 px-2 font-mono text-gray-800 cursor-pointer" onclick="<?php echo $clickEditC; ?>"><?php echo $cId; ?></td>
+                                            <td class="py-2 px-2 font-mono text-gray-800 cursor-pointer whitespace-nowrap" onclick="<?php echo $clickEditC; ?>"><?php echo $cId; ?></td>
                                             <td class="py-2 px-2 font-semibold text-gray-800 cursor-pointer" onclick="<?php echo $clickEditC; ?>">
                                                 <?php echo htmlspecialchars($c['name']); ?>
                                                 <?php if ($isDefault): ?>
                                                     <span class="ml-2 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">Default</span>
                                                 <?php endif; ?>
+                                            </td>
+                                            <td class="py-2 px-2 font-mono text-xs text-blue-600 cursor-pointer" onclick="<?php echo $clickEditC; ?>">
+                                                <?php echo htmlspecialchars($c['slug'] ?? ''); ?>
                                             </td>
                                             <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="<?php echo $clickEditC; ?>" title="<?php echo htmlspecialchars($cTagline); ?>"><?php echo htmlspecialchars($cTagline); ?></td>
                                             <td class="py-2 px-2 text-right">
@@ -851,6 +875,21 @@ $fieldMeta = [
     </div>
     
     <script>
+        const API_KEY = <?php echo json_encode(getDefaultApiKey()); ?>;
+        const API_URL = '../api/validate.php';
+
+        async function validateField(type, params) {
+            if (!API_KEY) return { valid: true }; // Skip if no API key (shouldn't happen)
+            const query = new URLSearchParams({ type, ...params, api_key: API_KEY }).toString();
+            try {
+                const response = await fetch(`${API_URL}?${query}`);
+                return await response.json();
+            } catch (e) {
+                console.error('Validation failed', e);
+                return { valid: true };
+            }
+        }
+
         function toggleUserConstellationsSection() {
             const typeSelect = document.getElementById('type');
             const section = document.getElementById('user-constellations-section');
@@ -858,16 +897,16 @@ $fieldMeta = [
             const isEditor = typeSelect.value === '1';
             section.classList.toggle('hidden', !isEditor);
         }
-        function toggleNewConstellationName() {
-            const cb = document.getElementById('create_constellation');
-            const wrap = document.getElementById('new-constellation-name-wrap');
+        function toggleCreateNewConstellationName() {
+            const cb = document.getElementById('create_constellation_cb');
+            const wrap = document.getElementById('create-new-constellation-name-wrap');
             if (cb && wrap) wrap.classList.toggle('hidden', !cb.checked);
         }
         function initCreateUserForm() {
-            const emailEl = document.getElementById('email');
-            const nameEl = document.getElementById('new_constellation_name');
-            const createCb = document.getElementById('create_constellation');
-            if (createCb) createCb.addEventListener('change', toggleNewConstellationName);
+            const emailEl = document.getElementById('create-email');
+            const nameEl = document.getElementById('create_new_constellation_name');
+            const createCb = document.getElementById('create_constellation_cb');
+            if (createCb) createCb.addEventListener('change', toggleCreateNewConstellationName);
             if (emailEl && nameEl) {
                 emailEl.addEventListener('input', function() {
                     if (nameEl.value === '' || nameEl.getAttribute('data-auto') === '1') {
@@ -878,11 +917,113 @@ $fieldMeta = [
                 nameEl.addEventListener('input', function() { nameEl.removeAttribute('data-auto'); });
             }
         }
+
+        function setupLiveValidation() {
+            const debounce = (fn, delay) => {
+                let timeoutId;
+                return (...args) => {
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(() => fn(...args), delay);
+                };
+            };
+
+            const validateUser = async (emailEl, errorEl, idEl = null) => {
+                const email = emailEl.value.trim();
+                const form = emailEl.closest('form');
+                const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+                if (!email) {
+                    errorEl.classList.add('hidden');
+                    return;
+                }
+                const result = await validateField('user', { email, exclude_id: idEl ? idEl.value : null });
+                if (result.email) {
+                    errorEl.classList.remove('hidden');
+                    emailEl.classList.add('border-red-500');
+                    if (submitBtn) submitBtn.disabled = true;
+                } else {
+                    errorEl.classList.add('hidden');
+                    emailEl.classList.remove('border-red-500');
+                    if (submitBtn) {
+                        const otherErrors = form.querySelectorAll('.text-red-600:not(.hidden)');
+                        if (otherErrors.length === 0) submitBtn.disabled = false;
+                    }
+                }
+            };
+
+            const validateConstellation = async (nameEl, slugEl, nameErrEl, slugErrEl, idEl = null) => {
+                const name = nameEl.value.trim();
+                const slug = slugEl.value.trim();
+                const form = nameEl.closest('form');
+                const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+                if (!name && !slug) {
+                    nameErrEl.classList.add('hidden');
+                    slugErrEl.classList.add('hidden');
+                    return;
+                }
+                const result = await validateField('constellation', { name, slug, exclude_id: idEl ? idEl.value : null });
+                let hasError = false;
+                if (result.name) {
+                    nameErrEl.classList.remove('hidden');
+                    nameEl.classList.add('border-red-500');
+                    hasError = true;
+                } else {
+                    nameErrEl.classList.add('hidden');
+                    nameEl.classList.remove('border-red-500');
+                }
+                if (result.slug) {
+                    slugErrEl.classList.remove('hidden');
+                    slugEl.classList.add('border-red-500');
+                    hasError = true;
+                } else {
+                    slugErrEl.classList.add('hidden');
+                    slugEl.classList.remove('border-red-500');
+                }
+                if (submitBtn) {
+                    if (hasError) submitBtn.disabled = true;
+                    else {
+                        const otherErrors = form.querySelectorAll('.text-red-600:not(.hidden)');
+                        if (otherErrors.length === 0) submitBtn.disabled = false;
+                    }
+                }
+            };
+
+            // Create User
+            const createEmail = document.getElementById('create-email');
+            const createEmailErr = document.getElementById('create-email-error');
+            if (createEmail) createEmail.addEventListener('input', debounce(() => validateUser(createEmail, createEmailErr), 500));
+
+            // Edit User
+            const modalEmail = document.getElementById('modal-email');
+            const modalEmailErr = document.getElementById('modal-email-error');
+            const modalUserId = document.getElementById('modal-user-id');
+            if (modalEmail) modalEmail.addEventListener('input', debounce(() => validateUser(modalEmail, modalEmailErr, modalUserId), 500));
+
+            // Create Constellation
+            const createCName = document.getElementById('create-constellation-name');
+            const createCSlug = document.getElementById('create-constellation-slug');
+            const createCNameErr = document.getElementById('create-constellation-name-error');
+            const createCSlugErr = document.getElementById('create-constellation-slug-error');
+            const validateCreateC = debounce(() => validateConstellation(createCName, createCSlug, createCNameErr, createCSlugErr), 500);
+            if (createCName) createCName.addEventListener('input', validateCreateC);
+            if (createCSlug) createCSlug.addEventListener('input', validateCreateC);
+
+            // Edit Constellation
+            const modalCName = document.getElementById('modal-constellation-name');
+            const modalCSlug = document.getElementById('modal-constellation-slug');
+            const modalCNameErr = document.getElementById('modal-constellation-name-error');
+            const modalCSlugErr = document.getElementById('modal-constellation-slug-error');
+            const modalCId = document.getElementById('modal-constellation-id');
+            const validateModalC = debounce(() => validateConstellation(modalCName, modalCSlug, modalCNameErr, modalCSlugErr, modalCId), 500);
+            if (modalCName) modalCName.addEventListener('input', validateModalC);
+            if (modalCSlug) modalCSlug.addEventListener('input', validateModalC);
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             const typeSelect = document.getElementById('type');
             if (typeSelect) typeSelect.addEventListener('change', toggleUserConstellationsSection);
-            toggleNewConstellationName();
+            toggleCreateNewConstellationName();
             initCreateUserForm();
+            setupLiveValidation();
         });
         function copyConstellationUrl(relativePath, buttonEl) {
             const absoluteUrl = new URL(relativePath, window.location.origin + window.location.pathname).href;
@@ -1363,6 +1504,7 @@ $fieldMeta = [
                 <div class="mb-4">
                     <label for="create-email" class="block mb-1.5 text-gray-800 font-medium">Email *</label>
                     <input type="email" id="create-email" name="email" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span id="create-email-error" class="text-xs text-red-600 mt-1 hidden">This email is already in use.</span>
                     <span class="text-xs text-gray-500 mt-1 block">Login identifier and contact address.</span>
                 </div>
                 
@@ -1429,13 +1571,15 @@ $fieldMeta = [
                 <div class="mb-4">
                     <label for="create-constellation-name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
                     <input type="text" id="create-constellation-name" name="name" required placeholder="e.g. Main network, Archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span id="create-constellation-name-error" class="text-xs text-red-600 mt-1 hidden">This name is already in use.</span>
                     <span class="text-xs text-gray-500 mt-1 block">Unique name for the new node network.</span>
                 </div>
 
                 <div class="mb-4">
                     <label for="create-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">URL Slug (Optional)</label>
                     <input type="text" id="create-constellation-slug" name="slug" placeholder="e.g. archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">Custom URL path (e.g., telaris.polivoxia.ca/archive). Letters, numbers, and underscores only.</span>
+                    <span id="create-constellation-slug-error" class="text-xs text-red-600 mt-1 hidden">This slug is already in use.</span>
+                    <span class="text-xs text-gray-500 mt-1 block">Custom URL path. If left blank, one will be generated from the name. Letters, numbers, and hyphens only.</span>
                 </div>
                 
                 <div class="mb-4">
@@ -1475,6 +1619,7 @@ $fieldMeta = [
                 <div class="mb-4">
                     <label for="modal-email" class="block mb-1.5 text-gray-800 font-medium">Email *</label>
                     <input type="email" id="modal-email" name="email" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span id="modal-email-error" class="text-xs text-red-600 mt-1 hidden">This email is already in use.</span>
                 </div>
                 
                 <div class="mb-4">
@@ -1523,12 +1668,14 @@ $fieldMeta = [
                 <div class="mb-4">
                     <label for="modal-constellation-name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
                     <input type="text" id="modal-constellation-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span id="modal-constellation-name-error" class="text-xs text-red-600 mt-1 hidden">This name is already in use.</span>
                 </div>
 
                 <div class="mb-4">
                     <label for="modal-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">URL Slug (Optional)</label>
                     <input type="text" id="modal-constellation-slug" name="slug" placeholder="e.g. archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">Custom URL path. Letters, numbers, and underscores only.</span>
+                    <span id="modal-constellation-slug-error" class="text-xs text-red-600 mt-1 hidden">This slug is already in use.</span>
+                    <span class="text-xs text-gray-500 mt-1 block">Custom URL path. If left blank, one will be generated from the name. Letters, numbers, and hyphens only.</span>
                 </div>
                 
                 <div class="mb-4">

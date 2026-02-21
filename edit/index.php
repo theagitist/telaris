@@ -1142,6 +1142,75 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         }
 
         // Initialize on page load
+        const API_URL = '../api/validate.php';
+
+        async function validateField(type, params) {
+            if (typeof API_KEY === 'undefined' || !API_KEY) return { valid: true };
+            const query = new URLSearchParams({ type, ...params, api_key: API_KEY }).toString();
+            try {
+                const response = await fetch(`${API_URL}?${query}`);
+                return await response.json();
+            } catch (e) {
+                console.error('Validation failed', e);
+                return { valid: true };
+            }
+        }
+
+        function setupLiveValidation() {
+            const debounce = (fn, delay) => {
+                let timeoutId;
+                return (...args) => {
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(() => fn(...args), delay);
+                };
+            };
+
+            const validateNode = async (nameEl, cidEl, errorEl, idEl = null) => {
+                const name = nameEl.value.trim();
+                const cid = cidEl.value;
+                const form = nameEl.closest('form');
+                const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+                if (!name || !cid) {
+                    errorEl.classList.add('hidden');
+                    return;
+                }
+                const result = await validateField('node', { name, constellation_id: cid, exclude_id: idEl ? idEl.value : null });
+                if (result.name) {
+                    errorEl.classList.remove('hidden');
+                    nameEl.classList.add('border-red-500');
+                    if (submitBtn) submitBtn.disabled = true;
+                } else {
+                    errorEl.classList.add('hidden');
+                    nameEl.classList.remove('border-red-500');
+                    if (submitBtn) {
+                        const otherErrors = form.querySelectorAll('.text-red-600:not(.hidden)');
+                        if (otherErrors.length === 0) submitBtn.disabled = false;
+                    }
+                }
+            };
+
+            // Create Node
+            const createName = document.getElementById('node-name');
+            const createCid = document.getElementById('node-constellation');
+            const createErr = document.getElementById('node-name-error');
+            if (createName && createCid) {
+                const validateCreate = debounce(() => validateNode(createName, createCid, createErr), 500);
+                createName.addEventListener('input', validateCreate);
+                createCid.addEventListener('change', validateCreate);
+            }
+
+            // Edit Node
+            const editName = document.getElementById('edit-name');
+            const editCid = document.getElementById('edit-constellation');
+            const editErr = document.getElementById('edit-name-error');
+            const editId = document.getElementById('edit-id');
+            if (editName && editCid) {
+                const validateEdit = debounce(() => validateNode(editName, editCid, editErr, editId), 500);
+                editName.addEventListener('input', validateEdit);
+                editCid.addEventListener('change', validateEdit);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             loadNodes().catch(error => {
                 const listDiv = document.getElementById('nodes-list');
@@ -1149,6 +1218,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     listDiv.innerHTML = `<p class="text-red-600">Fatal error loading nodes: ${escapeHtml(error.message)}</p>`;
                 }
             });
+            setupLiveValidation();
         });
     </script>
     <!-- Create Node Modal -->
@@ -1160,6 +1230,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <div>
                         <label for="node-name" class="block mb-1.5 text-gray-800 font-medium text-sm">Name *</label>
                         <input type="text" id="node-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <span id="node-name-error" class="text-xs text-red-600 mt-1 hidden">This node name already exists in this constellation.</span>
                         <span class="text-xs text-gray-500 mt-1 block">Primary title of the node shown in the network.</span>
                     </div>
                     <div>
@@ -1260,6 +1331,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <div>
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Name *</label>
                         <input type="text" id="edit-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <span id="edit-name-error" class="text-xs text-red-600 mt-1 hidden">This node name already exists in this constellation.</span>
                     </div>
                     <div>
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Constellation</label>
