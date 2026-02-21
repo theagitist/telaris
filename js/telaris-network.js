@@ -1063,21 +1063,6 @@ class TelarisNetwork {
                         });
                         requestAnimationFrame(() => requestAnimationFrame(() => { this.tooltip.style.opacity = '1'; }));
                     }
-                } else {
-                    // Node is the same, but we should update tooltip POSITION as the mouse moves
-                    const projected = new THREE.Vector3();
-                    hoveredNode.getWorldPosition(projected);
-                    const dist = projected.distanceTo(this.camera.position);
-                    projected.project(this.camera);
-                    
-                    const tooltipYOffset = 34 + Math.max(0, (18 - dist) * 1.5);
-                    const x = (projected.x * 0.5 + 0.5) * rect.width;
-                    const y = (0.5 - projected.y * 0.5) * rect.height + tooltipYOffset;
-                    
-                    Object.assign(this.tooltip.style, {
-                        left: x + 'px',
-                        top: y + 'px'
-                    });
                 }
             } else {
                 this.renderer.domElement.style.cursor = 'default';
@@ -1850,6 +1835,31 @@ class TelarisNetwork {
         return withDist.slice(0, c20).map((e, i) => ({ node: e.node, inFront10: i < f10 }));
     }
 
+    updateMainTooltip() {
+        if (!this.tooltip || this.tooltip.style.visibility !== 'visible') return;
+        const focused = this.networkManager.getFocusedNode();
+        if (!focused) return;
+
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        focused.getWorldPosition(this._scratchVec);
+        const dist = this._scratchVec.distanceTo(this.camera.position);
+        this._scratchVec.project(this.camera);
+
+        if (this._scratchVec.z > 1 || this._scratchVec.z < -1) {
+            this.tooltip.style.opacity = '0';
+            return;
+        }
+
+        const tooltipYOffset = 34 + Math.max(0, (18 - dist) * 1.5);
+        const x = (this._scratchVec.x * 0.5 + 0.5) * rect.width;
+        const y = (0.5 - this._scratchVec.y * 0.5) * rect.height + tooltipYOffset;
+
+        Object.assign(this.tooltip.style, {
+            left: x + 'px',
+            top: y + 'px'
+        });
+    }
+
     updatePersistentTooltips() {
         if (!this.persistentTooltipsContainer || this.nodes.length === 0) return;
         const focused = this.networkManager.getFocusedNode();
@@ -2077,6 +2087,7 @@ class TelarisNetwork {
             this.updateConnections(dt);
         }
         
+        this.updateMainTooltip();
         this.updatePersistentTooltips();
         this.updateComet(dt);
         this.updateRocket(dt);
