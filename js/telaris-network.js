@@ -1027,19 +1027,20 @@ class TelarisNetwork {
                     
                                         this.tooltip.innerHTML = html;
                     
-                                        const styles = this.getNodeTooltipStyles(hoveredNode);
-                                        Object.assign(this.tooltip.style, {
-                                            background: styles.background,
-                                            color: styles.color,
-                                            visibility: 'visible',
-                                            display: 'block',
-                                            opacity: '0',
-                                            zIndex: '200',
-                                            border: 'none',
-                                            maxWidth: 'none',
-                                            paddingBottom: '8px'
-                                        });
-                    
+                                                            const styles = this.getNodeTooltipStyles(hoveredNode);
+                                                            Object.assign(this.tooltip.style, {
+                                                                background: styles.background,
+                                                                color: styles.color,
+                                                                backdropFilter: 'blur(8px)',
+                                                                webkitBackdropFilter: 'blur(8px)',
+                                                                visibility: 'visible',
+                                                                display: 'block',
+                                                                opacity: '0',
+                                                                zIndex: '200',
+                                                                border: 'none',
+                                                                maxWidth: 'none',
+                                                                paddingBottom: '8px'
+                                                            });                    
                                         const projected = new THREE.Vector3();
                                         hoveredNode.getWorldPosition(projected);
                                         const dist = projected.distanceTo(this.camera.position);
@@ -1326,6 +1327,8 @@ class TelarisNetwork {
                 Object.assign(this.tooltip.style, {
                     background: styles.background,
                     color: styles.color,
+                    backdropFilter: 'blur(8px)',
+                    webkitBackdropFilter: 'blur(8px)',
                     visibility: 'visible',
                     display: 'block',
                     opacity: '0',
