@@ -986,76 +986,98 @@ class TelarisNetwork {
                 }
             }
 
+            const currentFocused = this.networkManager.getFocusedNode();
+
             if (hoveredNode && hoveredNode.userData) {
                 if (this.mainTooltipNodeTimeout) {
                     clearTimeout(this.mainTooltipNodeTimeout);
                     this.mainTooltipNodeTimeout = null;
                 }
-                this.networkManager.setFocusedNode(hoveredNode);
-                
-                const isPortal = hoveredNode.userData.node_type === 'portal' && hoveredNode.userData.target_constellation_id != null;
-                const isObjectWithLink = hoveredNode.userData.node_type === 'object' && hoveredNode.userData.url;
-                
-                this.renderer.domElement.style.cursor = (isPortal || isObjectWithLink) ? 'pointer' : 'default';
 
-                if (this.tooltip && hoveredNode.userData.name) {
-                    if (this.tooltipHideTimeout) {
-                        clearTimeout(this.tooltipHideTimeout);
-                        this.tooltipHideTimeout = null;
-                    }
+                // ONLY update if it's a NEW node
+                if (currentFocused !== hoveredNode) {
+                    this.networkManager.setFocusedNode(hoveredNode);
                     
-                    let html = `<div style="font-weight:600; margin-bottom: 2px;">${hoveredNode.userData.name}</div>`;
-                    if (hoveredNode.userData.keywords?.length > 0) {
-                        html += `<div style="opacity: 0.8; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px;">`;
-                        hoveredNode.userData.keywords.forEach(kw => {
-                            html += `<span style="background: rgba(255,255,255,0.15); padding: 1px 4px; border-radius: 2px;">#${kw}</span>`;
+                    const isPortal = hoveredNode.userData.node_type === 'portal' && hoveredNode.userData.target_constellation_id != null;
+                    const isObjectWithLink = hoveredNode.userData.node_type === 'object' && hoveredNode.userData.url;
+                    
+                    this.renderer.domElement.style.cursor = (isPortal || isObjectWithLink) ? 'pointer' : 'default';
+
+                    if (this.tooltip && hoveredNode.userData.name) {
+                        if (this.tooltipHideTimeout) {
+                            clearTimeout(this.tooltipHideTimeout);
+                            this.tooltipHideTimeout = null;
+                        }
+                        
+                        let html = `<div style="font-weight:600; margin-bottom: 2px;">${hoveredNode.userData.name}</div>`;
+                        if (hoveredNode.userData.keywords?.length > 0) {
+                            html += `<div style="opacity: 0.8; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px;">`;
+                            hoveredNode.userData.keywords.forEach(kw => {
+                                html += `<span style="background: rgba(255,255,255,0.15); padding: 1px 4px; border-radius: 2px;">#${kw}</span>`;
+                            });
+                            html += `</div>`;
+                        }
+
+                        // Interaction hint
+                        const hasMedia = !!(hoveredNode.userData.image_url || hoveredNode.userData.embed_code || hoveredNode.userData.audio_url);
+                        const hasDesc = !!(hoveredNode.userData.description && hoveredNode.userData.description.trim() !== '');
+                        const isPortalNode = hoveredNode.userData.node_type === 'portal';
+                        
+                        if (hoveredNode.userData.url || hasMedia || hasDesc || isPortalNode) {
+                            const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
+                                ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
+                                : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
+                            html += `<div style="opacity: 0.5; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px; text-align: center;">${hintText}</div>`;
+                        }
+    
+                        this.tooltip.innerHTML = html;
+    
+                        const styles = this.getNodeTooltipStyles(hoveredNode);
+                        Object.assign(this.tooltip.style, {
+                            background: styles.background,
+                            color: styles.color,
+                            backdropFilter: 'blur(8px)',
+                            webkitBackdropFilter: 'blur(8px)',
+                            visibility: 'visible',
+                            display: 'block',
+                            opacity: '0',
+                            zIndex: '200',
+                            border: 'none',
+                            maxWidth: 'none',
+                            paddingBottom: '8px'
+                        });                    
+                        
+                        const projected = new THREE.Vector3();
+                        hoveredNode.getWorldPosition(projected);
+                        const dist = projected.distanceTo(this.camera.position);
+                        projected.project(this.camera);
+                        
+                        const tooltipYOffset = 34 + Math.max(0, (18 - dist) * 1.5);
+                        const x = (projected.x * 0.5 + 0.5) * rect.width;
+                        const y = (0.5 - projected.y * 0.5) * rect.height + tooltipYOffset;
+                        
+                        Object.assign(this.tooltip.style, {
+                            left: x + 'px',
+                            top: y + 'px',
+                            transform: 'translate(-50%, -100%) translate(0, -20px)'
                         });
-                        html += `</div>`;
+                        requestAnimationFrame(() => requestAnimationFrame(() => { this.tooltip.style.opacity = '1'; }));
                     }
-
-                                        // Interaction hint
-                                        const hasMedia = !!(hoveredNode.userData.image_url || hoveredNode.userData.embed_code || hoveredNode.userData.audio_url);
-                                        const hasDesc = !!(hoveredNode.userData.description && hoveredNode.userData.description.trim() !== '');
-                                        const isPortal = hoveredNode.userData.node_type === 'portal';
-                                        
-                                        if (hoveredNode.userData.url || hasMedia || hasDesc || isPortal) {
-                                            const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
-                                                ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
-                                                : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
-                                            html += `<div style="opacity: 0.5; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px; text-align: center;">${hintText}</div>`;
-                                        }
+                } else {
+                    // Node is the same, but we should update tooltip POSITION as the mouse moves
+                    const projected = new THREE.Vector3();
+                    hoveredNode.getWorldPosition(projected);
+                    const dist = projected.distanceTo(this.camera.position);
+                    projected.project(this.camera);
                     
-                                        this.tooltip.innerHTML = html;
+                    const tooltipYOffset = 34 + Math.max(0, (18 - dist) * 1.5);
+                    const x = (projected.x * 0.5 + 0.5) * rect.width;
+                    const y = (0.5 - projected.y * 0.5) * rect.height + tooltipYOffset;
                     
-                                                            const styles = this.getNodeTooltipStyles(hoveredNode);
-                                                            Object.assign(this.tooltip.style, {
-                                                                background: styles.background,
-                                                                color: styles.color,
-                                                                backdropFilter: 'blur(8px)',
-                                                                webkitBackdropFilter: 'blur(8px)',
-                                                                visibility: 'visible',
-                                                                display: 'block',
-                                                                opacity: '0',
-                                                                zIndex: '200',
-                                                                border: 'none',
-                                                                maxWidth: 'none',
-                                                                paddingBottom: '8px'
-                                                            });                    
-                                        const projected = new THREE.Vector3();
-                                        hoveredNode.getWorldPosition(projected);
-                                        const dist = projected.distanceTo(this.camera.position);
-                                        projected.project(this.camera);
-                                        
-                                        const tooltipYOffset = 34 + Math.max(0, (18 - dist) * 1.5);
-                                        const x = (projected.x * 0.5 + 0.5) * rect.width;
-                                        const y = (0.5 - projected.y * 0.5) * rect.height + tooltipYOffset;
-                                        
-                                        Object.assign(this.tooltip.style, {
-                                            left: x + 'px',
-                                            top: y + 'px',
-                                            transform: 'translate(-50%, -100%) translate(0, -20px)'
-                                        });
-                                        requestAnimationFrame(() => requestAnimationFrame(() => { this.tooltip.style.opacity = '1'; }));
+                    Object.assign(this.tooltip.style, {
+                        left: x + 'px',
+                        top: y + 'px'
+                    });
                 }
             } else {
                 this.renderer.domElement.style.cursor = 'default';
@@ -1413,6 +1435,7 @@ class TelarisNetwork {
                 const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type);
                 mesh.visible = false;
                 mesh.position.copy(pos);
+                mesh.renderOrder = 100; // Force nodes to stay in front of lines
 
                 // Accentuation: increase base size
                 if (node.is_accentuated) {
@@ -1506,12 +1529,12 @@ class TelarisNetwork {
                         opacity: 0, 
                         side: THREE.DoubleSide,
                         depthWrite: false,
-                        depthTest: false // Allow lines to be seen through the nodes to the very center
+                        depthTest: true
                     });
                     
                     const mesh = new THREE.Mesh(geometry, material);
                     mesh.visible = false; // Start invisible
-                    mesh.renderOrder = 10; // Render after nebulas and nodes
+                    mesh.renderOrder = 50; // Render after nebulas, before nodes (100)
                     this.connections.push({
                         mesh, node1: n1, node2: n2, sharedCount: shared,
                         thickness, baseOpacity: Math.min(opacity * 1.5, 1.0),
