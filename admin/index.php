@@ -721,13 +721,22 @@ $fieldMeta = [
                         <p class="text-gray-600">No constellations found.</p>
                     <?php else: ?>
                         <div class="overflow-x-auto border border-gray-300 rounded">
-                            <table class="w-full border-collapse">
+                            <table id="constellations-list" class="w-full border-collapse">
                                 <thead>
                                     <tr class="border-b-2 border-gray-400 bg-gray-100">
-                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">ID</th>
-                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">Name</th>
-                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">Slug</th>
+                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('id')">ID<span id="sort-indicator-const-id"></span></span>
+                                        </th>
+                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('name')">Name<span id="sort-indicator-const-name"></span></span>
+                                        </th>
+                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('slug')">Slug<span id="sort-indicator-const-slug"></span></span>
+                                        </th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">Tagline</th>
+                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('created_at')">Created<span id="sort-indicator-const-created_at"></span></span>
+                                        </th>
                                         <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">Actions</th>
                                     </tr>
                                 </thead>
@@ -742,6 +751,8 @@ $fieldMeta = [
                                         <tr class="constellation-row border-b border-gray-300 hover:bg-gray-50" 
                                             data-id="<?php echo $cId; ?>" 
                                             data-name="<?php echo htmlspecialchars(strtolower($c['name'])); ?>" 
+                                            data-slug="<?php echo htmlspecialchars(strtolower($c['slug'] ?? '')); ?>"
+                                            data-date-created="<?php echo isset($c['created_at']) ? strtotime($c['created_at']) : 0; ?>"
                                             data-tagline="<?php echo htmlspecialchars(strtolower($cTagline)); ?>">
                                             <?php 
                                             $cData = [
@@ -752,6 +763,8 @@ $fieldMeta = [
                                             ];
                                             $cJson = htmlspecialchars(json_encode($cData), ENT_QUOTES, 'UTF-8');
                                             $clickEditC = "editConstellation($cJson)";
+                                            $cCreatedTs = isset($c['created_at']) ? strtotime($c['created_at']) : false;
+                                            $cCreatedIso = $cCreatedTs !== false ? gmdate('c', $cCreatedTs) : '';
                                             ?>
                                             <td class="py-2 px-2 font-mono text-gray-800 cursor-pointer whitespace-nowrap" onclick="<?php echo $clickEditC; ?>"><?php echo $cId; ?></td>
                                             <td class="py-2 px-2 font-semibold text-gray-800 cursor-pointer" onclick="<?php echo $clickEditC; ?>">
@@ -764,6 +777,9 @@ $fieldMeta = [
                                                 <?php echo htmlspecialchars($c['slug'] ?? ''); ?>
                                             </td>
                                             <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="<?php echo $clickEditC; ?>" title="<?php echo htmlspecialchars($cTagline); ?>"><?php echo htmlspecialchars($cTagline); ?></td>
+                                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEditC; ?>">
+                                                <?php if ($cCreatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($cCreatedIso); ?>"><?php echo date('M d, Y H:i', $cCreatedTs); ?></span><?php else: ?>—<?php endif; ?>
+                                            </td>
                                             <td class="py-2 px-2 text-right">
                                                 <div class="flex gap-2 justify-end items-center">
                                                     <?php if (!$isDefault): ?>
@@ -1469,6 +1485,79 @@ $fieldMeta = [
             });
 
             applyPagination('users');
+        }
+
+        // Constellation list sorting
+        let currentConstSortColumn = null;
+        let currentConstSortOrder = 'asc';
+
+        function sortConstellationsByColumn(column) {
+            if (currentConstSortColumn === column) {
+                currentConstSortOrder = currentConstSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentConstSortColumn = column;
+                currentConstSortOrder = 'asc';
+            }
+            updateConstellationSortIndicators();
+            applyConstellationSorting();
+        }
+
+        function updateConstellationSortIndicators() {
+            ['id', 'name', 'slug', 'created_at'].forEach(col => {
+                const indicator = document.getElementById('sort-indicator-const-' + col);
+                if (indicator) {
+                    indicator.innerHTML = '';
+                }
+            });
+            
+            if (currentConstSortColumn) {
+                const indicator = document.getElementById('sort-indicator-const-' + currentConstSortColumn);
+                if (indicator) {
+                    indicator.innerHTML = currentConstSortOrder === 'asc' ? ' ↑' : ' ↓';
+                }
+            }
+        }
+
+        function applyConstellationSorting() {
+            const constTable = document.getElementById('constellations-list');
+            if (!constTable) return;
+            const tbody = constTable.querySelector('tbody');
+            if (!tbody) return;
+            
+            const rows = Array.from(tbody.querySelectorAll('tr.constellation-row'));
+            if (rows.length === 0) return;
+            
+            const sortedRows = rows.sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(currentConstSortColumn) {
+                    case 'id':
+                        aVal = parseInt(a.dataset.id) || 0;
+                        bVal = parseInt(b.dataset.id) || 0;
+                        break;
+                    case 'name':
+                        aVal = a.dataset.name || '';
+                        bVal = b.dataset.name || '';
+                        break;
+                    case 'slug':
+                        aVal = a.dataset.slug || '';
+                        bVal = b.dataset.slug || '';
+                        break;
+                    case 'created_at':
+                        aVal = parseInt(a.dataset.dateCreated) || 0;
+                        bVal = parseInt(b.dataset.dateCreated) || 0;
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                if (aVal < bVal) return currentConstSortOrder === 'asc' ? -1 : 1;
+                if (aVal > bVal) return currentConstSortOrder === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            sortedRows.forEach(row => tbody.appendChild(row));
+            applyPagination('constellations');
         }
 
         function applyUserSearch() {

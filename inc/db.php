@@ -188,6 +188,21 @@ function db_ensure_project_info_columns(): void {
 }
 
 /**
+ * Ensure constellations table has required columns.
+ */
+function db_ensure_constellation_columns(): void {
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'created_at'");
+        if ($stmt->fetch() === false) {
+            $pdo->exec("ALTER TABLE constellations ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+        }
+    } catch (PDOException $e) {
+        // Table might not exist yet
+    }
+}
+
+/**
  * Read the description for English (Edit form).
  */
 function db_get_project_description(): string {
@@ -680,7 +695,7 @@ function db_default_constellation_tagline(PDO $pdo): string {
  */
 function db_get_constellations(): array {
     $pdo = getDB();
-    $stmt = $pdo->query("SELECT id, name, tagline, slug FROM constellations ORDER BY id");
+    $stmt = $pdo->query("SELECT id, name, tagline, slug, created_at FROM constellations ORDER BY id");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -699,7 +714,7 @@ function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
     }
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        SELECT c.id, c.name, c.tagline, c.slug
+        SELECT c.id, c.name, c.tagline, c.slug, c.created_at
         FROM constellations c
         INNER JOIN user_constellations uc ON uc.constellation_id = c.id AND uc.user_id = :user_id
         ORDER BY c.id
