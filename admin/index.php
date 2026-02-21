@@ -819,11 +819,12 @@ $fieldMeta = [
                                                     <?php if (!$isDefault): ?>
                                                         <?php 
                                                         $cName = $c['name'];
-                                                        $delMsgC = "Are you sure you want to delete the constellation \"$cName\"? Nodes and keywords in this constellation must be moved or deleted first.";
+                                                        $delMsgC = "Are you sure you want to delete the constellation \"$cName\"? This will permanently remove ALL nodes and keywords inside it.";
                                                         $delMsgJsC = htmlspecialchars(json_encode($delMsgC), ENT_QUOTES, 'UTF-8');
+                                                        $cNameJs = htmlspecialchars(json_encode($cName), ENT_QUOTES, 'UTF-8');
                                                         ?>
                                                         <button type="button" 
-                                                                onclick="event.stopPropagation(); triggerDelete('delete_constellation', '<?php echo $cId; ?>', <?php echo $delMsgJsC; ?>)" 
+                                                                onclick="event.stopPropagation(); triggerDelete('delete_constellation', '<?php echo $cId; ?>', <?php echo $delMsgJsC; ?>, <?php echo $cNameJs; ?>)" 
                                                                 class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">Delete</button>
                                                     <?php endif; ?>
                                                     <a href="<?php echo htmlspecialchars($viewRel); ?>" target="_blank" rel="noopener" class="px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white text-xs rounded inline-flex items-center gap-1" onclick="event.stopPropagation()">View</a>
@@ -1271,11 +1272,32 @@ $fieldMeta = [
             document.getElementById('constellation_modal').showModal();
         }
 
-        function triggerDelete(action, id, message) {
+        function triggerDelete(action, id, message, confirmName = null) {
             document.getElementById('delete-action').value = action;
             document.getElementById('delete-id').value = id;
             document.getElementById('delete-confirm-message').textContent = message;
+            
+            const confirmWrap = document.getElementById('delete-name-confirm-wrap');
+            const confirmInput = document.getElementById('delete-confirm-name-input');
+            const deleteBtn = document.getElementById('delete-confirm-btn');
+            
+            if (confirmName) {
+                confirmWrap.classList.remove('hidden');
+                confirmInput.value = '';
+                confirmInput.setAttribute('data-expected', confirmName);
+                deleteBtn.disabled = true;
+            } else {
+                confirmWrap.classList.add('hidden');
+                deleteBtn.disabled = false;
+            }
+            
             document.getElementById('delete_confirm_modal').showModal();
+        }
+
+        function checkDeleteConfirmName(input) {
+            const expected = input.getAttribute('data-expected');
+            const deleteBtn = document.getElementById('delete-confirm-btn');
+            deleteBtn.disabled = (input.value !== expected);
         }
 
         function toggleCreateUserConstellations() {
@@ -1845,11 +1867,21 @@ $fieldMeta = [
         <div class="modal-box bg-white border-t-4 border-error">
             <h3 class="font-bold text-xl mb-4 text-gray-800">Confirm Deletion</h3>
             <p id="delete-confirm-message" class="text-gray-600 mb-6"></p>
+            
+            <div id="delete-name-confirm-wrap" class="mb-6 hidden">
+                <label for="delete-confirm-name-input" class="block mb-2 text-sm font-medium text-gray-700">Please type the name of the constellation to confirm:</label>
+                <input type="text" 
+                       id="delete-confirm-name-input" 
+                       oninput="checkDeleteConfirmName(this)"
+                       placeholder="Type name here..."
+                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-error">
+            </div>
+
             <div class="modal-action">
                 <form id="delete-form" method="POST" action="">
                     <input type="hidden" name="action" id="delete-action" value="">
                     <input type="hidden" name="id" id="delete-id" value="">
-                    <button type="submit" class="btn btn-error text-white">Delete</button>
+                    <button type="submit" id="delete-confirm-btn" class="btn btn-error text-white">Delete</button>
                 </form>
                 <button type="button" class="btn" onclick="document.getElementById('delete_confirm_modal').close()">Cancel</button>
             </div>

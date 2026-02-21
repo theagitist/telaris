@@ -891,7 +891,30 @@ function db_delete_constellation(int $id): void {
         throw new InvalidArgumentException('The default constellation cannot be deleted.');
     }
     $pdo = getDB();
-    $pdo->prepare("DELETE FROM constellations WHERE id = :id")->execute([':id' => $id]);
+    $pdo->beginTransaction();
+    try {
+        // 1. Delete node_keywords associations first (though FK might handle it, let's be explicit if needed)
+        // Actually, node_keywords has ON DELETE CASCADE for node_id and keyword_id.
+        
+        // 2. Delete nodes in this constellation
+        // db_delete_node handles file deletion, so we should call it for each node
+        $stmt = $pdo->prepare("SELECT id FROM nodes WHERE constellation_id = :id");
+        $stmt->execute([':id' => $id]);
+        while ($node = $stmt->fetch()) {
+            db_delete_node((int)$node['id']);
+        }
+
+        // 3. Delete keywords in this constellation
+        $pdo->prepare("DELETE FROM keywords WHERE constellation_id = :id")->execute([':id' => $id]);
+
+        // 4. Delete the constellation itself
+        $pdo->prepare("DELETE FROM constellations WHERE id = :id")->execute([':id' => $id]);
+        
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
 }
 
 /**
