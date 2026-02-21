@@ -733,7 +733,9 @@ $fieldMeta = [
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
                                             <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('slug')">Slug<span id="sort-indicator-const-slug"></span></span>
                                         </th>
-                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">Tagline</th>
+                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('tagline')">Tagline<span id="sort-indicator-const-tagline"></span></span>
+                                        </th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
                                             <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('created_at')">Created<span id="sort-indicator-const-created_at"></span></span>
                                         </th>
@@ -1503,7 +1505,7 @@ $fieldMeta = [
         }
 
         function updateConstellationSortIndicators() {
-            ['id', 'name', 'slug', 'created_at'].forEach(col => {
+            ['id', 'name', 'slug', 'tagline', 'created_at'].forEach(col => {
                 const indicator = document.getElementById('sort-indicator-const-' + col);
                 if (indicator) {
                     indicator.innerHTML = '';
@@ -1542,6 +1544,10 @@ $fieldMeta = [
                     case 'slug':
                         aVal = a.dataset.slug || '';
                         bVal = b.dataset.slug || '';
+                        break;
+                    case 'tagline':
+                        aVal = a.dataset.tagline || '';
+                        bVal = b.dataset.tagline || '';
                         break;
                     case 'created_at':
                         aVal = parseInt(a.dataset.dateCreated) || 0;
