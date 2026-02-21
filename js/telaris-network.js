@@ -1081,11 +1081,10 @@ class TelarisNetwork {
                 }
             } else {
                 this.renderer.domElement.style.cursor = 'default';
-                if (!this.mainTooltipNodeTimeout) {
-                    this.mainTooltipNodeTimeout = setTimeout(() => {
-                        this.networkManager.setFocusedNode(null);
-                        this.mainTooltipNodeTimeout = null;
-                    }, 1000);
+                this.networkManager.setFocusedNode(null);
+                if (this.mainTooltipNodeTimeout) {
+                    clearTimeout(this.mainTooltipNodeTimeout);
+                    this.mainTooltipNodeTimeout = null;
                 }
                 if (this.tooltip) this.hideMainTooltip();
             }
@@ -1093,11 +1092,10 @@ class TelarisNetwork {
         
         this.renderer.domElement.addEventListener('mouseleave', () => {
             this.markInteraction();
-            if (!this.mainTooltipNodeTimeout) {
-                this.mainTooltipNodeTimeout = setTimeout(() => {
-                    this.networkManager.setFocusedNode(null);
-                    this.mainTooltipNodeTimeout = null;
-                }, 1000);
+            this.networkManager.setFocusedNode(null);
+            if (this.mainTooltipNodeTimeout) {
+                clearTimeout(this.mainTooltipNodeTimeout);
+                this.mainTooltipNodeTimeout = null;
             }
             if (this.tooltip) this.hideMainTooltip();
             this.renderer.domElement.style.cursor = 'default';
