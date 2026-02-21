@@ -436,10 +436,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const headerHTML = `
                     <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
                         <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">Name<span id="sort-indicator-name"></span></div>
+                            <div class="col-span-3 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">Name<span id="sort-indicator-name"></span></div>
                             <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('node_type')">Type<span id="sort-indicator-node_type"></span></div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('constellation_name')">Constellation<span id="sort-indicator-constellation_name"></span></div>
-                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')">URL<span id="sort-indicator-url"></span></div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">Keywords<span id="sort-indicator-keywords"></span></div>
                             <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('is_accentuated')" title="Accentuated Status">Acc<span id="sort-indicator-is_accentuated"></span></div>
                             <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">Created<span id="sort-indicator-created_at"></span></div>
@@ -481,16 +480,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     return `
                 <div class="border-b border-gray-300 hover:bg-gray-50 py-2 cursor-pointer" onclick="editNode(${node.id})">
                     <div class="grid grid-cols-12 gap-3 items-center text-sm">
-                        <div class="col-span-2">
+                        <div class="col-span-3 min-w-0">
                             <div class="font-semibold text-gray-800 truncate" title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</div>
-                            ${descriptionTruncated ? `<div class="text-xs text-gray-500 truncate mt-0.5" title="${escapeHtml(node.description || '')}">${descriptionTruncated}</div>` : ''}
-                        </div>
-                        <div class="col-span-1 text-xs">
-                            ${typeDisplay}
-                        </div>
-                        <div class="col-span-2 text-xs text-gray-600 truncate" title="${escapeHtml(constellationName)}">${escapeHtml(constellationName)}</div>
-                        <div class="col-span-1">
-                            ${node.url ? `<a href="${escapeHtml(node.url)}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline text-xs truncate block" title="${escapeHtml(node.url)}" onclick="event.stopPropagation()">${escapeHtml(node.url)}</a>` : '<span class="text-xs text-gray-400">—</span>'}
                             <div class="flex flex-wrap gap-1 mt-1">
                                 ${node.is_accentuated ? '<span class="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded border border-yellow-200 font-bold" title="Accentuated Node">ACC</span>' : ''}
                                 ${node.url ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded" title="Has URL">URL</span>' : ''}
@@ -500,6 +491,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 ${node.audio_url ? '<span class="text-[10px] bg-orange-100 text-orange-700 px-1 rounded" title="Has Audio">AUD</span>' : ''}
                             </div>
                         </div>
+                        <div class="col-span-1 text-xs">
+                            ${typeDisplay}
+                        </div>
+                        <div class="col-span-2 text-xs text-gray-600 truncate" title="${escapeHtml(constellationName)}">${escapeHtml(constellationName)}</div>
                         <div class="col-span-2">
                             <div class="flex flex-wrap gap-1">${keywordsDisplay}</div>
                         </div>
