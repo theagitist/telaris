@@ -1415,6 +1415,15 @@ $fieldMeta = [
                 showMessage(msg.innerHTML, msg.dataset.type, msg.dataset.title);
             });
 
+            // Clean up the URL to prevent messages from reappearing on refresh or subsequent actions
+            const url = new URL(window.location);
+            let urlChanged = false;
+            if (url.searchParams.has('saved')) { url.searchParams.delete('saved'); urlChanged = true; }
+            if (url.searchParams.has('generated')) { url.searchParams.delete('generated'); urlChanged = true; }
+            if (urlChanged) {
+                window.history.replaceState({}, '', url);
+            }
+
             // Initial pagination
             applyPagination('users');
             applyPagination('constellations');
