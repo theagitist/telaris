@@ -961,11 +961,11 @@ $fieldMeta = [
                 toast.classList.remove('-translate-y-4', 'opacity-0');
             });
 
-            // Auto-remove after 8 seconds
+            // Auto-remove after 5 seconds
             setTimeout(() => {
                 toast.classList.add('-translate-y-4', 'opacity-0');
                 setTimeout(() => toast.remove(), 500);
-            }, 8000);
+            }, 5000);
         }
 
         function toggleUserConstellationsSection() {
