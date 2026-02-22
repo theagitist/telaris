@@ -1841,12 +1841,15 @@ class TelarisNetwork {
                     }
                 } else if (m.isSpriteMaterial) {
                     // Sprites in Abstract theme can have random rotation jumps
-                    if (glitchRotation !== 0) {
-                        m.rotation = glitchRotation;
-                    } else {
-                        // Varied continuous rotation (some clockwise, some counter-clockwise)
-                        const rotDir = (d.phase % 2 > 1) ? 1 : -1;
-                        m.rotation = time * (0.15 + (d.phase % 0.2)) * rotDir;
+                    // SKIP if this is a portal, as portals use 3D rotation logic in animate()
+                    if (n.userData.node_type !== 'portal') {
+                        if (glitchRotation !== 0) {
+                            m.rotation = glitchRotation;
+                        } else {
+                            // Varied continuous rotation (some clockwise, some counter-clockwise)
+                            const rotDir = (d.phase % 2 > 1) ? 1 : -1;
+                            m.rotation = time * (0.15 + (d.phase % 0.2)) * rotDir;
+                        }
                     }
                 }
             });

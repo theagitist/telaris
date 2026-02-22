@@ -91,6 +91,22 @@ function createImageNode(imageUrl, material) {
     return sprite;
 }
 
+function createImageMeshNode(imageUrl, material) {
+    const texture = textureLoader.load(imageUrl);
+    const meshMaterial = new THREE.MeshBasicMaterial({ 
+        map: texture, 
+        color: 0xffffff,
+        transparent: true,
+        opacity: material.opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const geometry = new THREE.PlaneGeometry(2.5, 2.5);
+    const mesh = new THREE.Mesh(geometry, meshMaterial);
+    return mesh;
+}
+
 function createPortalNode(material, gm) {
     const group = new THREE.Group();
 
@@ -134,7 +150,7 @@ export function createNodeIcon(material, index, gm, type = 'object', themeId = '
 
     if (type === 'portal') {
         if (theme.nodes.type === 'image' && theme.nodes.portalImage) {
-            const portal = createImageNode(theme.nodes.portalImage, material);
+            const portal = createImageMeshNode(theme.nodes.portalImage, material);
             portal.isPortal = true;
             return portal;
         }
