@@ -198,7 +198,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     throw new Exception('A constellation with this ' . implode(' and ', $errs) . ' already exists.');
                 }
 
-                db_create_constellation($name, $tagline, $slug !== '' ? $slug : null);
+                $theme = trim($_POST['theme'] ?? 'cosmic');
+                db_create_constellation($name, $tagline, $slug !== '' ? $slug : null, $theme);
                 $message = 'Constellation created successfully.';
                 $activeTab = 'constellations';
             })(),
@@ -209,6 +210,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $name = trim($_POST['name'] ?? '');
                 $tagline = trim($_POST['tagline'] ?? '');
                 $slug = trim($_POST['slug'] ?? '');
+                $theme = trim($_POST['theme'] ?? 'cosmic');
                 if (empty($name)) {
                     throw new Exception('Constellation name is required');
                 }
@@ -222,7 +224,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     throw new Exception('A constellation with this ' . implode(' and ', $errs) . ' already exists.');
                 }
 
-                db_update_constellation($id, $name, $tagline, $slug !== '' ? $slug : null);
+                db_update_constellation($id, $name, $tagline, $slug !== '' ? $slug : null, $theme);
                 $message = 'Constellation updated successfully.';
                 $activeTab = 'constellations';
             })(),
@@ -775,7 +777,8 @@ $fieldMeta = [
                                                 'id' => $cId,
                                                 'name' => $c['name'],
                                                 'tagline' => $cTagline,
-                                                'slug' => $c['slug']
+                                                'slug' => $c['slug'],
+                                                'theme' => $c['theme'] ?? 'cosmic'
                                             ];
                                             $cJson = htmlspecialchars(json_encode($cData), ENT_QUOTES, 'UTF-8');
                                             $clickEditC = "editConstellation($cJson)";
@@ -1283,6 +1286,7 @@ $fieldMeta = [
             document.getElementById('modal-constellation-name').value = c.name;
             document.getElementById('modal-constellation-slug').value = c.slug || '';
             document.getElementById('modal-constellation-tagline').value = c.tagline;
+            document.getElementById('modal-constellation-theme').value = c.theme || 'cosmic';
             document.getElementById('constellation_modal').showModal();
         }
 
@@ -1814,6 +1818,15 @@ $fieldMeta = [
                     <input type="text" id="create-constellation-tagline" name="tagline" placeholder="e.g. Weaving memory" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     <span class="text-xs text-gray-500 mt-1 block">Shown in the main view when this constellation is open.</span>
                 </div>
+
+                <div class="mb-4">
+                    <label for="create-constellation-theme" class="block mb-1.5 text-gray-800 font-medium">Visual Theme</label>
+                    <select id="create-constellation-theme" name="theme" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <option value="cosmic">Cosmic (Stars, Planets, Rockets)</option>
+                        <option value="abstract">Abstract (Geometric GIF Icons)</option>
+                    </select>
+                    <span class="text-xs text-gray-500 mt-1 block">Determines the background, icons and animations.</span>
+                </div>
                 
                 <div class="modal-action">
                     <button type="submit" class="btn btn-neutral">Create Constellation</button>
@@ -1908,6 +1921,14 @@ $fieldMeta = [
                 <div class="mb-4">
                     <label for="modal-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
                     <input type="text" id="modal-constellation-tagline" name="tagline" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div class="mb-4">
+                    <label for="modal-constellation-theme" class="block mb-1.5 text-gray-800 font-medium">Visual Theme</label>
+                    <select id="modal-constellation-theme" name="theme" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <option value="cosmic">Cosmic (Stars, Planets, Rockets)</option>
+                        <option value="abstract">Abstract (Geometric GIF Icons)</option>
+                    </select>
                 </div>
                 
                 <div class="modal-action">

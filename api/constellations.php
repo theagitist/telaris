@@ -41,6 +41,7 @@ try {
                 'id' => (int)$row['id'],
                 'name' => (string)($row['name'] ?? ''),
                 'tagline' => (string)($row['tagline'] ?? ''),
+                'theme' => (string)($row['theme'] ?? 'cosmic'),
             ], $list);
             echo json_encode($out, JSON_THROW_ON_ERROR);
         })(),
@@ -65,11 +66,13 @@ try {
                 return;
             }
             $tagline = isset($data['tagline']) ? trim((string)$data['tagline']) : '';
-            $id = db_create_constellation($name, $tagline);
+            $theme = isset($data['theme']) ? trim((string)$data['theme']) : 'cosmic';
+            $id = db_create_constellation($name, $tagline, null, $theme);
             echo json_encode([
                 'id' => $id,
                 'name' => $name,
                 'tagline' => $tagline,
+                'theme' => $theme,
             ], JSON_THROW_ON_ERROR);
         })(),
 

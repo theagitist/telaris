@@ -4,6 +4,9 @@
  */
 
 import * as THREE from 'three';
+import { getTheme } from './themes.js';
+
+const textureLoader = new THREE.TextureLoader();
 
 function createStarNode(material, gm) {
     const starGroup = new THREE.Group();
@@ -70,6 +73,22 @@ function createSparkleNode(material, gm) {
     return group;
 }
 
+function createImageNode(imageUrl, material) {
+    const texture = textureLoader.load(imageUrl);
+    const spriteMaterial = new THREE.SpriteMaterial({ 
+        map: texture, 
+        color: 0xffffff,
+        transparent: true,
+        opacity: material.opacity,
+        sizeAttenuation: true
+    });
+    spriteMaterial.isSpriteMaterial = true; // For update logic
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.scale.set(1.5, 1.5, 1);
+    sprite.isSprite = true; // Mark as sprite for update logic
+    return sprite;
+}
+
 function createPortalNode(material, gm) {
     const group = new THREE.Group();
 
@@ -100,18 +119,29 @@ function createPortalNode(material, gm) {
     return group;
 }
 
-const iconFactories = [
-    createStarNode,
-    createMoonNode,
-    createFivePointStarNode,
-    createAsteroidNode,
-    createSparkleNode
-];
+const iconFactories = {
+    'star': createStarNode,
+    'moon': createMoonNode,
+    'five-point-star': createFivePointStarNode,
+    'asteroid': createAsteroidNode,
+    'sparkle': createSparkleNode
+};
 
-export function createNodeIcon(material, index, gm, type = 'object') {
+export function createNodeIcon(material, index, gm, type = 'object', themeId = 'cosmic') {
     if (type === 'portal') {
         return createPortalNode(material, gm);
     }
-    const choice = (index * 1103515245 + 12345) >>> 0;
-    return iconFactories[choice % iconFactories.length](material, gm);
+
+    const theme = getTheme(themeId);
+    if (theme.nodes.type === 'image') {
+        const images = theme.nodes.images;
+        const choice = (index * 1103515245 + 12345) >>> 0;
+        return createImageNode(images[choice % images.length], material);
+    } else {
+        const factories = theme.nodes.factories;
+        const choice = (index * 1103515245 + 12345) >>> 0;
+        const factoryId = factories[choice % factories.length];
+        const factory = iconFactories[factoryId] || createStarNode;
+        return factory(material, gm);
+    }
 }

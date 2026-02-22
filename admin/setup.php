@@ -254,7 +254,7 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
         try {
             $defaultConstellationName = (trim($websiteName) !== '') ? trim($websiteName) : 'Default';
             $defaultConstellationTagline = (trim($websiteTagline) !== '') ? trim($websiteTagline) : '';
-            $pdo->prepare("INSERT INTO constellations (id, name, tagline) VALUES (0, :name, :tagline) ON DUPLICATE KEY UPDATE name = VALUES(name), tagline = VALUES(tagline)")->execute([':name' => $defaultConstellationName, ':tagline' => $defaultConstellationTagline]);
+            $pdo->prepare("INSERT INTO constellations (id, name, tagline, theme) VALUES (0, :name, :tagline, 'cosmic') ON DUPLICATE KEY UPDATE name = VALUES(name), tagline = VALUES(tagline), theme = VALUES(theme)")->execute([':name' => $defaultConstellationName, ':tagline' => $defaultConstellationTagline]);
         } catch (PDOException $e) {
             // Table may not exist or column tagline missing before migration
         }

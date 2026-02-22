@@ -106,12 +106,14 @@ $defaultConstellationId = $projectStrings['default_constellation_id'] ?? 0;
 $constellationId = $defaultConstellationId;
 $constellationName = $projectName;
 $constellationTagline = $projectTagline;
+$constellationTheme = 'cosmic';
 
 // Load actual constellation metadata if available
 $defaultInfo = db_get_constellation_by_id($constellationId);
 if ($defaultInfo) {
     $constellationName = $defaultInfo['name'];
     $constellationTagline = $defaultInfo['tagline'];
+    $constellationTheme = $defaultInfo['theme'] ?? 'cosmic';
 }
 
 $path = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
@@ -122,6 +124,7 @@ if (preg_match('/^[0-9]+$/', $path)) {
     if ($constellationInfo) {
         $constellationName = $constellationInfo['name'];
         $constellationTagline = $constellationInfo['tagline'];
+        $constellationTheme = $constellationInfo['theme'] ?? 'cosmic';
     } else {
         $constellationId = $defaultConstellationId;
     }
@@ -132,6 +135,7 @@ if (preg_match('/^[0-9]+$/', $path)) {
         $constellationId = $constellationInfo['id'];
         $constellationName = $constellationInfo['name'];
         $constellationTagline = $constellationInfo['tagline'];
+        $constellationTheme = $constellationInfo['theme'] ?? 'cosmic';
     }
 } elseif (isset($_GET['constellation_id']) && is_numeric($_GET['constellation_id'])) {
     $constellationId = (int) $_GET['constellation_id'];
@@ -139,6 +143,7 @@ if (preg_match('/^[0-9]+$/', $path)) {
     if ($constellationInfo) {
         $constellationName = $constellationInfo['name'];
         $constellationTagline = $constellationInfo['tagline'];
+        $constellationTheme = $constellationInfo['theme'] ?? 'cosmic';
     } else {
         $constellationId = $defaultConstellationId;
     }

@@ -7,6 +7,7 @@ import { apiFetch } from './api.js';
 import { createNodeIcon } from './telaris-node-icons.js';
 import { NetworkManager } from './network-manager.js';
 import { GeometryManager } from './geometry-manager.js';
+import { getTheme } from './themes.js';
 
 class TelarisNetwork {
     constructor() {
@@ -23,6 +24,8 @@ class TelarisNetwork {
         this.navigationStack = [window.TELARIS_CONSTELLATION_ID ?? 0];
         this.networkManager = new NetworkManager({ fadeSpeed: 0.1 });
         this.geometryManager = new GeometryManager();
+        this.currentTheme = getTheme(window.TELARIS_THEME_ID || 'cosmic');
+        this._portalFadeInMultiplier = null;
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
         this.tooltip = document.getElementById('node-tooltip');
@@ -44,6 +47,7 @@ class TelarisNetwork {
         this._upVec = new THREE.Vector3(0, 1, 0);
 
         this.searchQuery = '';
+        this.clearAll();
         this.init();
         this.setupSearch();
     }
@@ -473,11 +477,52 @@ class TelarisNetwork {
         this.setupBackButton();
         window.addEventListener('resize', () => this.onWindowResize());
         
+        this.setupTheme(this.currentTheme);
         this.loadApiKey().then(() => this.loadData());
         this.initComet();
         this.initRocket();
         this.initUFO();
         this.animate();
+    }
+
+    setupTheme(theme) {
+        if (!theme) return;
+
+        // 1. Background
+        if (this.stars) this.stars.visible = !!theme.background.starfield;
+        if (this.bgNebulas) this.bgNebulas.visible = !!theme.background.nebulas;
+        
+        const bgColor = theme.background.color !== undefined ? theme.background.color : 0x000000;
+        this.renderer.setClearColor(bgColor, 1); // Use solid color for theme background
+
+        // 2. Extra animations visibility
+        if (this.rocket) this.rocket.visible = false;
+        if (this.ufo) this.ufo.visible = false;
+        if (this.comet) this.comet.visible = false;
+        
+        // Reset states
+        if (this.rocket) this.rocket.userData.active = false;
+        if (this.ufo) this.ufo.userData.active = false;
+        if (this.comet) this.comet.userData.active = false;
+
+        // 3. Lighting
+        const toRemove = [];
+        this.scene.traverse(obj => {
+            if (obj.isAmbientLight) {
+                obj.color.setHex(theme.lighting.ambient.color);
+                obj.intensity = theme.lighting.ambient.intensity;
+            } else if (obj.isPointLight) {
+                toRemove.push(obj);
+            }
+        });
+        toRemove.forEach(obj => this.scene.remove(obj));
+
+        // Add theme point lights
+        theme.lighting.points.forEach(lp => {
+            const light = new THREE.PointLight(lp.color, 1, 50);
+            light.position.set(lp.x, lp.y, lp.z);
+            this.scene.add(light);
+        });
     }
 
     initUFO() {
@@ -511,7 +556,7 @@ class TelarisNetwork {
     }
 
     updateUFO(dt) {
-        if (!this.ufo) return;
+        if (!this.ufo || !this.currentTheme.animations.ufo) return;
         const d = this.ufo.userData;
 
         if (!d.active) {
@@ -579,7 +624,7 @@ class TelarisNetwork {
     }
 
     updateComet(dt) {
-        if (!this.comet) return;
+        if (!this.comet || !this.currentTheme.animations.comet) return;
         
         if (!this.comet.userData.active) {
             // 0.1% chance per frame to start a fly-by (~once every 15-30 seconds)
@@ -646,7 +691,7 @@ class TelarisNetwork {
     }
 
     updateRocket(dt) {
-        if (!this.rocket) return;
+        if (!this.rocket || !this.currentTheme.animations.rocket) return;
 
         if (!this.rocket.userData.active) {
             // 0.2% chance per frame to launch a rocket between ANY two connected nodes
@@ -751,19 +796,20 @@ class TelarisNetwork {
     async updateConstellationUI(constellationId) {
         const titleEl = document.getElementById('constellation-title');
         const taglineEl = document.getElementById('constellation-tagline');
-        if (!titleEl && !taglineEl) return;
         try {
             const response = await apiFetch('api/constellations.php');
-            if (!response.ok) return;
+            if (!response.ok) return null;
             const list = await response.json();
             const c = Array.isArray(list) ? list.find(x => x.id === constellationId) : null;
             if (c) {
                 document.title = c.name || document.title;
                 if (titleEl) titleEl.textContent = c.name || '';
                 if (taglineEl) taglineEl.textContent = c.tagline || '';
+                return c;
             }
         } catch (err) {
         }
+        return null;
     }
 
     clearAll() {
@@ -918,6 +964,12 @@ class TelarisNetwork {
     async loadDataForConstellation(constellationId, nodeData = null, skipFit = false, skipClear = false, skipPhysics = false) {
         if (!window.TELARIS_API_KEY) throw new Error('API key not available');
         
+        // 1. Fetch constellation info to get the theme FIRST
+        const constellationInfo = await this.updateConstellationUI(constellationId);
+        const themeId = constellationInfo?.theme || 'cosmic';
+        this.currentTheme = getTheme(themeId);
+        this.setupTheme(this.currentTheme);
+
         if (!nodeData) {
             const response = await apiFetch(`api/nodes.php?constellation_id=${constellationId}`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -947,7 +999,6 @@ class TelarisNetwork {
         }
         window.TELARIS_CONSTELLATION_ID = constellationId;
         this.updateBackButtonVisibility();
-        this.updateConstellationUI(constellationId);
     }
 
     setupMouseInteraction() {
@@ -1260,9 +1311,12 @@ class TelarisNetwork {
     }
 
     createNodes(nodeData) {
+        // Clear previous nodes and connections from scene and arrays
+        this.nodes.forEach(n => this.scene.remove(n));
+        this.connections.forEach(c => this.scene.remove(c.mesh));
         this.nodes = [];
-        this.clearAll();
-        
+        this.connections = [];
+
         const cameraZ = this.camera.position.z;
         const halfHeight = Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5)) * cameraZ;
         const halfWidth = halfHeight * this.camera.aspect;
@@ -1309,10 +1363,10 @@ class TelarisNetwork {
                 // 2. Create the icon/mesh using that data
                 const material = new THREE.MeshStandardMaterial({
                     color, emissive: color, emissiveIntensity: node.is_accentuated ? 1.5 : 0.5,
-                    metalness: 0.3, roughness: 0.7, transparent: true, opacity: 0
+                    metalness: 0.3, roughness: 0.7, transparent: true, opacity: 1.0
                 });
-                const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type);
-                mesh.visible = false;
+                const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type, this.currentTheme.id);
+                mesh.visible = true;
                 mesh.position.copy(pos);
                 mesh.renderOrder = 100; // Force nodes to stay in front of lines
 
@@ -1331,8 +1385,8 @@ class TelarisNetwork {
                     mesh.userData.baseScale = mesh.scale.x;
                 }
 
-                // Random celestial event: 10% chance of a satellite moon
-                if (Math.random() < 0.1) {
+                // Random celestial event: 10% chance of a satellite moon (only if theme allows)
+                if (this.currentTheme.animations.satellites && Math.random() < 0.1) {
                     const moonGeo = this.geometryManager.getSphere(0.05, 8);
                     const moonMat = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
                     const moon = new THREE.Mesh(moonGeo, moonMat);
@@ -1449,7 +1503,7 @@ class TelarisNetwork {
                 }
 
                 // Add a small cluster nebula to "hub" nodes (actual clusters with 5+ connections)
-                if (count >= 5) {
+                if (this.currentTheme.animations.stationRing && count >= 5) {
                     const cosmicPalette = [
                         0x4455aa, // Muted Royal Blue
                         0x6644aa, // Muted Indigo
@@ -1478,7 +1532,7 @@ class TelarisNetwork {
                 }
             }
 
-            if (centerpiece) {
+            if (this.currentTheme.animations.stationRing && centerpiece) {
                 const ringGeo = new THREE.TorusGeometry(0.5, 0.01, 8, 32);
                 const ringMat = new THREE.MeshBasicMaterial({ 
                     color: 0x00ffcc, 
@@ -1633,7 +1687,8 @@ class TelarisNetwork {
                 n.traverse(child => {
                     if (child.material) {
                         const mats = Array.isArray(child.material) ? child.material : [child.material];
-                        mats.forEach(m => { m.opacity = 0; m.visible = false; });
+                        mats.forEach(m => { m.opacity = 0; });
+                        child.visible = false;
                     }
                 });
                 if (focused === n) this.networkManager.setFocusedNode(null);
@@ -1647,27 +1702,33 @@ class TelarisNetwork {
             }
 
             const isActive = (focused === n);
-            const isVisible = n.visible && (isActive || this.persistentTooltipNodeToDiv.has(n));
-            let opacity = isVisible ? 1 : (n.visible ? 0.94 : 0);
+            const isVisibleActive = n.visible && (isActive || this.persistentTooltipNodeToDiv.has(n));
+            let baseOpacity = isVisibleActive ? 1 : (n.visible ? 0.94 : 0);
+            let opacity = baseOpacity;
             
-            let forceInvisible = false;
             if (this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null) {
-                opacity *= this._portalFadeInMultiplier;
-                if (this._portalFadeInMultiplier === 0) forceInvisible = true;
+                opacity = baseOpacity * this._portalFadeInMultiplier;
             }
 
             const isTransitioning = this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null;
 
+            const forceInvisible = (this._portalFadeInMultiplier === 0);
+
             // Optimization: iterate cached materials directly
             d.cachedMaterials.forEach(m => {
                 m.opacity = opacity;
-                m.visible = n.visible && !forceInvisible; // Sync material visibility with node
-                if (d.colorR !== undefined) {
-                    m.color.setRGB((d.colorR / 255) * brightness, (d.colorG / 255) * brightness, (d.colorB / 255) * brightness);
-                    if (m.emissive) m.emissive.copy(m.color);
+                m.transparent = true;
+                m.visible = true;
+                
+                // Only update color for non-sprite materials (standard geometry nodes)
+                if (d.colorR !== undefined && !m.isSpriteMaterial) {
+                    if (m.color) m.color.setRGB((d.colorR / 255) * brightness, (d.colorG / 255) * brightness, (d.colorB / 255) * brightness);
+                    if (m.emissive && m.color) m.emissive.copy(m.color);
                     
                     if (m.emissiveIntensity !== undefined) {
-                        if (m._baseEmissiveIntensity === undefined) m._baseEmissiveIntensity = m.emissiveIntensity;
+                        if (m._baseEmissiveIntensity === undefined) {
+                            m._baseEmissiveIntensity = m.emissiveIntensity || 0.5;
+                        }
                         
                         // Disable twinkle and hover effects during transition for stability
                         if (isTransitioning) {
@@ -1690,6 +1751,12 @@ class TelarisNetwork {
                         }
                     }
                 }
+            });
+
+            // Ensure the main object and all its children are visible if search matches
+            n.visible = matchesSearch && !forceInvisible; 
+            n.traverse(child => {
+                if (child.material) child.visible = matchesSearch && !forceInvisible;
             });
 
             n.position.copy(d.originalPosition);

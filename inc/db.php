@@ -205,6 +205,10 @@ function db_ensure_constellation_columns(): void {
         if ($stmt->fetch() === false) {
             $pdo->exec("ALTER TABLE constellations ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
         }
+        $stmt = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'theme'");
+        if ($stmt->fetch() === false) {
+            $pdo->exec("ALTER TABLE constellations ADD COLUMN theme VARCHAR(50) NOT NULL DEFAULT 'cosmic'");
+        }
     } catch (PDOException $e) {
         // Table might not exist yet
     }
@@ -729,7 +733,7 @@ function db_default_constellation_tagline(PDO $pdo): string {
  */
 function db_get_constellations(): array {
     $pdo = getDB();
-    $stmt = $pdo->query("SELECT id, name, tagline, slug, created_at, updated_at FROM constellations ORDER BY id");
+    $stmt = $pdo->query("SELECT id, name, tagline, slug, theme, created_at, updated_at FROM constellations ORDER BY id");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -748,7 +752,7 @@ function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
     }
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        SELECT c.id, c.name, c.tagline, c.slug, c.created_at, c.updated_at
+        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.created_at, c.updated_at
         FROM constellations c
         INNER JOIN user_constellations uc ON uc.constellation_id = c.id AND uc.user_id = :user_id
         ORDER BY c.id
@@ -759,11 +763,11 @@ function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
 
 /**
  * Get one constellation by id (name and tagline for main view).
- * @return array{name: string, tagline: string}|null
+ * @return array{name: string, tagline: string, theme: string}|null
  */
 function db_get_constellation_by_id(int $id): ?array {
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT name, tagline, slug FROM constellations WHERE id = :id LIMIT 1");
+    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme FROM constellations WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
@@ -772,23 +776,24 @@ function db_get_constellation_by_id(int $id): ?array {
     return [
         'name' => (string) ($row['name'] ?? ''),
         'tagline' => (string) ($row['tagline'] ?? ''),
-        'slug' => $row['slug']
+        'slug' => $row['slug'],
+        'theme' => (string) ($row['theme'] ?? 'cosmic')
     ];
 }
 
 /**
  * Get one constellation by slug.
- * @return array{id: int, name: string, tagline: string}|null
+ * @return array{id: int, name: string, tagline: string, theme: string}|null
  */
 function db_get_constellation_by_slug(string $slug): ?array {
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT id, name, tagline FROM constellations WHERE slug = :slug LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, name, tagline, theme FROM constellations WHERE slug = :slug LIMIT 1");
     $stmt->execute([':slug' => $slug]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$row) {
         // Fallback: check if any constellation name slugifies to this value
-        $all = $pdo->query("SELECT id, name, tagline, slug FROM constellations");
+        $all = $pdo->query("SELECT id, name, tagline, slug, theme FROM constellations");
         while ($c = $all->fetch(PDO::FETCH_ASSOC)) {
             if (db_slugify($c['name']) === strtolower($slug)) {
                 $row = $c;
@@ -803,7 +808,8 @@ function db_get_constellation_by_slug(string $slug): ?array {
     return [
         'id' => (int)$row['id'],
         'name' => (string) ($row['name'] ?? ''),
-        'tagline' => (string) ($row['tagline'] ?? '')
+        'tagline' => (string) ($row['tagline'] ?? ''),
+        'theme' => (string) ($row['theme'] ?? 'cosmic')
     ];
 }
 
@@ -844,7 +850,7 @@ function db_constellation_exists(string $name, ?string $slug = null, ?int $exclu
 /**
  * Create a new constellation with the next available id. Returns the new id.
  */
-function db_create_constellation(string $name, string $tagline = '', ?string $slug = null): int {
+function db_create_constellation(string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic'): int {
     $pdo = getDB();
     $stmt = $pdo->query("SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM constellations");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -855,11 +861,12 @@ function db_create_constellation(string $name, string $tagline = '', ?string $sl
         $slug = db_slugify($name);
     }
 
-    $pdo->prepare("INSERT INTO constellations (id, name, tagline, slug) VALUES (:id, :name, :tagline, :slug)")->execute([
+    $pdo->prepare("INSERT INTO constellations (id, name, tagline, slug, theme) VALUES (:id, :name, :tagline, :slug, :theme)")->execute([
         ':id' => $nextId,
         ':name' => $name,
         ':tagline' => trim($tagline),
-        ':slug' => trim($slug)
+        ':slug' => trim($slug),
+        ':theme' => $theme
     ]);
     return $nextId;
 }
@@ -867,7 +874,7 @@ function db_create_constellation(string $name, string $tagline = '', ?string $sl
 /**
  * Update constellation name and tagline. Id cannot be changed. Default constellation (id=0) can be renamed.
  */
-function db_update_constellation(int $id, string $name, string $tagline = '', ?string $slug = null): void {
+function db_update_constellation(int $id, string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic'): void {
     $pdo = getDB();
     
     $name = trim($name) ?: 'Unnamed';
@@ -875,10 +882,11 @@ function db_update_constellation(int $id, string $name, string $tagline = '', ?s
         $slug = db_slugify($name);
     }
 
-    $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline, slug = :slug WHERE id = :id")->execute([
+    $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline, slug = :slug, theme = :theme WHERE id = :id")->execute([
         ':name' => $name,
         ':tagline' => trim($tagline),
         ':slug' => trim($slug),
+        ':theme' => $theme,
         ':id' => $id
     ]);
 }
