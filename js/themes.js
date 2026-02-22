@@ -69,7 +69,15 @@ export const THEMES = {
                 'img/themes/abstract/signal-2026-02-21-201526_002.png',
                 'img/themes/abstract/signal-2026-02-21-201526_003.png',
                 'img/themes/abstract/signal-2026-02-21-201526_004.png',
-                'img/themes/abstract/signal-2026-02-21-201526_005.png'
+                'img/themes/abstract/signal-2026-02-21-201526_005.png',
+                'img/themes/abstract/generated_abstract_1.svg',
+                'img/themes/abstract/generated_abstract_2.svg',
+                'img/themes/abstract/generated_abstract_3.svg',
+                'img/themes/abstract/generated_abstract_4.svg',
+                'img/themes/abstract/generated_abstract_5.svg',
+                'img/themes/abstract/generated_abstract_6.svg',
+                'img/themes/abstract/generated_abstract_7.svg',
+                'img/themes/abstract/generated_abstract_8.svg'
             ]
         }
     }

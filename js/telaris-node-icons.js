@@ -80,7 +80,9 @@ function createImageNode(imageUrl, material) {
         color: 0xffffff,
         transparent: true,
         opacity: material.opacity,
-        sizeAttenuation: true
+        sizeAttenuation: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
     });
     spriteMaterial.isSpriteMaterial = true; // For update logic
     const sprite = new THREE.Sprite(spriteMaterial);
