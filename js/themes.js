@@ -62,14 +62,6 @@ export const THEMES = {
         nodes: {
             type: 'image',
             images: [
-                'img/themes/abstract/signal-2026-02-21-201428_002.gif',
-                'img/themes/abstract/signal-2026-02-21-201428_003.gif',
-                'img/themes/abstract/signal-2026-02-21-201428_004.gif',
-                'img/themes/abstract/signal-2026-02-21-201428_005.gif',
-                'img/themes/abstract/signal-2026-02-21-201526_002.png',
-                'img/themes/abstract/signal-2026-02-21-201526_003.png',
-                'img/themes/abstract/signal-2026-02-21-201526_004.png',
-                'img/themes/abstract/signal-2026-02-21-201526_005.png',
                 'img/themes/abstract/generated_abstract_1.svg',
                 'img/themes/abstract/generated_abstract_2.svg',
                 'img/themes/abstract/generated_abstract_3.svg',
@@ -77,7 +69,15 @@ export const THEMES = {
                 'img/themes/abstract/generated_abstract_5.svg',
                 'img/themes/abstract/generated_abstract_6.svg',
                 'img/themes/abstract/generated_abstract_7.svg',
-                'img/themes/abstract/generated_abstract_8.svg'
+                'img/themes/abstract/generated_abstract_8.svg',
+                'img/themes/abstract/generated_abstract_9.svg',
+                'img/themes/abstract/generated_abstract_10.svg',
+                'img/themes/abstract/generated_abstract_11.svg',
+                'img/themes/abstract/generated_abstract_12.svg',
+                'img/themes/abstract/generated_abstract_13.svg',
+                'img/themes/abstract/generated_abstract_14.svg',
+                'img/themes/abstract/generated_abstract_15.svg',
+                'img/themes/abstract/generated_abstract_16.svg'
             ]
         }
     }
