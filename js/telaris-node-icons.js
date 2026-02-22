@@ -130,11 +130,17 @@ const iconFactories = {
 };
 
 export function createNodeIcon(material, index, gm, type = 'object', themeId = 'cosmic') {
+    const theme = getTheme(themeId);
+
     if (type === 'portal') {
+        if (theme.nodes.type === 'image' && theme.nodes.portalImage) {
+            const portal = createImageNode(theme.nodes.portalImage, material);
+            portal.isPortal = true;
+            return portal;
+        }
         return createPortalNode(material, gm);
     }
 
-    const theme = getTheme(themeId);
     if (theme.nodes.type === 'image') {
         const images = theme.nodes.images;
         const choice = (index * 1103515245 + 12345) >>> 0;

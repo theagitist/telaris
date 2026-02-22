@@ -1662,7 +1662,7 @@ class TelarisNetwork {
         });
     }
 
-    updateNodes() {
+    updateNodes(dt) {
         if (!this.nodes || this.nodes.length === 0) return;
         const time = performance.now() * 0.001;
         const focused = this.networkManager.getFocusedNode();
@@ -1714,9 +1714,54 @@ class TelarisNetwork {
 
             const forceInvisible = (this._portalFadeInMultiplier === 0);
 
+            // 1. Theme-specific animation logic
+            let glitchOffset = this._scratchVec2.set(0, 0, 0);
+            let glitchScaleMult = 1.0;
+            let glitchOpacityMult = 1.0;
+            let glitchRotation = 0;
+
+            if (this.currentTheme.id === 'abstract' && !isTransitioning) {
+                // Initialize state if needed
+                if (d.glitchTimer === undefined) {
+                    d.glitchTimer = Math.random() * 10 + 5;
+                    d.glitchActive = 0;
+                    d.floatOffset = Math.random() * 10;
+                }
+
+                // 1. Reduced Glitch frequency
+                d.glitchTimer -= dt;
+                if (d.glitchTimer <= 0) {
+                    d.glitchActive = Math.random() * 0.2 + 0.05; // Shorter glitches
+                    d.glitchTimer = Math.random() * 15 + 8; // Next glitch in 8-23s
+                }
+
+                if (d.glitchActive > 0) {
+                    d.glitchActive -= dt;
+                    if (Math.random() < 0.3) {
+                        glitchOffset.set(
+                            (Math.random() - 0.5) * 0.2,
+                            (Math.random() - 0.5) * 0.2,
+                            (Math.random() - 0.5) * 0.2
+                        );
+                        glitchScaleMult = 0.7 + Math.random() * 0.8;
+                        glitchOpacityMult = 0.3 + Math.random() * 0.7;
+                        glitchRotation = (Math.random() - 0.5) * 1.5;
+                    }
+                }
+
+                // 2. Continuous Pulsating (subtle)
+                const pulse = Math.sin(time * 0.8 + d.phase) * 0.1;
+                glitchScaleMult *= (1.0 + pulse);
+
+                // 3. Floating motion
+                const floatX = Math.sin(time * 0.5 + d.floatOffset) * 0.1;
+                const floatY = Math.cos(time * 0.6 + d.floatOffset) * 0.1;
+                glitchOffset.add(this._scratchVec.set(floatX, floatY, 0));
+            }
+
             // Optimization: iterate cached materials directly
             d.cachedMaterials.forEach(m => {
-                m.opacity = opacity;
+                m.opacity = opacity * glitchOpacityMult;
                 m.transparent = true;
                 m.visible = true;
                 
@@ -1750,6 +1795,15 @@ class TelarisNetwork {
                             m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost;
                         }
                     }
+                } else if (m.isSpriteMaterial) {
+                    // Sprites in Abstract theme can have random rotation jumps
+                    if (glitchRotation !== 0) {
+                        m.rotation = glitchRotation;
+                    } else {
+                        // Varied continuous rotation (some clockwise, some counter-clockwise)
+                        const rotDir = (d.phase % 2 > 1) ? 1 : -1;
+                        m.rotation = time * (0.15 + (d.phase % 0.2)) * rotDir;
+                    }
                 }
             });
 
@@ -1759,7 +1813,7 @@ class TelarisNetwork {
                 if (child.material) child.visible = matchesSearch && !forceInvisible;
             });
 
-            n.position.copy(d.originalPosition);
+            n.position.copy(d.originalPosition).add(glitchOffset);
             
             // Stable scale during transition, dynamic pulse otherwise
             if (isTransitioning) {
@@ -1769,7 +1823,7 @@ class TelarisNetwork {
                 const pulseFreq = d.is_accentuated ? 2.0 : 1.5;
                 const pulseAmp = d.is_accentuated ? 0.15 : 0.08;
                 const baseS = d.is_accentuated ? 2.0 : 1.4;
-                const s = baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp;
+                const s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * glitchScaleMult;
                 n.scale.set(s, s, s);
             }
 
@@ -2173,7 +2227,7 @@ class TelarisNetwork {
             }
             this.controls.update();
             this.updateHoverState();
-            this.updateNodes();
+            this.updateNodes(dt);
             this.updateConnections(dt);
         }
         
