@@ -43,6 +43,7 @@ export const THEMES = {
         background: {
             starfield: false,
             nebulas: false,
+            grid: true,
             color: 0x000000
         },
         animations: {

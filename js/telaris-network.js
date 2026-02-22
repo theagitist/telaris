@@ -477,11 +477,12 @@ class TelarisNetwork {
         this.setupBackButton();
         window.addEventListener('resize', () => this.onWindowResize());
         
-        this.setupTheme(this.currentTheme);
         this.loadApiKey().then(() => this.loadData());
         this.initComet();
         this.initRocket();
         this.initUFO();
+        this.initGlitchyGrid();
+        this.setupTheme(this.currentTheme);
         this.animate();
     }
 
@@ -491,6 +492,7 @@ class TelarisNetwork {
         // 1. Background
         if (this.stars) this.stars.visible = !!theme.background.starfield;
         if (this.bgNebulas) this.bgNebulas.visible = !!theme.background.nebulas;
+        if (this.glitchyGrid) this.glitchyGrid.visible = !!theme.background.grid;
         
         const bgColor = theme.background.color !== undefined ? theme.background.color : 0x000000;
         this.renderer.setClearColor(bgColor, 1); // Use solid color for theme background
@@ -523,6 +525,48 @@ class TelarisNetwork {
             light.position.set(lp.x, lp.y, lp.z);
             this.scene.add(light);
         });
+    }
+
+    initGlitchyGrid() {
+        this.glitchyGrid = new THREE.Group();
+        const size = 100;
+        const divisions = 20;
+        const gridHelper = new THREE.GridHelper(size, divisions, 0x555555, 0x333333);
+        gridHelper.rotation.x = Math.PI / 2; // Face forward
+        gridHelper.position.z = -30;
+        this.glitchyGrid.add(gridHelper);
+        
+        // Add a second back grid for parallax
+        const gridHelper2 = new THREE.GridHelper(size * 2, divisions, 0x333333, 0x1a1a1a);
+        gridHelper2.rotation.x = Math.PI / 2;
+        gridHelper2.position.z = -60;
+        this.glitchyGrid.add(gridHelper2);
+
+        this.glitchyGrid.visible = !!(this.currentTheme && this.currentTheme.background.grid);
+        this.scene.add(this.glitchyGrid);
+    }
+
+    updateGlitchyGrid(dt) {
+        if (!this.glitchyGrid || !this.glitchyGrid.visible) return;
+        
+        // Steady slow movement
+        this.glitchyGrid.children.forEach((grid, i) => {
+            grid.rotation.z += dt * (0.01 + i * 0.005);
+        });
+
+        // Occasional twitch
+        if (Math.random() < 0.01) {
+            const twitchX = (Math.random() - 0.5) * 0.5;
+            const twitchY = (Math.random() - 0.5) * 0.5;
+            this.glitchyGrid.position.set(twitchX, twitchY, 0);
+            
+            // Randomly hide/show one grid for a frame
+            const target = this.glitchyGrid.children[Math.floor(Math.random() * this.glitchyGrid.children.length)];
+            target.visible = false;
+            setTimeout(() => { target.visible = true; }, 50);
+        } else {
+            this.glitchyGrid.position.lerp(new THREE.Vector3(0, 0, 0), 0.1);
+        }
     }
 
     initUFO() {
@@ -2236,6 +2280,7 @@ class TelarisNetwork {
         this.updateComet(dt);
         this.updateRocket(dt);
         this.updateUFO(dt);
+        this.updateGlitchyGrid(dt);
         this.updateHUD();
 
         // Portal meshes: slow rotation + scale pulse; rev up when clicked
