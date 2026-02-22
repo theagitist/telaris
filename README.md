@@ -100,6 +100,7 @@ Lists all constellations (each constellation is a set of nodes and keywords). Th
 - `id` INT NOT NULL PRIMARY KEY - Constellation identifier (immutable; 0 = default)
 - `name` VARCHAR(255) NOT NULL DEFAULT '' - Display name
 - `tagline` VARCHAR(500) NOT NULL DEFAULT '' - Short tagline shown in the main view with the constellation name
+- `theme` VARCHAR(50) NOT NULL DEFAULT 'cosmic' - Visual theme identifier (cosmic, abstract)
 
 ### users
 Stores user accounts with authentication information.
@@ -166,8 +167,11 @@ Stores API keys for authentication.
 ## Features
 
 ### Frontend
-- **Tactical HUD Navigation**: Semitransparent cockpit-style interface with real-time coordinate tracking and system status.
-- **Fuzzy Search (SCAN SYSTEM)**: Real-time filtering of nodes and connections by name or keyword.
+- **Visual Themes Support**: Extensible theme system allowing each network to have a unique look and feel.
+- **Abstract Theme**: A glitchy, geometric theme using animated icons and a 3D grid background.
+- **Cosmic Theme**: The classic starfield aesthetic with planets, rockets, and UFO animations.
+- **Tactical HUD Navigation**: Semitransparent cockpit-style interface with system status and real-time filtering.
+- **Fuzzy Search**: Real-time filtering of nodes and connections by name or keyword.
 - **Dynamic Launch Sequence**: Simplified, immersive rocket launch animation when transitioning to external node links.
 - **Monospace Typography**: Unified system-wide "NASA-style" typography for all UI elements and 3D labels.
 - 3D visualization with organic animations and vivid pastel-colored node icons.
@@ -187,6 +191,13 @@ Stores API keys for authentication.
 
 ## Version History
 
+### Version 5.0.0
+- **Visual Themes System**: Introduced a core architecture for switchable themes. Each constellation can now have its own unique visual identity (backgrounds, lighting, animations, and icons).
+- **Abstract Theme**: Implemented a new "Abstract" theme featuring a glitchy 3D grid background, randomized image-based icons with animated glitch effects, and specific lighting.
+- **HUD Terminology Refinement**: Updated the main navigation HUD to use more theme-neutral terms (e.g., "NODES" instead of "SYSTEMS", "SEARCH" instead of "SCAN SYSTEM") and added full localization for these terms.
+- **System Version Visibility**: Added the current system version to the Admin Global Settings and Setup pages for easier troubleshooting.
+- **Standardized Asset Pipeline**: Implemented an automated process for converting and sequentially naming theme-specific icons.
+
 ### Version 4.0.0
 - **Selectable Default Constellation**: Implemented dynamic default constellation support. Administrators can now choose which network appears at the root of the site via the Admin Console.
 - **Bulk Node Actions**: Added checkboxes and a bulk action bar to the Node Editor, allowing for simultaneous deletion or moving of multiple nodes across constellations.
@@ -196,7 +207,7 @@ Stores API keys for authentication.
 - **Automatic Schema Updates**: Integrated the new `default_constellation_id` setting into the automated database synchronization logic.
 
 ### Version 3.5.0
-- **Tactical HUD Interface**: Completely redesigned the navigation panel into a cockpit-inspired HUD with glassmorphism and coordinate tracking.
+- **Tactical HUD Interface**: Completely redesigned the navigation panel into a cockpit-inspired HUD with glassmorphism.
 - **Fuzzy Search**: Added real-time "SCAN SYSTEM" functionality to the HUD, allowing users to filter nodes and connections instantly.
 - **Launch Redesign**: Revamped the redirection window with a minimalist SVG rocket launch sequence and dynamic status updates.
 - **Typography Unification**: Switched all UI and 3D elements to a unified monospace font for a consistent technical aesthetic.
