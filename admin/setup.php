@@ -16,6 +16,11 @@ if (php_sapi_name() === 'cli') {
     die("403 Forbidden\n\nThis setup script can only be run from a web browser.\nPlease access it via: http://your-domain.com/admin/setup.php\n");
 }
 
+$systemVersion = 'Unknown';
+if (file_exists(__DIR__ . '/../VERSION')) {
+    $systemVersion = trim(file_get_contents(__DIR__ . '/../VERSION'));
+}
+
 // Start session for storing schema details
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -540,7 +545,13 @@ if ($showWebsiteForm) {
     <body class="font-sans max-w-2xl mx-auto my-12 px-5 bg-gray-100">
         <div class="bg-white p-8 rounded-lg shadow-md">
             <h1 class="text-gray-800 mb-2 text-2xl font-semibold">Telaris Setup</h1>
-            <p class="text-gray-600 mb-8">Configure your website information</p>
+            <div class="flex justify-between items-center mb-8">
+                <p class="text-gray-600">Configure your website information</p>
+                <div class="bg-gray-100 px-3 py-1 rounded-md border border-gray-200">
+                    <span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Version</span>
+                    <span class="ml-1.5 font-mono text-xs font-bold text-gray-700"><?php echo htmlspecialchars($systemVersion); ?></span>
+                </div>
+            </div>
             
             <?php if (isset($_SESSION['schema_details']) && $_SESSION['schema_details']['success']): ?>
                 <div class="bg-green-50 text-green-600 p-4 rounded mb-5">
@@ -588,7 +599,13 @@ if ($showForm) {
     <body class="font-sans max-w-2xl mx-auto my-12 px-5 bg-gray-100">
         <div class="bg-white p-8 rounded-lg shadow-md">
             <h1 class="text-gray-800 mb-2 text-2xl font-semibold">Telaris Setup</h1>
-            <p class="text-gray-600 mb-8">Configure your database connection</p>
+            <div class="flex justify-between items-center mb-8">
+                <p class="text-gray-600">Configure your database connection</p>
+                <div class="bg-gray-100 px-3 py-1 rounded-md border border-gray-200">
+                    <span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Version</span>
+                    <span class="ml-1.5 font-mono text-xs font-bold text-gray-700"><?php echo htmlspecialchars($systemVersion); ?></span>
+                </div>
+            </div>
             
             <!-- PHP Requirements Check -->
             <div class="mb-8 p-4 bg-gray-50 rounded">
@@ -903,6 +920,12 @@ if ($pdo && !$adminUserCreated) {
 <body class="font-sans max-w-2xl mx-auto my-12 px-5 bg-gray-100">
     <div class="bg-white p-8 rounded-lg shadow-md">
         <h1 class="text-gray-800 mb-2 text-2xl font-semibold">Telaris Setup</h1>
+        <div class="flex justify-end items-center mb-4">
+            <div class="bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
+                <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">v</span>
+                <span class="font-mono text-[10px] font-bold text-gray-500"><?php echo htmlspecialchars($systemVersion); ?></span>
+            </div>
+        </div>
         
         <?php if ($success): ?>
             <div class="bg-green-50 text-green-600 p-4 rounded mb-5">✓ Configuration file created successfully!</div>

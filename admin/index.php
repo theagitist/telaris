@@ -48,6 +48,11 @@ $projectAlertMessage = $projectData['alert_message'];
 $projectEditButtonText = $projectData['edit_button_text'];
 $projectLoadingText = $projectData['loading_text'];
 
+$systemVersion = 'Unknown';
+if (file_exists(__DIR__ . '/../VERSION')) {
+    $systemVersion = trim(file_get_contents(__DIR__ . '/../VERSION'));
+}
+
 
 // Handle API key actions and user management actions
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -834,7 +839,13 @@ $fieldMeta = [
 
             <!-- Global Settings Tab -->
             <div id="content-settings" class="p-6 <?php echo $activeTab !== 'settings' ? 'hidden' : ''; ?>">
-                <p class="text-gray-600 mb-4 max-w-2xl">Localized content for the main app. English is required; Spanish and Portuguese are optional and fall back to English when empty.</p>
+                <div class="flex justify-between items-center mb-4">
+                    <p class="text-gray-600 max-w-2xl">Localized content for the main app. English is required; Spanish and Portuguese are optional and fall back to English when empty.</p>
+                    <div class="bg-gray-100 px-3 py-1.5 rounded-md border border-gray-200">
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Version</span>
+                        <span class="ml-2 font-mono text-sm font-bold text-gray-700"><?php echo htmlspecialchars($systemVersion); ?></span>
+                    </div>
+                </div>
                 <form method="post" action="" class="max-w-2xl">
                     <input type="hidden" name="action" value="save_settings">
                     <input type="hidden" name="settings_lang" id="settings_lang" value="<?php echo htmlspecialchars($_GET['lang'] ?? 'en'); ?>">
