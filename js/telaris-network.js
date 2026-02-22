@@ -2322,16 +2322,9 @@ class TelarisNetwork {
         if (this._lastHudUpdate && now - this._lastHudUpdate < 100) return;
         this._lastHudUpdate = now;
 
-        const elX = document.getElementById('hud-x');
-        const elY = document.getElementById('hud-y');
-        const elZ = document.getElementById('hud-z');
         const elNodes = document.getElementById('hud-nodes');
         const elConns = document.getElementById('hud-connections');
 
-        if (elX) elX.innerText = this.camera.position.x.toFixed(1);
-        if (elY) elY.innerText = this.camera.position.y.toFixed(1);
-        if (elZ) elZ.innerText = this.camera.position.z.toFixed(1);
-        
         if (elNodes && this.nodes) {
             const visibleNodes = this.nodes.filter(n => n.visible).length;
             elNodes.innerText = this.searchQuery ? `${visibleNodes}/${this.nodes.length}` : this.nodes.length;

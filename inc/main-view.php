@@ -78,9 +78,9 @@
             pointer-events: none;
             backdrop-filter: blur(12px);
             background: rgba(0, 0, 0, 0.5);
-            border-left: 2px solid rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             padding: 1.5rem;
-            border-radius: 0 4px 4px 0;
+            border-radius: 4px;
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
         }
         body.info-visible #info {
@@ -253,13 +253,6 @@
     
     <!-- Tactical HUD Navigation -->
     <div id="info" class="absolute top-5 left-0 text-white z-[100] text-sm pt-14">
-        <div class="mb-3 flex items-center">
-            <span class="status-pulse"></span>
-            <span class="tracking-widest uppercase font-bold opacity-80 text-xs"><?php echo htmlspecialchars($projectSystemOnlineText ?? 'System: Online'); ?></span>
-        </div>
-        
-        <div class="hud-line"></div>
-        
         <div class="cursor-pointer group" onclick="location.reload()" title="<?php echo htmlspecialchars($projectReloadSystemText ?? 'Reload System'); ?>">
             <h2 id="constellation-title" class="text-xl font-bold mb-1 tracking-tight uppercase group-hover:text-[#00ffcc] transition-colors">
                 <?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>
@@ -270,9 +263,9 @@
         <div class="hud-line"></div>
         
         <div class="mb-4 relative group/search">
-            <input type="text" id="hud-search" placeholder="<?php echo htmlspecialchars($projectScanSystemText ?? 'SCAN SYSTEM...'); ?>" 
+            <input type="text" id="hud-search" placeholder="<?php echo htmlspecialchars($projectScanSystemText ?? 'SEARCH...'); ?>" 
                 class="w-full bg-white/5 border border-white/20 rounded px-2 py-1.5 pr-8 text-xs text-[#00ffcc] placeholder:text-white/20 focus:outline-none focus:border-[#00ffcc]/50 focus:bg-white/10 transition-all uppercase tracking-wider">
-            <button id="hud-search-clear" class="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-[#ff4444] transition-colors" style="display: none;" title="<?php echo htmlspecialchars($projectClearScanText ?? 'Clear Scan'); ?>">
+            <button id="hud-search-clear" class="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-[#ff4444] transition-colors" style="display: none;" title="<?php echo htmlspecialchars($projectClearScanText ?? 'Clear Search'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3">
                     <path d="M18 6L6 18M6 6l12 12"/>
                 </svg>
@@ -283,17 +276,12 @@
 
         <div class="space-y-2 opacity-80 mb-6 text-sm">
             <div class="flex justify-between gap-12">
-                <span class="uppercase"><?php echo htmlspecialchars($projectSystemsLabelText ?? 'Systems:'); ?></span>
+                <span class="uppercase"><?php echo htmlspecialchars($projectSystemsLabelText ?? 'Nodes:'); ?></span>
                 <span id="hud-nodes" class="font-bold text-[#00ffcc]">--</span>
             </div>
             <div class="flex justify-between gap-12">
                 <span class="uppercase"><?php echo htmlspecialchars($projectHyperlinksLabelText ?? 'Hyperlinks:'); ?></span>
                 <span id="hud-connections" class="font-bold text-[#00ffcc]">--</span>
-            </div>
-            <div class="pt-2 text-xs opacity-60 flex gap-4">
-                <span>X:<span id="hud-x">0.0</span></span>
-                <span>Y:<span id="hud-y">0.0</span></span>
-                <span>Z:<span id="hud-z">0.0</span></span>
             </div>
         </div>
 
@@ -305,7 +293,7 @@
                 <?php endif; ?>
                 <a href="utils/logout.php" class="opacity-40 hover:opacity-100 transition-opacity"><?php echo htmlspecialchars($projectLogoutLabelText ?? 'Logout'); ?></a>
             <?php else: ?>
-                <a href="utils/login.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectInitializeAuthText ?? 'Initialize Auth'); ?></a>
+                <a href="utils/login.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectInitializeAuthText ?? 'Login'); ?></a>
             <?php endif; ?>
         </div>
     </div>
