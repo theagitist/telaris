@@ -62,12 +62,11 @@ export const THEMES = {
         },
         nodes: {
             type: 'image',
-            portalImage: 'img/themes/abstract/signal-2026-02-21-201428_003.gif',
+            portalImage: 'img/themes/abstract/signal-2026-02-21-201428_005.gif',
             images: [
                 'img/themes/abstract/signal-2026-02-21-201428_002.gif',
                 'img/themes/abstract/signal-2026-02-21-201428_003.gif',
                 'img/themes/abstract/signal-2026-02-21-201428_004.gif',
-                'img/themes/abstract/signal-2026-02-21-201428_005.gif',
                 'img/themes/abstract/signal-2026-02-21-201526_002.png',
                 'img/themes/abstract/signal-2026-02-21-201526_003.png',
                 'img/themes/abstract/signal-2026-02-21-201526_004.png',

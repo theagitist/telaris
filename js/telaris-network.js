@@ -531,13 +531,13 @@ class TelarisNetwork {
         this.glitchyGrid = new THREE.Group();
         const size = 100;
         const divisions = 20;
-        const gridHelper = new THREE.GridHelper(size, divisions, 0x555555, 0x333333);
+        const gridHelper = new THREE.GridHelper(size, divisions, 0x444444, 0x222222);
         gridHelper.rotation.x = Math.PI / 2; // Face forward
         gridHelper.position.z = -30;
         this.glitchyGrid.add(gridHelper);
         
         // Add a second back grid for parallax
-        const gridHelper2 = new THREE.GridHelper(size * 2, divisions, 0x333333, 0x1a1a1a);
+        const gridHelper2 = new THREE.GridHelper(size * 2, divisions, 0x222222, 0x111111);
         gridHelper2.rotation.x = Math.PI / 2;
         gridHelper2.position.z = -60;
         this.glitchyGrid.add(gridHelper2);
