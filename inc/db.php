@@ -15,6 +15,11 @@ declare(strict_types=1);
  * @throws PDOException
  */
 function getDB(): PDO {
+    static $pdo = null;
+    if ($pdo !== null) {
+        return $pdo;
+    }
+
     try {
         $port = defined('DB_PORT') && DB_PORT !== '' ? DB_PORT : '3306';
         $dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', DB_HOST, $port, DB_NAME);
@@ -29,10 +34,24 @@ function getDB(): PDO {
                 PDO::MYSQL_ATTR_INIT_COMMAND => 'SET sql_mode = "STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"'
             ]
         );
+        
+        // Run runtime migrations once per connection
+        db_run_runtime_migrations($pdo);
+        
         return $pdo;
     } catch (PDOException $e) {
         throw $e;
     }
+}
+
+/**
+ * Run all runtime migrations to ensure database schema is up to date.
+ */
+function db_run_runtime_migrations(PDO $pdo): void {
+    db_ensure_project_info_columns($pdo);
+    db_ensure_constellation_columns($pdo);
+    db_ensure_node_video_columns($pdo);
+    db_ensure_updated_at_columns($pdo);
 }
 
 /**
@@ -161,9 +180,9 @@ function db_insert_default_project_info_rows(PDO $pdo, string $enName = 'Telaris
 /**
  * Ensure nodes table has video columns.
  */
-function db_ensure_node_video_columns(): void {
+function db_ensure_node_video_columns(?PDO $pdo = null): void {
     try {
-        $pdo = getDB();
+        if ($pdo === null) $pdo = getDB();
         $stmt = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'video_url'");
         if ($stmt->fetch() === false) {
             $pdo->exec("ALTER TABLE nodes ADD COLUMN video_url VARCHAR(500) NULL AFTER audio_autoplay");
@@ -180,9 +199,9 @@ function db_ensure_node_video_columns(): void {
 /**
  * Ensure project_info table has all required columns and default values.
  */
-function db_ensure_project_info_columns(): void {
+function db_ensure_project_info_columns(?PDO $pdo = null): void {
     try {
-        $pdo = getDB();
+        if ($pdo === null) $pdo = getDB();
         $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'click_to_view_text'");
         if ($stmt->fetch() === false) {
             $pdo->exec("ALTER TABLE project_info ADD COLUMN click_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Click to view'");
@@ -220,9 +239,9 @@ function db_ensure_project_info_columns(): void {
 /**
  * Ensure constellations table has required columns.
  */
-function db_ensure_constellation_columns(): void {
+function db_ensure_constellation_columns(?PDO $pdo = null): void {
     try {
-        $pdo = getDB();
+        if ($pdo === null) $pdo = getDB();
         $stmt = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'created_at'");
         if ($stmt->fetch() === false) {
             $pdo->exec("ALTER TABLE constellations ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
@@ -239,9 +258,9 @@ function db_ensure_constellation_columns(): void {
 /**
  * Ensure tables have updated_at columns.
  */
-function db_ensure_updated_at_columns(): void {
+function db_ensure_updated_at_columns(?PDO $pdo = null): void {
     try {
-        $pdo = getDB();
+        if ($pdo === null) $pdo = getDB();
         $tables = [
             'users' => 'updated_at',
             'constellations' => 'updated_at',
@@ -1129,7 +1148,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
     // Admin or specific constellation requested
     if ($isAdmin && $constellationId === null) {
         $stmt = $pdo->query("
-            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
+            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated,
                    c.name AS constellation_name
             FROM nodes n
@@ -1150,7 +1169,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         }
 
         $stmt = $pdo->prepare("
-            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
+            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated,
                    c.name AS constellation_name
             FROM nodes n
@@ -1165,7 +1184,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
     // Editor requesting "all" constellations - show only those they have access to
     if (!$isAdmin && $userId !== null) {
         $stmt = $pdo->prepare("
-            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
+            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated,
                    c.name AS constellation_name
             FROM nodes n

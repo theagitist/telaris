@@ -1439,6 +1439,8 @@ class TelarisNetwork {
                     embed_code: data.embed_code,
                     audio_url: data.audio_url,
                     audio_autoplay: !!data.audio_autoplay,
+                    video_url: data.video_url,
+                    video_autoplay: !!data.video_autoplay,
                     node_type: data.node_type ?? 'object',
                     target_constellation_id: (data.target_constellation_id !== undefined && data.target_constellation_id !== null && data.target_constellation_id !== '') ? Number(data.target_constellation_id) : null,
                     is_accentuated: !!data.is_accentuated,

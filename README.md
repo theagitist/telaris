@@ -193,6 +193,11 @@ Stores API keys for authentication.
 
 ## Version History
 
+### Version 5.2.3
+- **Video Playback Fixes**: Resolved an issue where video assets were not correctly mapped to node data in the visualization.
+- **Improved Cache Busting**: Synchronized project versioning to ensure latest frontend logic is loaded.
+- **Stability**: Refined database connection handling and automated migrations.
+
 ### Version 5.2.2
 - **Constellation Duplication**: Added ability to clone entire constellations including all nodes, keywords, and physical assets (images/audio).
 - **Portal Description Window**: Implemented an intermediate information window for Portal nodes with descriptions, requiring explicit user confirmation ("Open the Portal") before traversal.

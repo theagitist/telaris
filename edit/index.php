@@ -716,6 +716,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 ${node.image_url ? '<span class="text-[10px] bg-purple-100 text-purple-700 px-1 rounded" title="Has Image">IMG</span>' : ''}
                                 ${node.embed_code ? '<span class="text-[10px] bg-pink-100 text-pink-700 px-1 rounded" title="Has Embed">EMB</span>' : ''}
                                 ${node.audio_url ? '<span class="text-[10px] bg-orange-100 text-orange-700 px-1 rounded" title="Has Audio">AUD</span>' : ''}
+                                ${node.video_url ? '<span class="text-[10px] bg-cyan-100 text-cyan-700 px-1 rounded" title="Has Video">VID</span>' : ''}
                             </div>
                         </div>
                         <div class="col-span-1 text-xs">

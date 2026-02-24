@@ -16,7 +16,7 @@
     <meta property="og:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <meta name="twitter:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
     <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
-    <script src="js/tailwind.min.js?v=5.2.2"></script>
+    <script src="js/tailwind.min.js?v=5.2.3"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <style>
         :root {
@@ -219,7 +219,7 @@
 
                         <!-- Video -->
                         <div id="rm-video-wrap" class="hidden">
-                            <video id="rm-video" controls preload="auto" class="w-full h-auto rounded-md border" style="border-color: var(--node-accent-muted);"></video>
+                            <video id="rm-video" controls preload="auto" class="w-full h-auto rounded-md border" style="border-color: var(--node-accent-muted); width: 100% !important;"></video>
                         </div>
 
                         <!-- Audio -->
@@ -369,16 +369,16 @@
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "./telaris-network.js": "./js/telaris-network.js?v=5.2.2",
-                "./network-manager.js": "./js/network-manager.js?v=5.2.2",
-                "./geometry-manager.js": "./js/geometry-manager.js?v=5.2.2",
-                "./api.js": "./js/api.js?v=5.2.2",
-                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=5.2.2",
-                "./themes.js": "./js/themes.js?v=5.2.2"
+                "./telaris-network.js": "./js/telaris-network.js?v=5.2.3",
+                "./network-manager.js": "./js/network-manager.js?v=5.2.3",
+                "./geometry-manager.js": "./js/geometry-manager.js?v=5.2.3",
+                "./api.js": "./js/api.js?v=5.2.3",
+                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=5.2.3",
+                "./themes.js": "./js/themes.js?v=5.2.3"
             }
         }
     </script>
-    <script type="module" src="js/main.js?v=5.2.2"></script>
+    <script type="module" src="js/main.js?v=5.2.3"></script>
 </body>
 </html>
 </body>
