@@ -48,7 +48,6 @@ function parseTargetConstellationId(mixed $value): ?int {
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
-file_put_contents(__DIR__ . '/../debug_upload.log', "--- " . date('Y-m-d H:i:s') . " ---\nMETHOD: $method\nPOST: " . print_r($_POST, true) . "\nFILES: " . print_r($_FILES, true) . "\nHEADERS: " . print_r(getallheaders(), true) . "\n", FILE_APPEND);
 if ($method === 'POST' && isset($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']) && strtoupper($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']) === 'PUT') {
     $method = 'PUT';
 }

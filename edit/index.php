@@ -1106,27 +1106,69 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const audioFile = document.getElementById('edit-audio-file').files[0];
             if (audioFile) formData.append('audio_file', audioFile);
             
-            try {
-                const response = await fetch(API_BASE, {
-                    method: 'POST',
-                    headers: {
-                        'X-API-Key': API_KEY,
-                        'X-HTTP-Method-Override': 'PUT'
-                    },
-                    body: formData
-                });
-                
-                if (!response.ok) throw new Error('Failed to update node');
-                
-                document.getElementById('edit_modal').close();
-                showMessage('Node updated successfully');
-                loadNodes();
-            } catch (error) {
-                showMessage('Error saving node: ' + error.message, 'error');
-            } finally {
+            handleNodeSubmit(formData, 'edit', 'PUT');
+        }
+
+        function handleNodeSubmit(formData, context, method = 'POST') {
+            const submitBtn = document.getElementById(`${context}-submit-btn`);
+            const loader = document.getElementById(`${context}-submit-loader`);
+            const progressWrap = document.getElementById(`${context}-progress-wrap`);
+            const progressBar = document.getElementById(`${context}-progress-bar`);
+            const progressText = document.getElementById(`${context}-progress-text`);
+            const modalId = context === 'edit' ? 'edit_modal' : 'create_node_modal';
+
+            submitBtn.disabled = true;
+            loader.classList.remove('hidden');
+            
+            // Only show progress if files are being uploaded
+            const hasFiles = formData.has('image_file') || formData.has('audio_file');
+            if (hasFiles) progressWrap.classList.remove('hidden');
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', API_BASE, true);
+            xhr.setRequestHeader('X-API-Key', API_KEY);
+            if (method === 'PUT') {
+                xhr.setRequestHeader('X-HTTP-Method-Override', 'PUT');
+            }
+
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    progressBar.value = percent;
+                    progressText.textContent = percent + '%';
+                }
+            };
+
+            xhr.onload = () => {
                 submitBtn.disabled = false;
                 loader.classList.add('hidden');
-            }
+                progressWrap.classList.add('hidden');
+                progressBar.value = 0;
+                progressText.textContent = '0%';
+
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    document.getElementById(modalId).close();
+                    showMessage(`Node ${context === 'edit' ? 'updated' : 'created'} successfully`);
+                    loadNodes();
+                } else {
+                    let errorMsg = `Failed to ${context === 'edit' ? 'update' : 'create'} node`;
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        errorMsg = response.error || errorMsg;
+                    } catch (e) {}
+                    showMessage(`Error: ${errorMsg} (${xhr.status})`, 'error');
+                    console.error('Submit failed:', xhr.status, xhr.responseText);
+                }
+            };
+
+            xhr.onerror = () => {
+                submitBtn.disabled = false;
+                loader.classList.add('hidden');
+                progressWrap.classList.add('hidden');
+                showMessage('Network error occurred during upload', 'error');
+            };
+
+            xhr.send(formData);
         }
 
         // Helper for custom confirmation modal
@@ -1272,24 +1314,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const audioFile = document.getElementById('node-audio-file').files[0];
             if (audioFile) formData.append('audio_file', audioFile);
 
-            try {
-                const response = await fetch(API_BASE, {
-                    method: 'POST',
-                    headers: { 'X-API-Key': API_KEY },
-                    body: formData
-                });
-                
-                if (!response.ok) throw new Error('Failed to create node');
-
-                document.getElementById('create_node_modal').close();
-                showMessage('Node created successfully');
-                loadNodes();
-            } catch (error) {
-                showMessage('Error saving node: ' + error.message, 'error');
-            } finally {
-                submitBtn.disabled = false;
-                loader.classList.add('hidden');
-            }
+            handleNodeSubmit(formData, 'create', 'POST');
         }
 
         // Wait for DOM to be ready
@@ -1571,6 +1596,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </label>
                     </div>
                 </div>
+                <div id="create-progress-wrap" class="hidden space-y-2">
+                    <div class="flex justify-between text-xs font-medium">
+                        <span>Uploading...</span>
+                        <span id="create-progress-text">0%</span>
+                    </div>
+                    <progress id="create-progress-bar" class="progress progress-neutral w-full" value="0" max="100"></progress>
+                </div>
                 <div>
                     <label for="node-embed-code" class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
                     <textarea id="node-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
@@ -1674,6 +1706,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             Autoplay audio
                         </label>
                     </div>
+                </div>
+                <div id="edit-progress-wrap" class="hidden space-y-2">
+                    <div class="flex justify-between text-xs font-medium">
+                        <span>Uploading...</span>
+                        <span id="edit-progress-text">0%</span>
+                    </div>
+                    <progress id="edit-progress-bar" class="progress progress-neutral w-full" value="0" max="100"></progress>
                 </div>
                 <div>
                     <label class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
