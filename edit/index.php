@@ -1669,7 +1669,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     
                     <div class="flex flex-col">
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Media (Audio or Video)</label>
-                        <div class="tabs tabs-boxed bg-gray-100 mb-2">
+                        <div class="tabs tabs-bordered mb-2">
                             <button type="button" id="create-audio-tab" onclick="switchAVTab('audio', 'create')" class="tab tab-sm tab-active">Audio</button>
                             <button type="button" id="create-video-tab" onclick="switchAVTab('video', 'create')" class="tab tab-sm">Video (MP4)</button>
                         </div>
@@ -1797,7 +1797,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     
                     <div class="flex flex-col">
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Media (Audio or Video)</label>
-                        <div class="tabs tabs-boxed bg-gray-100 mb-2">
+                        <div class="tabs tabs-bordered mb-2">
                             <button type="button" id="edit-audio-tab" onclick="switchAVTab('audio', 'edit')" class="tab tab-sm">Audio</button>
                             <button type="button" id="edit-video-tab" onclick="switchAVTab('video', 'edit')" class="tab tab-sm">Video (MP4)</button>
                         </div>
