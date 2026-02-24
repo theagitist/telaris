@@ -1064,6 +1064,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 return;
             }
 
+            const submitBtn = document.getElementById('edit-submit-btn');
+            const loader = document.getElementById('edit-submit-loader');
+            submitBtn.disabled = true;
+            loader.classList.remove('hidden');
+
             const node = allNodes.find(n => n.id === nodeId);
             
             const formData = new FormData();
@@ -1118,6 +1123,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 loadNodes();
             } catch (error) {
                 showMessage('Error saving node: ' + error.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                loader.classList.add('hidden');
             }
         }
 
@@ -1231,6 +1239,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 return;
             }
 
+            const submitBtn = document.getElementById('create-submit-btn');
+            const loader = document.getElementById('create-submit-loader');
+            submitBtn.disabled = true;
+            loader.classList.remove('hidden');
+
             const animation = generateRandomAnimation();
             const constellationId = parseInt(document.getElementById('node-constellation').value);
             const nodeType = document.getElementById('node-type').value;
@@ -1273,6 +1286,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 loadNodes();
             } catch (error) {
                 showMessage('Error saving node: ' + error.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                loader.classList.add('hidden');
             }
         }
 
@@ -1561,7 +1577,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <span class="text-xs text-gray-500 mt-1 block">Paste iframe or HTML code for videos or interactive content.</span>
                 </div>
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-neutral">Add Node</button>
+                    <button type="submit" id="create-submit-btn" class="btn btn-neutral">
+                        <span class="loading loading-spinner hidden" id="create-submit-loader"></span>
+                        Add Node
+                    </button>
                     <button type="button" class="btn" onclick="document.getElementById('create_node_modal').close()">Cancel</button>
                 </div>
             </form>
@@ -1661,7 +1680,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <textarea id="edit-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
                 </div>
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-neutral">Update Node</button>
+                    <button type="submit" id="edit-submit-btn" class="btn btn-neutral">
+                        <span class="loading loading-spinner hidden" id="edit-submit-loader"></span>
+                        Update Node
+                    </button>
                     <button type="button" class="btn" onclick="document.getElementById('edit_modal').close()">Cancel</button>
                 </div>
             </form>
