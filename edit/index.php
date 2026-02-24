@@ -1111,12 +1111,22 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     body: formData
                 });
                 
-                if (!response.ok) throw new Error('Failed to update node');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Update failed:', response.status, errorText);
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        throw new Error(errorJson.error || 'Failed to update node');
+                    } catch (e) {
+                        throw new Error(`Failed to update node (${response.status})`);
+                    }
+                }
                 
                 document.getElementById('edit_modal').close();
                 showMessage('Node updated successfully');
                 loadNodes();
             } catch (error) {
+                console.error('Save error:', error);
                 showMessage('Error saving node: ' + error.message, 'error');
             }
         }
@@ -1266,12 +1276,22 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     body: formData
                 });
                 
-                if (!response.ok) throw new Error('Failed to create node');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Create failed:', response.status, errorText);
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        throw new Error(errorJson.error || 'Failed to create node');
+                    } catch (e) {
+                        throw new Error(`Failed to create node (${response.status})`);
+                    }
+                }
 
                 document.getElementById('create_node_modal').close();
                 showMessage('Node created successfully');
                 loadNodes();
             } catch (error) {
+                console.error('Create error:', error);
                 showMessage('Error saving node: ' + error.message, 'error');
             }
         }
