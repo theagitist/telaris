@@ -193,6 +193,10 @@ Stores API keys for authentication.
 
 ## Version History
 
+### Version 5.2.1
+- **UI Consistency Fix**: Standardized all dropdown list boxes across the Admin Console and Node Editor to use a refined, uniform aesthetic (DaisyUI select-sm style).
+- **Asset Version Synchronization**: Unified project versioning across all core files and implemented synchronized cache-busting strings for all JavaScript modules.
+
 ### Version 5.2.0
 - **Stripes Theme**: Added a new theme utilizing custom stripe icons, continuing the Abstract theme architecture.
 - **Enhanced Asset Management**: Implemented strict standard file (644) and directory (755) permission enforcement for all theme assets.
