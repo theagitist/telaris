@@ -1596,17 +1596,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </label>
                     </div>
                 </div>
+                <div>
+                    <label for="node-embed-code" class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
+                    <textarea id="node-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
+                    <span class="text-xs text-gray-500 mt-1 block">Paste iframe or HTML code for videos or interactive content.</span>
+                </div>
                 <div id="create-progress-wrap" class="hidden space-y-2">
                     <div class="flex justify-between text-xs font-medium">
                         <span>Uploading...</span>
                         <span id="create-progress-text">0%</span>
                     </div>
                     <progress id="create-progress-bar" class="progress progress-neutral w-full" value="0" max="100"></progress>
-                </div>
-                <div>
-                    <label for="node-embed-code" class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
-                    <textarea id="node-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
-                    <span class="text-xs text-gray-500 mt-1 block">Paste iframe or HTML code for videos or interactive content.</span>
                 </div>
                 <div class="modal-action">
                     <button type="submit" id="create-submit-btn" class="btn btn-neutral">
@@ -1707,16 +1707,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </label>
                     </div>
                 </div>
+                <div>
+                    <label class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
+                    <textarea id="edit-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
+                </div>
                 <div id="edit-progress-wrap" class="hidden space-y-2">
                     <div class="flex justify-between text-xs font-medium">
                         <span>Uploading...</span>
                         <span id="edit-progress-text">0%</span>
                     </div>
                     <progress id="edit-progress-bar" class="progress progress-neutral w-full" value="0" max="100"></progress>
-                </div>
-                <div>
-                    <label class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
-                    <textarea id="edit-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
                 </div>
                 <div class="modal-action">
                     <button type="submit" id="edit-submit-btn" class="btn btn-neutral">
