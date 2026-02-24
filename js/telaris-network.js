@@ -1305,15 +1305,10 @@ class TelarisNetwork {
                     html += `</div>`;
                 }
 
-                const isPortal = node.userData.node_type === 'portal';
-                const hasDesc = !!(node.userData.description && node.userData.description.trim() !== '');
-
-                if (isPortal && hasDesc) {
-                    html += `<div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 6px; font-style: italic; line-height: 1.3; max-width: 180px;">${node.userData.description}</div>`;
-                }
-
                 // Interaction hint
                 const hasMedia = !!(node.userData.image_url || node.userData.embed_code || node.userData.audio_url);
+                const hasDesc = !!(node.userData.description && node.userData.description.trim() !== '');
+                const isPortal = node.userData.node_type === 'portal';
                 
                 if (node.userData.url || hasMedia || hasDesc || isPortal) {
                     const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
@@ -1979,15 +1974,10 @@ class TelarisNetwork {
                         html += `</div>`;
                     }
 
-                    const isPortalNode = hoveredNode.userData.node_type === 'portal';
-                    const hasDesc = !!(hoveredNode.userData.description && hoveredNode.userData.description.trim() !== '');
-
-                    if (isPortalNode && hasDesc) {
-                        html += `<div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 6px; font-style: italic; line-height: 1.3; max-width: 180px;">${hoveredNode.userData.description}</div>`;
-                    }
-
                     // Interaction hint
                     const hasMedia = !!(hoveredNode.userData.image_url || hoveredNode.userData.embed_code || hoveredNode.userData.audio_url);
+                    const hasDesc = !!(hoveredNode.userData.description && hoveredNode.userData.description.trim() !== '');
+                    const isPortalNode = hoveredNode.userData.node_type === 'portal';
                     
                     if (hoveredNode.userData.url || hasMedia || hasDesc || isPortalNode) {
                         const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0) 
