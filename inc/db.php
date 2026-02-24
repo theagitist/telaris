@@ -918,6 +918,9 @@ function db_duplicate_constellation(int $sourceId, string $newName, string $newT
         $insertNodeKw = $pdo->prepare("INSERT INTO node_keywords (node_id, keyword_id) VALUES (:nid, :kid)");
         
         $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
 
         foreach ($nodes as $node) {
             $newNodeImageUrl = $node['image_url'];

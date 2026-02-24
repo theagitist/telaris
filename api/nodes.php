@@ -155,7 +155,7 @@ try {
             $nodeRelDir = "uploads/{$constellationId}/{$nodeId}";
             $nodeFullDir = "{$uploadDir}/{$constellationId}/{$nodeId}";
             if (!is_dir($nodeFullDir)) {
-                if (!mkdir($nodeFullDir, 0777, true)) {
+                if (!mkdir($nodeFullDir, 0755, true)) {
                 }
             }
 
@@ -238,7 +238,7 @@ try {
                 $nodeRelDir = "uploads/{$constellationId}/{$id}";
                 $nodeFullDir = "{$uploadDir}/{$constellationId}/{$id}";
                 if (!is_dir($nodeFullDir)) {
-                    if (!mkdir($nodeFullDir, 0777, true)) {
+                    if (!mkdir($nodeFullDir, 0755, true)) {
                     }
                 }
 
