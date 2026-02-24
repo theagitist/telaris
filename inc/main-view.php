@@ -306,6 +306,7 @@
         window.TELARIS_THEME_ID = <?php echo json_encode($constellationTheme ?? 'cosmic'); ?>;
         window.TELARIS_CLICK_TO_VIEW = <?php echo json_encode($projectClickToViewText ?? 'Click to view'); ?>;
         window.TELARIS_TAP_TO_VIEW = <?php echo json_encode($projectTapToViewText ?? 'Tap again to view'); ?>;
+        window.TELARIS_OPEN_PORTAL_TEXT = <?php echo json_encode($projectOpenPortalText ?? 'Open the Portal'); ?>;
     </script>
     <script>
     (function() {

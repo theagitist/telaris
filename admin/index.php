@@ -401,6 +401,7 @@ $fieldMeta = [
     'logout_label_text' => ['label' => 'Logout label', 'desc' => 'Label for the logout link.', 'type' => 'text'],
     'click_to_view_text' => ['label' => 'Click to view hint', 'desc' => 'Interaction hint shown in node tooltips for mouse users.', 'type' => 'text'],
     'tap_to_view_text' => ['label' => 'Tap to view hint', 'desc' => 'Interaction hint shown in node tooltips for touch users.', 'type' => 'text'],
+    'open_portal_text' => ['label' => 'Open portal button text', 'desc' => 'Text on the button that opens a portal when it has a description.', 'type' => 'text'],
 ];
 ?>
 <!DOCTYPE html>

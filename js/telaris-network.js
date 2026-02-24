@@ -203,7 +203,18 @@ class TelarisNetwork {
 
         // URL / Action Button
         if (urlWrap && urlButton) {
-            if (d.url) {
+            if (d.node_type === 'portal' && d.target_constellation_id != null) {
+                urlWrap.classList.remove('hidden');
+                urlButton.textContent = window.TELARIS_OPEN_PORTAL_TEXT || 'Open the Portal';
+                urlButton.onclick = () => {
+                    this.closeRichMediaWindow();
+                    if (window.telarisApp) {
+                        window.telarisApp.startPortalRev(node, d.target_constellation_id);
+                    } else {
+                        window.location.href = `index.php?constellation_id=${d.target_constellation_id}`;
+                    }
+                };
+            } else if (d.url) {
                 urlWrap.classList.remove('hidden');
                 urlButton.textContent = `LAUNCH ${d.name || 'SYSTEM'}`;
                 urlButton.onclick = () => {
@@ -1124,10 +1135,16 @@ class TelarisNetwork {
                     if (data.target_constellation_id != null) {
                         event.preventDefault();
                         event.stopPropagation();
-                        if (window.telarisApp) {
-                            window.telarisApp.startPortalRev(targetNode, data.target_constellation_id);
+
+                        const hasDesc = !!(data.description && data.description.trim() !== '');
+                        if (hasDesc) {
+                            this.showRichMediaWindow(targetNode);
                         } else {
-                            window.location.href = `index.php?constellation_id=${data.target_constellation_id}`;
+                            if (window.telarisApp) {
+                                window.telarisApp.startPortalRev(targetNode, data.target_constellation_id);
+                            } else {
+                                window.location.href = `index.php?constellation_id=${data.target_constellation_id}`;
+                            }
                         }
                     }
                 } else if (data.node_type === 'object') {
@@ -1221,7 +1238,12 @@ class TelarisNetwork {
                         // SECOND TAP: Open/Trigger action
                         if (nodeData.node_type === 'portal' && nodeData.target_constellation_id != null) {
                             e.preventDefault();
-                            this.startPortalRev(touchStartNode, nodeData.target_constellation_id);
+                            const hasDesc = !!(nodeData.description && nodeData.description.trim() !== '');
+                            if (hasDesc) {
+                                this.showRichMediaWindow(touchStartNode);
+                            } else {
+                                this.startPortalRev(touchStartNode, nodeData.target_constellation_id);
+                            }
                             this.networkManager.setFocusedNode(null);
                         } else if (nodeData.node_type === 'object') {
                             const hasMedia = !!(nodeData.image_url || nodeData.embed_code || nodeData.audio_url);

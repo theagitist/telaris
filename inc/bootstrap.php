@@ -99,6 +99,7 @@ $projectAdminLabelText = $projectStrings['admin_label_text'] ?? 'Admin';
 $projectLogoutLabelText = $projectStrings['logout_label_text'] ?? 'Logout';
 $projectClickToViewText = $projectStrings['click_to_view_text'] ?? 'Click to view';
 $projectTapToViewText = $projectStrings['tap_to_view_text'] ?? 'Tap again to view';
+$projectOpenPortalText = $projectStrings['open_portal_text'] ?? 'Open the Portal';
 $defaultConstellationId = $projectStrings['default_constellation_id'] ?? 0;
 
 // Constellation for main view: root URL = default; /{NUMBER} or ?constellation_id=NUMBER = that constellation

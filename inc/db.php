@@ -57,7 +57,7 @@ function getDefaultApiKey(?PDO $pdo = null): ?string {
 // ---------------------------------------------------------------------------
 
 /** Column keys for project_info (one row per locale). */
-const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text', 'back_button_text', 'system_online_text', 'reload_system_text', 'scan_system_text', 'clear_scan_text', 'systems_label_text', 'hyperlinks_label_text', 'initialize_auth_text', 'admin_label_text', 'logout_label_text', 'click_to_view_text', 'tap_to_view_text'];
+const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text', 'back_button_text', 'system_online_text', 'reload_system_text', 'scan_system_text', 'clear_scan_text', 'systems_label_text', 'hyperlinks_label_text', 'initialize_auth_text', 'admin_label_text', 'logout_label_text', 'click_to_view_text', 'tap_to_view_text', 'open_portal_text'];
 
 /** Locales supported (one row per locale in project_info). */
 const PROJECT_INFO_LOCALES = ['en', 'es', 'pt'];
@@ -100,7 +100,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'clear_scan_text' => 'Clear Search', 'systems_label_text' => 'Nodes:',
             'hyperlinks_label_text' => 'Hyperlinks:', 'initialize_auth_text' => 'Login',
             'admin_label_text' => 'Admin', 'logout_label_text' => 'Logout',
-            'click_to_view_text' => 'Click to view', 'tap_to_view_text' => 'Tap again to view'
+            'click_to_view_text' => 'Click to view', 'tap_to_view_text' => 'Tap again to view',
+            'open_portal_text' => 'Open the Portal'
         ],
         'es' => [
             'name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 
@@ -111,7 +112,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'clear_scan_text' => 'Limpiar Búsqueda', 'systems_label_text' => 'Nodos:',
             'hyperlinks_label_text' => 'Hipervínculos:', 'initialize_auth_text' => 'Iniciar sesión',
             'admin_label_text' => 'Admin', 'logout_label_text' => 'Cerrar sesión',
-            'click_to_view_text' => 'Haz clic para ver', 'tap_to_view_text' => 'Toca de nuevo para ver'
+            'click_to_view_text' => 'Haz clic para ver', 'tap_to_view_text' => 'Toca de nuevo para ver',
+            'open_portal_text' => 'Abrir el Portal'
         ],
         'pt' => [
             'name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 
@@ -122,7 +124,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'clear_scan_text' => 'Limpar Busca', 'systems_label_text' => 'Nodos:',
             'hyperlinks_label_text' => 'Hiperlinks:', 'initialize_auth_text' => 'Entrar',
             'admin_label_text' => 'Admin', 'logout_label_text' => 'Sair',
-            'click_to_view_text' => 'Clique para ver', 'tap_to_view_text' => 'Toque novamente para ver'
+            'click_to_view_text' => 'Clique para ver', 'tap_to_view_text' => 'Toque novamente para ver',
+            'open_portal_text' => 'Abrir o Portal'
         ],
     ];
 }
