@@ -82,7 +82,8 @@ class TelarisNetwork {
             '&app=' + encodeURIComponent(app) + 
             '&alert_msg=' + encodeURIComponent(alertMsg) +
             '&node_name=' + encodeURIComponent(d.name || 'System') +
-            '&description=' + encodeURIComponent(d.description || '');
+            '&description=' + encodeURIComponent(d.description || '') +
+            '&open_portal_text=' + encodeURIComponent(window.TELARIS_OPEN_PORTAL_TEXT || 'Open the Portal');
         window.open(frameUrl, '_blank', 'noopener,noreferrer');
     }
 

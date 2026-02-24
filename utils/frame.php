@@ -13,6 +13,7 @@ $nodeName = isset($_GET['node_name']) ? trim((string) $_GET['node_name']) : 'Sys
 $appName = isset($_GET['app']) ? trim((string) $_GET['app']) : 'Telaris';
 $alertMsg = isset($_GET['alert_msg']) ? trim((string) $_GET['alert_msg']) : 'Close this window to come back';
 $description = isset($_GET['description']) ? trim((string) $_GET['description']) : '';
+$openPortalText = isset($_GET['open_portal_text']) ? trim((string) $_GET['open_portal_text']) : 'Open the Portal';
 
 $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>
@@ -81,6 +82,28 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
             text-shadow: 0 0 20px var(--accent);
         }
 
+        .launch-button {
+            padding: 1rem 3rem;
+            background: transparent;
+            border: 2px solid var(--accent);
+            color: var(--accent);
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.1);
+            border-radius: 4px;
+        }
+
+        .launch-button:hover {
+            background: var(--accent);
+            color: #000;
+            box-shadow: 0 0 30px var(--accent);
+        }
+
         #bg-canvas {
             position: fixed;
             top: 0;
@@ -134,8 +157,10 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
         <div class="subtitle"><?php echo nl2br(htmlspecialchars($alertMsg)); ?></div>
         <?php if ($description !== ''): ?>
         <div class="description"><?php echo nl2br(htmlspecialchars($description)); ?></div>
-        <?php endif; ?>
+        <button class="launch-button" id="launch-btn"><?php echo htmlspecialchars($openPortalText); ?></button>
+        <?php else: ?>
         <div class="countdown" id="cd">5</div>
+        <?php endif; ?>
     </div>
 
     <div class="footer-note">
@@ -148,8 +173,10 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
         (function() {
             const url = <?php echo $urlJson; ?>;
             const cdEl = document.getElementById('cd');
+            const launchBtn = document.getElementById('launch-btn');
             const overlay = document.getElementById('fade-overlay');
             const content = document.getElementById('main-content');
+            const hasDescription = <?php echo $description !== '' ? 'true' : 'false'; ?>;
             let count = 5;
             let isLaunching = false;
             let launchStartTime = 0;
@@ -209,34 +236,43 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
 
-            // Countdown
-            const timer = setInterval(() => {
-                count--;
-                if (count > 0) {
-                    cdEl.innerText = count;
-                } else {
-                    clearInterval(timer);
-                    cdEl.innerText = "GO";
-                    
-                    // Start immersive warp effect
-                    isLaunching = true;
-                    launchStartTime = performance.now();
-                    
-                    // Phase 1: Rapid UI fade
-                    content.style.transition = 'opacity 0.3s ease-out';
-                    content.style.opacity = '0';
-                    
-                    // Phase 2: Fade entire viewport to black during the zoom
-                    setTimeout(() => {
-                        document.body.classList.add('traversing');
-                    }, 200);
-                    
-                    // Final navigation after the warp completes
-                    setTimeout(() => {
-                        window.location.href = url;
-                    }, 1050);
-                }
-            }, 1000);
+            function startLaunch() {
+                if (isLaunching) return;
+                
+                // Start immersive warp effect
+                isLaunching = true;
+                launchStartTime = performance.now();
+                
+                // Phase 1: Rapid UI fade
+                content.style.transition = 'opacity 0.3s ease-out';
+                content.style.opacity = '0';
+                
+                // Phase 2: Fade entire viewport to black during the zoom
+                setTimeout(() => {
+                    document.body.classList.add('traversing');
+                }, 200);
+                
+                // Final navigation after the warp completes
+                setTimeout(() => {
+                    window.location.href = url;
+                }, 1050);
+            }
+
+            if (hasDescription && launchBtn) {
+                launchBtn.onclick = startLaunch;
+            } else if (cdEl) {
+                // Countdown
+                const timer = setInterval(() => {
+                    count--;
+                    if (count > 0) {
+                        cdEl.innerText = count;
+                    } else {
+                        clearInterval(timer);
+                        cdEl.innerText = "GO";
+                        startLaunch();
+                    }
+                }, 1000);
+            }
         })();
     </script>
 </body>
