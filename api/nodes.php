@@ -156,6 +156,9 @@ try {
             $nodeFullDir = "{$uploadDir}/{$constellationId}/{$nodeId}";
             if (!is_dir($nodeFullDir)) {
                 if (!mkdir($nodeFullDir, 0755, true)) {
+                    http_response_code(500);
+                    echo json_encode(['error' => "Failed to create directory: {$nodeFullDir}. Check permissions."], JSON_THROW_ON_ERROR);
+                    return;
                 }
             }
 
@@ -168,6 +171,9 @@ try {
                     $imageUrl = $imageRelPath;
                     $uploadedFiles = true;
                 } else {
+                    http_response_code(500);
+                    echo json_encode(['error' => "Failed to move uploaded image to: {$imageFullPath}"], JSON_THROW_ON_ERROR);
+                    return;
                 }
             }
             if (isset($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK) {
@@ -178,6 +184,9 @@ try {
                     $audioUrl = $audioRelPath;
                     $uploadedFiles = true;
                 } else {
+                    http_response_code(500);
+                    echo json_encode(['error' => "Failed to move uploaded audio to: {$audioFullPath}"], JSON_THROW_ON_ERROR);
+                    return;
                 }
             }
 
@@ -239,6 +248,9 @@ try {
                 $nodeFullDir = "{$uploadDir}/{$constellationId}/{$id}";
                 if (!is_dir($nodeFullDir)) {
                     if (!mkdir($nodeFullDir, 0755, true)) {
+                        http_response_code(500);
+                        echo json_encode(['error' => "Failed to create directory: {$nodeFullDir}. Check permissions."], JSON_THROW_ON_ERROR);
+                        return;
                     }
                 }
 
@@ -249,6 +261,9 @@ try {
                     if (move_uploaded_file($_FILES['image_file']['tmp_name'], $imageFullPath)) {
                         $imageUrl = $imageRelPath;
                     } else {
+                        http_response_code(500);
+                        echo json_encode(['error' => "Failed to move uploaded image to: {$imageFullPath}"], JSON_THROW_ON_ERROR);
+                        return;
                     }
                 }
                 if (isset($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK) {
@@ -258,6 +273,9 @@ try {
                     if (move_uploaded_file($_FILES['audio_file']['tmp_name'], $audioFullPath)) {
                         $audioUrl = $audioRelPath;
                     } else {
+                        http_response_code(500);
+                        echo json_encode(['error' => "Failed to move uploaded audio to: {$audioFullPath}"], JSON_THROW_ON_ERROR);
+                        return;
                     }
                 }
             }
