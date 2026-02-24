@@ -193,6 +193,13 @@ Stores API keys for authentication.
 
 ## Version History
 
+### Version 5.3
+- **MP4 Video Support**: Added full support for uploading and playing MP4 videos on nodes, with integrated autoplay settings.
+- **Improved Node Media Handling**: Implemented mutual exclusivity for audio and video assets per node to optimize storage and playback.
+- **Upload Progress Tracking**: Integrated real-time progress bars and percentage indicators for media uploads in the Node Editor.
+- **Automated Database Migrations**: Centralized and automated the runtime database schema updates to ensure consistency across all environments.
+- **Enhanced Storage Management**: Resolved permission and path issues for external storage mounts using symbolic links.
+
 ### Version 5.2.3
 - **Video Playback Fixes**: Resolved an issue where video assets were not correctly mapped to node data in the visualization.
 - **Improved Cache Busting**: Synchronized project versioning to ensure latest frontend logic is loaded.
