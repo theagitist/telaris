@@ -193,6 +193,12 @@ Stores API keys for authentication.
 
 ## Version History
 
+### Version 5.2.2
+- **Constellation Duplication**: Added ability to clone entire constellations including all nodes, keywords, and physical assets (images/audio).
+- **Portal Description Window**: Implemented an intermediate information window for Portal nodes with descriptions, requiring explicit user confirmation ("Open the Portal") before traversal.
+- **Enhanced Launch Flow**: Replaced the automatic countdown with a manual launch button for all nodes containing descriptions in the frame view.
+- **Improved Localization**: Integrated new localized strings for portal and launch interaction across English, Spanish, and Portuguese.
+
 ### Version 5.2.1
 - **UI Consistency Fix**: Standardized all dropdown list boxes across the Admin Console and Node Editor to use a refined, uniform aesthetic (DaisyUI select-sm style).
 - **Asset Version Synchronization**: Unified project versioning across all core files and implemented synchronized cache-busting strings for all JavaScript modules.
