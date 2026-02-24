@@ -234,6 +234,31 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $activeTab = 'constellations';
             })(),
             
+            'duplicate_constellation' => (function(): void {
+                global $message, $error, $activeTab;
+                $sourceId = (int)($_POST['source_id'] ?? -1);
+                $name = trim($_POST['name'] ?? '');
+                $tagline = trim($_POST['tagline'] ?? '');
+                $slug = trim($_POST['slug'] ?? '');
+                
+                if (empty($name)) {
+                    throw new Exception('New constellation name is required');
+                }
+                
+                $finalSlug = ($slug !== '') ? $slug : db_slugify($name);
+                $exists = db_constellation_exists($name, $finalSlug);
+                if ($exists['name'] || $exists['slug']) {
+                    $errs = [];
+                    if ($exists['name']) $errs[] = 'name "' . htmlspecialchars($name) . '"';
+                    if ($exists['slug']) $errs[] = 'slug "' . htmlspecialchars($finalSlug) . '"';
+                    throw new Exception('A constellation with this ' . implode(' and ', $errs) . ' already exists.');
+                }
+
+                db_duplicate_constellation($sourceId, $name, $tagline, $slug !== '' ? $slug : null);
+                $message = 'Constellation duplicated successfully.';
+                $activeTab = 'constellations';
+            })(),
+            
             'delete_constellation' => (function(): void {
                 global $message, $error, $activeTab;
                 $id = (int)($_POST['id'] ?? -1);
@@ -822,6 +847,9 @@ $fieldMeta = [
                                                                 onclick="event.stopPropagation(); triggerDelete('delete_constellation', '<?php echo $cId; ?>', <?php echo $delMsgJsC; ?>, <?php echo $cNameJs; ?>)" 
                                                                 class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">Delete</button>
                                                     <?php endif; ?>
+                                                    <button type="button" 
+                                                            onclick="event.stopPropagation(); duplicateConstellation(<?php echo $cJson; ?>)" 
+                                                            class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">Duplicate</button>
                                                     <a href="<?php echo htmlspecialchars($viewRel); ?>" target="_blank" rel="noopener" class="px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white text-xs rounded inline-flex items-center gap-1" onclick="event.stopPropagation()">View</a>
                                                     <button type="button" onclick="event.stopPropagation(); copyConstellationUrl('<?php echo htmlspecialchars($viewRel, ENT_QUOTES); ?>', this)" class="p-1.5 rounded border border-gray-300 hover:bg-gray-100 text-gray-600 hover:text-gray-800" title="Copy constellation URL">
                                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
@@ -1108,6 +1136,15 @@ $fieldMeta = [
             const validateModalC = debounce(() => validateConstellation(modalCName, modalCSlug, modalCNameErr, modalCSlugErr, modalCId), 500);
             if (modalCName) modalCName.addEventListener('input', validateModalC);
             if (modalCSlug) modalCSlug.addEventListener('input', validateModalC);
+
+            // Duplicate Constellation
+            const dupCName = document.getElementById('duplicate-constellation-name');
+            const dupCSlug = document.getElementById('duplicate-constellation-slug');
+            const dupCNameErr = document.getElementById('duplicate-constellation-name-error');
+            const dupCSlugErr = document.getElementById('duplicate-constellation-slug-error');
+            const validateDupC = debounce(() => validateConstellation(dupCName, dupCSlug, dupCNameErr, dupCSlugErr), 500);
+            if (dupCName) dupCName.addEventListener('input', validateDupC);
+            if (dupCSlug) dupCSlug.addEventListener('input', validateDupC);
         }
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -1299,6 +1336,15 @@ $fieldMeta = [
             document.getElementById('modal-constellation-tagline').value = c.tagline;
             document.getElementById('modal-constellation-theme').value = c.theme || 'cosmic';
             document.getElementById('constellation_modal').showModal();
+        }
+
+        function duplicateConstellation(c) {
+            document.getElementById('duplicate-source-id').value = c.id;
+            document.getElementById('duplicate-constellation-source-name').textContent = c.name;
+            document.getElementById('duplicate-constellation-name').value = c.name + ' (Copy)';
+            document.getElementById('duplicate-constellation-slug').value = (c.slug ? c.slug + '-copy' : '');
+            document.getElementById('duplicate-constellation-tagline').value = c.tagline;
+            document.getElementById('duplicate_constellation_modal').showModal();
         }
 
         async function triggerDelete(action, id, message, confirmName = null) {
@@ -1949,6 +1995,41 @@ $fieldMeta = [
                 <div class="modal-action">
                     <button type="submit" class="btn btn-neutral">Update Constellation</button>
                     <button type="button" class="btn" onclick="document.getElementById('constellation_modal').close()">Cancel</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Duplicate Constellation Modal -->
+    <dialog id="duplicate_constellation_modal" class="modal">
+        <div class="modal-box bg-white">
+            <h3 class="font-bold text-xl mb-4 text-gray-800">Duplicate Constellation</h3>
+            <p class="text-sm text-gray-600 mb-4">Duplicating: <strong id="duplicate-constellation-source-name"></strong></p>
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="duplicate_constellation">
+                <input type="hidden" id="duplicate-source-id" name="source_id">
+                
+                <div class="mb-4">
+                    <label for="duplicate-constellation-name" class="block mb-1.5 text-gray-800 font-medium">New Name *</label>
+                    <input type="text" id="duplicate-constellation-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span id="duplicate-constellation-name-error" class="text-xs text-red-600 mt-1 hidden">This name is already in use.</span>
+                </div>
+
+                <div class="mb-4">
+                    <label for="duplicate-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">New URL Slug (Optional)</label>
+                    <input type="text" id="duplicate-constellation-slug" name="slug" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span id="duplicate-constellation-slug-error" class="text-xs text-red-600 mt-1 hidden">This slug is already in use.</span>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="duplicate-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium">New Tagline</label>
+                    <input type="text" id="duplicate-constellation-tagline" name="tagline" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div class="modal-action">
+                    <button type="submit" class="btn btn-neutral">Duplicate</button>
+                    <button type="button" class="btn" onclick="document.getElementById('duplicate_constellation_modal').close()">Cancel</button>
                 </div>
             </form>
         </div>

@@ -872,6 +872,118 @@ function db_create_constellation(string $name, string $tagline = '', ?string $sl
 }
 
 /**
+ * Duplicate a constellation, including all its nodes and keywords.
+ * Also copies uploaded files for each node to ensure the duplicate has its own copies.
+ */
+function db_duplicate_constellation(int $sourceId, string $newName, string $newTagline = '', ?string $newSlug = null): int {
+    $pdo = getDB();
+    $pdo->beginTransaction();
+    try {
+        // 1. Get source constellation for theme
+        $stmt = $pdo->prepare("SELECT theme FROM constellations WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $sourceId]);
+        $source = $stmt->fetch();
+        if (!$source) throw new Exception("Source constellation not found.");
+        
+        $theme = $source['theme'] ?? 'cosmic';
+
+        // 2. Create the new constellation
+        $newId = db_create_constellation($newName, $newTagline, $newSlug, $theme);
+
+        // 3. Duplicate Keywords
+        // Keywords are constellation-specific in this schema.
+        $stmt = $pdo->prepare("SELECT id, keyword FROM keywords WHERE constellation_id = :sid");
+        $stmt->execute([':sid' => $sourceId]);
+        $oldToNewKeywordIds = [];
+        $insertKw = $pdo->prepare("INSERT INTO keywords (constellation_id, keyword) VALUES (:cid, :kw)");
+        
+        while ($kwRow = $stmt->fetch()) {
+            $insertKw->execute([':cid' => $newId, ':kw' => $kwRow['keyword']]);
+            $oldToNewKeywordIds[$kwRow['id']] = (int)$pdo->lastInsertId();
+        }
+
+        // 4. Duplicate Nodes
+        $stmt = $pdo->prepare("SELECT * FROM nodes WHERE constellation_id = :sid");
+        $stmt->execute([':sid' => $sourceId]);
+        $nodes = $stmt->fetchAll();
+
+        $insertNode = $pdo->prepare("
+            INSERT INTO nodes (constellation_id, name, description, url, image_url, embed_code, audio_url, audio_autoplay, node_type, target_constellation_id, is_accentuated, created_by, animation)
+            VALUES (:cid, :name, :description, :url, :image_url, :embed_code, :audio_url, :audio_autoplay, :node_type, :target_constellation_id, :is_accentuated, :created_by, :animation)
+        ");
+
+        $insertNodeKw = $pdo->prepare("INSERT INTO node_keywords (node_id, keyword_id) VALUES (:nid, :kid)");
+        
+        $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
+
+        foreach ($nodes as $node) {
+            $newNodeImageUrl = $node['image_url'];
+            $newNodeAudioUrl = $node['audio_url'];
+
+            // Duplicate files if they are in the uploads directory
+            if ($newNodeImageUrl && str_starts_with($newNodeImageUrl, 'uploads/')) {
+                $oldPath = str_replace('uploads/', $uploadDir . '/', $newNodeImageUrl);
+                if (file_exists($oldPath)) {
+                    $ext = pathinfo($oldPath, PATHINFO_EXTENSION);
+                    $newFilename = bin2hex(random_bytes(16)) . '.' . $ext;
+                    $newPath = $uploadDir . '/' . $newFilename;
+                    if (copy($oldPath, $newPath)) {
+                        $newNodeImageUrl = 'uploads/' . $newFilename;
+                    }
+                }
+            }
+
+            if ($newNodeAudioUrl && str_starts_with($newNodeAudioUrl, 'uploads/')) {
+                $oldPath = str_replace('uploads/', $uploadDir . '/', $newNodeAudioUrl);
+                if (file_exists($oldPath)) {
+                    $ext = pathinfo($oldPath, PATHINFO_EXTENSION);
+                    $newFilename = bin2hex(random_bytes(16)) . '.' . $ext;
+                    $newPath = $uploadDir . '/' . $newFilename;
+                    if (copy($oldPath, $newPath)) {
+                        $newNodeAudioUrl = 'uploads/' . $newFilename;
+                    }
+                }
+            }
+
+            $insertNode->execute([
+                ':cid' => $newId,
+                ':name' => $node['name'],
+                ':description' => $node['description'],
+                ':url' => $node['url'],
+                ':image_url' => $newNodeImageUrl,
+                ':embed_code' => $node['embed_code'],
+                ':audio_url' => $newNodeAudioUrl,
+                ':audio_autoplay' => $node['audio_autoplay'],
+                ':node_type' => $node['node_type'],
+                ':target_constellation_id' => $node['target_constellation_id'],
+                ':is_accentuated' => $node['is_accentuated'],
+                ':created_by' => $node['created_by'],
+                ':animation' => $node['animation']
+            ]);
+            $newNodeId = (int)$pdo->lastInsertId();
+
+            // Link keywords to the new node
+            $stmtKw = $pdo->prepare("SELECT keyword_id FROM node_keywords WHERE node_id = :nid");
+            $stmtKw->execute([':nid' => $node['id']]);
+            while ($nkRow = $stmtKw->fetch()) {
+                $oldKid = $nkRow['keyword_id'];
+                if (isset($oldToNewKeywordIds[$oldKid])) {
+                    $insertNodeKw->execute([':nid' => $newNodeId, ':kid' => $oldToNewKeywordIds[$oldKid]]);
+                }
+            }
+        }
+
+        $pdo->commit();
+        return $newId;
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
+/**
  * Update constellation name and tagline. Id cannot be changed. Default constellation (id=0) can be renamed.
  */
 function db_update_constellation(int $id, string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic'): void {
