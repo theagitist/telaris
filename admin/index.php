@@ -851,8 +851,8 @@ $fieldMeta = [
                     <input type="hidden" name="settings_lang" id="settings_lang" value="<?php echo htmlspecialchars($_GET['lang'] ?? 'en'); ?>">
                     
                     <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                        <label for="default_constellation_id" class="block mb-1.5 text-gray-800 font-medium">Default Constellation</label>
-                        <select id="default_constellation_id" name="default_constellation_id" class="select select-bordered w-full bg-white">
+                        <label for="default_constellation_id" class="block mb-1.5 text-gray-800 font-medium text-sm">Default Constellation</label>
+                        <select id="default_constellation_id" name="default_constellation_id" class="select select-bordered select-sm w-full bg-white">
                             <?php foreach ($constellations as $c): ?>
                                 <option value="<?php echo (int)$c['id']; ?>" <?php echo (isset($projectAll['default_constellation_id']) && (int)$projectAll['default_constellation_id'] === (int)$c['id']) ? 'selected' : ''; ?>>
                                     [ID: <?php echo (int)$c['id']; ?>] <?php echo htmlspecialchars($c['name']); ?>
@@ -1757,8 +1757,8 @@ $fieldMeta = [
                 </div>
                 
                 <div class="mb-4">
-                    <label for="create-type" class="block mb-1.5 text-gray-800 font-medium">User Type *</label>
-                    <select id="create-type" name="type" required onchange="toggleCreateUserConstellations()" class="select select-bordered w-full bg-white">
+                    <label for="create-type" class="block mb-1.5 text-gray-800 font-medium text-sm">User Type *</label>
+                    <select id="create-type" name="type" required onchange="toggleCreateUserConstellations()" class="select select-bordered select-sm w-full bg-white">
                         <option value="1">Editor</option>
                         <option value="2">Admin</option>
                     </select>
@@ -1831,8 +1831,8 @@ $fieldMeta = [
                 </div>
 
                 <div class="mb-4">
-                    <label for="create-constellation-theme" class="block mb-1.5 text-gray-800 font-medium">Visual Theme</label>
-                    <select id="create-constellation-theme" name="theme" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <label for="create-constellation-theme" class="block mb-1.5 text-gray-800 font-medium text-sm">Visual Theme</label>
+                    <select id="create-constellation-theme" name="theme" class="select select-bordered select-sm w-full bg-white">
                         <option value="cosmic">Cosmic (Stars, Planets, Rockets)</option>
                         <option value="abstract">Abstract (Geometric GIF Icons)</option>
                         <option value="rectangles">Rectangles (Custom Rectangle Icons)</option>
@@ -1881,8 +1881,8 @@ $fieldMeta = [
                 </div>
                 
                 <div class="mb-4">
-                    <label for="modal-type" class="block mb-1.5 text-gray-800 font-medium">User Type *</label>
-                    <select id="modal-type" name="type" required onchange="toggleModalUserConstellations()" class="select select-bordered w-full bg-white">
+                    <label for="modal-type" class="block mb-1.5 text-gray-800 font-medium text-sm">User Type *</label>
+                    <select id="modal-type" name="type" required onchange="toggleModalUserConstellations()" class="select select-bordered select-sm w-full bg-white">
                         <option value="1">Editor</option>
                         <option value="2">Admin</option>
                     </select>
@@ -1937,8 +1937,8 @@ $fieldMeta = [
                 </div>
 
                 <div class="mb-4">
-                    <label for="modal-constellation-theme" class="block mb-1.5 text-gray-800 font-medium">Visual Theme</label>
-                    <select id="modal-constellation-theme" name="theme" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <label for="modal-constellation-theme" class="block mb-1.5 text-gray-800 font-medium text-sm">Visual Theme</label>
+                    <select id="modal-constellation-theme" name="theme" class="select select-bordered select-sm w-full bg-white">
                         <option value="cosmic">Cosmic (Stars, Planets, Rockets)</option>
                         <option value="abstract">Abstract (Geometric GIF Icons)</option>
                         <option value="rectangles">Rectangles (Custom Rectangle Icons)</option>

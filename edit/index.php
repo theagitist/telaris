@@ -1692,7 +1692,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             
             <div class="mb-6">
                 <label for="bulk-move-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Constellation</label>
-                <select id="bulk-move-constellation" class="select select-bordered w-full bg-white">
+                <select id="bulk-move-constellation" class="select select-bordered select-sm w-full bg-white">
                     <?php foreach ($constellations as $c): ?>
                         <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
                     <?php endforeach; ?>

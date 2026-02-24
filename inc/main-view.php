@@ -16,7 +16,7 @@
     <meta property="og:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <meta name="twitter:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
     <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
-    <script src="js/tailwind.min.js?v=5.2.0"></script>
+    <script src="js/tailwind.min.js?v=5.2.1"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <style>
         :root {
@@ -363,15 +363,17 @@
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "./telaris-network.js": "./js/telaris-network.js?v=5.2.0",
-                "./network-manager.js": "./js/network-manager.js?v=5.2.0",
-                "./geometry-manager.js": "./js/geometry-manager.js?v=5.2.0",
-                "./api.js": "./js/api.js?v=5.2.0",
-                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=5.2.0",
-                "./themes.js": "./js/themes.js?v=5.2.0"
+                "./telaris-network.js": "./js/telaris-network.js?v=5.2.1",
+                "./network-manager.js": "./js/network-manager.js?v=5.2.1",
+                "./geometry-manager.js": "./js/geometry-manager.js?v=5.2.1",
+                "./api.js": "./js/api.js?v=5.2.1",
+                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=5.2.1",
+                "./themes.js": "./js/themes.js?v=5.2.1"
             }
         }
     </script>
-    <script type="module" src="js/main.js?v=5.2.0"></script>
+    <script type="module" src="js/main.js?v=5.2.1"></script>
+</body>
+</html>
 </body>
 </html>
