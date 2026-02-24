@@ -52,6 +52,18 @@ function db_run_runtime_migrations(PDO $pdo): void {
     db_ensure_constellation_columns($pdo);
     db_ensure_node_video_columns($pdo);
     db_ensure_updated_at_columns($pdo);
+    db_ensure_api_keys_active_column($pdo);
+}
+
+/**
+ * Ensure api_keys.is_active column exists (missing from early schema versions).
+ */
+function db_ensure_api_keys_active_column(PDO $pdo): void {
+    $row = $pdo->query("SHOW COLUMNS FROM api_keys LIKE 'is_active'")->fetch();
+    if (!$row) {
+        $pdo->exec("ALTER TABLE api_keys ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE");
+        $pdo->exec("UPDATE api_keys SET is_active = TRUE WHERE is_active IS NULL");
+    }
 }
 
 /**
@@ -1475,6 +1487,22 @@ function db_create_keyword(string $keyword, ?int $constellationId = null): int {
     ");
     $stmt->execute([':keyword' => $keyword, ':constellation_id' => $constellationId]);
     return (int)$pdo->lastInsertId();
+}
+
+function db_get_node_constellation_id(int $nodeId): ?int {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT constellation_id FROM nodes WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $nodeId]);
+    $row = $stmt->fetch();
+    return $row ? (int)$row['constellation_id'] : null;
+}
+
+function db_get_keyword_constellation_id(int $id): ?int {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT constellation_id FROM keywords WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $id]);
+    $row = $stmt->fetch();
+    return $row ? (int)$row['constellation_id'] : null;
 }
 
 function db_delete_keyword(int $id): void {

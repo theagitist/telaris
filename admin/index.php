@@ -15,6 +15,10 @@ if (!file_exists(__DIR__ . '/../config.php')) {
 require_once __DIR__ . '/../utils/auth.php';
 requireAdminLogin();
 
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+header("X-Frame-Options: DENY");
+header("X-Content-Type-Options: nosniff");
+
 require_once __DIR__ . '/../config.php';
 
 $message = null;

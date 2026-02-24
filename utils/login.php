@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 // Set Content-Type header to ensure proper rendering
 header('Content-Type: text/html; charset=UTF-8');
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self'; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+header("X-Frame-Options: DENY");
+header("X-Content-Type-Options: nosniff");
 
 require_once __DIR__ . '/auth.php';
 
@@ -32,29 +35,43 @@ if (isEditorOrAdminLoggedIn()) {
     redirectUser((int)$_SESSION['admin_user_type'], $requestedTarget);
 }
 
+// Generate CSRF token for this session
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $error = null;
 
 // Handle login form submission
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    
-    if (empty($email) || empty($password)) {
-        $error = 'Email and password are required';
+    $submittedToken = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($_SESSION['csrf_token'], $submittedToken)) {
+        $error = 'Invalid request. Please reload the page and try again.';
     } else {
-        $user = authenticateUser($email, $password);
-        
-        if ($user) {
-            // Set session variables
-            $_SESSION['admin_user_id'] = $user['id'];
-            $_SESSION['admin_user_email'] = $user['email'];
-            $_SESSION['admin_user_name'] = $user['firstname'] . ' ' . $user['lastname'];
-            $_SESSION['admin_user_type'] = $user['type'];
-            
-            // Redirect based on user type
-            redirectUser((int)$user['type'], $requestedTarget);
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+
+        if (empty($email) || empty($password)) {
+            $error = 'Email and password are required';
         } else {
-            $error = 'Invalid email or password. Only editor and admin users can login here.';
+            $user = authenticateUser($email, $password);
+
+            if ($user) {
+                // Regenerate session ID to prevent session fixation
+                session_regenerate_id(true);
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+
+                // Set session variables
+                $_SESSION['admin_user_id'] = $user['id'];
+                $_SESSION['admin_user_email'] = $user['email'];
+                $_SESSION['admin_user_name'] = $user['firstname'] . ' ' . $user['lastname'];
+                $_SESSION['admin_user_type'] = $user['type'];
+
+                // Redirect based on user type
+                redirectUser((int)$user['type'], $requestedTarget);
+            } else {
+                $error = 'Invalid email or password. Only editor and admin users can login here.';
+            }
         }
     }
 }
@@ -81,6 +98,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
         <?php endif; ?>
         
         <form method="POST" action="">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <?php if ($requestedTarget): ?>
                 <input type="hidden" name="redirect" value="<?php echo htmlspecialchars($requestedTarget); ?>">
             <?php endif; ?>

@@ -11,7 +11,7 @@ if (php_sapi_name() !== 'cli') {
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type, X-API-Key, Authorization, X-HTTP-Method-Override');
-    
+
     // Handle preflight OPTIONS request
     if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
         http_response_code(200);
@@ -24,6 +24,32 @@ requireApiKey();
 
 /** Allowed node_type values (must match nodes.node_type ENUM). */
 const NODE_TYPE_VALUES = ['object', 'portal'];
+
+/** Allowed MIME types per upload category. */
+const ALLOWED_IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const ALLOWED_AUDIO_MIMES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/mp4', 'audio/aac', 'audio/webm', 'audio/x-m4a'];
+const ALLOWED_VIDEO_MIMES = ['video/mp4'];
+
+/** Safe extensions derived from MIME type — avoids trusting client-supplied filenames. */
+const MIME_TO_EXT = [
+    'image/jpeg' => 'jpg',
+    'image/png'  => 'png',
+    'image/gif'  => 'gif',
+    'image/webp' => 'webp',
+    'audio/mpeg' => 'mp3',
+    'audio/ogg'  => 'ogg',
+    'audio/wav'  => 'wav',
+    'audio/mp4'  => 'm4a',
+    'audio/aac'  => 'aac',
+    'audio/webm' => 'webm',
+    'audio/x-m4a' => 'm4a',
+    'video/mp4'  => 'mp4',
+];
+
+/** Maximum upload sizes. */
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;   // 10 MB
+const MAX_AUDIO_BYTES = 50 * 1024 * 1024;   // 50 MB
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024;  // 200 MB
 
 /**
  * Sanitize node_type from request data; return one of NODE_TYPE_VALUES or 'object'.
@@ -47,6 +73,59 @@ function parseTargetConstellationId(mixed $value): ?int {
     return null;
 }
 
+/**
+ * Validate URL: must be a valid URL with http or https scheme only.
+ * Blocks javascript:, data:, vbscript:, and other dangerous schemes.
+ */
+function validateSafeUrl(string $url): bool {
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        return false;
+    }
+    $scheme = strtolower((string)(parse_url($url, PHP_URL_SCHEME) ?? ''));
+    return in_array($scheme, ['http', 'https'], true);
+}
+
+/**
+ * Validate an uploaded file: check MIME type against allowlist and enforce size limit.
+ * Sets $detectedMime to the actual MIME type on success.
+ * Returns null on success, or an error string on failure.
+ */
+function validateUploadedFile(array $file, array $allowedMimes, int $maxBytes, string &$detectedMime = ''): ?string {
+    if ($file['size'] > $maxBytes) {
+        $mb = round($maxBytes / (1024 * 1024));
+        return "File exceeds maximum allowed size ({$mb}MB)";
+    }
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $detectedMime = (string)$finfo->file($file['tmp_name']);
+    if (!in_array($detectedMime, $allowedMimes, true)) {
+        return "File type not allowed";
+    }
+    return null;
+}
+
+/**
+ * If the current session belongs to an editor (not admin), verify they have access
+ * to the given constellation. Returns an error message or null on success.
+ */
+function checkEditorConstellationAccess(int $constellationId): ?string {
+    if (!isEditorOrAdminLoggedIn()) {
+        return null; // API-key-only callers are not session-restricted
+    }
+    if (isAdminLoggedIn()) {
+        return null; // Admins have access to all constellations
+    }
+    $userId = $_SESSION['admin_user_id'] ?? null;
+    if (!$userId) {
+        return null;
+    }
+    $allowed = db_get_constellations_for_user($userId, false);
+    $allowedIds = array_column($allowed, 'id');
+    if (!in_array($constellationId, $allowedIds, true)) {
+        return 'Access denied to this constellation';
+    }
+    return null;
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'POST' && isset($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']) && strtoupper($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']) === 'PUT') {
     $method = 'PUT';
@@ -62,7 +141,7 @@ try {
             if (isset($_GET['constellation_id'])) {
                 if ($_GET['constellation_id'] === 'all') {
                     $constellationId = null; // all nodes (respecting user access)
-                } elseif (is_numeric($_GET['constellation_id'])) {
+                } elseif (ctype_digit((string)$_GET['constellation_id'])) {
                     $constellationId = (int) $_GET['constellation_id'];
                 }
             }
@@ -73,7 +152,7 @@ try {
             $formatted = array_map(fn($node) => db_format_node($node), $nodes);
             echo json_encode($formatted, JSON_THROW_ON_ERROR);
         })(),
-        
+
         'POST' => (function(): void {
             $data = $_POST;
             if (empty($data) && empty($_FILES)) {
@@ -96,15 +175,15 @@ try {
                 $animationData = (isset($data['animation'])) ? (is_array($data['animation']) ? $data['animation'] : json_decode($data['animation'], true)) : [];
                 $animationArray = [
                     'radius' => isset($animationData['radius']) ? (float)$animationData['radius'] : (5 + rand(0, 3)),
-                    'theta' => isset($animationData['theta']) ? (float)$animationData['theta'] : (rand(0, 628) / 100),
-                    'phi' => isset($animationData['phi']) ? (float)$animationData['phi'] : (rand(0, 314) / 100),
-                    'speed' => isset($animationData['speed']) ? (float)$animationData['speed'] : (0.002 + (rand(0, 4) / 1000)),
-                    'phase' => isset($animationData['phase']) ? (float)$animationData['phase'] : (rand(0, 628) / 100)
+                    'theta'  => isset($animationData['theta'])  ? (float)$animationData['theta']  : (rand(0, 628) / 100),
+                    'phi'    => isset($animationData['phi'])    ? (float)$animationData['phi']    : (rand(0, 314) / 100),
+                    'speed'  => isset($animationData['speed'])  ? (float)$animationData['speed']  : (0.002 + (rand(0, 4) / 1000)),
+                    'phase'  => isset($animationData['phase'])  ? (float)$animationData['phase']  : (rand(0, 628) / 100),
                 ];
                 $animation = json_encode($animationArray, JSON_THROW_ON_ERROR);
             } catch (JsonException $e) {
                 http_response_code(500);
-                echo json_encode(['error' => 'Failed to encode animation data: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
+                echo json_encode(['error' => 'Failed to encode animation data'], JSON_THROW_ON_ERROR);
                 return;
             }
             if (!is_string($animation)) {
@@ -120,13 +199,10 @@ try {
             $url = null;
             if (isset($data['url']) && !empty(trim((string)$data['url']))) {
                 $url = trim((string)$data['url']);
-                if ($nodeType !== 'portal' && !filter_var($url, FILTER_VALIDATE_URL)) {
+                if (!validateSafeUrl($url)) {
                     http_response_code(400);
-                    echo json_encode(['error' => 'Invalid URL format'], JSON_THROW_ON_ERROR);
+                    echo json_encode(['error' => 'Invalid URL: only http and https URLs are allowed'], JSON_THROW_ON_ERROR);
                     return;
-                }
-                if ($nodeType === 'portal' && !filter_var($url, FILTER_VALIDATE_URL)) {
-                    $url = null;
                 }
             }
             $name = trim((string)$data['name']);
@@ -136,7 +212,22 @@ try {
                 return;
             }
             $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : db_get_default_constellation_id();
+
+            // Enforce editor constellation access
+            $accessError = checkEditorConstellationAccess($constellationId);
+            if ($accessError !== null) {
+                http_response_code(403);
+                echo json_encode(['error' => $accessError], JSON_THROW_ON_ERROR);
+                return;
+            }
+
             $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
+            if ($targetConstellationId !== null && db_get_constellation_by_id($targetConstellationId) === null) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Target constellation does not exist'], JSON_THROW_ON_ERROR);
+                return;
+            }
+
             $imageUrl = (isset($data['image_url']) && !empty(trim((string)$data['image_url']))) ? trim((string)$data['image_url']) : null;
             $embedCode = (isset($data['embed_code']) && !empty(trim((string)$data['embed_code']))) ? trim((string)$data['embed_code']) : null;
             $audioUrl = (isset($data['audio_url']) && !empty(trim((string)$data['audio_url']))) ? trim((string)$data['audio_url']) : null;
@@ -144,14 +235,16 @@ try {
             $videoUrl = (isset($data['video_url']) && !empty(trim((string)$data['video_url']))) ? trim((string)$data['video_url']) : null;
             $videoAutoplay = isset($data['video_autoplay']) ? (bool)$data['video_autoplay'] : true;
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
-            
-            // Mutual exclusivity: if both are provided, favor video or the one that has a file upload
+
+            // Mutual exclusivity: uploaded files take precedence; otherwise URL values decide
             if (isset($_FILES['video_file']) && $_FILES['video_file']['error'] === UPLOAD_ERR_OK) {
                 $audioUrl = null;
             } elseif (isset($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK) {
                 $videoUrl = null;
             } elseif ($videoUrl) {
                 $audioUrl = null;
+            } elseif ($audioUrl) {
+                $videoUrl = null;
             }
 
             $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay);
@@ -167,14 +260,21 @@ try {
             if (!is_dir($nodeFullDir)) {
                 if (!mkdir($nodeFullDir, 0755, true)) {
                     http_response_code(500);
-                    echo json_encode(['error' => "Failed to create directory: {$nodeFullDir}. Check permissions."], JSON_THROW_ON_ERROR);
+                    echo json_encode(['error' => 'Failed to create upload directory. Check server permissions.'], JSON_THROW_ON_ERROR);
                     return;
                 }
             }
 
             $uploadedFiles = false;
             if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
-                $ext = pathinfo($_FILES['image_file']['name'], PATHINFO_EXTENSION);
+                $detectedMime = '';
+                $err = validateUploadedFile($_FILES['image_file'], ALLOWED_IMAGE_MIMES, MAX_IMAGE_BYTES, $detectedMime);
+                if ($err !== null) {
+                    http_response_code(400);
+                    echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
                 $imageRelPath = "{$nodeRelDir}/image.{$ext}";
                 $imageFullPath = "{$nodeFullDir}/image.{$ext}";
                 if (move_uploaded_file($_FILES['image_file']['tmp_name'], $imageFullPath)) {
@@ -182,12 +282,19 @@ try {
                     $uploadedFiles = true;
                 } else {
                     http_response_code(500);
-                    echo json_encode(['error' => "Failed to move uploaded image to: {$imageFullPath}"], JSON_THROW_ON_ERROR);
+                    echo json_encode(['error' => 'Failed to save uploaded image'], JSON_THROW_ON_ERROR);
                     return;
                 }
             }
             if (isset($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK) {
-                $ext = pathinfo($_FILES['audio_file']['name'], PATHINFO_EXTENSION);
+                $detectedMime = '';
+                $err = validateUploadedFile($_FILES['audio_file'], ALLOWED_AUDIO_MIMES, MAX_AUDIO_BYTES, $detectedMime);
+                if ($err !== null) {
+                    http_response_code(400);
+                    echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
                 $audioRelPath = "{$nodeRelDir}/audio.{$ext}";
                 $audioFullPath = "{$nodeFullDir}/audio.{$ext}";
                 if (move_uploaded_file($_FILES['audio_file']['tmp_name'], $audioFullPath)) {
@@ -196,17 +303,19 @@ try {
                     $uploadedFiles = true;
                 } else {
                     http_response_code(500);
-                    echo json_encode(['error' => "Failed to move uploaded audio to: {$audioFullPath}"], JSON_THROW_ON_ERROR);
+                    echo json_encode(['error' => 'Failed to save uploaded audio'], JSON_THROW_ON_ERROR);
                     return;
                 }
             }
             if (isset($_FILES['video_file']) && $_FILES['video_file']['error'] === UPLOAD_ERR_OK) {
-                $ext = strtolower(pathinfo($_FILES['video_file']['name'], PATHINFO_EXTENSION));
-                if ($ext !== 'mp4') {
+                $detectedMime = '';
+                $err = validateUploadedFile($_FILES['video_file'], ALLOWED_VIDEO_MIMES, MAX_VIDEO_BYTES, $detectedMime);
+                if ($err !== null) {
                     http_response_code(400);
-                    echo json_encode(['error' => "Only MP4 video files are allowed."], JSON_THROW_ON_ERROR);
+                    echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
                     return;
                 }
+                $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
                 $videoRelPath = "{$nodeRelDir}/video.{$ext}";
                 $videoFullPath = "{$nodeFullDir}/video.{$ext}";
                 if (move_uploaded_file($_FILES['video_file']['tmp_name'], $videoFullPath)) {
@@ -215,7 +324,7 @@ try {
                     $uploadedFiles = true;
                 } else {
                     http_response_code(500);
-                    echo json_encode(['error' => "Failed to move uploaded video to: {$videoFullPath}"], JSON_THROW_ON_ERROR);
+                    echo json_encode(['error' => 'Failed to save uploaded video'], JSON_THROW_ON_ERROR);
                     return;
                 }
             }
@@ -226,18 +335,15 @@ try {
 
             if (isset($data['keywords'])) {
                 $keywords = is_array($data['keywords']) ? $data['keywords'] : explode(',', (string)$data['keywords']);
-                try {
-                    db_save_node_keywords($nodeId, $keywords);
-                } catch (Exception $e) {
-                }
+                db_save_node_keywords($nodeId, $keywords);
             }
             echo json_encode(['id' => $nodeId, 'success' => true], JSON_THROW_ON_ERROR);
         })(),
-        
+
         'PUT' => (function(): void {
             $input = file_get_contents('php://input');
             $data = json_decode($input, true);
-            
+
             // Handle multipart/form-data for PUT (some clients use POST + _method=PUT or just POST for uploads)
             if (empty($data) && !empty($_POST)) {
                 $data = $_POST;
@@ -254,17 +360,31 @@ try {
             $url = null;
             if (isset($data['url']) && !empty(trim((string)$data['url']))) {
                 $url = trim((string)$data['url']);
-                if ($nodeType !== 'portal' && !filter_var($url, FILTER_VALIDATE_URL)) {
+                if (!validateSafeUrl($url)) {
                     http_response_code(400);
-                    echo json_encode(['error' => 'Invalid URL format'], JSON_THROW_ON_ERROR);
+                    echo json_encode(['error' => 'Invalid URL: only http and https URLs are allowed'], JSON_THROW_ON_ERROR);
                     return;
-                }
-                if ($nodeType === 'portal' && !filter_var($url, FILTER_VALIDATE_URL)) {
-                    $url = null;
                 }
             }
             $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : null;
+
+            // Enforce editor constellation access
+            if ($constellationId !== null) {
+                $accessError = checkEditorConstellationAccess($constellationId);
+                if ($accessError !== null) {
+                    http_response_code(403);
+                    echo json_encode(['error' => $accessError], JSON_THROW_ON_ERROR);
+                    return;
+                }
+            }
+
             $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
+            if ($targetConstellationId !== null && db_get_constellation_by_id($targetConstellationId) === null) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Target constellation does not exist'], JSON_THROW_ON_ERROR);
+                return;
+            }
+
             $imageUrl = (isset($data['image_url']) && !empty(trim((string)$data['image_url']))) ? trim((string)$data['image_url']) : null;
             $embedCode = (isset($data['embed_code']) && !empty(trim((string)$data['embed_code']))) ? trim((string)$data['embed_code']) : null;
             $audioUrl = (isset($data['audio_url']) && !empty(trim((string)$data['audio_url']))) ? trim((string)$data['audio_url']) : null;
@@ -297,25 +417,39 @@ try {
                 if (!is_dir($nodeFullDir)) {
                     if (!mkdir($nodeFullDir, 0755, true)) {
                         http_response_code(500);
-                        echo json_encode(['error' => "Failed to create directory: {$nodeFullDir}. Check permissions."], JSON_THROW_ON_ERROR);
+                        echo json_encode(['error' => 'Failed to create upload directory. Check server permissions.'], JSON_THROW_ON_ERROR);
                         return;
                     }
                 }
 
                 if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
-                    $ext = pathinfo($_FILES['image_file']['name'], PATHINFO_EXTENSION);
+                    $detectedMime = '';
+                    $err = validateUploadedFile($_FILES['image_file'], ALLOWED_IMAGE_MIMES, MAX_IMAGE_BYTES, $detectedMime);
+                    if ($err !== null) {
+                        http_response_code(400);
+                        echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                    $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
                     $imageRelPath = "{$nodeRelDir}/image.{$ext}";
                     $imageFullPath = "{$nodeFullDir}/image.{$ext}";
                     if (move_uploaded_file($_FILES['image_file']['tmp_name'], $imageFullPath)) {
                         $imageUrl = $imageRelPath;
                     } else {
                         http_response_code(500);
-                        echo json_encode(['error' => "Failed to move uploaded image to: {$imageFullPath}"], JSON_THROW_ON_ERROR);
+                        echo json_encode(['error' => 'Failed to save uploaded image'], JSON_THROW_ON_ERROR);
                         return;
                     }
                 }
                 if ($hasAudioFile) {
-                    $ext = pathinfo($_FILES['audio_file']['name'], PATHINFO_EXTENSION);
+                    $detectedMime = '';
+                    $err = validateUploadedFile($_FILES['audio_file'], ALLOWED_AUDIO_MIMES, MAX_AUDIO_BYTES, $detectedMime);
+                    if ($err !== null) {
+                        http_response_code(400);
+                        echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                    $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
                     $audioRelPath = "{$nodeRelDir}/audio.{$ext}";
                     $audioFullPath = "{$nodeFullDir}/audio.{$ext}";
                     if (move_uploaded_file($_FILES['audio_file']['tmp_name'], $audioFullPath)) {
@@ -323,17 +457,19 @@ try {
                         $videoUrl = null; // Enforce exclusivity
                     } else {
                         http_response_code(500);
-                        echo json_encode(['error' => "Failed to move uploaded audio to: {$audioFullPath}"], JSON_THROW_ON_ERROR);
+                        echo json_encode(['error' => 'Failed to save uploaded audio'], JSON_THROW_ON_ERROR);
                         return;
                     }
                 }
                 if ($hasVideoFile) {
-                    $ext = strtolower(pathinfo($_FILES['video_file']['name'], PATHINFO_EXTENSION));
-                    if ($ext !== 'mp4') {
+                    $detectedMime = '';
+                    $err = validateUploadedFile($_FILES['video_file'], ALLOWED_VIDEO_MIMES, MAX_VIDEO_BYTES, $detectedMime);
+                    if ($err !== null) {
                         http_response_code(400);
-                        echo json_encode(['error' => "Only MP4 video files are allowed."], JSON_THROW_ON_ERROR);
+                        echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
                         return;
                     }
+                    $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
                     $videoRelPath = "{$nodeRelDir}/video.{$ext}";
                     $videoFullPath = "{$nodeFullDir}/video.{$ext}";
                     if (move_uploaded_file($_FILES['video_file']['tmp_name'], $videoFullPath)) {
@@ -341,12 +477,12 @@ try {
                         $audioUrl = null; // Enforce exclusivity
                     } else {
                         http_response_code(500);
-                        echo json_encode(['error' => "Failed to move uploaded video to: {$videoFullPath}"], JSON_THROW_ON_ERROR);
+                        echo json_encode(['error' => 'Failed to save uploaded video'], JSON_THROW_ON_ERROR);
                         return;
                     }
                 }
             }
-            
+
             db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay);
             if (isset($data['keywords'])) {
                 $keywords = is_array($data['keywords']) ? $data['keywords'] : explode(',', (string)$data['keywords']);
@@ -354,16 +490,34 @@ try {
             }
             echo json_encode(['success' => true], JSON_THROW_ON_ERROR);
         })(),
-        
+
         'DELETE' => (function(): void {
             $id = $_GET['id'] ?? null;
-            $fileType = $_GET['file_type'] ?? null; // 'image' or 'audio'
+            $fileType = $_GET['file_type'] ?? null;
             if (!$id) {
                 http_response_code(400);
                 echo json_encode(['error' => 'Node ID required'], JSON_THROW_ON_ERROR);
                 return;
             }
-            if ($fileType && in_array($fileType, ['image', 'audio'])) {
+
+            // Enforce editor constellation access on delete
+            if (isEditorLoggedIn()) {
+                $userId = $_SESSION['admin_user_id'] ?? null;
+                if ($userId) {
+                    $nodeConstellationId = db_get_node_constellation_id((int)$id);
+                    if ($nodeConstellationId !== null) {
+                        $allowed = db_get_constellations_for_user($userId, false);
+                        $allowedIds = array_column($allowed, 'id');
+                        if (!in_array($nodeConstellationId, $allowedIds, true)) {
+                            http_response_code(403);
+                            echo json_encode(['error' => 'Access denied to this constellation'], JSON_THROW_ON_ERROR);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            if ($fileType && in_array($fileType, ['image', 'audio', 'video'])) {
                 db_delete_node_file((int)$id, $fileType);
                 echo json_encode(['success' => true], JSON_THROW_ON_ERROR);
                 return;
@@ -371,7 +525,7 @@ try {
             db_delete_node((int)$id);
             echo json_encode(['success' => true], JSON_THROW_ON_ERROR);
         })(),
-        
+
         default => throw new RuntimeException('Method not allowed', 405)
     };
 } catch (JsonException $e) {
@@ -379,7 +533,7 @@ try {
     echo json_encode(['error' => 'Invalid JSON: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
+    echo json_encode(['error' => 'Database error'], JSON_THROW_ON_ERROR);
 } catch (RuntimeException $e) {
     http_response_code($e->getCode() ?: 405);
     echo json_encode(['error' => $e->getMessage()], JSON_THROW_ON_ERROR);

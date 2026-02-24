@@ -83,10 +83,6 @@ function requireApiKey(): void {
         echo json_encode([
             'error' => 'Unauthorized',
             'message' => 'API key is missing. Provide API key via X-API-Key header, Authorization: Bearer <key> header, or ?api_key= query parameter.',
-            'debug' => [
-                'headers_available' => function_exists('getallheaders'),
-                'server_keys' => array_keys(array_filter($_SERVER, fn($k) => strpos($k, 'HTTP_') === 0 || strpos($k, 'X-') === 0, ARRAY_FILTER_USE_KEY))
-            ]
         ], JSON_THROW_ON_ERROR);
         exit();
     }
@@ -96,11 +92,7 @@ function requireApiKey(): void {
         header('Content-Type: application/json');
         echo json_encode([
             'error' => 'Unauthorized',
-            'message' => 'Invalid API key. The provided API key is not valid or is inactive.',
-            'debug' => [
-                'key_length' => strlen($apiKey),
-                'key_prefix' => substr($apiKey, 0, 8) . '...'
-            ]
+            'message' => 'Invalid API key.',
         ], JSON_THROW_ON_ERROR);
         exit();
     }

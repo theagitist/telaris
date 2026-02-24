@@ -10,6 +10,14 @@ require_once __DIR__ . '/../config.php';
 
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
+    $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'secure' => $secure,
+        'httponly' => true,
+        'samesite' => 'Strict',
+    ]);
     session_start();
 }
 
@@ -152,7 +160,14 @@ function authenticateUser(string $email, string $password): ?array {
 function logoutAdmin(): void {
     $_SESSION = [];
     if (isset($_COOKIE[session_name()])) {
-        setcookie(session_name(), '', time() - 3600, '/');
+        $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+        setcookie(session_name(), '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Strict',
+        ]);
     }
     session_destroy();
 }

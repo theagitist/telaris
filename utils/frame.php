@@ -5,6 +5,9 @@ declare(strict_types=1);
  * Simplified Launch Interface: clean text and countdown.
  */
 
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net; font-src 'self' data:; object-src 'none'; base-uri 'self'");
+header("X-Content-Type-Options: nosniff");
+
 $url = isset($_GET['url']) ? trim((string) $_GET['url']) : '';
 $r = isset($_GET['r']) ? (int) $_GET['r'] : 0;
 $g = isset($_GET['g']) ? (int) $_GET['g'] : 255;

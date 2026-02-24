@@ -66,7 +66,11 @@ try {
                 return;
             }
             $tagline = isset($data['tagline']) ? trim((string)$data['tagline']) : '';
+            $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes'];
             $theme = isset($data['theme']) ? trim((string)$data['theme']) : 'cosmic';
+            if (!in_array($theme, $allowedThemes, true)) {
+                $theme = 'cosmic';
+            }
             $id = db_create_constellation($name, $tagline, null, $theme);
             echo json_encode([
                 'id' => $id,
