@@ -1835,6 +1835,7 @@ $fieldMeta = [
                     <select id="create-constellation-theme" name="theme" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         <option value="cosmic">Cosmic (Stars, Planets, Rockets)</option>
                         <option value="abstract">Abstract (Geometric GIF Icons)</option>
+                        <option value="rectangles">Rectangles (Custom Rectangle Icons)</option>
                     </select>
                     <span class="text-xs text-gray-500 mt-1 block">Determines the background, icons and animations.</span>
                 </div>
@@ -1939,6 +1940,7 @@ $fieldMeta = [
                     <select id="modal-constellation-theme" name="theme" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         <option value="cosmic">Cosmic (Stars, Planets, Rockets)</option>
                         <option value="abstract">Abstract (Geometric GIF Icons)</option>
+                        <option value="rectangles">Rectangles (Custom Rectangle Icons)</option>
                     </select>
                 </div>
                 

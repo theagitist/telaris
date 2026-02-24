@@ -1449,6 +1449,10 @@ class TelarisNetwork {
                     // Skip portal hitbox material so it doesn't get rendered/faded as a sphere
                     if (c.material && c.name !== 'portal_hitbox') {
                         const mats = Array.isArray(c.material) ? c.material : [c.material];
+                        // Ensure isSpriteMaterial is properly flagged if the parent is a Sprite or if the material itself is already tagged
+                        mats.forEach(m => {
+                            if (c.isSprite || m.isSpriteMaterial) m.isSpriteMaterial = true;
+                        });
                         mesh.userData.cachedMaterials.push(...mats);
                     }
                     if (c.userData?.isMoon) {
@@ -1764,7 +1768,7 @@ class TelarisNetwork {
             let glitchOpacityMult = 1.0;
             let glitchRotation = 0;
 
-            if (this.currentTheme.id === 'abstract' && !isTransitioning) {
+            if ((this.currentTheme.id === 'abstract' || this.currentTheme.id === 'rectangles') && !isTransitioning) {
                 // Initialize state if needed
                 if (d.glitchTimer === undefined) {
                     d.glitchTimer = Math.random() * 10 + 5;

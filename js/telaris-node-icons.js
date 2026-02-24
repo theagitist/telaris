@@ -88,6 +88,7 @@ function createImageNode(imageUrl, material) {
     const sprite = new THREE.Sprite(spriteMaterial);
     sprite.scale.set(1.5, 1.5, 1);
     sprite.isSprite = true; // Mark as sprite for update logic
+    sprite.renderOrder = 100;
     return sprite;
 }
 
@@ -102,8 +103,10 @@ function createImageMeshNode(imageUrl, material) {
         depthWrite: false,
         side: THREE.DoubleSide
     });
+    meshMaterial.isSpriteMaterial = true; // For animation logic consistency
     const geometry = new THREE.PlaneGeometry(2.5, 2.5);
     const mesh = new THREE.Mesh(geometry, meshMaterial);
+    mesh.renderOrder = 100;
     return mesh;
 }
 

@@ -100,7 +100,7 @@ Lists all constellations (each constellation is a set of nodes and keywords). Th
 - `id` INT NOT NULL PRIMARY KEY - Constellation identifier (immutable; 0 = default)
 - `name` VARCHAR(255) NOT NULL DEFAULT '' - Display name
 - `tagline` VARCHAR(500) NOT NULL DEFAULT '' - Short tagline shown in the main view with the constellation name
-- `theme` VARCHAR(50) NOT NULL DEFAULT 'cosmic' - Visual theme identifier (cosmic, abstract)
+- `theme` VARCHAR(50) NOT NULL DEFAULT 'cosmic' - Visual theme identifier (cosmic, abstract, rectangles)
 
 ### users
 Stores user accounts with authentication information.
@@ -168,6 +168,7 @@ Stores API keys for authentication.
 
 ### Frontend
 - **Visual Themes Support**: Extensible theme system allowing each network to have a unique look and feel.
+- **Rectangles Theme**: A duplicate of the Abstract theme featuring custom rectangle icons from a specific asset set.
 - **Abstract Theme**: A glitchy, geometric theme using animated icons and a 3D grid background.
 - **Cosmic Theme**: The classic starfield aesthetic with planets, rockets, and UFO animations.
 - **Tactical HUD Navigation**: Semitransparent cockpit-style interface with system status and real-time filtering.
@@ -190,6 +191,12 @@ Stores API keys for authentication.
 - API key authentication for API endpoints.
 
 ## Version History
+
+### Version 5.1.0
+- **Rectangles Theme**: Introduced a new theme based on the Abstract architecture but utilizing custom rectangle icons.
+- **Theme Visibility Fixes**: Resolved a critical issue where image-based icons (sprites and planes) were not correctly tagged for the animation loop, ensuring full visibility across all themes.
+- **Advanced Cache Busting**: Implemented comprehensive version-based cache busting for the theme system and all core JavaScript modules via an updated import map.
+- **Asset Permission Standardization**: Standardized file permissions for all theme-specific assets to ensure consistent server-side delivery.
 
 ### Version 5.0.0
 - **Visual Themes System**: Introduced a core architecture for switchable themes. Each constellation can now have its own unique visual identity (backgrounds, lighting, animations, and icons).
