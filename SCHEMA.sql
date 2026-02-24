@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS project_info (
     logout_label_text VARCHAR(200) NOT NULL DEFAULT 'Logout',
     click_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Click to view',
     tap_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Tap again to view',
+    open_portal_text VARCHAR(200) NOT NULL DEFAULT 'Open the Portal',
     default_constellation_id INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

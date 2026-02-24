@@ -222,24 +222,36 @@ function db_ensure_project_info_columns(?PDO $pdo = null): void {
         if ($stmt->fetch() === false) {
             $pdo->exec("ALTER TABLE project_info ADD COLUMN tap_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Tap again to view'");
         }
+        $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'open_portal_text'");
+        if ($stmt->fetch() === false) {
+            $pdo->exec("ALTER TABLE project_info ADD COLUMN open_portal_text VARCHAR(200) NOT NULL DEFAULT 'Open the Portal'");
+        }
 
         // Fill empty values for localized hints in existing rows
         $defaults = db_default_project_info_rows();
         foreach (['en', 'es', 'pt'] as $locale) {
             $pdo->prepare("
-                UPDATE project_info 
-                SET click_to_view_text = :click 
-                WHERE locale = :locale AND (click_to_view_text IS NULL OR click_to_view_text = '' OR click_to_view_text = 'Click to view')
+                UPDATE project_info
+                SET click_to_view_text = :click
+                WHERE locale = :locale AND (click_to_view_text IS NULL OR click_to_view_text = '')
             ")->execute([
                 ':click' => $defaults[$locale]['click_to_view_text'],
                 ':locale' => $locale
             ]);
             $pdo->prepare("
-                UPDATE project_info 
-                SET tap_to_view_text = :tap 
-                WHERE locale = :locale AND (tap_to_view_text IS NULL OR tap_to_view_text = '' OR tap_to_view_text = 'Tap again to view')
+                UPDATE project_info
+                SET tap_to_view_text = :tap
+                WHERE locale = :locale AND (tap_to_view_text IS NULL OR tap_to_view_text = '')
             ")->execute([
                 ':tap' => $defaults[$locale]['tap_to_view_text'],
+                ':locale' => $locale
+            ]);
+            $pdo->prepare("
+                UPDATE project_info
+                SET open_portal_text = :portal
+                WHERE locale = :locale AND (open_portal_text IS NULL OR open_portal_text = '')
+            ")->execute([
+                ':portal' => $defaults[$locale]['open_portal_text'],
                 ':locale' => $locale
             ]);
         }
