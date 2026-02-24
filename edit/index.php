@@ -982,6 +982,28 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             };
         }
 
+        function switchAVTab(tab, context) {
+            const audioTab = document.getElementById(`${context}-audio-tab`);
+            const videoTab = document.getElementById(`${context}-video-tab`);
+            const audioContent = document.getElementById(`${context}-audio-content`);
+            const videoContent = document.getElementById(`${context}-video-content`);
+            const activeTypeInput = document.getElementById(`${context}-av-type`);
+
+            if (tab === 'audio') {
+                audioTab.classList.add('tab-active');
+                videoTab.classList.remove('tab-active');
+                audioContent.classList.remove('hidden');
+                videoContent.classList.add('hidden');
+                activeTypeInput.value = 'audio';
+            } else {
+                audioTab.classList.remove('tab-active');
+                videoTab.classList.add('tab-active');
+                audioContent.classList.add('hidden');
+                videoContent.classList.remove('hidden');
+                activeTypeInput.value = 'video';
+            }
+        }
+
         // Edit node - show modal
         function editNode(id) {
             const node = allNodes.find(n => n.id === id);
@@ -998,6 +1020,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             document.getElementById('edit-url').value = node.url || '';
             document.getElementById('edit-embed-code').value = node.embed_code || '';
             document.getElementById('edit-audio-autoplay').checked = !!node.audio_autoplay;
+            document.getElementById('edit-video-autoplay').checked = !!node.video_autoplay;
             document.getElementById('edit-accentuated').checked = !!node.is_accentuated;
 
             // Handle keywords
@@ -1031,11 +1054,38 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 audioFileWrap.classList.add('hidden');
                 audioExisting.classList.remove('hidden');
                 audioExistingName.value = node.audio_url.split('/').pop();
-                audioUrlInput.value = node.audio_url; // Hidden but holds path
+                audioUrlInput.value = node.audio_url; 
             } else {
                 audioFileWrap.classList.remove('hidden');
                 audioExisting.classList.add('hidden');
                 audioUrlInput.value = node.audio_url || '';
+            }
+
+            // Handle video fields
+            const videoFileWrap = document.getElementById('edit-video-file-wrap');
+            const videoExisting = document.getElementById('edit-video-existing');
+            const videoExistingName = document.getElementById('edit-video-existing-name');
+            const videoUrlInput = document.getElementById('edit-video-url');
+
+            if (node.video_url && node.video_url.startsWith('uploads/')) {
+                videoFileWrap.classList.add('hidden');
+                videoExisting.classList.remove('hidden');
+                videoExistingName.value = node.video_url.split('/').pop();
+                videoUrlInput.value = node.video_url;
+            } else {
+                videoFileWrap.classList.remove('hidden');
+                videoExisting.classList.add('hidden');
+                videoUrlInput.value = node.video_url || '';
+            }
+
+            // Set correct A/V tab and visibility
+            const audioContent = document.getElementById('edit-audio-content');
+            const videoContent = document.getElementById('edit-video-content');
+            
+            if (node.video_url) {
+                switchAVTab('video', 'edit');
+            } else {
+                switchAVTab('audio', 'edit');
             }
 
             // Toggle target constellation if portal
@@ -1064,11 +1114,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 return;
             }
 
-            const submitBtn = document.getElementById('edit-submit-btn');
-            const loader = document.getElementById('edit-submit-loader');
-            submitBtn.disabled = true;
-            loader.classList.remove('hidden');
-
             const node = allNodes.find(n => n.id === nodeId);
             
             const formData = new FormData();
@@ -1077,13 +1122,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('description', document.getElementById('edit-description').value.trim());
             formData.append('url', document.getElementById('edit-url').value.trim());
             
-            const imageUrl = document.getElementById('edit-image-url').value.trim();
-            const audioUrl = document.getElementById('edit-audio-url').value.trim();
-
-            formData.append('image_url', imageUrl);
-            formData.append('audio_url', audioUrl);
+            formData.append('image_url', document.getElementById('edit-image-url').value.trim());
             formData.append('embed_code', document.getElementById('edit-embed-code').value.trim());
-            formData.append('audio_autoplay', document.getElementById('edit-audio-autoplay').checked ? 1 : 0);
             formData.append('is_accentuated', document.getElementById('edit-accentuated').checked ? 1 : 0);
             formData.append('constellation_id', document.getElementById('edit-constellation').value);
             
@@ -1103,8 +1143,22 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const imageFile = document.getElementById('edit-image-file').files[0];
             if (imageFile) formData.append('image_file', imageFile);
             
-            const audioFile = document.getElementById('edit-audio-file').files[0];
-            if (audioFile) formData.append('audio_file', audioFile);
+            const activeType = document.getElementById('edit-av-type').value;
+            if (activeType === 'audio') {
+                formData.append('audio_url', document.getElementById('edit-audio-url').value.trim());
+                formData.append('audio_autoplay', document.getElementById('edit-audio-autoplay').checked ? 1 : 0);
+                const audioFile = document.getElementById('edit-audio-file').files[0];
+                if (audioFile) formData.append('audio_file', audioFile);
+                // Clear video fields to enforce exclusivity
+                formData.append('video_url', '');
+            } else {
+                formData.append('video_url', document.getElementById('edit-video-url').value.trim());
+                formData.append('video_autoplay', document.getElementById('edit-video-autoplay').checked ? 1 : 0);
+                const videoFile = document.getElementById('edit-video-file').files[0];
+                if (videoFile) formData.append('video_file', videoFile);
+                // Clear audio fields to enforce exclusivity
+                formData.append('audio_url', '');
+            }
             
             handleNodeSubmit(formData, 'edit', 'PUT');
         }
@@ -1121,7 +1175,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             loader.classList.remove('hidden');
             
             // Only show progress if files are being uploaded
-            const hasFiles = formData.has('image_file') || formData.has('audio_file');
+            const hasFiles = formData.has('image_file') || formData.has('audio_file') || formData.has('video_file');
             if (hasFiles) progressWrap.classList.remove('hidden');
 
             const xhr = new XMLHttpRequest();
@@ -1214,7 +1268,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     
                     // Update allNodes so if we close and re-open without reload it stays deleted
                     const node = allNodes.find(n => n.id === parseInt(nodeId));
-                    if (node) node[`${type}_url`] = '';
+                    if (node) {
+                        if (type === 'image') node.image_url = '';
+                        else if (type === 'audio') node.audio_url = '';
+                        else if (type === 'video') node.video_url = '';
+                    }
                     
                 } catch (error) {
                     showMessage('Error deleting file: ' + error.message, 'error');
@@ -1295,9 +1353,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('description', document.getElementById('node-description').value.trim());
             formData.append('url', document.getElementById('node-url').value.trim());
             formData.append('image_url', document.getElementById('node-image-url').value.trim());
-            formData.append('audio_url', document.getElementById('node-audio-url').value.trim());
             formData.append('embed_code', document.getElementById('node-embed-code').value.trim());
-            formData.append('audio_autoplay', document.getElementById('node-audio-autoplay').checked ? 1 : 0);
             formData.append('is_accentuated', document.getElementById('node-accentuated').checked ? 1 : 0);
             formData.append('constellation_id', isNaN(constellationId) ? 0 : constellationId);
             formData.append('node_type', nodeType);
@@ -1311,8 +1367,18 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const imageFile = document.getElementById('node-image-file').files[0];
             if (imageFile) formData.append('image_file', imageFile);
             
-            const audioFile = document.getElementById('node-audio-file').files[0];
-            if (audioFile) formData.append('audio_file', audioFile);
+            const activeType = document.getElementById('create-av-type').value;
+            if (activeType === 'audio') {
+                formData.append('audio_url', document.getElementById('node-audio-url').value.trim());
+                formData.append('audio_autoplay', document.getElementById('node-audio-autoplay').checked ? 1 : 0);
+                const audioFile = document.getElementById('node-audio-file').files[0];
+                if (audioFile) formData.append('audio_file', audioFile);
+            } else {
+                formData.append('video_url', document.getElementById('node-video-url').value.trim());
+                formData.append('video_autoplay', document.getElementById('node-video-autoplay').checked ? 1 : 0);
+                const videoFile = document.getElementById('node-video-file').files[0];
+                if (videoFile) formData.append('video_file', videoFile);
+            }
 
             handleNodeSubmit(formData, 'create', 'POST');
         }
@@ -1600,15 +1666,34 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <input type="file" id="node-image-file" name="image_file" accept="image/*" class="text-xs">
                         <span class="text-xs text-gray-500 mt-1 block">Upload an image or provide a link to be displayed.</span>
                     </div>
-                    <div>
-                        <label for="node-audio-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Audio URL / File</label>
-                        <input type="text" id="node-audio-url" name="audio_url" placeholder="https://example.com/audio.mp3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                        <input type="file" id="node-audio-file" name="audio_file" accept="audio/*" class="text-xs">
-                        <span class="text-xs text-gray-500 mt-1 block">Upload an audio file or provide a link for background sound.</span>
-                        <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
-                            <input type="checkbox" id="node-audio-autoplay" name="audio_autoplay" checked>
-                            Autoplay audio
-                        </label>
+                    
+                    <div class="flex flex-col">
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Media (Audio or Video)</label>
+                        <div class="tabs tabs-boxed bg-gray-100 mb-2">
+                            <button type="button" id="create-audio-tab" onclick="switchAVTab('audio', 'create')" class="tab tab-sm tab-active">Audio</button>
+                            <button type="button" id="create-video-tab" onclick="switchAVTab('video', 'create')" class="tab tab-sm">Video (MP4)</button>
+                        </div>
+                        <input type="hidden" id="create-av-type" value="audio">
+                        
+                        <!-- Audio Content -->
+                        <div id="create-audio-content">
+                            <input type="text" id="node-audio-url" name="audio_url" placeholder="https://example.com/audio.mp3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="node-audio-file" name="audio_file" accept="audio/*" class="text-xs">
+                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
+                                <input type="checkbox" id="node-audio-autoplay" name="audio_autoplay" checked>
+                                Autoplay audio
+                            </label>
+                        </div>
+                        
+                        <!-- Video Content -->
+                        <div id="create-video-content" class="hidden">
+                            <input type="text" id="node-video-url" name="video_url" placeholder="https://example.com/video.mp4" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="node-video-file" name="video_file" accept="video/mp4" class="text-xs">
+                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
+                                <input type="checkbox" id="node-video-autoplay" name="video_autoplay" checked>
+                                Autoplay video
+                            </label>
+                        </div>
                     </div>
                 </div>
                 <div>
@@ -1709,20 +1794,46 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <button type="button" onclick="deleteModalFile('image')" class="btn btn-error btn-sm btn-outline">Delete</button>
                         </div>
                     </div>
-                    <div id="edit-audio-container">
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Audio URL / File</label>
-                        <div id="edit-audio-file-wrap">
-                            <input type="text" id="edit-audio-url" name="audio_url" placeholder="https://example.com/audio.mp3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="edit-audio-file" name="audio_file" accept="audio/*" class="text-xs">
+                    
+                    <div class="flex flex-col">
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Media (Audio or Video)</label>
+                        <div class="tabs tabs-boxed bg-gray-100 mb-2">
+                            <button type="button" id="edit-audio-tab" onclick="switchAVTab('audio', 'edit')" class="tab tab-sm">Audio</button>
+                            <button type="button" id="edit-video-tab" onclick="switchAVTab('video', 'edit')" class="tab tab-sm">Video (MP4)</button>
                         </div>
-                        <div id="edit-audio-existing" class="hidden flex items-center gap-2 mb-2">
-                            <input type="text" id="edit-audio-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
-                            <button type="button" onclick="deleteModalFile('audio')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                        <input type="hidden" id="edit-av-type" value="audio">
+
+                        <!-- Audio Content -->
+                        <div id="edit-audio-content">
+                            <div id="edit-audio-file-wrap">
+                                <input type="text" id="edit-audio-url" name="audio_url" placeholder="https://example.com/audio.mp3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                <input type="file" id="edit-audio-file" name="audio_file" accept="audio/*" class="text-xs">
+                            </div>
+                            <div id="edit-audio-existing" class="hidden flex items-center gap-2 mb-2">
+                                <input type="text" id="edit-audio-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
+                                <button type="button" onclick="deleteModalFile('audio')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                            </div>
+                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
+                                <input type="checkbox" id="edit-audio-autoplay" name="audio_autoplay">
+                                Autoplay audio
+                            </label>
                         </div>
-                        <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
-                            <input type="checkbox" id="edit-audio-autoplay" name="audio_autoplay">
-                            Autoplay audio
-                        </label>
+
+                        <!-- Video Content -->
+                        <div id="edit-video-content" class="hidden">
+                            <div id="edit-video-file-wrap">
+                                <input type="text" id="edit-video-url" name="video_url" placeholder="https://example.com/video.mp4" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                <input type="file" id="edit-video-file" name="video_file" accept="video/mp4" class="text-xs">
+                            </div>
+                            <div id="edit-video-existing" class="hidden flex items-center gap-2 mb-2">
+                                <input type="text" id="edit-video-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
+                                <button type="button" onclick="deleteModalFile('video')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                            </div>
+                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
+                                <input type="checkbox" id="edit-video-autoplay" name="video_autoplay">
+                                Autoplay video
+                            </label>
+                        </div>
                     </div>
                 </div>
                 <div>

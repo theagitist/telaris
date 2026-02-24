@@ -101,6 +101,8 @@ class TelarisNetwork {
         const embedEl = document.getElementById('rm-embed');
         const audioWrap = document.getElementById('rm-audio-wrap');
         const audioEl = document.getElementById('rm-audio');
+        const videoWrap = document.getElementById('rm-video-wrap');
+        const videoEl = document.getElementById('rm-video');
         const urlWrap = document.getElementById('rm-url-wrap');
         const urlButton = document.getElementById('rm-url-button');
 
@@ -205,6 +207,25 @@ class TelarisNetwork {
             }
         }
 
+        // Video
+        if (videoWrap && videoEl) {
+            if (d.video_url) {
+                videoEl.src = d.video_url;
+                videoEl.load();
+                videoWrap.classList.remove('hidden');
+                
+                if (d.video_autoplay) {
+                    videoEl.play().catch(err => {
+                        console.warn('Video autoplay prevented or failed:', err);
+                    });
+                }
+            } else {
+                videoEl.src = '';
+                videoEl.load();
+                videoWrap.classList.add('hidden');
+            }
+        }
+
         // URL / Action Button
         if (urlWrap && urlButton) {
             if (d.node_type === 'portal' && d.target_constellation_id != null) {
@@ -286,6 +307,12 @@ class TelarisNetwork {
                 audio.onended = null;
                 audio.ontimeupdate = null;
                 audio.src = '';
+            }
+            const video = document.getElementById('rm-video');
+            if(video) {
+                video.pause();
+                video.src = '';
+                video.load();
             }
             const embed = document.getElementById('rm-embed');
             if(embed) { embed.innerHTML = ''; }

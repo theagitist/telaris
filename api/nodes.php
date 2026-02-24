@@ -141,9 +141,20 @@ try {
             $embedCode = (isset($data['embed_code']) && !empty(trim((string)$data['embed_code']))) ? trim((string)$data['embed_code']) : null;
             $audioUrl = (isset($data['audio_url']) && !empty(trim((string)$data['audio_url']))) ? trim((string)$data['audio_url']) : null;
             $audioAutoplay = isset($data['audio_autoplay']) ? (bool)$data['audio_autoplay'] : true;
+            $videoUrl = (isset($data['video_url']) && !empty(trim((string)$data['video_url']))) ? trim((string)$data['video_url']) : null;
+            $videoAutoplay = isset($data['video_autoplay']) ? (bool)$data['video_autoplay'] : true;
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
             
-            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated);
+            // Mutual exclusivity: if both are provided, favor video or the one that has a file upload
+            if (isset($_FILES['video_file']) && $_FILES['video_file']['error'] === UPLOAD_ERR_OK) {
+                $audioUrl = null;
+            } elseif (isset($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK) {
+                $videoUrl = null;
+            } elseif ($videoUrl) {
+                $audioUrl = null;
+            }
+
+            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay);
             if ($nodeId === 0) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to create node: Could not retrieve node ID'], JSON_THROW_ON_ERROR);
@@ -181,6 +192,7 @@ try {
                 $audioFullPath = "{$nodeFullDir}/audio.{$ext}";
                 if (move_uploaded_file($_FILES['audio_file']['tmp_name'], $audioFullPath)) {
                     $audioUrl = $audioRelPath;
+                    $videoUrl = null; // Ensure exclusivity
                     $uploadedFiles = true;
                 } else {
                     http_response_code(500);
@@ -188,9 +200,28 @@ try {
                     return;
                 }
             }
+            if (isset($_FILES['video_file']) && $_FILES['video_file']['error'] === UPLOAD_ERR_OK) {
+                $ext = strtolower(pathinfo($_FILES['video_file']['name'], PATHINFO_EXTENSION));
+                if ($ext !== 'mp4') {
+                    http_response_code(400);
+                    echo json_encode(['error' => "Only MP4 video files are allowed."], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                $videoRelPath = "{$nodeRelDir}/video.{$ext}";
+                $videoFullPath = "{$nodeFullDir}/video.{$ext}";
+                if (move_uploaded_file($_FILES['video_file']['tmp_name'], $videoFullPath)) {
+                    $videoUrl = $videoRelPath;
+                    $audioUrl = null; // Ensure exclusivity
+                    $uploadedFiles = true;
+                } else {
+                    http_response_code(500);
+                    echo json_encode(['error' => "Failed to move uploaded video to: {$videoFullPath}"], JSON_THROW_ON_ERROR);
+                    return;
+                }
+            }
 
             if ($uploadedFiles) {
-                db_update_node($nodeId, $name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated);
+                db_update_node($nodeId, $name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay);
             }
 
             if (isset($data['keywords'])) {
@@ -238,7 +269,25 @@ try {
             $embedCode = (isset($data['embed_code']) && !empty(trim((string)$data['embed_code']))) ? trim((string)$data['embed_code']) : null;
             $audioUrl = (isset($data['audio_url']) && !empty(trim((string)$data['audio_url']))) ? trim((string)$data['audio_url']) : null;
             $audioAutoplay = isset($data['audio_autoplay']) ? (bool)$data['audio_autoplay'] : true;
+            $videoUrl = (isset($data['video_url']) && !empty(trim((string)$data['video_url']))) ? trim((string)$data['video_url']) : null;
+            $videoAutoplay = isset($data['video_autoplay']) ? (bool)$data['video_autoplay'] : true;
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
+
+            // Mutual exclusivity logic for PUT
+            $hasAudioFile = isset($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK;
+            $hasVideoFile = isset($_FILES['video_file']) && $_FILES['video_file']['error'] === UPLOAD_ERR_OK;
+
+            if ($hasVideoFile) {
+                $audioUrl = null;
+            } elseif ($hasAudioFile) {
+                $videoUrl = null;
+            } elseif ($videoUrl && $videoUrl !== (db_get_nodes((int)$id, null, true)[0]['video_url'] ?? null)) {
+                // If a new video URL is provided, clear audio
+                $audioUrl = null;
+            } elseif ($audioUrl && $audioUrl !== (db_get_nodes((int)$id, null, true)[0]['audio_url'] ?? null)) {
+                // If a new audio URL is provided, clear video
+                $videoUrl = null;
+            }
 
             // Handle file uploads for PUT
             if ($constellationId !== null) {
@@ -265,21 +314,40 @@ try {
                         return;
                     }
                 }
-                if (isset($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK) {
+                if ($hasAudioFile) {
                     $ext = pathinfo($_FILES['audio_file']['name'], PATHINFO_EXTENSION);
                     $audioRelPath = "{$nodeRelDir}/audio.{$ext}";
                     $audioFullPath = "{$nodeFullDir}/audio.{$ext}";
                     if (move_uploaded_file($_FILES['audio_file']['tmp_name'], $audioFullPath)) {
                         $audioUrl = $audioRelPath;
+                        $videoUrl = null; // Enforce exclusivity
                     } else {
                         http_response_code(500);
                         echo json_encode(['error' => "Failed to move uploaded audio to: {$audioFullPath}"], JSON_THROW_ON_ERROR);
                         return;
                     }
                 }
+                if ($hasVideoFile) {
+                    $ext = strtolower(pathinfo($_FILES['video_file']['name'], PATHINFO_EXTENSION));
+                    if ($ext !== 'mp4') {
+                        http_response_code(400);
+                        echo json_encode(['error' => "Only MP4 video files are allowed."], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                    $videoRelPath = "{$nodeRelDir}/video.{$ext}";
+                    $videoFullPath = "{$nodeFullDir}/video.{$ext}";
+                    if (move_uploaded_file($_FILES['video_file']['tmp_name'], $videoFullPath)) {
+                        $videoUrl = $videoRelPath;
+                        $audioUrl = null; // Enforce exclusivity
+                    } else {
+                        http_response_code(500);
+                        echo json_encode(['error' => "Failed to move uploaded video to: {$videoFullPath}"], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                }
             }
             
-            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated);
+            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay);
             if (isset($data['keywords'])) {
                 $keywords = is_array($data['keywords']) ? $data['keywords'] : explode(',', (string)$data['keywords']);
                 db_save_node_keywords((int)$id, $keywords);

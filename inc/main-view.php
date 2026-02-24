@@ -217,6 +217,11 @@
                             <div id="rm-embed" class="w-full h-full"></div>
                         </div>
 
+                        <!-- Video -->
+                        <div id="rm-video-wrap" class="hidden">
+                            <video id="rm-video" controls preload="auto" class="w-full h-auto rounded-md border" style="border-color: var(--node-accent-muted);"></video>
+                        </div>
+
                         <!-- Audio -->
                         <div id="rm-audio-wrap" class="hidden">
                             <audio id="rm-audio" preload="auto"></audio>
