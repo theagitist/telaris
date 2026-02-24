@@ -817,7 +817,7 @@ class TelarisNetwork {
 
     async loadApiKey() {
         try {
-            const response = await fetch('config.php');
+            const response = await fetch('api/apikey.php');
             const config = await response.json();
             if (config.api_key) window.TELARIS_API_KEY = config.api_key;
         } catch (error) {
