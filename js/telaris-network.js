@@ -1768,7 +1768,7 @@ class TelarisNetwork {
             let glitchOpacityMult = 1.0;
             let glitchRotation = 0;
 
-            if ((this.currentTheme.id === 'abstract' || this.currentTheme.id === 'rectangles') && !isTransitioning) {
+            if ((this.currentTheme.id === 'abstract' || this.currentTheme.id === 'rectangles' || this.currentTheme.id === 'stripes') && !isTransitioning) {
                 // Initialize state if needed
                 if (d.glitchTimer === undefined) {
                     d.glitchTimer = Math.random() * 10 + 5;

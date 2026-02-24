@@ -100,7 +100,7 @@ Lists all constellations (each constellation is a set of nodes and keywords). Th
 - `id` INT NOT NULL PRIMARY KEY - Constellation identifier (immutable; 0 = default)
 - `name` VARCHAR(255) NOT NULL DEFAULT '' - Display name
 - `tagline` VARCHAR(500) NOT NULL DEFAULT '' - Short tagline shown in the main view with the constellation name
-- `theme` VARCHAR(50) NOT NULL DEFAULT 'cosmic' - Visual theme identifier (cosmic, abstract, rectangles)
+- `theme` VARCHAR(50) NOT NULL DEFAULT 'cosmic' - Visual theme identifier (cosmic, abstract, rectangles, stripes)
 
 ### users
 Stores user accounts with authentication information.
@@ -168,6 +168,7 @@ Stores API keys for authentication.
 
 ### Frontend
 - **Visual Themes Support**: Extensible theme system allowing each network to have a unique look and feel.
+- **Stripes Theme**: A duplicate of the Abstract theme featuring custom stripe icons.
 - **Rectangles Theme**: A duplicate of the Abstract theme featuring custom rectangle icons from a specific asset set.
 - **Abstract Theme**: A glitchy, geometric theme using animated icons and a 3D grid background.
 - **Cosmic Theme**: The classic starfield aesthetic with planets, rockets, and UFO animations.
@@ -191,6 +192,10 @@ Stores API keys for authentication.
 - API key authentication for API endpoints.
 
 ## Version History
+
+### Version 5.2.0
+- **Stripes Theme**: Added a new theme utilizing custom stripe icons, continuing the Abstract theme architecture.
+- **Enhanced Asset Management**: Implemented strict standard file (644) and directory (755) permission enforcement for all theme assets.
 
 ### Version 5.1.0
 - **Rectangles Theme**: Introduced a new theme based on the Abstract architecture but utilizing custom rectangle icons.

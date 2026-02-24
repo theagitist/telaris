@@ -1836,6 +1836,7 @@ $fieldMeta = [
                         <option value="cosmic">Cosmic (Stars, Planets, Rockets)</option>
                         <option value="abstract">Abstract (Geometric GIF Icons)</option>
                         <option value="rectangles">Rectangles (Custom Rectangle Icons)</option>
+                        <option value="stripes">Stripes (Custom Stripe Icons)</option>
                     </select>
                     <span class="text-xs text-gray-500 mt-1 block">Determines the background, icons and animations.</span>
                 </div>
@@ -1941,6 +1942,7 @@ $fieldMeta = [
                         <option value="cosmic">Cosmic (Stars, Planets, Rockets)</option>
                         <option value="abstract">Abstract (Geometric GIF Icons)</option>
                         <option value="rectangles">Rectangles (Custom Rectangle Icons)</option>
+                        <option value="stripes">Stripes (Custom Stripe Icons)</option>
                     </select>
                 </div>
                 

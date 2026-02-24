@@ -94,6 +94,35 @@ export const THEMES = {
             portalImage: 'img/themes/rectangles/portal_icon.gif',
             images: Array.from({ length: 6 }, (_, i) => `img/themes/rectangles/icon_${String(i + 1).padStart(3, '0')}.png`)
         }
+    },
+    stripes: {
+        id: 'stripes',
+        name: 'Stripes',
+        background: {
+            starfield: false,
+            nebulas: false,
+            grid: true,
+            color: 0x000000
+        },
+        animations: {
+            rocket: false,
+            ufo: false,
+            comet: false,
+            satellites: false,
+            stationRing: false
+        },
+        lighting: {
+            ambient: { color: 0xffffff, intensity: 0.6 },
+            points: [
+                { color: 0xffffff, x: 15, y: 15, z: 15 },
+                { color: 0xaaaaaa, x: -15, y: -15, z: -15 }
+            ]
+        },
+        nodes: {
+            type: 'image',
+            portalImage: 'img/themes/stripes/portal_icon.gif',
+            images: Array.from({ length: 6 }, (_, i) => `img/themes/stripes/icon_${String(i + 1).padStart(3, '0')}.png`)
+        }
     }
 };
 
