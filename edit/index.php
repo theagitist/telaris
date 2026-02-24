@@ -1402,17 +1402,29 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             });
         }
 
+        function addKeywords(text, contextId) {
+            if (!text) return;
+            const parts = text.split(',').map(p => p.trim()).filter(p => p !== '');
+            if (parts.length === 0) return;
+
+            if (!keywordState[contextId]) keywordState[contextId] = [];
+            let added = false;
+            parts.forEach(kw => {
+                if (!keywordState[contextId].includes(kw)) {
+                    keywordState[contextId].push(kw);
+                    added = true;
+                }
+            });
+
+            if (added) {
+                updateKeywordTags(contextId);
+            }
+        }
+
         function handleKeywordInput(event, contextId) {
             if (event.key === 'Enter' || event.key === ',') {
                 event.preventDefault();
-                const text = event.target.value.trim().replace(/,$/, '');
-                if (text) {
-                    if (!keywordState[contextId]) keywordState[contextId] = [];
-                    if (!keywordState[contextId].includes(text)) {
-                        keywordState[contextId].push(text);
-                        updateKeywordTags(contextId);
-                    }
-                }
+                addKeywords(event.target.value, contextId);
                 event.target.value = '';
             } else if (event.key === 'Backspace' && event.target.value === '') {
                 if (keywordState[contextId] && keywordState[contextId].length > 0) {
@@ -1541,7 +1553,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <div>
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
                         <div id="keywords-container-create" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
-                            <input type="text" id="node-keywords-input" placeholder="Add keyword..." onkeydown="handleKeywordInput(event, 'create')" class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
+                            <input type="text" id="node-keywords-input" placeholder="Add keyword..." 
+                                   onkeydown="handleKeywordInput(event, 'create')" 
+                                   oninput="if(this.value.includes(',')) { addKeywords(this.value, 'create'); this.value = ''; }"
+                                   class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
                         </div>
                         <input type="hidden" id="node-keywords" name="keywords">
                         <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords.</span>
@@ -1649,7 +1664,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <div>
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
                         <div id="keywords-container-modal" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
-                            <input type="text" id="edit-keywords-input-modal" placeholder="Add keyword..." onkeydown="handleKeywordInput(event, 'modal')" class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
+                            <input type="text" id="edit-keywords-input-modal" placeholder="Add keyword..." 
+                                   onkeydown="handleKeywordInput(event, 'modal')" 
+                                   oninput="if(this.value.includes(',')) { addKeywords(this.value, 'modal'); this.value = ''; }"
+                                   class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
                         </div>
                         <input type="hidden" id="edit-keywords-hidden" name="keywords">
                         <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords</span>
