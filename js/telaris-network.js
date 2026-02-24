@@ -141,6 +141,7 @@ class TelarisNetwork {
         if (audioWrap && audioEl) {
             if (d.audio_url) {
                 audioEl.src = d.audio_url;
+                audioEl.load();
                 audioWrap.classList.remove('hidden');
                 
                 const playPauseBtn = document.getElementById('rm-audio-play-pause');
@@ -194,10 +195,12 @@ class TelarisNetwork {
 
                 if (d.audio_autoplay) {
                     audioEl.play().catch(err => {
+                        console.warn('Autoplay prevented or failed:', err);
                     });
                 }
             } else {
                 audioEl.src = '';
+                audioEl.load();
                 audioWrap.classList.add('hidden');
             }
         }

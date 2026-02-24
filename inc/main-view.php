@@ -219,7 +219,7 @@
 
                         <!-- Audio -->
                         <div id="rm-audio-wrap" class="hidden">
-                            <audio id="rm-audio"></audio>
+                            <audio id="rm-audio" preload="auto"></audio>
                             <div class="flex items-center gap-4 bg-white/5 border border-white/10 rounded-lg p-3" style="border-color: var(--node-accent-muted);">
                                 <button id="rm-audio-play-pause" class="hover:opacity-80 transition-opacity" style="color: var(--node-accent);">
                                     <svg id="rm-play-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
