@@ -54,7 +54,13 @@ header("X-Content-Type-Options: nosniff");
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            pointer-events: none;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            transition: background 1s ease, backdrop-filter 1s ease, opacity 1s ease;
+            cursor: default;
+        }
+        #loading-overlay.ready {
+            cursor: pointer;
         }
         #loading-overlay .loading-text {
             color: var(--loading-color, #fff);
@@ -62,18 +68,63 @@ header("X-Content-Type-Options: nosniff");
             font-weight: normal;
             margin-bottom: 0.75rem;
         }
-        .loading-star {
-            width: 44px;
-            height: 44px;
+        .loading-circle {
+            width: 50px;
+            height: 50px;
+            margin-bottom: 2rem;
+            transition: all 0.5s ease;
+            filter: drop-shadow(0 0 8px var(--loading-color, #00ffcc));
+            overflow: visible;
         }
-        .loading-star .fill {
-            stroke-dasharray: 100;
-            stroke-dashoffset: 100;
-            animation: fill-star 1.2s ease-in-out infinite;
+        .loading-circle svg {
+            overflow: visible;
         }
-        @keyframes fill-star {
-            to { stroke-dashoffset: 0; }
+        #loading-overlay.ready .loading-circle {
+            filter: drop-shadow(0 0 15px #fff);
+            transform: scale(1.1);
         }
+        .loading-circle circle {
+            fill: none;
+            stroke: var(--loading-color, #00ffcc);
+            stroke-width: 4;
+            transition: all 0.5s ease;
+            transform-origin: center;
+        }
+        #loading-overlay:not(.ready) .loading-circle circle {
+            animation: circle-pulse 2s ease-in-out infinite;
+        }
+        #loading-overlay.ready .loading-circle circle {
+            stroke: #fff;
+            stroke-width: 6;
+            animation: circle-pulse-ready 3s ease-in-out infinite;
+        }
+        @keyframes circle-pulse {
+            0%, 100% { opacity: 0.4; stroke-width: 4; }
+            50% { opacity: 1; stroke-width: 6; }
+        }
+        @keyframes circle-pulse-ready {
+            0%, 100% { opacity: 0.7; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+        #begin-button {
+            display: none;
+            padding: 0.6rem 1.8rem;
+            background: rgba(0, 255, 204, 0.05);
+            border: 1px solid rgba(0, 255, 204, 0.3);
+            color: #00ffcc;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            pointer-events: none; /* Let overlay handle the click */
+            transition: all 0.3s ease;
+        }
+        #loading-overlay.ready:hover #begin-button {
+            background: rgba(0, 255, 204, 0.15);
+            border-color: #00ffcc;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.2);
+        }
+
         #info {
             opacity: 0;
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -96,44 +147,6 @@ header("X-Content-Type-Options: nosniff");
             background: linear-gradient(90deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 100%);
             margin: 1rem 0;
         }
-        .status-pulse {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #00ffcc;
-            border-radius: 50%;
-            margin-right: 8px;
-            box-shadow: 0 0 8px #00ffcc;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0% { opacity: 0.4; transform: scale(0.9); }
-            50% { opacity: 1; transform: scale(1.1); }
-            100% { opacity: 0.4; transform: scale(0.9); }
-        }
-
-        /* Custom Scrollbar for Rich Media Window */
-        #rich-media-window::-webkit-scrollbar {
-            width: 6px;
-        }
-        #rich-media-window::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 0 8px 8px 0;
-        }
-        #rich-media-window::-webkit-scrollbar-thumb {
-            background: var(--node-accent-muted, rgba(0, 255, 204, 0.3));
-            border-radius: 10px;
-        }
-        #rich-media-window::-webkit-scrollbar-thumb:hover {
-            background: var(--node-accent, rgba(0, 255, 204, 0.6));
-        }
-        #rich-media-window {
-            scrollbar-width: thin;
-            scrollbar-color: var(--node-accent-muted, rgba(0, 255, 204, 0.3)) rgba(255, 255, 255, 0.05);
-            --node-accent: #00ffcc;
-            --node-accent-muted: rgba(0, 255, 204, 0.3);
-        }
-
         #hud-indicator {
             position: absolute;
             top: 1.25rem;
@@ -164,19 +177,21 @@ header("X-Content-Type-Options: nosniff");
     </style>
 </head>
 <body class="overflow-hidden bg-black">
+    <div id="loading-overlay" aria-live="polite" aria-busy="true">
+        <div class="loading-circle">
+            <svg viewBox="0 0 100 100" aria-hidden="true" style="width:100%; height:100%;">
+                <circle cx="50" cy="50" r="45" />
+            </svg>
+        </div>
+        <p class="loading-text"><?php echo htmlspecialchars($projectLoadingText ?? 'Loading'); ?></p>
+        <button id="begin-button">BEGIN</button>
+    </div>
+
     <button id="hud-indicator" aria-label="Toggle navigation menu" aria-expanded="false" type="button">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 12h18M3 6h18M3 18h18"/>
         </svg>
     </button>
-
-    <div id="loading-overlay" aria-live="polite" aria-busy="true">
-        <p class="loading-text"><?php echo htmlspecialchars($projectLoadingText ?? 'Loading'); ?></p>
-        <svg class="loading-star" viewBox="0 0 40 40" aria-hidden="true">
-            <path class="track" d="M20 4 L24.1 14.3 L35.2 15.1 L26.7 22.2 L29.4 32.9 L20 27 L10.6 32.9 L13.3 22.2 L4.8 15.1 L15.9 14.3 Z" fill="none" stroke="var(--loading-color-dim, rgba(255,255,255,0.25))" stroke-width="2" stroke-linejoin="round"/>
-            <path class="fill" pathLength="100" d="M20 4 L24.1 14.3 L35.2 15.1 L26.7 22.2 L29.4 32.9 L20 27 L10.6 32.9 L13.3 22.2 L4.8 15.1 L15.9 14.3 Z" fill="none" stroke="var(--loading-color, #fff)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-    </div>
 
     <div id="canvas-container" class="relative" style="position: relative; width: 100vw; height: 100vh; min-height: 100vh;">
         <button type="button" id="portal-back-button" aria-label="<?php echo htmlspecialchars($projectBackButtonText ?? 'Back'); ?> to previous constellation"
@@ -291,6 +306,10 @@ header("X-Content-Type-Options: nosniff");
                 <span class="uppercase"><?php echo htmlspecialchars($projectHyperlinksLabelText ?? 'Hyperlinks:'); ?></span>
                 <span id="hud-connections" class="font-bold text-[#00ffcc]">--</span>
             </div>
+            <div class="flex justify-between gap-12">
+                <span class="uppercase">Sound:</span>
+                <button id="hud-sound-toggle" class="font-bold text-[#00ffcc] hover:text-white transition-colors cursor-pointer uppercase">ON</button>
+            </div>
         </div>
 
         <div class="flex gap-6 mt-4 font-bold text-xs uppercase">
@@ -377,12 +396,12 @@ header("X-Content-Type-Options: nosniff");
                 "./geometry-manager.js": "./js/geometry-manager.js?v=5.3",
                 "./api.js": "./js/api.js?v=5.3",
                 "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=5.3",
-                "./themes.js": "./js/themes.js?v=5.3"
+                "./themes.js": "./js/themes.js?v=5.3",
+                "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=5.3"
             }
         }
     </script>
+    <script src="js/telaris-soundscape.js?v=5.3"></script>
     <script type="module" src="js/main.js?v=5.3"></script>
-</body>
-</html>
 </body>
 </html>

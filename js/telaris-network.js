@@ -47,6 +47,7 @@ class TelarisNetwork {
         this._upVec = new THREE.Vector3(0, 1, 0);
 
         this.searchQuery = '';
+        this.soundEnabled = true;
         this.clearAll();
         this.init();
         this.setupSearch();
@@ -290,6 +291,7 @@ class TelarisNetwork {
     }
 
     closeRichMediaWindow() {
+        this.playGlitch();
         const overlay = document.getElementById('rich-media-overlay');
         const win = document.getElementById('rich-media-window');
         if (!overlay || !win) return;
@@ -318,6 +320,30 @@ class TelarisNetwork {
             if(embed) { embed.innerHTML = ''; }
             overlay.classList.add('hidden');
         }, 500);
+    }
+
+    playGlitch() {
+        if (!this.soundEnabled) return;
+        const soundscape = window._telarisSoundscape && window._telarisSoundscape();
+        if (soundscape && typeof soundscape.playGlitch === 'function') {
+            soundscape.playGlitch();
+        }
+    }
+
+    setupSoundToggle() {
+        const toggleBtn = document.getElementById('hud-sound-toggle');
+        if (!toggleBtn) return;
+
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.soundEnabled = !this.soundEnabled;
+            toggleBtn.innerText = this.soundEnabled ? 'ON' : 'OFF';
+            
+            const soundscape = window._telarisSoundscape && window._telarisSoundscape();
+            if (soundscape) {
+                soundscape.setVolume(this.soundEnabled ? 0.65 : 0);
+            }
+        });
     }
 
     markInteraction() {
@@ -517,6 +543,7 @@ class TelarisNetwork {
 
         this.setupMouseInteraction();
         this.setupBackButton();
+        this.setupSoundToggle();
         window.addEventListener('resize', () => this.onWindowResize());
         
         this.loadApiKey().then(() => this.loadData());
@@ -839,6 +866,7 @@ class TelarisNetwork {
             const nodesJson = await response.json();
             const nodeData = Array.isArray(nodesJson) ? nodesJson : [];
             if (nodeData.length > 0) {
+                this._portalFadeInMultiplier = 0; // Keep invisible initially
                 this.createNodes(nodeData);
                 this.createConnections();
                 this.warmupPhysics();
@@ -855,11 +883,61 @@ class TelarisNetwork {
             console.error('Error loading data:', error);
             this.clearAll();
         } finally {
-            const overlay = document.getElementById('loading-overlay');
-            if (overlay) overlay.style.display = 'none';
             this.updateBackButtonVisibility();
             this.updateConstellationUI(window.TELARIS_CONSTELLATION_ID ?? 0);
+            
+            // Show BEGIN button instead of the loading torus
+            this.showBeginButton();
         }
+    }
+
+    showBeginButton() {
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingTorus = loadingOverlay?.querySelector('.loading-torus');
+        const loadingText = loadingOverlay?.querySelector('.loading-text');
+        const beginBtn = document.getElementById('begin-button');
+        
+        if (!loadingOverlay || !beginBtn) return;
+
+        // Add 'ready' class to trigger CSS (glowing torus, smaller button spacing)
+        loadingOverlay.classList.add('ready');
+
+        // Hide text, show button
+        if (loadingText) loadingText.style.display = 'none';
+        beginBtn.style.display = 'block';
+
+        // Click anywhere on the overlay to start
+        loadingOverlay.addEventListener('click', async () => {
+            // Trigger soundscape start
+            if (window.TelarisSoundscape && !window._telarisSoundscapeInstance) {
+                try {
+                    const soundscape = new window.TelarisSoundscape({ volume: 0.65, fadeTime: 4.0 });
+                    window._telarisSoundscapeInstance = soundscape;
+                    await soundscape.start();
+                } catch (e) {
+                    console.warn('Failed to start soundscape:', e);
+                }
+            }
+
+            // Fade out the entire loading overlay
+            loadingOverlay.style.transition = 'opacity 1s ease';
+            loadingOverlay.style.opacity = '0';
+            
+            // Fade in nodes
+            const startTime = performance.now();
+            const duration = 2000;
+            const animateFadeIn = (now) => {
+                const t = Math.min((now - startTime) / duration, 1);
+                this._portalFadeInMultiplier = t;
+                if (t < 1) {
+                    requestAnimationFrame(animateFadeIn);
+                } else {
+                    this._portalFadeInMultiplier = undefined;
+                    loadingOverlay.style.display = 'none';
+                }
+            };
+            requestAnimationFrame(animateFadeIn);
+        }, { once: true });
     }
 
     setupBackButton() {
@@ -1159,6 +1237,7 @@ class TelarisNetwork {
                 }
                 
                 if (!targetNode || !targetNode.userData) return;
+                this.playGlitch();
                 
                 const data = targetNode.userData;
 
@@ -1306,6 +1385,7 @@ class TelarisNetwork {
                     } else {
                         // FIRST TAP: Focus and show lines/tooltip
                         e.preventDefault();
+                        this.playGlitch();
                         if (this.mainTooltipNodeTimeout) clearTimeout(this.mainTooltipNodeTimeout);
                         this.networkManager.setFocusedNode(touchStartNode);
                         showTooltipForNode(touchStartNode, touchStartPos.screenX, touchStartPos.screenY);

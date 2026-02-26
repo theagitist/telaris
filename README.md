@@ -193,6 +193,12 @@ Stores API keys for authentication.
 
 ## Version History
 
+### Version 5.4
+- **Audio Integration**: Introduced an ethereal, generative background soundscape for immersive navigation.
+- **Interactive Sound Effects**: Added randomized, low-fi glitch and electric sounds for node interaction and window feedback.
+- **Enhanced Loading Flow**: Implemented a "BEGIN" button sequence with a 3D-style pulsating indicator and smooth network fade-in.
+- **Sound Controls**: Integrated a global sound toggle in the HUD navigation panel.
+
 ### Version 5.3
 - **MP4 Video Support**: Added full support for uploading and playing MP4 videos on nodes, with integrated autoplay settings.
 - **Improved Node Media Handling**: Implemented mutual exclusivity for audio and video assets per node to optimize storage and playback.
