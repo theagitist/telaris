@@ -9,7 +9,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config.php';
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+header('Access-Control-Allow-Origin: ' . $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
 header('Access-Control-Allow-Methods: GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 

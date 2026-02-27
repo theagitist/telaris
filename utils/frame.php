@@ -5,13 +5,22 @@ declare(strict_types=1);
  * Simplified Launch Interface: clean text and countdown.
  */
 
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net; font-src 'self' data:; object-src 'none'; base-uri 'self'");
+$cspNonce = base64_encode(random_bytes(16));
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$cspNonce}' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net; font-src 'self' data:; object-src 'none'; base-uri 'self'");
 header("X-Content-Type-Options: nosniff");
 
 $url = isset($_GET['url']) ? trim((string) $_GET['url']) : '';
-$r = isset($_GET['r']) ? (int) $_GET['r'] : 0;
-$g = isset($_GET['g']) ? (int) $_GET['g'] : 255;
-$b = isset($_GET['b']) ? (int) $_GET['b'] : 204;
+// Validate URL scheme — only allow http/https to prevent open redirect abuse
+if ($url !== '') {
+    $scheme = strtolower((string)(parse_url($url, PHP_URL_SCHEME) ?? ''));
+    if (!in_array($scheme, ['http', 'https'], true)) {
+        http_response_code(400);
+        die('Invalid URL: only http and https URLs are allowed.');
+    }
+}
+$r = isset($_GET['r']) ? max(0, min(255, (int) $_GET['r'])) : 0;
+$g = isset($_GET['g']) ? max(0, min(255, (int) $_GET['g'])) : 255;
+$b = isset($_GET['b']) ? max(0, min(255, (int) $_GET['b'])) : 204;
 $nodeName = isset($_GET['node_name']) ? trim((string) $_GET['node_name']) : 'System';
 $appName = isset($_GET['app']) ? trim((string) $_GET['app']) : 'Telaris';
 $alertMsg = isset($_GET['alert_msg']) ? trim((string) $_GET['alert_msg']) : 'Close this window to come back';
@@ -143,7 +152,7 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
             z-index: 10;
         }
     </style>
-    <script type="importmap">
+    <script type="importmap" nonce="<?php echo htmlspecialchars($cspNonce); ?>">
         {
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
@@ -170,7 +179,7 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
         Mission Active
     </div>
 
-    <script type="module">
+    <script type="module" nonce="<?php echo htmlspecialchars($cspNonce); ?>">
         import * as THREE from 'three';
 
         (function() {

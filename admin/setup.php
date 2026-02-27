@@ -576,7 +576,7 @@ if ($showWebsiteForm) {
         <link rel="icon" href="/favicon.png" type="image/png">
         <title>Telaris - Setup</title>
         <script src="../js/tailwind.min.js"></script>
-        <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+        <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
     </head>
     <body class="font-sans max-w-2xl mx-auto my-12 px-5 bg-gray-100">
         <div class="bg-white p-8 rounded-lg shadow-md">
@@ -630,7 +630,7 @@ if ($showForm) {
         <link rel="icon" href="/favicon.png" type="image/png">
         <title>Telaris - Setup</title>
         <script src="../js/tailwind.min.js"></script>
-        <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+        <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
     </head>
     <body class="font-sans max-w-2xl mx-auto my-12 px-5 bg-gray-100">
         <div class="bg-white p-8 rounded-lg shadow-md">
@@ -951,7 +951,7 @@ if ($pdo && !$adminUserCreated) {
     <link rel="icon" href="/favicon.png" type="image/png">
     <title>Telaris - Setup</title>
     <script src="js/tailwind.min.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
 </head>
 <body class="font-sans max-w-2xl mx-auto my-12 px-5 bg-gray-100">
     <div class="bg-white p-8 rounded-lg shadow-md">

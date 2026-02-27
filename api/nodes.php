@@ -5,10 +5,11 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../utils/auth.php';
 
-// Set CORS headers for API responses
+// Set CORS headers for API responses — restrict to same origin
 if (php_sapi_name() !== 'cli') {
     header('Content-Type: application/json');
-    header('Access-Control-Allow-Origin: *');
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    header('Access-Control-Allow-Origin: ' . $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type, X-API-Key, Authorization, X-HTTP-Method-Override');
 
@@ -215,7 +216,7 @@ try {
             requireWriteAccess();
             $data = $_POST;
             if (empty($data) && empty($_FILES)) {
-                $input = file_get_contents('php://input');
+                $input = stream_get_contents(fopen('php://input', 'r'), 1048576);
                 if (!empty($input)) {
                     $data = json_decode($input, true);
                     if (json_last_error() !== JSON_ERROR_NONE) {
@@ -401,7 +402,7 @@ try {
 
         'PUT' => (function(): void {
             requireWriteAccess();
-            $input = file_get_contents('php://input');
+            $input = stream_get_contents(fopen('php://input', 'r'), 1048576);
             $data = json_decode($input, true);
 
             // Handle multipart/form-data for PUT (some clients use POST + _method=PUT or just POST for uploads)
@@ -428,9 +429,13 @@ try {
             }
             $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : null;
 
-            // Enforce editor constellation access
-            if ($constellationId !== null) {
-                $accessError = checkEditorConstellationAccess($constellationId);
+            // Enforce editor constellation access — use provided or look up existing
+            $accessConstellationId = $constellationId;
+            if ($accessConstellationId === null) {
+                $accessConstellationId = db_get_node_constellation_id((int)$id);
+            }
+            if ($accessConstellationId !== null) {
+                $accessError = checkEditorConstellationAccess($accessConstellationId);
                 if ($accessError !== null) {
                     http_response_code(403);
                     echo json_encode(['error' => $accessError], JSON_THROW_ON_ERROR);

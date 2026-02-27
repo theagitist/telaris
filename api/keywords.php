@@ -19,7 +19,7 @@ try {
         
         'POST' => (function(): void {
             requireWriteAccess();
-            $data = json_decode(file_get_contents('php://input'), true, flags: JSON_THROW_ON_ERROR);
+            $data = json_decode(stream_get_contents(fopen('php://input', 'r'), 1048576), true, flags: JSON_THROW_ON_ERROR);
             $keyword = trim($data['keyword'] ?? '');
             if (empty($keyword)) {
                 http_response_code(400);
@@ -61,7 +61,8 @@ try {
     echo json_encode(['error' => 'Invalid JSON: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
+    error_log('keywords.php PDOException: ' . $e->getMessage());
+    echo json_encode(['error' => 'Database error'], JSON_THROW_ON_ERROR);
 } catch (RuntimeException $e) {
     http_response_code($e->getCode() ?: 405);
     echo json_encode(['error' => $e->getMessage()], JSON_THROW_ON_ERROR);

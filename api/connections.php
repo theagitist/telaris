@@ -31,7 +31,8 @@ try {
     echo json_encode(['error' => 'Invalid JSON: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
+    error_log('connections.php PDOException: ' . $e->getMessage());
+    echo json_encode(['error' => 'Database error'], JSON_THROW_ON_ERROR);
 } catch (RuntimeException $e) {
     http_response_code($e->getCode() ?: 405);
     echo json_encode(['error' => $e->getMessage()], JSON_THROW_ON_ERROR);

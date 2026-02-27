@@ -3272,10 +3272,6 @@ class TelarisNetwork {
             if (clearBtn) clearBtn.style.display = this.searchQuery ? 'block' : 'none';
             
             // Clear focus immediately so no connections related to hidden nodes remain
-            const focused = this.networkManager.getFocusedNode();
-            if (focused) {
-                this.setNodeDimmed(focused, false);
-            }
             this.networkManager.setFocusedNode(null);
             if (this.tooltip) this.hideMainTooltip();
             

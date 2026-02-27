@@ -6,7 +6,8 @@ require_once __DIR__ . '/auth.php';
 
 if (php_sapi_name() !== 'cli') {
     header('Content-Type: application/json');
-    header('Access-Control-Allow-Origin: *');
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    header('Access-Control-Allow-Origin: ' . $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
     header('Access-Control-Allow-Methods: GET, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type, X-API-Key, Authorization');
 
@@ -59,5 +60,6 @@ try {
     }
 } catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()], JSON_THROW_ON_ERROR);
+    error_log('validate.php error: ' . $e->getMessage());
+    echo json_encode(['error' => 'Internal server error'], JSON_THROW_ON_ERROR);
 }

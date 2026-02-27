@@ -218,7 +218,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     throw new Exception('A constellation with this ' . implode(' and ', $errs) . ' already exists.');
                 }
 
+                $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech'];
                 $theme = trim($_POST['theme'] ?? 'cosmic');
+                if (!in_array($theme, $allowedThemes, true)) { $theme = 'cosmic'; }
                 db_create_constellation($name, $tagline, $slug !== '' ? $slug : null, $theme);
                 $message = 'Constellation created successfully.';
                 $activeTab = 'constellations';
@@ -230,7 +232,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $name = trim($_POST['name'] ?? '');
                 $tagline = trim($_POST['tagline'] ?? '');
                 $slug = trim($_POST['slug'] ?? '');
+                $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech'];
                 $theme = trim($_POST['theme'] ?? 'cosmic');
+                if (!in_array($theme, $allowedThemes, true)) { $theme = 'cosmic'; }
                 if (empty($name)) {
                     throw new Exception('Constellation name is required');
                 }
@@ -428,7 +432,7 @@ $fieldMeta = [
     <link rel="icon" href="/favicon.png" type="image/png">
     <title>Admin Console - Telaris</title>
     <script src="../js/tailwind.min.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
 </head>
 <body class="font-sans bg-gray-100 min-h-screen">
     <!-- Notification Container -->

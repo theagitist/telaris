@@ -3,7 +3,8 @@
  * Main view: HTML shell for the 3D network.
  * Expects: $projectName, $projectTagline, $isEditorOrAdmin, $currentLocale, $projectEditButtonText, $projectLoadingText (set by bootstrap).
  */
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");
+$cspNonce = base64_encode(random_bytes(16));
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$cspNonce}' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");
 header("X-Frame-Options: SAMEORIGIN");
 header("X-Content-Type-Options: nosniff");
 ?>
@@ -20,7 +21,7 @@ header("X-Content-Type-Options: nosniff");
     <meta name="twitter:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
     <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <script src="js/tailwind.min.js?v=5.3"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
     <style>
         :root {
             --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -329,7 +330,7 @@ header("X-Content-Type-Options: nosniff");
         </div>
     </div>
 
-    <script>
+    <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
         window.TELARIS_APP_NAME = <?php echo json_encode($projectName); ?>;
         window.TELARIS_IFRAME_BACK_TEXT = <?php echo json_encode($projectIframeBackText ?? 'Go back'); ?>;
         window.TELARIS_ALERT_MESSAGE = <?php echo json_encode($projectAlertMessage ?? "Close this window when you're done to go back to {APPNAME}."); ?>;
@@ -339,7 +340,7 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_TAP_TO_VIEW = <?php echo json_encode($projectTapToViewText ?? 'Tap again to view'); ?>;
         window.TELARIS_OPEN_PORTAL_TEXT = <?php echo json_encode($projectOpenPortalText ?? 'Open the Portal'); ?>;
     </script>
-    <script>
+    <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
     (function() {
         var hudIndicator = document.getElementById('hud-indicator');
         var infoPanel = document.getElementById('info');
@@ -390,7 +391,7 @@ header("X-Content-Type-Options: nosniff");
         }
     })();
     </script>
-    <script type="importmap">
+    <script type="importmap" nonce="<?php echo htmlspecialchars($cspNonce); ?>">
         {
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",

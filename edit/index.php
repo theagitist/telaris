@@ -39,7 +39,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <link rel="icon" href="/favicon.png" type="image/png">
     <title>Edit Nodes - <?php echo htmlspecialchars($projectName); ?></title>
     <script src="../js/tailwind.min.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
 </head>
 <body class="font-sans bg-gray-100 min-h-screen">
     <div class="max-w-7xl mx-auto py-8 px-5">
