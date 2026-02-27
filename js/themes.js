@@ -123,6 +123,36 @@ export const THEMES = {
             portalImage: 'img/themes/stripes/portal_icon.gif',
             images: Array.from({ length: 6 }, (_, i) => `img/themes/stripes/icon_${String(i + 1).padStart(3, '0')}.png`)
         }
+    },
+    tech: {
+        id: 'tech',
+        name: 'Tech',
+        background: {
+            starfield: false,
+            nebulas: false,
+            grid: false,
+            techGrid: true,
+            color: 0x000205
+        },
+        animations: {
+            rocket: false,
+            ufo: false,
+            comet: false,
+            satellites: false,
+            stationRing: false
+        },
+        lighting: {
+            ambient: { color: 0x88ccff, intensity: 0.7 },
+            points: [
+                { color: 0x00dcff, x: 15, y: 15, z: 15 },
+                { color: 0x0088cc, x: -15, y: -15, z: -15 }
+            ]
+        },
+        nodes: {
+            type: 'image',
+            portalImage: 'img/themes/tech/portal_icon.gif',
+            images: Array.from({ length: 12 }, (_, i) => `img/themes/tech/icon_${String(i + 1).padStart(3, '0')}.png`)
+        }
     }
 };
 

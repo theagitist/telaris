@@ -3,6 +3,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { apiFetch } from './api.js';
 import { createNodeIcon } from './telaris-node-icons.js';
 import { NetworkManager } from './network-manager.js';
@@ -493,12 +496,12 @@ class TelarisNetwork {
         const renderScene = new RenderPass(this.scene, this.camera);
         renderScene.clearAlpha = 0;
         
-        const bloomPass = new UnrealBloomPass(
+        this.bloomPass = new UnrealBloomPass(
             new THREE.Vector2(window.innerWidth, window.innerHeight),
             0.6, 0.3, 0.9
         );
-        bloomPass.renderToScreen = true;
-        bloomPass.clear = false;
+        this.bloomPass.renderToScreen = true;
+        this.bloomPass.clear = false;
         
         const renderTarget = new THREE.WebGLRenderTarget(
             window.innerWidth, window.innerHeight,
@@ -513,7 +516,7 @@ class TelarisNetwork {
         
         this.composer = new EffectComposer(this.renderer, renderTarget);
         this.composer.addPass(renderScene);
-        this.composer.addPass(bloomPass);
+        this.composer.addPass(this.bloomPass);
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
@@ -551,6 +554,7 @@ class TelarisNetwork {
         this.initRocket();
         this.initUFO();
         this.initGlitchyGrid();
+        this.initTechBackground();
         this.setupTheme(this.currentTheme);
         this.animate();
     }
@@ -562,7 +566,23 @@ class TelarisNetwork {
         if (this.stars) this.stars.visible = !!theme.background.starfield;
         if (this.bgNebulas) this.bgNebulas.visible = !!theme.background.nebulas;
         if (this.glitchyGrid) this.glitchyGrid.visible = !!theme.background.grid;
-        
+
+        // 3D tech background (wireframe cage + particles)
+        if (this.techBg) this.techBg.visible = !!theme.background.techGrid;
+
+        // Bloom tuning per theme
+        if (this.bloomPass) {
+            if (theme.id === 'tech') {
+                this.bloomPass.threshold = 0.05;
+                this.bloomPass.strength  = 1.6;
+                this.bloomPass.radius    = 0.7;
+            } else {
+                this.bloomPass.threshold = 0.9;
+                this.bloomPass.strength  = 0.6;
+                this.bloomPass.radius    = 0.3;
+            }
+        }
+
         const bgColor = theme.background.color !== undefined ? theme.background.color : 0x000000;
         this.renderer.setClearColor(bgColor, 1); // Use solid color for theme background
 
@@ -635,6 +655,230 @@ class TelarisNetwork {
             setTimeout(() => { target.visible = true; }, 50);
         } else {
             this.glitchyGrid.position.lerp(new THREE.Vector3(0, 0, 0), 0.1);
+        }
+    }
+
+    initTechBackground() {
+        this.techBg = new THREE.Group();
+        this.techBgLineMats = []; // tracked so onWindowResize can update resolution
+
+        const res = new THREE.Vector2(window.innerWidth, window.innerHeight);
+
+        // ── Helpers ────────────────────────────────────────────────────
+        // Thick lines via LineSegments2 (actual pixel linewidth, not WebGL 1px limit).
+        // pts = flat array [x1,y1,z1, x2,y2,z2, ...] — each 6-element pair is one segment.
+        const addThick = (pts, color, linewidth, opacity = 1.0) => {
+            const geo = new LineSegmentsGeometry();
+            geo.setPositions(pts);
+            const mat = new LineMaterial({
+                color,
+                linewidth,
+                resolution: res,
+                transparent: opacity < 1.0,
+                opacity,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            });
+            this.techBgLineMats.push(mat);
+            this.techBg.add(new LineSegments2(geo, mat));
+        };
+
+        // Regular 1-px LineSegments for subtle/high-count elements.
+        const addThin = (pts, color, opacity = 1.0) => {
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3));
+            this.techBg.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
+                color, transparent: true, opacity,
+                blending: THREE.AdditiveBlending, depthWrite: false,
+            })));
+        };
+
+        // ── Corridor dimensions ────────────────────────────────────────
+        // Camera sits at z=13 looking toward z=0; corridor goes into -Z.
+        // Ceiling and floor are high enough to be visible past z=-30.
+        const Z_NEAR = 10, Z_FAR = -230;
+        const CW = 105;       // half-width  (X = ±105)
+        const CT = 30;        // ceiling Y   (+30)
+        const CF = -52;       // floor Y     (-52)
+
+        // ── CEILING — the dominant element (Image 1: glass panel grid) ─
+        // Longitudinal lines (run along Z, create depth rush)
+        const ceilLongPts = [];
+        for (let x = -CW; x <= CW; x += 15) {
+            ceilLongPts.push(x, CT, Z_NEAR,  x, CT, Z_FAR);
+        }
+        addThick(ceilLongPts, 0x99ddff, 1.5, 0.90);
+
+        // Cross lines (perpendicular to Z, create panel grid sections)
+        const ceilCrossPts = [];
+        for (let z = Z_NEAR; z >= Z_FAR; z -= 16) {
+            ceilCrossPts.push(-CW, CT, z,  CW, CT, z);
+        }
+        addThick(ceilCrossPts, 0x99ddff, 1.5, 0.90);
+
+        // Inner ceiling layer (lower plane — layered depth like Image 1)
+        const ceilInnerPts = [];
+        const CI = 18; // inner ceiling Y
+        for (let x = -CW; x <= CW; x += 30) {
+            ceilInnerPts.push(x, CI, Z_NEAR,  x, CI, Z_FAR);
+        }
+        for (let z = Z_NEAR; z >= Z_FAR; z -= 30) {
+            ceilInnerPts.push(-CW, CI, z,  CW, CI, z);
+        }
+        addThick(ceilInnerPts, 0x55aadd, 1.2, 0.60);
+
+        // X-brace diagonals within ceiling panels (glass-panel cross pattern)
+        const ceilDiagPts = [];
+        for (let z = Z_NEAR - 16; z >= Z_FAR + 16; z -= 32) {
+            for (let x = -CW; x < CW; x += 30) {
+                const x2 = x + 30;
+                ceilDiagPts.push(x, CT, z,    x2, CT, z - 16);
+                ceilDiagPts.push(x2, CT, z,   x,  CT, z - 16);
+            }
+        }
+        addThin(ceilDiagPts, 0x336688, 0.35);
+
+        // ── FLOOR — darker reflective grid (Image 1 bottom, Image 2 floor) ─
+        const floorLongPts = [];
+        for (let x = -CW; x <= CW; x += 20) {
+            floorLongPts.push(x, CF, Z_NEAR,  x, CF, Z_FAR);
+        }
+        addThick(floorLongPts, 0x4488bb, 1.2, 0.75);
+
+        const floorCrossPts = [];
+        for (let z = Z_NEAR; z >= Z_FAR; z -= 22) {
+            floorCrossPts.push(-CW, CF, z,  CW, CF, z);
+        }
+        addThick(floorCrossPts, 0x4488bb, 1.2, 0.75);
+
+        // ── SIDE WALLS — vertical panel structure ──────────────────────
+        const wallPts = [];
+        // Horizontal runs (top/bottom rails + mid rails)
+        for (const y of [CF, CF + 25, 0, CT - 5, CT]) {
+            wallPts.push(-CW, y, Z_NEAR,  -CW, y, Z_FAR);
+            wallPts.push( CW, y, Z_NEAR,   CW, y, Z_FAR);
+        }
+        // Vertical stanchions at regular Z intervals
+        for (let z = Z_NEAR; z >= Z_FAR; z -= 30) {
+            wallPts.push(-CW, CF, z,  -CW, CT, z);
+            wallPts.push( CW, CF, z,   CW, CT, z);
+        }
+        addThick(wallPts, 0x225588, 1.0, 0.55);
+
+        // ── CROSS-SECTION FRAMES — bright rings along the corridor ─────
+        const framePts = [];
+        for (let z = -18; z >= Z_FAR; z -= 32) {
+            framePts.push(
+                -CW, CF, z,   CW, CF, z,   // bottom
+                 CW, CF, z,   CW, CT, z,   // right
+                 CW, CT, z,  -CW, CT, z,   // top
+                -CW, CT, z,  -CW, CF, z    // left
+            );
+        }
+        addThick(framePts, 0x66bbff, 2.0, 0.90);
+
+        // ── ENERGY BEAMS — bright diagonal rays converging to VP ───────
+        // These create the dramatic light-ray effect from Image 1.
+        // Lines go from outer corners near camera toward the vanishing point.
+        const VP = [0, -10, -230];
+        const beamSources = [
+            [-CW,  CT,  Z_NEAR],
+            [ CW,  CT,  Z_NEAR],
+            [-CW,  CF,  Z_NEAR],
+            [ CW,  CF,  Z_NEAR],
+            [  0,  CT,  Z_NEAR],
+            [-CW,   0,  Z_NEAR],
+            [ CW,   0,  Z_NEAR],
+            [  0,  CF,  Z_NEAR],
+        ];
+        const beamPts = [];
+        for (const [px, py, pz] of beamSources) {
+            beamPts.push(px, py, pz,  VP[0], VP[1], VP[2]);
+        }
+        addThick(beamPts, 0xbbddff, 1.0, 0.30);
+
+        // ── FLOATING CIRCUIT NODES — Image 2 holographic panels ────────
+        // Small wireframe rectangles floating in the corridor space.
+        const nodePts = [];
+        const floatingPanels = [
+            [-70, 12, -55,  28, 14],
+            [ 60, 15, -80,  32, 12],
+            [-55, -20, -110, 24, 10],
+            [ 65, -15, -130, 30, 12],
+            [-75,  8, -160, 26, 10],
+            [ 50,  5, -180, 22, 10],
+        ];
+        for (const [x, y, z, w, h] of floatingPanels) {
+            nodePts.push(
+                x,   y,   z,  x+w, y,   z,
+                x+w, y,   z,  x+w, y-h, z,
+                x+w, y-h, z,  x,   y-h, z,
+                x,   y-h, z,  x,   y,   z,
+            );
+            // Horizontal divider line inside panel
+            nodePts.push(x, y - 3, z,  x + w, y - 3, z);
+            // Short trace line extending from panel
+            const tx = x + w / 2;
+            nodePts.push(tx, y, z,  tx, y + 6, z);
+        }
+        addThick(nodePts, 0x00ccff, 1.2, 0.65);
+
+        // Short PCB-style traces connecting corridor wall to pads
+        const tracePts = [];
+        const tracePads = [
+            [-CW, -15, -45], [-CW, 10, -90], [-CW, -30, -140],
+            [ CW,  20, -60], [ CW, -10, -110], [ CW, 15, -165],
+        ];
+        for (const [wx, wy, wz] of tracePads) {
+            const inner = wx > 0 ? wx - 18 : wx + 18;
+            // Horizontal trace from wall inward
+            tracePts.push(wx, wy, wz,  inner, wy, wz);
+            // Short vertical leg
+            tracePts.push(inner, wy, wz,  inner, wy + 8, wz);
+            // Small pad square
+            const S = 3;
+            tracePts.push(
+                inner - S, wy + 8,     wz,  inner + S, wy + 8,     wz,
+                inner + S, wy + 8,     wz,  inner + S, wy + 8 + S, wz,
+                inner + S, wy + 8 + S, wz,  inner - S, wy + 8 + S, wz,
+                inner - S, wy + 8 + S, wz,  inner - S, wy + 8,     wz,
+            );
+        }
+        addThick(tracePts, 0x00ffaa, 1.0, 0.55);
+
+        // ── CENTRAL VANISHING POINT GLOW ───────────────────────────────
+        const glowCanvas = document.createElement('canvas');
+        glowCanvas.width = glowCanvas.height = 256;
+        const ctx = glowCanvas.getContext('2d');
+        const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+        grad.addColorStop(0,    'rgba(220, 245, 255, 1.0)');
+        grad.addColorStop(0.08, 'rgba(120, 210, 255, 0.9)');
+        grad.addColorStop(0.3,  'rgba(30,  120, 220, 0.4)');
+        grad.addColorStop(1,    'rgba(0,   10,  40,  0.0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 256, 256);
+        const glowTex = new THREE.CanvasTexture(glowCanvas);
+        this.techGlowSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: glowTex,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            depthWrite: false,
+        }));
+        this.techGlowSprite.scale.set(90, 90, 1);
+        this.techGlowSprite.position.set(VP[0], VP[1], VP[2]);
+        this.techBg.add(this.techGlowSprite);
+
+        this.techBg.visible = false;
+        this.scene.add(this.techBg);
+    }
+
+    updateTechBackground(dt) {
+        if (!this.techBg || !this.techBg.visible) return;
+        // Gently pulse the vanishing-point glow
+        if (this.techGlowSprite) {
+            const t = performance.now() / 1000;
+            const pulse = 1.0 + 0.18 * Math.sin(t * 0.7);
+            this.techGlowSprite.scale.set(90 * pulse, 90 * pulse, 1);
         }
     }
 
@@ -2423,6 +2667,7 @@ class TelarisNetwork {
         this.updateRocket(dt);
         this.updateUFO(dt);
         this.updateGlitchyGrid(dt);
+        this.updateTechBackground(dt);
         this.updateHUD();
 
         // Portal meshes: slow rotation + scale pulse; rev up when clicked
@@ -2513,6 +2758,10 @@ class TelarisNetwork {
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.composer?.setSize(window.innerWidth, window.innerHeight);
+        // LineMaterial needs the viewport resolution for correct pixel linewidth
+        for (const mat of (this.techBgLineMats || [])) {
+            mat.resolution.set(window.innerWidth, window.innerHeight);
+        }
     }
 }
 

@@ -1888,6 +1888,8 @@ $fieldMeta = [
                         <option value="abstract">Abstract (Geometric GIF Icons)</option>
                         <option value="rectangles">Rectangles (Custom Rectangle Icons)</option>
                         <option value="stripes">Stripes (Custom Stripe Icons)</option>
+                        <!-- Tech theme hidden until development is complete -->
+                        <!-- <option value="tech">Tech (Circuit Board Icons)</option> -->
                     </select>
                     <span class="text-xs text-gray-500 mt-1 block">Determines the background, icons and animations.</span>
                 </div>
@@ -1994,6 +1996,8 @@ $fieldMeta = [
                         <option value="abstract">Abstract (Geometric GIF Icons)</option>
                         <option value="rectangles">Rectangles (Custom Rectangle Icons)</option>
                         <option value="stripes">Stripes (Custom Stripe Icons)</option>
+                        <!-- Tech theme hidden until development is complete -->
+                        <!-- <option value="tech">Tech (Circuit Board Icons)</option> -->
                     </select>
                 </div>
                 

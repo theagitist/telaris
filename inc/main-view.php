@@ -391,12 +391,12 @@ header("X-Content-Type-Options: nosniff");
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "./telaris-network.js": "./js/telaris-network.js?v=5.3",
+                "./telaris-network.js": "./js/telaris-network.js?v=5.4.6",
                 "./network-manager.js": "./js/network-manager.js?v=5.3",
                 "./geometry-manager.js": "./js/geometry-manager.js?v=5.3",
                 "./api.js": "./js/api.js?v=5.3",
                 "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=5.3",
-                "./themes.js": "./js/themes.js?v=5.3",
+                "./themes.js": "./js/themes.js?v=5.4.6",
                 "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=5.3"
             }
         }
