@@ -100,7 +100,8 @@ function extractConfigValues(): ?array {
     // Read config.php and extract define() values
     $content = file_get_contents($configPath);
     foreach ($config as $key => $default) {
-        if (preg_match("/define\s*\(\s*['\"]" . $key . "['\"]\s*,\s*['\"](.*?)['\"]\s*\)/", $content, $matches)) {
+        // Match the value between quotes — greedy (.*) ensures we capture up to the LAST quote before )
+        if (preg_match("/define\s*\(\s*['\"]" . $key . "['\"]\s*,\s*['\"](.*)['\"](?:\s*\))/", $content, $matches)) {
             $config[$key] = $matches[1];
         }
     }

@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Table for constellations (id 0 = default, created by setup, cannot be erased)
 CREATE TABLE IF NOT EXISTS constellations (
-    id INT NOT NULL PRIMARY KEY,
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL DEFAULT '',
     tagline VARCHAR(500) NOT NULL DEFAULT '',
     slug VARCHAR(255) NULL UNIQUE,

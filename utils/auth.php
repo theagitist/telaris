@@ -10,7 +10,8 @@ require_once __DIR__ . '/../config.php';
 
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
-    $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    $secure = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+           || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
     session_set_cookie_params([
         'lifetime' => 0,
         'path' => '/',
@@ -160,7 +161,8 @@ function authenticateUser(string $email, string $password): ?array {
 function logoutAdmin(): void {
     $_SESSION = [];
     if (isset($_COOKIE[session_name()])) {
-        $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+        $secure = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+               || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
         setcookie(session_name(), '', [
             'expires' => time() - 3600,
             'path' => '/',

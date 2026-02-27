@@ -53,6 +53,7 @@ function db_run_runtime_migrations(PDO $pdo): void {
     db_ensure_node_video_columns($pdo);
     db_ensure_updated_at_columns($pdo);
     db_ensure_api_keys_active_column($pdo);
+    db_ensure_constellations_auto_increment($pdo);
 }
 
 /**
@@ -63,6 +64,45 @@ function db_ensure_api_keys_active_column(PDO $pdo): void {
     if (!$row) {
         $pdo->exec("ALTER TABLE api_keys ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE");
         $pdo->exec("UPDATE api_keys SET is_active = TRUE WHERE is_active IS NULL");
+    }
+}
+
+/**
+ * Ensure constellations.id uses AUTO_INCREMENT (missing from early schema).
+ */
+function db_ensure_constellations_auto_increment(PDO $pdo): void {
+    $row = $pdo->query("SHOW CREATE TABLE constellations")->fetch(PDO::FETCH_ASSOC);
+    $createSql = $row['Create Table'] ?? '';
+    if ($row && !str_contains($createSql, 'auto_increment')) {
+        // Collect foreign keys referencing constellations.id so we can drop and re-add them
+        $fks = [];
+        $stmt = $pdo->query("
+            SELECT TABLE_NAME, CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_COLUMN_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE REFERENCED_TABLE_SCHEMA = DATABASE()
+              AND REFERENCED_TABLE_NAME = 'constellations'
+              AND REFERENCED_COLUMN_NAME = 'id'
+        ");
+        while ($fk = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $fks[] = $fk;
+        }
+
+        // Drop foreign keys
+        foreach ($fks as $fk) {
+            $pdo->exec("ALTER TABLE `{$fk['TABLE_NAME']}` DROP FOREIGN KEY `{$fk['CONSTRAINT_NAME']}`");
+        }
+
+        // Apply AUTO_INCREMENT
+        $maxId = (int)$pdo->query("SELECT COALESCE(MAX(id), 0) FROM constellations")->fetchColumn();
+        $pdo->exec("ALTER TABLE constellations MODIFY id INT NOT NULL AUTO_INCREMENT");
+        if ($maxId > 0) {
+            $pdo->exec("ALTER TABLE constellations AUTO_INCREMENT = " . ($maxId + 1));
+        }
+
+        // Re-add foreign keys
+        foreach ($fks as $fk) {
+            $pdo->exec("ALTER TABLE `{$fk['TABLE_NAME']}` ADD CONSTRAINT `{$fk['CONSTRAINT_NAME']}` FOREIGN KEY (`{$fk['COLUMN_NAME']}`) REFERENCES `constellations` (`{$fk['REFERENCED_COLUMN_NAME']}`) ON DELETE CASCADE");
+        }
     }
 }
 
@@ -711,7 +751,8 @@ function createAdminUser(PDO $pdo, string $email, string $password, string $firs
         ]);
         return null;
     } catch (PDOException $e) {
-        return $e->getMessage();
+        error_log('createAdminUser PDOException: ' . $e->getMessage());
+        return 'Database error while creating user. Please try again.';
     }
 }
 
@@ -741,7 +782,8 @@ function createUser(PDO $pdo, string $email, string $hashedPassword, string $fir
         ]);
         return null;
     } catch (PDOException $e) {
-        return $e->getMessage();
+        error_log('createUser PDOException: ' . $e->getMessage());
+        return 'Database error while creating user. Please try again.';
     }
 }
 
@@ -917,23 +959,19 @@ function db_constellation_exists(string $name, ?string $slug = null, ?int $exclu
  */
 function db_create_constellation(string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic'): int {
     $pdo = getDB();
-    $stmt = $pdo->query("SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM constellations");
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    $nextId = (int)($row['next_id'] ?? 1);
-    
+
     $name = trim($name) ?: 'Unnamed';
     if ($slug === null || trim($slug) === '') {
         $slug = db_slugify($name);
     }
 
-    $pdo->prepare("INSERT INTO constellations (id, name, tagline, slug, theme) VALUES (:id, :name, :tagline, :slug, :theme)")->execute([
-        ':id' => $nextId,
+    $pdo->prepare("INSERT INTO constellations (name, tagline, slug, theme) VALUES (:name, :tagline, :slug, :theme)")->execute([
         ':name' => $name,
         ':tagline' => trim($tagline),
         ':slug' => trim($slug),
         ':theme' => $theme
     ]);
-    return $nextId;
+    return (int)$pdo->lastInsertId();
 }
 
 /**
@@ -1324,6 +1362,7 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
                 $nodeKeywordStmt->execute([':node_id' => $nodeId, ':keyword_id' => $keywordId]);
             }
         } catch (PDOException $e) {
+            error_log("db_save_node_keywords: failed to save keyword '{$keyword}' for node {$nodeId}: " . $e->getMessage());
         }
     }
 }
@@ -1404,29 +1443,32 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
 
 function db_delete_node(int $id): void {
     $pdo = getDB();
-    
-    // Also delete any associated uploaded files
+
+    // Collect file paths to delete AFTER the DB row is removed
+    $filesToDelete = [];
     $stmt = $pdo->prepare("SELECT image_url, audio_url, video_url FROM nodes WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch();
     if ($row) {
         $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
-        if ($row['image_url'] && str_starts_with($row['image_url'], 'uploads/')) {
-            $fullPath = str_replace('uploads/', $uploadDir . '/', $row['image_url']);
-            if (file_exists($fullPath)) unlink($fullPath);
-        }
-        if ($row['audio_url'] && str_starts_with($row['audio_url'], 'uploads/')) {
-            $fullPath = str_replace('uploads/', $uploadDir . '/', $row['audio_url']);
-            if (file_exists($fullPath)) unlink($fullPath);
-        }
-        if ($row['video_url'] && str_starts_with($row['video_url'], 'uploads/')) {
-            $fullPath = str_replace('uploads/', $uploadDir . '/', $row['video_url']);
-            if (file_exists($fullPath)) unlink($fullPath);
+        foreach (['image_url', 'audio_url', 'video_url'] as $col) {
+            if ($row[$col] && str_starts_with($row[$col], 'uploads/')) {
+                $fullPath = str_replace('uploads/', $uploadDir . '/', $row[$col]);
+                if (file_exists($fullPath)) {
+                    $filesToDelete[] = $fullPath;
+                }
+            }
         }
     }
 
+    // Delete DB row first
     $stmt = $pdo->prepare("DELETE FROM nodes WHERE id = :id");
     $stmt->execute([':id' => $id]);
+
+    // Delete files only after DB deletion succeeds
+    foreach ($filesToDelete as $path) {
+        @unlink($path);
+    }
 }
 
 function db_delete_node_file(int $id, string $type): void {

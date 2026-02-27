@@ -20,7 +20,7 @@ header("X-Content-Type-Options: nosniff");
     <meta property="og:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <meta name="twitter:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
     <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
-    <script src="js/tailwind.min.js?v=5.3"></script>
+    <script src="js/tailwind.min.js?v=5.4.7"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
     <style>
         :root {
@@ -29,6 +29,11 @@ header("X-Content-Type-Options: nosniff");
         
         * {
             font-family: var(--font-mono) !important;
+        }
+
+        #portal-back-button:hover {
+            background: rgba(0, 255, 204, 0.1) !important;
+            border-color: rgba(0, 255, 204, 0.8) !important;
         }
 
         #node-tooltip {
@@ -202,8 +207,6 @@ header("X-Content-Type-Options: nosniff");
         <button type="button" id="portal-back-button" aria-label="<?php echo htmlspecialchars($projectBackButtonText ?? 'Back'); ?> to previous constellation"
                 class="absolute top-5 right-5 z-[80] cursor-pointer"
                 style="display: none; padding: 0.5rem 0.75rem; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: #00ffcc; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 2px; backdrop-filter: blur(4px); transition: all 0.2s;"
-                onmouseover="this.style.background='rgba(0, 255, 204, 0.1)'; this.style.borderColor='rgba(0, 255, 204, 0.8)';"
-                onmouseout="this.style.background='rgba(0, 0, 0, 0.4)'; this.style.borderColor='rgba(0, 255, 204, 0.3)';"
         >
             ← <?php echo htmlspecialchars($projectBackButtonText ?? 'Back'); ?>
         </button>
@@ -212,14 +215,11 @@ header("X-Content-Type-Options: nosniff");
         <div id="node-tooltip" class="absolute px-3 py-2 rounded text-base pointer-events-none z-[200]" style="opacity: 0; visibility: hidden;"></div>
 
         <!-- Rich Media Window Overlay -->
-        <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md hidden transition-opacity duration-500 opacity-0" 
-             onclick="if(event.target === this) { 
-                 window.telarisNetwork.closeRichMediaWindow();
-             }">
+        <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md hidden transition-opacity duration-500 opacity-0">
             <div id="rich-media-window" class="bg-[#0a0a0c]/90 border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative text-white transition-all duration-500 ease-out transform scale-50 opacity-0"
                  style="box-shadow: 0 0 50px -10px rgba(0, 255, 204, 0.3);">
                 <!-- Close Button -->
-                <button onclick="window.telarisNetwork.closeRichMediaWindow()" class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-10">
+                <button id="rm-close-btn" class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-10">
                     <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M18 6L6 18M6 6l12 12"/>
                     </svg>
@@ -281,7 +281,7 @@ header("X-Content-Type-Options: nosniff");
     
     <!-- Tactical HUD Navigation -->
     <div id="info" class="absolute top-5 left-0 text-white z-[100] text-sm pt-14">
-        <div class="cursor-pointer group" onclick="location.reload()" title="<?php echo htmlspecialchars($projectReloadSystemText ?? 'Reload System'); ?>">
+        <div id="constellation-reload" class="cursor-pointer group" title="<?php echo htmlspecialchars($projectReloadSystemText ?? 'Reload System'); ?>">
             <h2 id="constellation-title" class="text-xl font-bold mb-1 tracking-tight uppercase group-hover:text-[#00ffcc] transition-colors">
                 <?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>
             </h2>
@@ -389,6 +389,17 @@ header("X-Content-Type-Options: nosniff");
                 e.stopPropagation();
             });
         }
+        // Inline event handler replacements (CSP nonce-compatible)
+        var rmOverlay = document.getElementById('rich-media-overlay');
+        if (rmOverlay) rmOverlay.addEventListener('click', function(e) {
+            if (e.target === this && window.telarisNetwork) window.telarisNetwork.closeRichMediaWindow();
+        });
+        var rmCloseBtn = document.getElementById('rm-close-btn');
+        if (rmCloseBtn) rmCloseBtn.addEventListener('click', function() {
+            if (window.telarisNetwork) window.telarisNetwork.closeRichMediaWindow();
+        });
+        var reloadEl = document.getElementById('constellation-reload');
+        if (reloadEl) reloadEl.addEventListener('click', function() { location.reload(); });
     })();
     </script>
     <script type="importmap" nonce="<?php echo htmlspecialchars($cspNonce); ?>">
@@ -397,16 +408,16 @@ header("X-Content-Type-Options: nosniff");
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
                 "./telaris-network.js": "./js/telaris-network.js?v=5.4.7",
-                "./network-manager.js": "./js/network-manager.js?v=5.3",
-                "./geometry-manager.js": "./js/geometry-manager.js?v=5.3",
-                "./api.js": "./js/api.js?v=5.3",
+                "./network-manager.js": "./js/network-manager.js?v=5.4.7",
+                "./geometry-manager.js": "./js/geometry-manager.js?v=5.4.7",
+                "./api.js": "./js/api.js?v=5.4.7",
                 "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=5.4.7",
-                "./themes.js": "./js/themes.js?v=5.4.6",
-                "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=5.3"
+                "./themes.js": "./js/themes.js?v=5.4.7",
+                "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=5.4.7"
             }
         }
     </script>
-    <script src="js/telaris-soundscape.js?v=5.3"></script>
-    <script type="module" src="js/main.js?v=5.3"></script>
+    <script src="js/telaris-soundscape.js?v=5.4.7"></script>
+    <script type="module" src="js/main.js?v=5.4.7"></script>
 </body>
 </html>

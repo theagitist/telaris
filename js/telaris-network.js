@@ -48,11 +48,16 @@ class TelarisNetwork {
         // Optimization: Scratch objects to avoid GC pressure
         this._scratchVec = new THREE.Vector3();
         this._scratchVec2 = new THREE.Vector3();
+        this._scratchVec3 = new THREE.Vector3();
         this._scratchQuat = new THREE.Quaternion();
         this._upVec = new THREE.Vector3(0, 1, 0);
+        this._zForward = new THREE.Vector3(0, 0, 1);
+        this._originVec = new THREE.Vector3(0, 0, 0);
+        this._anchorCache = new Map();
 
         this.searchQuery = '';
         this.soundEnabled = true;
+        window.telarisNetwork = this;
         this.clearAll();
         this.init();
         this.setupSearch();
@@ -113,7 +118,6 @@ class TelarisNetwork {
         const urlButton = document.getElementById('rm-url-button');
 
         if (!overlay || !win) return;
-        window.telarisNetwork = this; // Ensure globally accessible for close button
 
         // Title
         if (titleEl) titleEl.textContent = d.name || 'System';
@@ -716,7 +720,7 @@ class TelarisNetwork {
             target.visible = false;
             setTimeout(() => { target.visible = true; }, 50);
         } else {
-            this.glitchyGrid.position.lerp(new THREE.Vector3(0, 0, 0), 0.1);
+            this.glitchyGrid.position.lerp(this._originVec, 0.1);
         }
     }
 
@@ -1429,7 +1433,8 @@ class TelarisNetwork {
         } else if (d.state === 'leaving') {
             // Extreme acceleration
             const speed = 100.0;
-            this.ufo.position.add(d.departureDir.clone().multiplyScalar(speed * dt));
+            this._scratchVec3.copy(d.departureDir).multiplyScalar(speed * dt);
+            this.ufo.position.add(this._scratchVec3);
             
             if (this.ufo.position.length() > 200) {
                 d.active = false;
@@ -1492,11 +1497,11 @@ class TelarisNetwork {
 
         // Move comet
         const speed = 30.0; // Units per second (doubled)
-        const movement = this.comet.userData.target.clone().multiplyScalar(speed * dt);
-        this.comet.position.add(movement);
+        this._scratchVec3.copy(this.comet.userData.target).multiplyScalar(speed * dt);
+        this.comet.position.add(this._scratchVec3);
 
         // Point comet toward travel direction (head first, tail trails behind)
-        this.comet.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), this.comet.userData.target);
+        this.comet.quaternion.setFromUnitVectors(this._zForward, this.comet.userData.target);
 
         // Deactivate if far away
         if (this.comet.position.length() > 100) {
@@ -1560,11 +1565,11 @@ class TelarisNetwork {
         );
 
         // Point rocket toward target
-        const dir = new THREE.Vector3().subVectors(
+        this._scratchVec3.subVectors(
             this.rocket.userData.node2.position,
             this.rocket.userData.node1.position
         ).normalize();
-        this.rocket.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+        this.rocket.quaternion.setFromUnitVectors(this._zForward, this._scratchVec3);
 
         if (this.rocket.userData.progress >= 1) {
             this.rocket.userData.active = false;
@@ -1710,15 +1715,15 @@ class TelarisNetwork {
         this.nodes.forEach(node => {
             this.scene.remove(node);
             node.traverse(c => {
-                if (c.geometry) c.geometry.dispose();
+                // Skip geometry disposal — geometries are shared via GeometryManager
                 if (c.material) (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m.dispose());
             });
         });
         this.nodes = [];
-        
+
         this.connections.forEach(c => {
             this.scene.remove(c.mesh);
-            if (c.mesh.geometry) c.mesh.geometry.dispose();
+            // Connection geometries are also shared via GeometryManager; only dispose materials
             if (c.mesh.material) c.mesh.material.dispose();
         });
         this.connections = [];
@@ -1816,6 +1821,10 @@ class TelarisNetwork {
                     this.fitCameraToNodes();
                 });
             }
+        }).catch(err => {
+            console.error('Back transition data fetch failed:', err);
+            this._portalTransition = null;
+            this.controls.enabled = true;
         });
     }
 
@@ -2474,14 +2483,15 @@ class TelarisNetwork {
     }
 
     updateConnections(deltaTimeSec) {
-        const anchorCache = new Map();
+        this._anchorCache.clear();
+        const cache = this._anchorCache;
         const getAnchor = (n) => {
-            if (!anchorCache.has(n)) {
+            if (!cache.has(n)) {
                 const pos = new THREE.Vector3();
                 n.getWorldPosition(pos);
-                anchorCache.set(n, pos);
+                cache.set(n, pos);
             }
-            return anchorCache.get(n);
+            return cache.get(n);
         };
 
         for (const c of this.connections) {
