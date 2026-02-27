@@ -46,13 +46,6 @@ export const THEMES = {
             grid: true,
             color: 0x000000
         },
-        animations: {
-            rocket: false,
-            ufo: false,
-            comet: false,
-            satellites: false,
-            stationRing: false
-        },
         lighting: {
             ambient: { color: 0xffffff, intensity: 0.6 },
             points: [
@@ -74,13 +67,6 @@ export const THEMES = {
             nebulas: false,
             grid: true,
             color: 0x000000
-        },
-        animations: {
-            rocket: false,
-            ufo: false,
-            comet: false,
-            satellites: false,
-            stationRing: false
         },
         lighting: {
             ambient: { color: 0xffffff, intensity: 0.6 },
@@ -104,13 +90,6 @@ export const THEMES = {
             grid: true,
             color: 0x000000
         },
-        animations: {
-            rocket: false,
-            ufo: false,
-            comet: false,
-            satellites: false,
-            stationRing: false
-        },
         lighting: {
             ambient: { color: 0xffffff, intensity: 0.6 },
             points: [
@@ -133,13 +112,6 @@ export const THEMES = {
             grid: false,
             techGrid: true,
             color: 0x000205
-        },
-        animations: {
-            rocket: false,
-            ufo: false,
-            comet: false,
-            satellites: false,
-            stationRing: false
         },
         lighting: {
             ambient: { color: 0x88ccff, intensity: 0.7 },

@@ -66,7 +66,7 @@ try {
                 return;
             }
             $tagline = isset($data['tagline']) ? trim((string)$data['tagline']) : '';
-            $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes'];
+            $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech'];
             $theme = isset($data['theme']) ? trim((string)$data['theme']) : 'cosmic';
             if (!in_array($theme, $allowedThemes, true)) {
                 $theme = 'cosmic';

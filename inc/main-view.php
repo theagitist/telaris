@@ -45,6 +45,10 @@ header("X-Content-Type-Options: nosniff");
         }
         #webgl-canvas-wrapper {
             background: transparent !important;
+            overflow: hidden;
+        }
+        #telaris-bg-canvas {
+            /* blur handled by BokehPass depth-of-field in JS */
         }
         #loading-overlay {
             position: fixed;
