@@ -325,9 +325,13 @@ class TelarisNetwork {
         }, 500);
     }
 
+    _getSoundscape() {
+        return (window._telarisSoundscape && window._telarisSoundscape()) || window._telarisSoundscapeInstance || null;
+    }
+
     playGlitch() {
         if (!this.soundEnabled) return;
-        const soundscape = window._telarisSoundscape && window._telarisSoundscape();
+        const soundscape = this._getSoundscape();
         if (soundscape && typeof soundscape.playGlitch === 'function') {
             soundscape.playGlitch();
         }
@@ -341,8 +345,8 @@ class TelarisNetwork {
             e.stopPropagation();
             this.soundEnabled = !this.soundEnabled;
             toggleBtn.innerText = this.soundEnabled ? 'ON' : 'OFF';
-            
-            const soundscape = window._telarisSoundscape && window._telarisSoundscape();
+
+            const soundscape = this._getSoundscape();
             if (soundscape) {
                 soundscape.setVolume(this.soundEnabled ? 0.65 : 0);
             }
