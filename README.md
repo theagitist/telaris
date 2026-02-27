@@ -164,6 +164,78 @@ Stores API keys for authentication.
 
 **Note**: All tables use InnoDB engine with utf8mb4 charset and utf8mb4_unicode_ci collation.
 
+## Testing
+
+The project has a unit and integration test suite covering PHP backend logic and JavaScript frontend modules.
+
+### Prerequisites
+
+- **PHP**: PHPUnit 11 (installed via Composer)
+- **JS**: Node.js 22+ built-in test runner (zero dependencies)
+
+### Setup
+
+```bash
+# Install PHPUnit (one-time)
+php composer install
+```
+
+No `npm install` is needed — the JS tests use Node's built-in test runner with no dependencies.
+
+### Running Tests
+
+```bash
+# Run everything
+npm run test:all
+
+# PHP tests only
+php vendor/bin/phpunit
+
+# PHP unit tests only
+php vendor/bin/phpunit --testsuite unit
+
+# PHP integration tests only
+php vendor/bin/phpunit --testsuite integration
+
+# JS tests only
+node --test tests/js/*.test.js
+```
+
+### Test Structure
+
+```
+tests/
+  php/
+    bootstrap.php                          # Loads config, db, validation, auth
+    Unit/
+      DbSlugifyTest.php                    # db_slugify() edge cases
+      ValidateSafeUrlTest.php              # URL scheme validation
+      SanitizeNodeTypeTest.php             # Node type sanitization
+      SanitizeEmbedCodeTest.php            # iframe allowlist, XSS filtering
+      HashPasswordTest.php                 # Hash/verify round-trip
+      CspCompatibilityTest.php             # Scans templates for inline event handlers
+    Integration/
+      MigrationAutoIncrementTest.php       # AUTO_INCREMENT + FK migration
+      MigrationApiKeysActiveTest.php       # is_active column migration
+  js/
+    themes.test.js                         # THEMES structure, getTheme() fallback
+    network-manager.test.js                # Focus state, opacity, visibility
+```
+
+### What the Tests Cover
+
+**PHP Unit Tests** validate pure functions extracted into `inc/validation.php` and `utils/auth.php` — URL validation, embed code sanitization, node type handling, password hashing, and slug generation. The CSP compatibility test scans public-facing HTML templates for inline event handlers (`onclick=`, `onload=`, etc.) that break nonce-based Content Security Policy.
+
+**PHP Integration Tests** exercise runtime database migrations against a real MySQL connection using temporary test tables (suffixed `_aitest` / `_test`) that are created and dropped per test. The critical test reproduces the AUTO_INCREMENT migration that must drop and re-add foreign keys — the exact scenario that broke production.
+
+**JS Tests** validate the theme registry (`THEMES` object structure, `getTheme()` lookup and fallback) and `NetworkManager` (focus state, opacity lerping, visibility thresholds, fade multiplier).
+
+### Configuration
+
+- `phpunit.xml` — PHPUnit configuration at project root
+- `package.json` — npm test scripts (no runtime dependencies)
+- Integration tests use the same database connection as the application (from `config.php`)
+
 ## Features
 
 ### Frontend

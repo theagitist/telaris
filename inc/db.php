@@ -10,11 +10,28 @@ declare(strict_types=1);
 // Connection
 // ---------------------------------------------------------------------------
 
+/** @var PDO|null Test-only override — when set, getDB() returns this instead of connecting. */
+$_TELARIS_DB_OVERRIDE = null;
+
+/**
+ * Override (or clear) the PDO instance returned by getDB().
+ * Used by test bootstrap to inject a test database connection.
+ */
+function resetDB(?PDO $override = null): void {
+    global $_TELARIS_DB_OVERRIDE;
+    $_TELARIS_DB_OVERRIDE = $override;
+}
+
 /**
  * @return PDO
  * @throws PDOException
  */
 function getDB(): PDO {
+    global $_TELARIS_DB_OVERRIDE;
+    if ($_TELARIS_DB_OVERRIDE !== null) {
+        return $_TELARIS_DB_OVERRIDE;
+    }
+
     static $pdo = null;
     if ($pdo !== null) {
         return $pdo;

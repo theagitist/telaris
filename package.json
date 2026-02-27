@@ -1,0 +1,11 @@
+{
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "test:js": "node --test tests/js/*.test.js",
+        "test:php": "php vendor/bin/phpunit",
+        "test:php:unit": "php vendor/bin/phpunit --testsuite unit",
+        "test:php:integration": "php vendor/bin/phpunit --testsuite integration",
+        "test:all": "npm run test:php && npm run test:js"
+    }
+}

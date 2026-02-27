@@ -8,8 +8,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config.php';
 
-// Start session if not already started
-if (session_status() === PHP_SESSION_NONE) {
+// Start session if not already started (skip in CLI — e.g. PHPUnit)
+if (php_sapi_name() !== 'cli' && session_status() === PHP_SESSION_NONE) {
     $secure = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
     session_set_cookie_params([
