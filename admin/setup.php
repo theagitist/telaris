@@ -26,6 +26,42 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// --- Security lockout: deny access once the app is fully installed ---
+// If config.php exists, the DB is reachable, and at least one admin user exists,
+// then setup is complete and this page must require admin login to reconfigure.
+$configPath = __DIR__ . '/../config.php';
+if (file_exists($configPath) && !isset($_GET['reconfigure'])) {
+    // App is installed — redirect to admin console
+    try {
+        require_once $configPath;
+        $pdo = getDB();
+        $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE type = 2");
+        if ((int)$stmt->fetchColumn() > 0) {
+            header('Location: index.php');
+            exit();
+        }
+    } catch (Throwable $e) {
+        // DB not reachable — allow setup to proceed for repair
+    }
+} elseif (file_exists($configPath) && isset($_GET['reconfigure'])) {
+    // Reconfigure requested — require admin authentication
+    try {
+        require_once $configPath;
+        require_once __DIR__ . '/../utils/auth.php';
+        $pdo = getDB();
+        $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE type = 2");
+        if ((int)$stmt->fetchColumn() > 0) {
+            // Admin users exist — must be logged in as admin to reconfigure
+            if (!isAdminLoggedIn()) {
+                header('Location: ../utils/login.php?redirect=admin');
+                exit();
+            }
+        }
+    } catch (Throwable $e) {
+        // DB not reachable — allow setup to proceed for repair
+    }
+}
+
 // Required PHP extensions for Telaris
 $requiredExtensions = [
     'pdo' => 'PDO (Database abstraction)',

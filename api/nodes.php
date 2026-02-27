@@ -74,6 +74,64 @@ function parseTargetConstellationId(mixed $value): ?int {
 }
 
 /**
+ * Sanitize embed_code: only allow <iframe> tags with safe attributes.
+ * Strips all other HTML tags and dangerous attributes (onload, onerror, etc.).
+ * Returns sanitized HTML string, or null if input produces no valid output.
+ */
+function sanitizeEmbedCode(string $html): ?string {
+    $html = trim($html);
+    if ($html === '') {
+        return null;
+    }
+
+    // Allowed iframe attributes (src must be http/https)
+    $allowedAttrs = [
+        'src', 'width', 'height', 'frameborder', 'allow', 'allowfullscreen',
+        'title', 'loading', 'referrerpolicy', 'sandbox', 'style', 'class',
+    ];
+
+    // Parse with DOMDocument
+    $dom = new DOMDocument();
+    // Suppress warnings from malformed HTML; wrap in a root element
+    @$dom->loadHTML('<div>' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NOERROR);
+
+    $output = '';
+    $iframes = $dom->getElementsByTagName('iframe');
+
+    for ($i = 0; $i < $iframes->length; $i++) {
+        $iframe = $iframes->item($i);
+
+        // Validate src attribute — must be http/https
+        $src = $iframe->getAttribute('src');
+        if ($src !== '') {
+            $scheme = strtolower((string)(parse_url($src, PHP_URL_SCHEME) ?? ''));
+            if (!in_array($scheme, ['http', 'https'], true)) {
+                continue; // Skip iframes with dangerous src schemes
+            }
+        }
+
+        // Rebuild iframe with only allowed attributes
+        $safeIframe = $dom->createElement('iframe');
+        foreach ($allowedAttrs as $attr) {
+            if ($iframe->hasAttribute($attr)) {
+                $safeIframe->setAttribute($attr, $iframe->getAttribute($attr));
+            }
+        }
+        // Always add allowfullscreen if it was present (boolean attribute)
+        if ($iframe->hasAttribute('allowfullscreen')) {
+            $safeIframe->setAttribute('allowfullscreen', '');
+        }
+
+        $tempDoc = new DOMDocument();
+        $imported = $tempDoc->importNode($safeIframe, true);
+        $tempDoc->appendChild($imported);
+        $output .= trim($tempDoc->saveHTML());
+    }
+
+    return $output !== '' ? $output : null;
+}
+
+/**
  * Validate URL: must be a valid URL with http or https scheme only.
  * Blocks javascript:, data:, vbscript:, and other dangerous schemes.
  */
@@ -154,6 +212,7 @@ try {
         })(),
 
         'POST' => (function(): void {
+            requireWriteAccess();
             $data = $_POST;
             if (empty($data) && empty($_FILES)) {
                 $input = file_get_contents('php://input');
@@ -229,7 +288,7 @@ try {
             }
 
             $imageUrl = (isset($data['image_url']) && !empty(trim((string)$data['image_url']))) ? trim((string)$data['image_url']) : null;
-            $embedCode = (isset($data['embed_code']) && !empty(trim((string)$data['embed_code']))) ? trim((string)$data['embed_code']) : null;
+            $embedCode = (isset($data['embed_code']) && !empty(trim((string)$data['embed_code']))) ? sanitizeEmbedCode((string)$data['embed_code']) : null;
             $audioUrl = (isset($data['audio_url']) && !empty(trim((string)$data['audio_url']))) ? trim((string)$data['audio_url']) : null;
             $audioAutoplay = isset($data['audio_autoplay']) ? (bool)$data['audio_autoplay'] : true;
             $videoUrl = (isset($data['video_url']) && !empty(trim((string)$data['video_url']))) ? trim((string)$data['video_url']) : null;
@@ -341,6 +400,7 @@ try {
         })(),
 
         'PUT' => (function(): void {
+            requireWriteAccess();
             $input = file_get_contents('php://input');
             $data = json_decode($input, true);
 
@@ -386,7 +446,7 @@ try {
             }
 
             $imageUrl = (isset($data['image_url']) && !empty(trim((string)$data['image_url']))) ? trim((string)$data['image_url']) : null;
-            $embedCode = (isset($data['embed_code']) && !empty(trim((string)$data['embed_code']))) ? trim((string)$data['embed_code']) : null;
+            $embedCode = (isset($data['embed_code']) && !empty(trim((string)$data['embed_code']))) ? sanitizeEmbedCode((string)$data['embed_code']) : null;
             $audioUrl = (isset($data['audio_url']) && !empty(trim((string)$data['audio_url']))) ? trim((string)$data['audio_url']) : null;
             $audioAutoplay = isset($data['audio_autoplay']) ? (bool)$data['audio_autoplay'] : true;
             $videoUrl = (isset($data['video_url']) && !empty(trim((string)$data['video_url']))) ? trim((string)$data['video_url']) : null;
@@ -492,6 +552,7 @@ try {
         })(),
 
         'DELETE' => (function(): void {
+            requireWriteAccess();
             $id = $_GET['id'] ?? null;
             $fileType = $_GET['file_type'] ?? null;
             if (!$id) {

@@ -47,6 +47,7 @@ try {
         })(),
 
         'POST' => (function(): void {
+            requireWriteAccess();
             $input = file_get_contents('php://input');
             if ($input === '' || $input === false) {
                 http_response_code(400);

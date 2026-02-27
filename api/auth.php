@@ -71,6 +71,37 @@ function getApiKeyFromRequest(): ?string {
 }
 
 /**
+ * Require session-based auth (editor or admin) for write operations.
+ * Call this AFTER requireApiKey() on POST/PUT/DELETE endpoints.
+ * API-key-only callers (no session) are restricted to read-only access.
+ */
+function requireWriteAccess(): void {
+    // Start session if not already started (auth.php may be loaded without utils/auth.php)
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    if (empty($_SESSION['admin_user_id']) || empty($_SESSION['admin_user_type'])) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'error' => 'Forbidden',
+            'message' => 'Write operations require an authenticated session. Please log in.',
+        ], JSON_THROW_ON_ERROR);
+        exit();
+    }
+    $type = (int)$_SESSION['admin_user_type'];
+    if ($type !== 1 && $type !== 2) { // 1=editor, 2=admin
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'error' => 'Forbidden',
+            'message' => 'Insufficient permissions for write operations.',
+        ], JSON_THROW_ON_ERROR);
+        exit();
+    }
+}
+
+/**
  * Require API key authentication
  * Exits with 401 error if API key is missing or invalid
  */

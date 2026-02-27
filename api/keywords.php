@@ -18,6 +18,7 @@ try {
         })(),
         
         'POST' => (function(): void {
+            requireWriteAccess();
             $data = json_decode(file_get_contents('php://input'), true, flags: JSON_THROW_ON_ERROR);
             $keyword = trim($data['keyword'] ?? '');
             if (empty($keyword)) {
@@ -30,6 +31,7 @@ try {
         })(),
         
         'DELETE' => (function(): void {
+            requireWriteAccess();
             $id = $_GET['id'] ?? null;
             $constellationId = $_GET['constellation_id'] ?? null;
             if (!$id) {

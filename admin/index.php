@@ -57,9 +57,20 @@ if (file_exists(__DIR__ . '/../VERSION')) {
     $systemVersion = trim(file_get_contents(__DIR__ . '/../VERSION'));
 }
 
+// CSRF token management
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['csrf_token'];
+$csrfField = '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($csrfToken) . '">';
 
 // Handle API key actions and user management actions
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    // Validate CSRF token on all POST actions
+    $submittedToken = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($csrfToken, $submittedToken)) {
+        $error = 'Invalid or expired security token. Please try again.';
+    } else {
     try {
         match ($_POST['action']) {
             'generate' => (function(): void {
@@ -322,6 +333,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     } catch (Exception $e) {
         $error = $e->getMessage();
     }
+    } // end CSRF-valid block
 }
 
 // Get all API keys, users, and constellations
@@ -2071,5 +2083,17 @@ $fieldMeta = [
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
+<script>
+// Auto-inject CSRF token into all POST forms
+document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(form => {
+    if (!form.querySelector('input[name="csrf_token"]')) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'csrf_token';
+        input.value = <?php echo json_encode($csrfToken); ?>;
+        form.appendChild(input);
+    }
+});
+</script>
 </body>
 </html>
