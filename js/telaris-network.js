@@ -502,7 +502,6 @@ class TelarisNetwork {
             display: 'block',
             backgroundColor: 'transparent',
             zIndex: '2',
-            filter: 'blur(0.7px) brightness(1.15)'
         });
 
         const canvasContainer = document.getElementById('canvas-container');
@@ -623,6 +622,17 @@ class TelarisNetwork {
                 this.bloomPass.strength  = 0.6;
                 this.bloomPass.radius    = 0.3;
             }
+        }
+
+        // CSS blur on foreground canvas — Tech theme only
+        if (this.renderer?.domElement) {
+            this.renderer.domElement.style.filter =
+                theme.id === 'tech' ? 'blur(0.7px) brightness(1.15)' : '';
+        }
+
+        // Depth-of-field (bokeh) blur on background — Tech theme only
+        if (this.bokehPass) {
+            this.bokehPass.enabled = theme.id === 'tech';
         }
 
         const bgColor = theme.background.color !== undefined ? theme.background.color : 0x000000;
