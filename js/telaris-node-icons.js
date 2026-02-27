@@ -8,6 +8,110 @@ import { getTheme } from './themes.js';
 
 const textureLoader = new THREE.TextureLoader();
 
+// ── Torus wireframe portal icon ───────────────────────────────────────────────
+let _torusTexture = null;
+
+function getTorusWireframeTexture() {
+    if (_torusTexture) return _torusTexture;
+
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, size, size);
+
+    const cx = size / 2;
+    const cy = size / 2;
+    const R = 78;  // major radius (px)
+    const r  = 26; // tube radius  (px)
+
+    // 3/4 perspective tilt
+    const tiltX = Math.PI * 0.21; // ~38° around X
+    const tiltY = Math.PI * 0.09; // ~16° around Y
+
+    function project(x3, y3, z3) {
+        const x1 = x3 * Math.cos(tiltY) + z3 * Math.sin(tiltY);
+        const z1 = -x3 * Math.sin(tiltY) + z3 * Math.cos(tiltY);
+        const y2 = y3 * Math.cos(tiltX) - z1 * Math.sin(tiltX);
+        return { sx: cx + x1, sy: cy - y2 };
+    }
+
+    const nU = 14; // segments around the big circle
+    const nV = 9;  // segments around the tube cross-section
+
+    function drawWires() {
+        // Tube-cross-section circles (fixed u, vary v)
+        for (let i = 0; i < nU; i++) {
+            const u = (i / nU) * Math.PI * 2;
+            ctx.beginPath();
+            for (let j = 0; j <= nV; j++) {
+                const v = (j / nV) * Math.PI * 2;
+                const p = project(
+                    (R + r * Math.cos(v)) * Math.cos(u),
+                    (R + r * Math.cos(v)) * Math.sin(u),
+                    r * Math.sin(v)
+                );
+                j === 0 ? ctx.moveTo(p.sx, p.sy) : ctx.lineTo(p.sx, p.sy);
+            }
+            ctx.closePath();
+            ctx.stroke();
+        }
+        // Spine circles (fixed v, vary u)
+        for (let j = 0; j < nV; j++) {
+            const v = (j / nV) * Math.PI * 2;
+            ctx.beginPath();
+            for (let i = 0; i <= nU; i++) {
+                const u = (i / nU) * Math.PI * 2;
+                const p = project(
+                    (R + r * Math.cos(v)) * Math.cos(u),
+                    (R + r * Math.cos(v)) * Math.sin(u),
+                    r * Math.sin(v)
+                );
+                i === 0 ? ctx.moveTo(p.sx, p.sy) : ctx.lineTo(p.sx, p.sy);
+            }
+            ctx.closePath();
+            ctx.stroke();
+        }
+    }
+
+    // Glow pass
+    ctx.strokeStyle = 'rgba(80, 220, 140, 0.30)';
+    ctx.lineWidth = 5;
+    ctx.shadowColor = 'rgba(40, 180, 100, 0.6)';
+    ctx.shadowBlur = 14;
+    ctx.lineCap = 'round';
+    drawWires();
+
+    // Sharp pass
+    ctx.strokeStyle = 'rgba(110, 240, 165, 0.95)';
+    ctx.lineWidth = 1.6;
+    ctx.shadowBlur = 5;
+    drawWires();
+
+    _torusTexture = new THREE.CanvasTexture(canvas);
+    return _torusTexture;
+}
+
+function createTorusPortalSprite(material) {
+    const spriteMaterial = new THREE.SpriteMaterial({
+        map: getTorusWireframeTexture(),
+        color: 0xffffff,
+        transparent: true,
+        opacity: material.opacity,
+        sizeAttenuation: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+    });
+    spriteMaterial.isSpriteMaterial = true;
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.scale.set(2.0, 2.0, 1);
+    sprite.isSprite = true;
+    sprite.isPortal = true;
+    sprite.renderOrder = 100;
+    return sprite;
+}
+
 function createStarNode(material, gm) {
     const starGroup = new THREE.Group();
     const centerGeometry = gm.getSphere(0.24, 8);
@@ -94,20 +198,24 @@ function createImageNode(imageUrl, material) {
 
 function createImageMeshNode(imageUrl, material) {
     const texture = textureLoader.load(imageUrl);
-    const meshMaterial = new THREE.MeshBasicMaterial({ 
-        map: texture, 
-        color: 0xffffff,
+    // Use Sprite (billboard) so it always faces the camera and blends cleanly,
+    // matching the transparency behaviour of regular image nodes.
+    // Warm amber tint (vs pure white for regular nodes) marks it as a portal.
+    const spriteMaterial = new THREE.SpriteMaterial({
+        map: texture,
+        color: 0xffcc88,
         transparent: true,
         opacity: material.opacity,
+        sizeAttenuation: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        side: THREE.DoubleSide
     });
-    meshMaterial.isSpriteMaterial = true; // For animation logic consistency
-    const geometry = new THREE.PlaneGeometry(1.8, 1.8);
-    const mesh = new THREE.Mesh(geometry, meshMaterial);
-    mesh.renderOrder = 100;
-    return mesh;
+    spriteMaterial.isSpriteMaterial = true;
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.scale.set(1.8, 1.8, 1);
+    sprite.isSprite = true;
+    sprite.renderOrder = 100;
+    return sprite;
 }
 
 function createPortalNode(material, gm) {
@@ -152,12 +260,8 @@ export function createNodeIcon(material, index, gm, type = 'object', themeId = '
     const theme = getTheme(themeId);
 
     if (type === 'portal') {
-        if (theme.nodes.type === 'image' && theme.nodes.portalImage) {
-            const portal = createImageMeshNode(theme.nodes.portalImage, material);
-            portal.isPortal = true;
-            return portal;
-        }
-        return createPortalNode(material, gm);
+        // Torus wireframe sprite — looks like the other image nodes but is clearly a portal
+        return createTorusPortalSprite(material);
     }
 
     if (theme.nodes.type === 'image') {

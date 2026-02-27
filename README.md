@@ -100,7 +100,7 @@ Lists all constellations (each constellation is a set of nodes and keywords). Th
 - `id` INT NOT NULL PRIMARY KEY - Constellation identifier (immutable; 0 = default)
 - `name` VARCHAR(255) NOT NULL DEFAULT '' - Display name
 - `tagline` VARCHAR(500) NOT NULL DEFAULT '' - Short tagline shown in the main view with the constellation name
-- `theme` VARCHAR(50) NOT NULL DEFAULT 'cosmic' - Visual theme identifier (cosmic, abstract, rectangles, stripes)
+- `theme` VARCHAR(50) NOT NULL DEFAULT 'cosmic' - Visual theme identifier (cosmic, abstract, rectangles, stripes, tech)
 
 ### users
 Stores user accounts with authentication information.
@@ -192,6 +192,15 @@ Stores API keys for authentication.
 - API key authentication for API endpoints.
 
 ## Version History
+
+### Version 5.4.7
+- **Tech Theme**: Fully realized immersive 3D corridor background with structural geometry (ceiling, floor, walls, frame rings, energy beams, PCB traces, floating panels) converging to symmetric vanishing points at both ends of the hallway.
+- **Background Animations**: Six layered ambient animations in the Tech theme — energy pulses crawling along structural lines, a cascading frame ring, vanishing-point shockwave rings, floating panel flicker, a particle data stream, and PCB node sparks.
+- **Two-Renderer Architecture**: Separated background and foreground into independent renderers; background receives depth-of-field blur (BokehPass) and bloom (UnrealBloomPass), while nodes render on a transparent unblurred canvas on top.
+- **Node Icon Animations**: Universal glitch, Lissajous drift, and blink animations applied to node icons across all themes, with tuned frequencies for subtlety.
+- **Portal Torus Icon**: Portal nodes now display a procedurally generated 3D wireframe torus sprite (canvas-drawn, tilted for perspective) that slowly rotates in the billboard plane and pulses in scale.
+- **Node Glow**: Subtle CSS blur + brightness filter on the node canvas layer gives all icons a soft luminous halo.
+- **Larger Nodes**: Increased base node icon scale for better visibility and presence in the scene.
 
 ### Version 5.4
 - **Audio Integration**: Introduced an ethereal, generative background soundscape for immersive navigation.

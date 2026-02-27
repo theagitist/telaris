@@ -501,7 +501,8 @@ class TelarisNetwork {
             height: '100%',
             display: 'block',
             backgroundColor: 'transparent',
-            zIndex: '2'
+            zIndex: '2',
+            filter: 'blur(0.7px) brightness(1.15)'
         });
 
         const canvasContainer = document.getElementById('canvas-container');
@@ -937,9 +938,9 @@ class TelarisNetwork {
         glowCanvas.width = glowCanvas.height = 256;
         const ctx = glowCanvas.getContext('2d');
         const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-        grad.addColorStop(0,    'rgba(180, 220, 255, 0.75)');
-        grad.addColorStop(0.08, 'rgba(80,  160, 220, 0.50)');
-        grad.addColorStop(0.3,  'rgba(20,   80, 160, 0.20)');
+        grad.addColorStop(0,    'rgba(180, 220, 255, 0.30)');
+        grad.addColorStop(0.08, 'rgba(80,  160, 220, 0.18)');
+        grad.addColorStop(0.3,  'rgba(20,   80, 160, 0.07)');
         grad.addColorStop(1,    'rgba(0,    10,  40,  0.0)');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, 256, 256);
@@ -983,19 +984,368 @@ class TelarisNetwork {
         this.techGlowSprite2.position.set(VP_BACK[0], VP_BACK[1], VP_BACK[2]);
         this.techBg.add(this.techGlowSprite2);
 
+        // ══════════════════════════════════════════════════════════════════
+        // ── TECH BACKGROUND ANIMATIONS ─────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════
+
+        // ── 1. ENERGY PULSES ──────────────────────────────────────────
+        // Small glowing sprites that travel along ceiling/floor longitudinal lines.
+        const pulseSegments = [];
+        for (let x = -CW; x <= CW; x += 15) {
+            pulseSegments.push([x, CT, Z_BACK, x, CT, Z_FAR]);  // ceiling, -Z direction
+            pulseSegments.push([x, CT, Z_FAR,  x, CT, Z_BACK]); // ceiling, +Z direction
+        }
+        for (let x = -CW; x <= CW; x += 20) {
+            pulseSegments.push([x, CF, Z_BACK, x, CF, Z_FAR]);  // floor, -Z direction
+        }
+
+        const pulseSpriteTex = (() => {
+            const c = document.createElement('canvas');
+            c.width = c.height = 64;
+            const cx = c.getContext('2d');
+            const g = cx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            g.addColorStop(0,   'rgba(180, 240, 255, 1.0)');
+            g.addColorStop(0.3, 'rgba(60,  160, 220, 0.5)');
+            g.addColorStop(1,   'rgba(0,    30,  80,  0.0)');
+            cx.fillStyle = g;
+            cx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(c);
+        })();
+
+        this.techPulses = [];
+        const NUM_PULSES = 3;
+        for (let i = 0; i < NUM_PULSES; i++) {
+            const mat = new THREE.SpriteMaterial({
+                map: pulseSpriteTex,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                depthWrite: false,
+                opacity: 0.3 + Math.random() * 0.2,
+            });
+            const sprite = new THREE.Sprite(mat);
+            sprite.scale.set(3, 3, 1);
+            const seg = pulseSegments[Math.floor(Math.random() * pulseSegments.length)];
+            this.techPulses.push({
+                sprite,
+                ax: seg[0], ay: seg[1], az: seg[2], // start point
+                bx: seg[3], by: seg[4], bz: seg[5], // end point
+                t: Math.random(),
+                speed: 0.09 + Math.random() * 0.06,
+            });
+            this.techBg.add(sprite);
+        }
+
+        // ── 2. FRAME RING CASCADE ─────────────────────────────────────
+        // Bright rings that slide along Z, giving a "pulse wave through tunnel" effect.
+        const cascadeRingGeo = (() => {
+            const pts = new Float32Array([
+                -CW, CF, 0,   CW, CF, 0,
+                 CW, CT, 0,  -CW, CT, 0,
+            ]);
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+            return g;
+        })();
+
+        this.techCascadeRings = [];
+        {
+            const mat = new THREE.LineBasicMaterial({
+                color: 0x00bbff,
+                transparent: true,
+                opacity: 0,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            });
+            const loop = new THREE.LineLoop(cascadeRingGeo, mat);
+            loop.position.z = Z_BACK;
+            this.techBg.add(loop);
+            this.techCascadeRings.push({
+                mesh: loop, mat,
+                z: Z_BACK,
+                speed: 55 + Math.random() * 25, // units/sec — fast traversal
+                waiting: false,
+                waitTimer: 0,
+                waitCooldown: 18 + Math.random() * 14, // 18–32 sec between appearances
+            });
+        }
+
+        // ── 3. SHOCKWAVE RINGS ────────────────────────────────────────
+        // Expanding circles from each vanishing point along the floor plane.
+        const shockCirclePts = (() => {
+            const N = 64, pts = [];
+            for (let i = 0; i < N; i++) {
+                const a = (i / N) * Math.PI * 2;
+                pts.push(Math.cos(a), 0, Math.sin(a));
+            }
+            return new Float32Array(pts);
+        })();
+        const shockCircleGeo = new THREE.BufferGeometry();
+        shockCircleGeo.setAttribute('position', new THREE.BufferAttribute(shockCirclePts, 3));
+
+        const SHOCK_DURATION = 6.0;
+        const SHOCK_PAUSE    = 8.0;
+        const SHOCK_PERIOD   = SHOCK_DURATION + SHOCK_PAUSE;
+        this.techShockwaves = [];
+        const shockConfigs = [
+            { x: 0, y: CF, z: -230, delay: 0 },
+            { x: 0, y: CF, z:  230, delay: SHOCK_PERIOD * 0.50 },
+        ];
+        for (const cfg of shockConfigs) {
+            const mat = new THREE.LineBasicMaterial({
+                color: 0x003d66,
+                transparent: true,
+                opacity: 0,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            });
+            const loop = new THREE.LineLoop(shockCircleGeo, mat);
+            loop.position.set(cfg.x, cfg.y, cfg.z);
+            loop.scale.set(0.01, 1, 0.01);
+            this.techBg.add(loop);
+            this.techShockwaves.push({
+                mesh: loop, mat,
+                timer: -cfg.delay,
+                duration: SHOCK_DURATION,
+                pause: SHOCK_PAUSE,
+                maxR: CW,
+            });
+        }
+
+        // ── 4. FLOATING PANEL FLICKER OVERLAYS ───────────────────────
+        // Per-panel bright overlay meshes that flash randomly.
+        this.techPanelFlickers = [];
+        for (const [x, y, z, w, h] of [...floatingPanels, ...floatingPanelsBack]) {
+            const overPts = [
+                x,   y,   z,  x+w, y,   z,
+                x+w, y,   z,  x+w, y-h, z,
+                x+w, y-h, z,  x,   y-h, z,
+                x,   y-h, z,  x,   y,   z,
+                x,   y-3, z,  x+w, y-3, z,
+            ];
+            const geo = new LineSegmentsGeometry();
+            geo.setPositions(overPts);
+            const mat = new LineMaterial({
+                color: 0x00ccdd,
+                linewidth: 1.6,
+                resolution: res,
+                transparent: true,
+                opacity: 0,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            });
+            this.techBgLineMats.push(mat);
+            this.techBg.add(new LineSegments2(geo, mat));
+            this.techPanelFlickers.push({
+                mat,
+                timer: Math.random() * 20,
+                cooldown: 12 + Math.random() * 18,
+                active: false,
+                flickerTimer: 0,
+                flickerDuration: 0.15 + Math.random() * 0.30,
+            });
+        }
+
+        // ── 5. PARTICLE DATA STREAM ──────────────────────────────────
+        // Small bright particles drifting along Z in both directions.
+        {
+            const NUM_P = 70;
+            const pPos    = new Float32Array(NUM_P * 3);
+            const pSpeeds = new Float32Array(NUM_P);
+            const pDirs   = new Float32Array(NUM_P);
+            for (let i = 0; i < NUM_P; i++) {
+                pPos[i*3]   = (Math.random() * 2 - 1) * (CW * 0.85);
+                pPos[i*3+1] = CF + Math.random() * (CT - CF);
+                pPos[i*3+2] = Z_FAR + Math.random() * (Z_BACK - Z_FAR);
+                pSpeeds[i]  = 35 + Math.random() * 45;
+                pDirs[i]    = Math.random() > 0.5 ? 1 : -1;
+            }
+            const pGeo = new THREE.BufferGeometry();
+            pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+            const pMat = new THREE.PointsMaterial({
+                color: 0x00aaff,
+                size: 0.7,
+                transparent: true,
+                opacity: 0.18,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                sizeAttenuation: true,
+            });
+            this.techBg.add(new THREE.Points(pGeo, pMat));
+            this.techParticles = {
+                geo: pGeo, pos: pPos, speeds: pSpeeds, dirs: pDirs,
+                count: NUM_P, zBack: Z_BACK, zFar: Z_FAR,
+            };
+        }
+
+        // ── 6. PCB NODE SPARKS ──────────────────────────────────────
+        // Brief green-white flash sprites at trace pad locations.
+        const sparkTex = (() => {
+            const c = document.createElement('canvas');
+            c.width = c.height = 32;
+            const cx = c.getContext('2d');
+            const g = cx.createRadialGradient(16, 16, 0, 16, 16, 16);
+            g.addColorStop(0,   'rgba(210, 255, 230, 1.0)');
+            g.addColorStop(0.4, 'rgba(60,  200, 120, 0.5)');
+            g.addColorStop(1,   'rgba(0,    50,  20,  0.0)');
+            cx.fillStyle = g;
+            cx.fillRect(0, 0, 32, 32);
+            return new THREE.CanvasTexture(c);
+        })();
+
+        this.techSparks = [];
+        for (const [wx, wy, wz] of [...tracePads, ...tracePadsBack]) {
+            const inner = wx > 0 ? wx - 18 : wx + 18;
+            const mat = new THREE.SpriteMaterial({
+                map: sparkTex,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                depthWrite: false,
+            });
+            const sprite = new THREE.Sprite(mat);
+            sprite.scale.set(0, 0, 1);
+            sprite.position.set(inner, wy + 11, wz);
+            this.techBg.add(sprite);
+            this.techSparks.push({
+                sprite,
+                timer: Math.random() * 4,
+                cooldown: 2 + Math.random() * 4,
+                active: false,
+                activeTimer: 0,
+                activeDuration: 0.2 + Math.random() * 0.4,
+            });
+        }
+
         this.techBg.visible = false;
         this.bgScene.add(this.techBg);
     }
 
     updateTechBackground(dt) {
         if (!this.techBg || !this.techBg.visible) return;
-        // Gently pulse both vanishing-point glows (offset slightly for variety)
-        if (this.techGlowSprite || this.techGlowSprite2) {
-            const t = performance.now() / 1000;
-            const pulse  = 1.0 + 0.18 * Math.sin(t * 0.7);
-            const pulse2 = 1.0 + 0.18 * Math.sin(t * 0.7 + 1.2);
-            if (this.techGlowSprite)  this.techGlowSprite.scale.set(90 * pulse,  90 * pulse,  1);
-            if (this.techGlowSprite2) this.techGlowSprite2.scale.set(90 * pulse2, 90 * pulse2, 1);
+        const t = performance.now() / 1000;
+
+        // ── Vanishing-point glow pulse ─────────────────────────────────
+        const pulse  = 1.0 + 0.18 * Math.sin(t * 0.7);
+        const pulse2 = 1.0 + 0.18 * Math.sin(t * 0.7 + 1.2);
+        if (this.techGlowSprite)  this.techGlowSprite.scale.set(90 * pulse,  90 * pulse,  1);
+        if (this.techGlowSprite2) this.techGlowSprite2.scale.set(90 * pulse2, 90 * pulse2, 1);
+
+        // ── 1. Energy pulses ───────────────────────────────────────────
+        if (this.techPulses) {
+            for (const p of this.techPulses) {
+                p.t += p.speed * dt;
+                if (p.t > 1) p.t -= 1;
+                p.sprite.position.set(
+                    p.ax + (p.bx - p.ax) * p.t,
+                    p.ay + (p.by - p.ay) * p.t,
+                    p.az + (p.bz - p.az) * p.t,
+                );
+            }
+        }
+
+        // ── 2. Frame ring cascade ──────────────────────────────────────
+        if (this.techCascadeRings) {
+            for (const r of this.techCascadeRings) {
+                if (r.waiting) {
+                    r.waitTimer += dt;
+                    r.mat.opacity = 0;
+                    if (r.waitTimer >= r.waitCooldown) {
+                        r.waiting = false;
+                        r.z = 230;
+                    }
+                    continue;
+                }
+                r.z -= r.speed * dt;
+                if (r.z < -230) {
+                    r.waiting = true;
+                    r.waitTimer = 0;
+                    r.waitCooldown = 18 + Math.random() * 14;
+                    r.mat.opacity = 0;
+                    continue;
+                }
+                r.mesh.position.z = r.z;
+                const norm = (r.z - (-230)) / 460; // 0 at Z_FAR, 1 at Z_BACK
+                r.mat.opacity = Math.sin(norm * Math.PI) * 0.28;
+            }
+        }
+
+        // ── 3. Shockwave rings ─────────────────────────────────────────
+        if (this.techShockwaves) {
+            for (const w of this.techShockwaves) {
+                w.timer += dt;
+                if (w.timer < 0) {
+                    w.mat.opacity = 0;
+                    continue;
+                }
+                const norm = w.timer / w.duration;
+                if (norm >= 1) {
+                    w.timer = -w.pause;
+                    w.mat.opacity = 0;
+                    w.mesh.scale.set(0.01, 1, 0.01);
+                    continue;
+                }
+                w.mesh.scale.set(norm * w.maxR, 1, norm * w.maxR);
+                w.mat.opacity = Math.sin(norm * Math.PI) * 0.18;
+            }
+        }
+
+        // ── 4. Floating panel flickers ─────────────────────────────────
+        if (this.techPanelFlickers) {
+            for (const pf of this.techPanelFlickers) {
+                if (!pf.active) {
+                    pf.timer += dt;
+                    if (pf.timer >= pf.cooldown) {
+                        pf.active = true;
+                        pf.flickerTimer = 0;
+                        pf.timer = 0;
+                    }
+                } else {
+                    pf.flickerTimer += dt;
+                    const ft = pf.flickerTimer / pf.flickerDuration;
+                    if (ft >= 1) {
+                        pf.active = false;
+                        pf.mat.opacity = 0;
+                        pf.cooldown = 12 + Math.random() * 18;
+                    } else {
+                        pf.mat.opacity = Math.sin(ft * Math.PI) * 0.5;
+                    }
+                }
+            }
+        }
+
+        // ── 5. Particle data stream ────────────────────────────────────
+        if (this.techParticles) {
+            const { geo, pos, speeds, dirs, count, zBack, zFar } = this.techParticles;
+            for (let i = 0; i < count; i++) {
+                pos[i*3+2] += dirs[i] * speeds[i] * dt;
+                if (pos[i*3+2] > zBack) pos[i*3+2] = zFar;
+                if (pos[i*3+2] < zFar)  pos[i*3+2] = zBack;
+            }
+            geo.attributes.position.needsUpdate = true;
+        }
+
+        // ── 6. PCB node sparks ─────────────────────────────────────────
+        if (this.techSparks) {
+            for (const s of this.techSparks) {
+                if (!s.active) {
+                    s.timer += dt;
+                    if (s.timer >= s.cooldown) {
+                        s.active = true;
+                        s.activeTimer = 0;
+                        s.timer = 0;
+                    }
+                } else {
+                    s.activeTimer += dt;
+                    const st = s.activeTimer / s.activeDuration;
+                    if (st >= 1) {
+                        s.active = false;
+                        s.sprite.scale.set(0, 0, 1);
+                        s.cooldown = 2 + Math.random() * 4;
+                    } else {
+                        const sz = Math.sin(st * Math.PI) * 2.5;
+                        s.sprite.scale.set(sz, sz, 1);
+                    }
+                }
+            }
         }
     }
 
@@ -2264,43 +2614,53 @@ class TelarisNetwork {
             let glitchOpacityMult = 1.0;
             let glitchRotation = 0;
 
-            if ((this.currentTheme.id === 'abstract' || this.currentTheme.id === 'rectangles' || this.currentTheme.id === 'stripes') && !isTransitioning) {
-                // Initialize state if needed
-                if (d.glitchTimer === undefined) {
-                    d.glitchTimer = Math.random() * 10 + 5;
-                    d.glitchActive = 0;
-                    d.floatOffset = Math.random() * 10;
+            if (!isTransitioning) {
+                // ── Universal node animations (all themes) ──────────────
+                if (d.animGlitchTimer === undefined) {
+                    d.animGlitchTimer  = 15 + Math.random() * 20;
+                    d.animGlitchActive = 0;
+                    d.animFloatOffset  = Math.random() * Math.PI * 2;
+                    d.animBlinkTimer   = 25 + Math.random() * 30;
+                    d.animBlinkActive  = 0;
                 }
 
-                // 1. Reduced Glitch frequency
-                d.glitchTimer -= dt;
-                if (d.glitchTimer <= 0) {
-                    d.glitchActive = Math.random() * 0.2 + 0.05; // Shorter glitches
-                    d.glitchTimer = Math.random() * 15 + 8; // Next glitch in 8-23s
-                }
+                // 1. DRIFT — Lissajous float around anchor
+                glitchOffset.add(this._scratchVec.set(
+                    Math.sin(time * 0.37 + d.animFloatOffset) * 0.28,
+                    Math.cos(time * 0.51 + d.animFloatOffset * 1.3) * 0.28,
+                    0
+                ));
 
-                if (d.glitchActive > 0) {
-                    d.glitchActive -= dt;
-                    if (Math.random() < 0.3) {
-                        glitchOffset.set(
-                            (Math.random() - 0.5) * 0.2,
-                            (Math.random() - 0.5) * 0.2,
-                            (Math.random() - 0.5) * 0.2
-                        );
-                        glitchScaleMult = 0.7 + Math.random() * 0.8;
-                        glitchOpacityMult = 0.3 + Math.random() * 0.7;
-                        glitchRotation = (Math.random() - 0.5) * 1.5;
+                // 2. GLITCH — brief random jitter/flicker episodes
+                d.animGlitchTimer -= dt;
+                if (d.animGlitchTimer <= 0) {
+                    d.animGlitchActive = 0.12 + Math.random() * 0.2;
+                    d.animGlitchTimer  = 15 + Math.random() * 25;
+                }
+                if (d.animGlitchActive > 0) {
+                    d.animGlitchActive -= dt;
+                    if (Math.random() < 0.5) {
+                        glitchOffset.add(this._scratchVec.set(
+                            (Math.random() - 0.5) * 0.35,
+                            (Math.random() - 0.5) * 0.35,
+                            0
+                        ));
+                        glitchScaleMult  *= 0.6 + Math.random() * 0.8;
+                        glitchOpacityMult *= 0.3 + Math.random() * 0.7;
+                        glitchRotation    = (Math.random() - 0.5) * 1.8;
                     }
                 }
 
-                // 2. Continuous Pulsating (subtle)
-                const pulse = Math.sin(time * 0.8 + d.phase) * 0.1;
-                glitchScaleMult *= (1.0 + pulse);
-
-                // 3. Floating motion
-                const floatX = Math.sin(time * 0.5 + d.floatOffset) * 0.1;
-                const floatY = Math.cos(time * 0.6 + d.floatOffset) * 0.1;
-                glitchOffset.add(this._scratchVec.set(floatX, floatY, 0));
+                // 3. BLINK — brief flash-off (transmission dropout)
+                d.animBlinkTimer -= dt;
+                if (d.animBlinkTimer <= 0 && d.animBlinkActive <= 0) {
+                    d.animBlinkActive = 0.06 + Math.random() * 0.1;
+                    d.animBlinkTimer  = 25 + Math.random() * 30;
+                }
+                if (d.animBlinkActive > 0) {
+                    d.animBlinkActive -= dt;
+                    glitchOpacityMult = 0;
+                }
             }
 
             // Optimization: iterate cached materials directly
@@ -2364,12 +2724,12 @@ class TelarisNetwork {
             
             // Stable scale during transition, dynamic pulse otherwise
             if (isTransitioning) {
-                const baseS = d.is_accentuated ? 2.0 : 1.4;
+                const baseS = d.is_accentuated ? 2.8 : 1.8;
                 n.scale.set(baseS, baseS, baseS);
             } else {
                 const pulseFreq = d.is_accentuated ? 2.0 : 1.5;
                 const pulseAmp = d.is_accentuated ? 0.15 : 0.08;
-                const baseS = d.is_accentuated ? 2.0 : 1.4;
+                const baseS = d.is_accentuated ? 2.8 : 1.8;
                 const s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * glitchScaleMult;
                 n.scale.set(s, s, s);
             }
@@ -2379,6 +2739,26 @@ class TelarisNetwork {
                 moonGroup.rotation.y = time * moonGroup.userData.speed;
                 moonGroup.rotation.z = time * (moonGroup.userData.speed * 0.3);
             });
+
+            // 5. IDLE SPIN-UP — cosmic geometry nodes only
+            if (this.currentTheme.id === 'cosmic' && !n.isPortal && !isTransitioning) {
+                if (d.animSpinTimer === undefined) {
+                    d.animSpinTimer  = 15 + Math.random() * 25;
+                    d.animSpinActive = 0;
+                    n.rotation.y = Math.random() * Math.PI * 2;
+                }
+                n.rotation.y += 0.15 * dt;
+                n.rotation.x += 0.05 * dt;
+                d.animSpinTimer -= dt;
+                if (d.animSpinTimer <= 0) {
+                    d.animSpinActive = 0.3 + Math.random() * 0.5;
+                    d.animSpinTimer  = 18 + Math.random() * 22;
+                }
+                if (d.animSpinActive > 0) {
+                    d.animSpinActive -= dt;
+                    n.rotation.y += 0.15 * (1 + (d.animSpinActive / 0.5) * 10) * dt;
+                }
+            }
 
             // Animate station rings (if any)
             n.children.forEach(child => {
@@ -2800,8 +3180,13 @@ class TelarisNetwork {
                 const revMult = isRevving ? 8 : 1;
                 const pulseSpeed = isRevving ? 12 : 2.0;
                 const pulseAmp = isRevving ? 0.3 : 0.1;
-                object.rotation.y += 0.01 * revMult;
-                object.rotation.z += 0.005 * revMult;
+                // Sprites ignore object.rotation — spin via material.rotation instead
+                if (object.isSprite && object.material) {
+                    object.material.rotation += 0.006 * revMult;
+                } else {
+                    object.rotation.y += 0.01 * revMult;
+                    object.rotation.z += 0.005 * revMult;
+                }
                 const pulse = 1 + Math.sin(time * pulseSpeed) * pulseAmp;
                 const baseScale = object.userData.baseScale ?? 1;
                 object.scale.set(baseScale * pulse, baseScale * pulse, baseScale * pulse);
