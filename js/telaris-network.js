@@ -2211,31 +2211,11 @@ class TelarisNetwork {
                 nameDiv.textContent = node.userData.name;
                 this.tooltip.appendChild(nameDiv);
 
-                if (node.userData.keywords?.length > 0) {
-                    const kwDiv = document.createElement('div');
-                    kwDiv.style.cssText = 'opacity: 0.8; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px;';
-                    node.userData.keywords.forEach(kw => {
-                        const span = document.createElement('span');
-                        span.style.cssText = 'background: rgba(255,255,255,0.15); padding: 1px 4px; border-radius: 2px;';
-                        span.textContent = '#' + kw;
-                        kwDiv.appendChild(span);
-                    });
-                    this.tooltip.appendChild(kwDiv);
-                }
-
-                // Interaction hint
-                const hasMedia = !!(node.userData.image_url || node.userData.embed_code || node.userData.audio_url);
-                const hasDesc = !!(node.userData.description && node.userData.description.trim() !== '');
-                const isPortal = node.userData.node_type === 'portal';
-
-                if (node.userData.url || hasMedia || hasDesc || isPortal) {
-                    const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0)
-                        ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
-                        : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
-                    const hintDiv = document.createElement('div');
-                    hintDiv.style.cssText = 'opacity: 0.5; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px; text-align: center;';
-                    hintDiv.textContent = hintText;
-                    this.tooltip.appendChild(hintDiv);
+                if (node.userData.description && node.userData.description.trim() !== '') {
+                    const descDiv = document.createElement('div');
+                    descDiv.style.cssText = 'opacity: 0.75; font-size: 0.75rem; margin-top: 4px; line-height: 1.4;';
+                    descDiv.textContent = node.userData.description.trim();
+                    this.tooltip.appendChild(descDiv);
                 }
 
                 const styles = this.getNodeTooltipStyles(node);
@@ -2950,31 +2930,11 @@ class TelarisNetwork {
                     nameDiv.textContent = hoveredNode.userData.name;
                     this.tooltip.appendChild(nameDiv);
 
-                    if (hoveredNode.userData.keywords?.length > 0) {
-                        const kwDiv = document.createElement('div');
-                        kwDiv.style.cssText = 'opacity: 0.8; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px;';
-                        hoveredNode.userData.keywords.forEach(kw => {
-                            const span = document.createElement('span');
-                            span.style.cssText = 'background: rgba(255,255,255,0.15); padding: 1px 4px; border-radius: 2px;';
-                            span.textContent = '#' + kw;
-                            kwDiv.appendChild(span);
-                        });
-                        this.tooltip.appendChild(kwDiv);
-                    }
-
-                    // Interaction hint
-                    const hasMedia = !!(hoveredNode.userData.image_url || hoveredNode.userData.embed_code || hoveredNode.userData.audio_url);
-                    const hasDesc = !!(hoveredNode.userData.description && hoveredNode.userData.description.trim() !== '');
-                    const isPortalNode = hoveredNode.userData.node_type === 'portal';
-
-                    if (hoveredNode.userData.url || hasMedia || hasDesc || isPortalNode) {
-                        const hintText = ('ontouchstart' in window || navigator.maxTouchPoints > 0)
-                            ? (window.TELARIS_TAP_TO_VIEW || 'Tap again to view')
-                            : (window.TELARIS_CLICK_TO_VIEW || 'Click to view');
-                        const hintDiv = document.createElement('div');
-                        hintDiv.style.cssText = 'opacity: 0.5; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px; text-align: center;';
-                        hintDiv.textContent = hintText;
-                        this.tooltip.appendChild(hintDiv);
+                    if (hoveredNode.userData.description && hoveredNode.userData.description.trim() !== '') {
+                        const descDiv = document.createElement('div');
+                        descDiv.style.cssText = 'opacity: 0.75; font-size: 0.75rem; margin-top: 4px; line-height: 1.4;';
+                        descDiv.textContent = hoveredNode.userData.description.trim();
+                        this.tooltip.appendChild(descDiv);
                     }
 
                     const styles = this.getNodeTooltipStyles(hoveredNode);
