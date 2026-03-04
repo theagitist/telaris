@@ -1628,14 +1628,14 @@ class TelarisNetwork {
 
     showBeginButton() {
         const loadingOverlay = document.getElementById('loading-overlay');
-        const loadingTorus = loadingOverlay?.querySelector('.loading-torus');
         const loadingText = loadingOverlay?.querySelector('.loading-text');
         const beginBtn = document.getElementById('begin-button');
-        
+
         if (!loadingOverlay || !beginBtn) return;
 
-        // Add 'ready' class to trigger CSS (glowing torus, smaller button spacing)
+        // Add 'ready' class and signal torus to glow
         loadingOverlay.classList.add('ready');
+        if (window._loadingTorus) window._loadingTorus.setReady();
 
         // Hide text, show button
         if (loadingText) loadingText.style.display = 'none';
@@ -1654,24 +1654,36 @@ class TelarisNetwork {
                 }
             }
 
-            // Fade out the entire loading overlay
-            loadingOverlay.style.transition = 'opacity 1s ease';
-            loadingOverlay.style.opacity = '0';
-            
-            // Fade in nodes
-            const startTime = performance.now();
-            const duration = 2000;
-            const animateFadeIn = (now) => {
-                const t = Math.min((now - startTime) / duration, 1);
-                this._portalFadeInMultiplier = t;
-                if (t < 1) {
-                    requestAnimationFrame(animateFadeIn);
-                } else {
-                    this._portalFadeInMultiplier = undefined;
-                    loadingOverlay.style.display = 'none';
-                }
+            // Hide text and button immediately
+            if (loadingText) loadingText.style.display = 'none';
+            beginBtn.style.display = 'none';
+
+            // Start torus warp-through effect, then fade overlay
+            const fadeOutOverlay = () => {
+                loadingOverlay.style.transition = 'opacity 0.6s ease';
+                loadingOverlay.style.opacity = '0';
+
+                const startTime = performance.now();
+                const duration = 2000;
+                const animateFadeIn = (now) => {
+                    const t = Math.min((now - startTime) / duration, 1);
+                    this._portalFadeInMultiplier = t;
+                    if (t < 1) {
+                        requestAnimationFrame(animateFadeIn);
+                    } else {
+                        this._portalFadeInMultiplier = undefined;
+                        loadingOverlay.style.display = 'none';
+                        if (window._loadingTorus) window._loadingTorus.dispose();
+                    }
+                };
+                requestAnimationFrame(animateFadeIn);
             };
-            requestAnimationFrame(animateFadeIn);
+
+            if (window._loadingTorus) {
+                window._loadingTorus.startWarp(fadeOutOverlay);
+            } else {
+                fadeOutOverlay();
+            }
         }, { once: true });
     }
 
@@ -3077,8 +3089,9 @@ class TelarisNetwork {
                         loadingOverlay.style.display = 'flex';
                         loadingOverlay.style.opacity = '1';
                         loadingOverlay.style.pointerEvents = 'auto';
+                        if (window._loadingTorus) window._loadingTorus.reset();
                     }
-                    
+
                     const app = window.telarisApp || this;
                     const dataPromise = tr.dataPromise || apiFetch(`api/nodes.php?constellation_id=${tr.targetId}`).then(r => r.json());
                     

@@ -78,43 +78,12 @@ header("X-Content-Type-Options: nosniff");
             font-weight: normal;
             margin-bottom: 0.75rem;
         }
-        .loading-circle {
-            width: 50px;
-            height: 50px;
-            margin-bottom: 2rem;
-            transition: all 0.5s ease;
-            filter: drop-shadow(0 0 8px var(--loading-color, #00ffcc));
-            overflow: visible;
-        }
-        .loading-circle svg {
-            overflow: visible;
-        }
-        #loading-overlay.ready .loading-circle {
-            filter: drop-shadow(0 0 15px #fff);
-            transform: scale(1.1);
-        }
-        .loading-circle circle {
-            fill: none;
-            stroke: var(--loading-color, #00ffcc);
-            stroke-width: 4;
-            transition: all 0.5s ease;
-            transform-origin: center;
-        }
-        #loading-overlay:not(.ready) .loading-circle circle {
-            animation: circle-pulse 2s ease-in-out infinite;
-        }
-        #loading-overlay.ready .loading-circle circle {
-            stroke: #fff;
-            stroke-width: 6;
-            animation: circle-pulse-ready 3s ease-in-out infinite;
-        }
-        @keyframes circle-pulse {
-            0%, 100% { opacity: 0.4; stroke-width: 4; }
-            50% { opacity: 1; stroke-width: 6; }
-        }
-        @keyframes circle-pulse-ready {
-            0%, 100% { opacity: 0.7; transform: scale(1); }
-            50% { opacity: 1; transform: scale(1.05); }
+        #loading-torus-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
         }
         #begin-button {
             display: none;
@@ -188,11 +157,7 @@ header("X-Content-Type-Options: nosniff");
 </head>
 <body class="overflow-hidden bg-black">
     <div id="loading-overlay" aria-live="polite" aria-busy="true">
-        <div class="loading-circle">
-            <svg viewBox="0 0 100 100" aria-hidden="true" style="width:100%; height:100%;">
-                <circle cx="50" cy="50" r="45" />
-            </svg>
-        </div>
+        <canvas id="loading-torus-canvas" aria-hidden="true"></canvas>
         <p class="loading-text"><?php echo htmlspecialchars($projectLoadingText ?? 'Loading'); ?></p>
         <button id="begin-button">BEGIN</button>
     </div>
@@ -415,6 +380,96 @@ header("X-Content-Type-Options: nosniff");
                 "./themes.js": "./js/themes.js?v=5.4.7",
                 "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=5.4.7"
             }
+        }
+    </script>
+    <script type="module" nonce="<?php echo htmlspecialchars($cspNonce); ?>">
+        import * as THREE from 'three';
+
+        const canvas = document.getElementById('loading-torus-canvas');
+        if (canvas) {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+
+            const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+            renderer.setSize(w, h);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            const scene = new THREE.Scene();
+            const aspect = w / h;
+            const camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+            // Push camera back so the torus appears ~180px on screen
+            const idleZ = 5 * (Math.min(w, h) / 180);
+            camera.position.z = idleZ;
+
+            const geometry = new THREE.TorusGeometry(2, 0.6, 16, 100);
+            const material = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(0x00ffcc),
+                wireframe: true,
+                transparent: true,
+                opacity: 0.15
+            });
+            const torus = new THREE.Mesh(geometry, material);
+            scene.add(torus);
+
+            let animId = null;
+            let warpState = null;
+
+            window.addEventListener('resize', () => {
+                const rw = window.innerWidth;
+                const rh = window.innerHeight;
+                renderer.setSize(rw, rh);
+                camera.aspect = rw / rh;
+                camera.updateProjectionMatrix();
+            });
+
+            function animate() {
+                animId = requestAnimationFrame(animate);
+
+                if (warpState) {
+                    const elapsed = performance.now() - warpState.startTime;
+                    const progress = Math.min(elapsed / 1000, 1);
+                    const ease = progress * progress * progress;
+
+                    // Zoom from idle distance through and past the torus
+                    camera.position.z = idleZ - (ease * (idleZ + 10));
+                    torus.rotation.x += 0.005 + ease * 0.2;
+                    torus.rotation.y += 0.007 + ease * 0.3;
+                    material.opacity = 0.15 + (ease * 0.65);
+
+                    if (progress >= 1 && warpState.onDone) {
+                        warpState.onDone();
+                    }
+                } else {
+                    torus.rotation.x += 0.005;
+                    torus.rotation.y += 0.007;
+                }
+
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            window._loadingTorus = {
+                setReady() {
+                    material.opacity = 0.3;
+                    material.color.set(0x66ddbb);
+                },
+                startWarp(onDone) {
+                    warpState = { startTime: performance.now(), onDone };
+                },
+                reset() {
+                    camera.position.z = idleZ;
+                    material.opacity = 0.15;
+                    material.color.set(0x00ffcc);
+                    warpState = null;
+                },
+                dispose() {
+                    if (animId) cancelAnimationFrame(animId);
+                    geometry.dispose();
+                    material.dispose();
+                    renderer.dispose();
+                    window._loadingTorus = null;
+                }
+            };
         }
     </script>
     <script src="js/telaris-soundscape.js?v=5.4.7"></script>
