@@ -37,7 +37,6 @@ header("X-Content-Type-Options: nosniff");
 
         #node-tooltip {
             position: absolute;
-            top: 3.5rem;
             right: 3rem;
             left: auto;
             max-width: 280px;

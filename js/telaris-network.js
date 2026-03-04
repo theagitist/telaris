@@ -2246,7 +2246,9 @@ class TelarisNetwork {
                 const nodeX = (projected.x * 0.5 + 0.5) * rect.width;
                 const nodeY = (0.5 - projected.y * 0.5) * rect.height;
 
+                this._positionTooltipVertically(nodeY);
                 requestAnimationFrame(() => requestAnimationFrame(() => {
+                    this._positionTooltipVertically(nodeY);
                     this.tooltip.style.opacity = '1';
                     if (this.tooltipLineSvg) this.tooltipLineSvg.style.opacity = '1';
                     this._updateTooltipLine(nodeX, nodeY);
@@ -2857,7 +2859,20 @@ class TelarisNetwork {
         const nodeX = (this._scratchVec.x * 0.5 + 0.5) * rect.width;
         const nodeY = (0.5 - this._scratchVec.y * 0.5) * rect.height;
 
+        this._positionTooltipVertically(nodeY);
         this._updateTooltipLine(nodeX, nodeY);
+    }
+
+    _positionTooltipVertically(nodeY) {
+        if (!this.tooltip) return;
+        const container = this.tooltip.parentElement;
+        if (!container) return;
+        const containerH = container.getBoundingClientRect().height;
+        const padding = 56; // ~3.5rem
+        // Clamp panel so it stays within the viewport with padding
+        const panelH = this.tooltip.getBoundingClientRect().height || 80;
+        const targetTop = Math.max(padding, Math.min(nodeY - panelH / 2, containerH - panelH - padding));
+        this.tooltip.style.top = targetTop + 'px';
     }
 
     _updateTooltipLine(nodeX, nodeY) {
@@ -2976,7 +2991,9 @@ class TelarisNetwork {
                     const nodeX = (projected.x * 0.5 + 0.5) * rect.width;
                     const nodeY = (0.5 - projected.y * 0.5) * rect.height;
 
+                    this._positionTooltipVertically(nodeY);
                     requestAnimationFrame(() => requestAnimationFrame(() => {
+                        this._positionTooltipVertically(nodeY);
                         this.tooltip.style.opacity = '1';
                         if (this.tooltipLineSvg) this.tooltipLineSvg.style.opacity = '1';
                         this._updateTooltipLine(nodeX, nodeY);
