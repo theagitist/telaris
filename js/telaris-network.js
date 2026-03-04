@@ -1629,34 +1629,40 @@ class TelarisNetwork {
     showBeginButton() {
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingText = loadingOverlay?.querySelector('.loading-text');
-        const beginBtn = document.getElementById('begin-button');
 
-        if (!loadingOverlay || !beginBtn) return;
+        if (!loadingOverlay) return;
 
-        // Add 'ready' class and signal torus to glow
-        loadingOverlay.classList.add('ready');
+        // Signal torus to glow briefly before warp
         if (window._loadingTorus) window._loadingTorus.setReady();
 
-        // Hide text, show button
+        // Hide loading text
         if (loadingText) loadingText.style.display = 'none';
-        beginBtn.style.display = 'block';
 
-        // Click anywhere on the overlay to start
-        loadingOverlay.addEventListener('click', async () => {
-            // Trigger soundscape start
+        // Auto-start: trigger soundscape (non-blocking) and transition immediately
+        const autoStart = () => {
+            // Start soundscape without awaiting — AudioContext may be suspended
+            // until user interacts; it will resume on first click/touch automatically
             if (window.TelarisSoundscape && !window._telarisSoundscapeInstance) {
                 try {
                     const soundscape = new window.TelarisSoundscape({ volume: 0.65, fadeTime: 4.0 });
                     window._telarisSoundscapeInstance = soundscape;
-                    await soundscape.start();
+                    soundscape.start().catch(e => console.warn('Soundscape deferred:', e));
+                    // Resume on first user interaction if still suspended
+                    const resumeOnGesture = () => {
+                        if (soundscape._ctx && soundscape._ctx.state === 'suspended') {
+                            soundscape._ctx.resume();
+                        }
+                        document.removeEventListener('click', resumeOnGesture);
+                        document.removeEventListener('touchstart', resumeOnGesture);
+                        document.removeEventListener('keydown', resumeOnGesture);
+                    };
+                    document.addEventListener('click', resumeOnGesture, { once: false });
+                    document.addEventListener('touchstart', resumeOnGesture, { once: false });
+                    document.addEventListener('keydown', resumeOnGesture, { once: false });
                 } catch (e) {
                     console.warn('Failed to start soundscape:', e);
                 }
             }
-
-            // Hide text and button immediately
-            if (loadingText) loadingText.style.display = 'none';
-            beginBtn.style.display = 'none';
 
             // Start torus warp-through effect, then fade overlay
             const fadeOutOverlay = () => {
@@ -1684,7 +1690,9 @@ class TelarisNetwork {
             } else {
                 fadeOutOverlay();
             }
-        }, { once: true });
+        };
+
+        autoStart();
     }
 
     setupBackButton() {

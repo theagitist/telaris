@@ -69,9 +69,6 @@ header("X-Content-Type-Options: nosniff");
             transition: background 1s ease, backdrop-filter 1s ease, opacity 1s ease;
             cursor: default;
         }
-        #loading-overlay.ready {
-            cursor: pointer;
-        }
         #loading-overlay .loading-text {
             color: var(--loading-color, #fff);
             font-size: 1.125rem;
@@ -84,24 +81,6 @@ header("X-Content-Type-Options: nosniff");
             width: 100vw;
             height: 100vh;
             pointer-events: none;
-        }
-        #begin-button {
-            display: none;
-            padding: 0.6rem 1.8rem;
-            background: rgba(0, 255, 204, 0.05);
-            border: 1px solid rgba(0, 255, 204, 0.3);
-            color: #00ffcc;
-            font-family: var(--font-mono);
-            font-size: 0.85rem;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            pointer-events: none; /* Let overlay handle the click */
-            transition: all 0.3s ease;
-        }
-        #loading-overlay.ready:hover #begin-button {
-            background: rgba(0, 255, 204, 0.15);
-            border-color: #00ffcc;
-            box-shadow: 0 0 20px rgba(0, 255, 204, 0.2);
         }
 
         #info {
@@ -159,7 +138,6 @@ header("X-Content-Type-Options: nosniff");
     <div id="loading-overlay" aria-live="polite" aria-busy="true">
         <canvas id="loading-torus-canvas" aria-hidden="true"></canvas>
         <p class="loading-text"><?php echo htmlspecialchars($projectLoadingText ?? 'Loading'); ?></p>
-        <button id="begin-button">BEGIN</button>
     </div>
 
     <button id="hud-indicator" aria-label="Toggle navigation menu" aria-expanded="false" type="button">
