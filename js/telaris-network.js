@@ -2217,6 +2217,10 @@ class TelarisNetwork {
                 }
 
                 const styles = this.getNodeTooltipStyles(node);
+                const d = node.userData;
+                const lineColor = (d && d.colorR !== undefined)
+                    ? `rgb(${d.colorR},${d.colorG},${d.colorB})`
+                    : '#fff';
                 Object.assign(this.tooltip.style, {
                     backgroundColor: styles.backgroundColor,
                     color: styles.color,
@@ -2226,15 +2230,11 @@ class TelarisNetwork {
                     display: 'block',
                     opacity: '0',
                     zIndex: '200',
-                    border: 'none',
+                    border: `2px solid ${lineColor.replace('rgb(', 'rgba(').replace(')', ', 0.5)')}`,
                     paddingBottom: '8px'
                 });
 
                 if (this.tooltipLine) {
-                    const d = node.userData;
-                    const lineColor = (d && d.colorR !== undefined)
-                        ? `rgb(${d.colorR},${d.colorG},${d.colorB})`
-                        : '#fff';
                     this.tooltipLine.setAttribute('stroke', lineColor);
                     this.tooltipLine.setAttribute('stroke-opacity', '0.5');
                 }
@@ -2863,16 +2863,10 @@ class TelarisNetwork {
         this._updateTooltipLine(nodeX, nodeY);
     }
 
-    _positionTooltipVertically(nodeY) {
+    _positionTooltipVertically() {
         if (!this.tooltip) return;
-        const container = this.tooltip.parentElement;
-        if (!container) return;
-        const containerH = container.getBoundingClientRect().height;
-        const padding = 56; // ~3.5rem
-        // Clamp panel so it stays within the viewport with padding
-        const panelH = this.tooltip.getBoundingClientRect().height || 80;
-        const targetTop = Math.max(padding, Math.min(nodeY - panelH / 2, containerH - panelH - padding));
-        this.tooltip.style.top = targetTop + 'px';
+        this.tooltip.style.top = '3.5rem';
+        this.tooltip.style.bottom = 'auto';
     }
 
     _updateTooltipLine(nodeX, nodeY) {
@@ -2960,6 +2954,10 @@ class TelarisNetwork {
                     }
 
                     const styles = this.getNodeTooltipStyles(hoveredNode);
+                    const d = hoveredNode.userData;
+                    const lineColor = (d && d.colorR !== undefined)
+                        ? `rgb(${d.colorR},${d.colorG},${d.colorB})`
+                        : '#fff';
                     Object.assign(this.tooltip.style, {
                         backgroundColor: styles.backgroundColor,
                         color: styles.color,
@@ -2969,16 +2967,12 @@ class TelarisNetwork {
                         display: 'block',
                         opacity: '0',
                         zIndex: '200',
-                        border: 'none',
+                        border: `2px solid ${lineColor.replace('rgb(', 'rgba(').replace(')', ', 0.5)')}`,
                         paddingBottom: '8px'
                     });
 
                     // Style the connector line with node color
                     if (this.tooltipLine) {
-                        const d = hoveredNode.userData;
-                        const lineColor = (d && d.colorR !== undefined)
-                            ? `rgb(${d.colorR},${d.colorG},${d.colorB})`
-                            : '#fff';
                         this.tooltipLine.setAttribute('stroke', lineColor);
                         this.tooltipLine.setAttribute('stroke-opacity', '0.5');
                     }
