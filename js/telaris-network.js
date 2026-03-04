@@ -389,7 +389,7 @@ class TelarisNetwork {
             positions[i * 3 + 2] = r * Math.cos(phi);
 
             const color = new THREE.Color();
-            color.setHSL(0.6, 0.2, 0.8 + Math.random() * 0.2);
+            color.setHSL(0.6, 0.2, 0.4 + Math.random() * 0.2);
             colors[i * 3] = color.r;
             colors[i * 3 + 1] = color.g;
             colors[i * 3 + 2] = color.b;
@@ -402,7 +402,7 @@ class TelarisNetwork {
             size: 0.12,
             vertexColors: true,
             transparent: true,
-            opacity: 0.8,
+            opacity: 0.6,
             sizeAttenuation: true
         });
 
@@ -426,7 +426,7 @@ class TelarisNetwork {
                 });
         
                         this.bgNebulas = new THREE.Group();
-                        const colors = [0x4466aa, 0x6644aa, 0x774477]; 
+                        const colors = [0x223355, 0x332255, 0x3b223b]; 
                 
                         for (let i = 0; i < 8; i++) { // Increased to 8 for spherical coverage
                             const mat = new THREE.SpriteMaterial({
@@ -557,8 +557,8 @@ class TelarisNetwork {
         // maxblur is the maximum blur amount (fraction of screen height).
         this.bokehPass = new BokehPass(this.bgScene, this.camera, {
             focus:    3.0,
-            aperture: 0.004,
-            maxblur:  0.007,
+            aperture: 0.002,
+            maxblur:  0.003,
         });
 
         this.bloomPass = new UnrealBloomPass(
@@ -688,13 +688,13 @@ class TelarisNetwork {
         this.glitchyGrid = new THREE.Group();
         const size = 100;
         const divisions = 20;
-        const gridHelper = new THREE.GridHelper(size, divisions, 0x444444, 0x222222);
+        const gridHelper = new THREE.GridHelper(size, divisions, 0x222222, 0x111111);
         gridHelper.rotation.x = Math.PI / 2; // Face forward
         gridHelper.position.z = -30;
         this.glitchyGrid.add(gridHelper);
-        
+
         // Add a second back grid for parallax
-        const gridHelper2 = new THREE.GridHelper(size * 2, divisions, 0x222222, 0x111111);
+        const gridHelper2 = new THREE.GridHelper(size * 2, divisions, 0x111111, 0x080808);
         gridHelper2.rotation.x = Math.PI / 2;
         gridHelper2.position.z = -60;
         this.glitchyGrid.add(gridHelper2);
@@ -776,14 +776,14 @@ class TelarisNetwork {
         for (let x = -CW; x <= CW; x += 15) {
             ceilLongPts.push(x, CT, Z_BACK,  x, CT, Z_FAR);
         }
-        addThick(ceilLongPts, 0x335566, 1.1, 1.0);
+        addThick(ceilLongPts, 0x1a1a1a, 1.1, 1.0);
 
         // Cross lines (perpendicular to Z, create panel grid sections)
         const ceilCrossPts = [];
         for (let z = Z_BACK; z >= Z_FAR; z -= 16) {
             ceilCrossPts.push(-CW, CT, z,  CW, CT, z);
         }
-        addThick(ceilCrossPts, 0x335566, 1.1, 1.0);
+        addThick(ceilCrossPts, 0x1a1a1a, 1.1, 1.0);
 
         // Inner ceiling layer (lower plane — layered depth like Image 1)
         const ceilInnerPts = [];
@@ -794,7 +794,7 @@ class TelarisNetwork {
         for (let z = Z_BACK; z >= Z_FAR; z -= 30) {
             ceilInnerPts.push(-CW, CI, z,  CW, CI, z);
         }
-        addThick(ceilInnerPts, 0x1a3344, 0.7, 1.0);
+        addThick(ceilInnerPts, 0x0f0f0f, 0.7, 1.0);
 
         // X-brace diagonals within ceiling panels (glass-panel cross pattern)
         const ceilDiagPts = [];
@@ -805,34 +805,56 @@ class TelarisNetwork {
                 ceilDiagPts.push(x2, CT, z,   x,  CT, z - 16);
             }
         }
-        addThin(ceilDiagPts, 0x1a3344, 1.0);
+        addThin(ceilDiagPts, 0x0f0f0f, 1.0);
 
-        // ── FLOOR — darker reflective grid (Image 1 bottom, Image 2 floor) ─
+        // ── FLOOR — mirrors ceiling grid pattern ─
         const floorLongPts = [];
-        for (let x = -CW; x <= CW; x += 20) {
+        for (let x = -CW; x <= CW; x += 15) {
             floorLongPts.push(x, CF, Z_BACK,  x, CF, Z_FAR);
         }
-        addThick(floorLongPts, 0x1a3355, 0.8, 1.0);
+        addThick(floorLongPts, 0x1a1a1a, 1.1, 1.0);
 
         const floorCrossPts = [];
-        for (let z = Z_BACK; z >= Z_FAR; z -= 22) {
+        for (let z = Z_BACK; z >= Z_FAR; z -= 16) {
             floorCrossPts.push(-CW, CF, z,  CW, CF, z);
         }
-        addThick(floorCrossPts, 0x1a3355, 0.8, 1.0);
+        addThick(floorCrossPts, 0x1a1a1a, 1.1, 1.0);
 
-        // ── SIDE WALLS — vertical panel structure ──────────────────────
+        // Inner floor layer (matches inner ceiling)
+        const floorInnerPts = [];
+        const FI = CF + 12; // inner floor Y (above floor)
+        for (let x = -CW; x <= CW; x += 30) {
+            floorInnerPts.push(x, FI, Z_BACK,  x, FI, Z_FAR);
+        }
+        for (let z = Z_BACK; z >= Z_FAR; z -= 30) {
+            floorInnerPts.push(-CW, FI, z,  CW, FI, z);
+        }
+        addThick(floorInnerPts, 0x0f0f0f, 0.7, 1.0);
+
+        // X-brace diagonals within floor panels
+        const floorDiagPts = [];
+        for (let z = Z_BACK - 16; z >= Z_FAR + 16; z -= 32) {
+            for (let x = -CW; x < CW; x += 30) {
+                const x2 = x + 30;
+                floorDiagPts.push(x, CF, z,    x2, CF, z - 16);
+                floorDiagPts.push(x2, CF, z,   x,  CF, z - 16);
+            }
+        }
+        addThin(floorDiagPts, 0x0f0f0f, 1.0);
+
+        // ── SIDE WALLS — full grid matching ceiling/floor ─────────────
         const wallPts = [];
-        // Horizontal runs (top/bottom rails + mid rails)
-        for (const y of [CF, CF + 25, 0, CT - 5, CT]) {
+        // Horizontal runs along Z (one per Y step, matching ceiling spacing)
+        for (let y = CF; y <= CT; y += 15) {
             wallPts.push(-CW, y, Z_BACK,  -CW, y, Z_FAR);
             wallPts.push( CW, y, Z_BACK,   CW, y, Z_FAR);
         }
-        // Vertical stanchions at regular Z intervals
-        for (let z = Z_BACK; z >= Z_FAR; z -= 30) {
+        // Vertical stanchions at regular Z intervals (matching ceiling cross-line spacing)
+        for (let z = Z_BACK; z >= Z_FAR; z -= 16) {
             wallPts.push(-CW, CF, z,  -CW, CT, z);
             wallPts.push( CW, CF, z,   CW, CT, z);
         }
-        addThick(wallPts, 0x0d1f33, 0.7, 1.0);
+        addThick(wallPts, 0x1a1a1a, 1.1, 1.0);
 
         // ── CROSS-SECTION FRAMES — bright rings along the corridor ─────
         const framePts = [];
@@ -844,7 +866,7 @@ class TelarisNetwork {
                 -CW, CT, z,  -CW, CF, z    // left
             );
         }
-        addThick(framePts, 0x224466, 1.2, 1.0);
+        addThick(framePts, 0x161616, 1.2, 1.0);
 
         // ── ENERGY BEAMS — bright diagonal rays converging to VP ───────
         // These create the dramatic light-ray effect from Image 1.
@@ -864,7 +886,7 @@ class TelarisNetwork {
         for (const [px, py, pz] of beamSources) {
             beamPts.push(px, py, pz,  VP[0], VP[1], VP[2]);
         }
-        addThick(beamPts, 0x223344, 0.7, 1.0);
+        addThick(beamPts, 0x0e0e0e, 0.7, 1.0);
 
         // ── FLOATING CIRCUIT NODES — Image 2 holographic panels ────────
         // Small wireframe rectangles floating in the corridor space.
@@ -890,7 +912,7 @@ class TelarisNetwork {
             const tx = x + w / 2;
             nodePts.push(tx, y, z,  tx, y + 6, z);
         }
-        addThick(nodePts, 0x004455, 0.8, 1.0);
+        addThick(nodePts, 0x0c0c0c, 0.8, 1.0);
 
         // Mirrored floating panels on the +Z side
         const nodePtsBack = [];
@@ -913,7 +935,7 @@ class TelarisNetwork {
             const tx = x + w / 2;
             nodePtsBack.push(tx, y, z,  tx, y + 6, z);
         }
-        addThick(nodePtsBack, 0x004455, 0.8, 1.0);
+        addThick(nodePtsBack, 0x0c0c0c, 0.8, 1.0);
 
         // Short PCB-style traces connecting corridor wall to pads
         const tracePts = [];
@@ -936,7 +958,7 @@ class TelarisNetwork {
                 inner - S, wy + 8 + S, wz,  inner - S, wy + 8,     wz,
             );
         }
-        addThick(tracePts, 0x003322, 0.7, 1.0);
+        addThick(tracePts, 0x0a0a0a, 0.7, 1.0);
 
         // Mirrored PCB traces on the +Z side
         const tracePtsBack = [];
@@ -956,17 +978,17 @@ class TelarisNetwork {
                 inner - S, wy + 8 + S, wz,  inner - S, wy + 8,     wz,
             );
         }
-        addThick(tracePtsBack, 0x003322, 0.7, 1.0);
+        addThick(tracePtsBack, 0x0a0a0a, 0.7, 1.0);
 
         // ── CENTRAL VANISHING POINT GLOW ───────────────────────────────
         const glowCanvas = document.createElement('canvas');
         glowCanvas.width = glowCanvas.height = 256;
         const ctx = glowCanvas.getContext('2d');
         const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-        grad.addColorStop(0,    'rgba(180, 220, 255, 0.30)');
-        grad.addColorStop(0.08, 'rgba(80,  160, 220, 0.18)');
-        grad.addColorStop(0.3,  'rgba(20,   80, 160, 0.07)');
-        grad.addColorStop(1,    'rgba(0,    10,  40,  0.0)');
+        grad.addColorStop(0,    'rgba(140, 140, 140, 0.15)');
+        grad.addColorStop(0.08, 'rgba(80,   80,  80, 0.09)');
+        grad.addColorStop(0.3,  'rgba(30,   30,  30, 0.04)');
+        grad.addColorStop(1,    'rgba(0,     0,   0, 0.0)');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, 256, 256);
         const glowTex = new THREE.CanvasTexture(glowCanvas);
@@ -996,7 +1018,7 @@ class TelarisNetwork {
         for (const [px, py, pz] of beamSourcesBack) {
             beamPtsBack.push(px, py, pz,  VP_BACK[0], VP_BACK[1], VP_BACK[2]);
         }
-        addThick(beamPtsBack, 0x223344, 0.7, 1.0);
+        addThick(beamPtsBack, 0x0e0e0e, 0.7, 1.0);
 
         // ── MIRRORED VANISHING POINT GLOW (+Z end) ─────────────────────────
         this.techGlowSprite2 = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -1029,9 +1051,9 @@ class TelarisNetwork {
             c.width = c.height = 64;
             const cx = c.getContext('2d');
             const g = cx.createRadialGradient(32, 32, 0, 32, 32, 32);
-            g.addColorStop(0,   'rgba(180, 240, 255, 1.0)');
-            g.addColorStop(0.3, 'rgba(60,  160, 220, 0.5)');
-            g.addColorStop(1,   'rgba(0,    30,  80,  0.0)');
+            g.addColorStop(0,   'rgba(180, 180, 180, 1.0)');
+            g.addColorStop(0.3, 'rgba(80,   80,  80, 0.5)');
+            g.addColorStop(1,   'rgba(0,     0,   0, 0.0)');
             cx.fillStyle = g;
             cx.fillRect(0, 0, 64, 64);
             return new THREE.CanvasTexture(c);
@@ -1075,7 +1097,7 @@ class TelarisNetwork {
         this.techCascadeRings = [];
         {
             const mat = new THREE.LineBasicMaterial({
-                color: 0x00bbff,
+                color: 0x555555,
                 transparent: true,
                 opacity: 0,
                 blending: THREE.AdditiveBlending,
@@ -1117,7 +1139,7 @@ class TelarisNetwork {
         ];
         for (const cfg of shockConfigs) {
             const mat = new THREE.LineBasicMaterial({
-                color: 0x003d66,
+                color: 0x1a1a1a,
                 transparent: true,
                 opacity: 0,
                 blending: THREE.AdditiveBlending,
@@ -1150,7 +1172,7 @@ class TelarisNetwork {
             const geo = new LineSegmentsGeometry();
             geo.setPositions(overPts);
             const mat = new LineMaterial({
-                color: 0x00ccdd,
+                color: 0x555555,
                 linewidth: 1.6,
                 resolution: res,
                 transparent: true,
@@ -1187,7 +1209,7 @@ class TelarisNetwork {
             const pGeo = new THREE.BufferGeometry();
             pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
             const pMat = new THREE.PointsMaterial({
-                color: 0x00aaff,
+                color: 0x444444,
                 size: 0.7,
                 transparent: true,
                 opacity: 0.18,
@@ -1209,9 +1231,9 @@ class TelarisNetwork {
             c.width = c.height = 32;
             const cx = c.getContext('2d');
             const g = cx.createRadialGradient(16, 16, 0, 16, 16, 16);
-            g.addColorStop(0,   'rgba(210, 255, 230, 1.0)');
-            g.addColorStop(0.4, 'rgba(60,  200, 120, 0.5)');
-            g.addColorStop(1,   'rgba(0,    50,  20,  0.0)');
+            g.addColorStop(0,   'rgba(220, 220, 220, 1.0)');
+            g.addColorStop(0.4, 'rgba(100, 100, 100, 0.5)');
+            g.addColorStop(1,   'rgba(0,     0,   0, 0.0)');
             cx.fillStyle = g;
             cx.fillRect(0, 0, 32, 32);
             return new THREE.CanvasTexture(c);
@@ -2573,13 +2595,15 @@ class TelarisNetwork {
     warmupPhysics() {
         if (this.nodes.length < 2) return;
         for (let i = 0; i < 300; i++) this.applyForces(0.016, 1.0);
+        // Zero out velocities so nodes don't glitch on first visible frame
+        this.nodes.forEach(n => n.userData.velocity.set(0, 0, 0));
     }
 
     applyForces(dtSec, strength = 0.05) {
         if (this.nodes.length < 2) return;
         const dt = Math.min(dtSec, 0.032);
-        const params = { rep: 2.5 * strength, att: 0.04 * strength, ideal: 8.0, damp: 0.85, maxD: 25, maxF: 0.6 * strength };
-        const maxV = strength > 0.5 ? 0.25 : 0.02;
+        const params = { rep: 2.5 * strength, att: 0.04 * strength, ideal: 8.0, damp: strength > 0.5 ? 0.85 : 0.7, maxD: 25, maxF: 0.6 * strength };
+        const maxV = strength > 0.5 ? 0.25 : 0.008;
         const temp = new THREE.Vector3();
 
         for (let i = 0; i < this.nodes.length; i++) {

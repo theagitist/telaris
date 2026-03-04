@@ -114,10 +114,10 @@ export const THEMES = {
             color: 0x000205
         },
         lighting: {
-            ambient: { color: 0x88ccff, intensity: 0.7 },
+            ambient: { color: 0x888888, intensity: 0.5 },
             points: [
-                { color: 0x00dcff, x: 15, y: 15, z: 15 },
-                { color: 0x0088cc, x: -15, y: -15, z: -15 }
+                { color: 0x666666, x: 15, y: 15, z: 15 },
+                { color: 0x444444, x: -15, y: -15, z: -15 }
             ]
         },
         nodes: {
