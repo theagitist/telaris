@@ -1638,31 +1638,23 @@ class TelarisNetwork {
         // Hide loading text
         if (loadingText) loadingText.style.display = 'none';
 
-        // Auto-start: trigger soundscape (non-blocking) and transition immediately
-        const autoStart = () => {
-            // Start soundscape without awaiting — AudioContext may be suspended
-            // until user interacts; it will resume on first click/touch automatically
-            if (window.TelarisSoundscape && !window._telarisSoundscapeInstance) {
+        // Start soundscape on first user click (browser requires gesture for AudioContext)
+        if (window.TelarisSoundscape) {
+            const startSoundOnGesture = () => {
+                if (window._telarisSoundscapeInstance) return;
                 try {
                     const soundscape = new window.TelarisSoundscape({ volume: 0.65, fadeTime: 4.0 });
                     window._telarisSoundscapeInstance = soundscape;
-                    soundscape.start().catch(e => console.warn('Soundscape deferred:', e));
-                    // Resume on first user interaction if still suspended
-                    const resumeOnGesture = () => {
-                        if (soundscape._ctx && soundscape._ctx.state === 'suspended') {
-                            soundscape._ctx.resume();
-                        }
-                        document.removeEventListener('click', resumeOnGesture);
-                        document.removeEventListener('touchstart', resumeOnGesture);
-                        document.removeEventListener('keydown', resumeOnGesture);
-                    };
-                    document.addEventListener('click', resumeOnGesture, { once: false });
-                    document.addEventListener('touchstart', resumeOnGesture, { once: false });
-                    document.addEventListener('keydown', resumeOnGesture, { once: false });
+                    soundscape.start().catch(e => console.warn('Soundscape start failed:', e));
                 } catch (e) {
-                    console.warn('Failed to start soundscape:', e);
+                    console.warn('Failed to create soundscape:', e);
                 }
-            }
+            };
+            document.addEventListener('click', startSoundOnGesture, { once: true });
+        }
+
+        // Auto-start: transition immediately
+        const autoStart = () => {
 
             // Start torus warp-through effect, then fade overlay
             const fadeOutOverlay = () => {
