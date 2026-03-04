@@ -2668,7 +2668,7 @@ class TelarisNetwork {
                 opacity = baseOpacity * this._portalFadeInMultiplier;
             }
 
-            const isTransitioning = this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null;
+            const isTransitioning = this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null && this._portalFadeInMultiplier < 1;
 
             const forceInvisible = (this._portalFadeInMultiplier === 0);
 
