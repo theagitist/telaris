@@ -34,6 +34,8 @@ class TelarisNetwork {
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
         this.tooltip = document.getElementById('node-tooltip');
+        this.tooltipLineSvg = document.getElementById('tooltip-line-svg');
+        this.tooltipLine = document.getElementById('tooltip-line');
         this.persistentTooltipsContainer = document.getElementById('persistent-tooltips');
         this.mainTooltipNodeTimeout = null;
         this.tooltipHideTimeout = null;
@@ -474,7 +476,7 @@ class TelarisNetwork {
             clearTimeout(this.tooltipHideTimeout);
         }
         this.tooltip.style.opacity = '0';
-        this.tooltip.style.transform = 'translate(-50%, -100%) translate(0, -10px) scale(0.95)';
+        if (this.tooltipLineSvg) this.tooltipLineSvg.style.opacity = '0';
         this.tooltipHideTimeout = setTimeout(() => {
             this.tooltip.style.visibility = 'hidden';
             this.tooltipHideTimeout = null;
@@ -2225,26 +2227,30 @@ class TelarisNetwork {
                     opacity: '0',
                     zIndex: '200',
                     border: 'none',
-                    maxWidth: 'none',
                     paddingBottom: '8px'
                 });
+
+                if (this.tooltipLine) {
+                    const d = node.userData;
+                    const lineColor = (d && d.colorR !== undefined)
+                        ? `rgb(${d.colorR},${d.colorG},${d.colorB})`
+                        : '#fff';
+                    this.tooltipLine.setAttribute('stroke', lineColor);
+                    this.tooltipLine.setAttribute('stroke-opacity', '0.5');
+                }
 
                 const rect = this.renderer.domElement.getBoundingClientRect();
                 const projected = new THREE.Vector3();
                 node.getWorldPosition(projected);
-                const dist = projected.distanceTo(this.camera.position);
                 projected.project(this.camera);
-                
-                const tooltipYOffset = 34 + Math.max(0, (18 - dist) * 1.5);
-                const screenX = (projected.x * 0.5 + 0.5) * rect.width;
-                const screenY = (0.5 - projected.y * 0.5) * rect.height + tooltipYOffset;
-                
-                Object.assign(this.tooltip.style, {
-                    left: screenX + 'px',
-                    top: screenY + 'px',
-                    transform: 'translate(-50%, -100%) translate(0, -20px)'
-                });
-                requestAnimationFrame(() => requestAnimationFrame(() => { this.tooltip.style.opacity = '1'; }));
+                const nodeX = (projected.x * 0.5 + 0.5) * rect.width;
+                const nodeY = (0.5 - projected.y * 0.5) * rect.height;
+
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    this.tooltip.style.opacity = '1';
+                    if (this.tooltipLineSvg) this.tooltipLineSvg.style.opacity = '1';
+                    this._updateTooltipLine(nodeX, nodeY);
+                }));
             }
         };
     }
@@ -2834,26 +2840,37 @@ class TelarisNetwork {
 
     updateMainTooltip() {
         if (!this.tooltip || this.tooltip.style.visibility !== 'visible') return;
-        
+
         const focused = this.networkManager.getFocusedNode();
         if (!focused) return;
 
         const rect = this.renderer.domElement.getBoundingClientRect();
         focused.getWorldPosition(this._scratchVec);
-        const dist = this._scratchVec.distanceTo(this.camera.position);
         this._scratchVec.project(this.camera);
 
         if (this._scratchVec.z > 1 || this._scratchVec.z < -1) {
             this.tooltip.style.opacity = '0';
+            if (this.tooltipLineSvg) this.tooltipLineSvg.style.opacity = '0';
             return;
         }
 
-        const tooltipYOffset = 34 + Math.max(0, (18 - dist) * 1.5);
-        const x = (this._scratchVec.x * 0.5 + 0.5) * rect.width;
-        const y = (0.5 - this._scratchVec.y * 0.5) * rect.height + tooltipYOffset;
+        const nodeX = (this._scratchVec.x * 0.5 + 0.5) * rect.width;
+        const nodeY = (0.5 - this._scratchVec.y * 0.5) * rect.height;
 
-        this.tooltip.style.left = x + 'px';
-        this.tooltip.style.top = y + 'px';
+        this._updateTooltipLine(nodeX, nodeY);
+    }
+
+    _updateTooltipLine(nodeX, nodeY) {
+        if (!this.tooltipLine || !this.tooltip) return;
+        const panelRect = this.tooltip.getBoundingClientRect();
+        const containerRect = this.tooltip.parentElement.getBoundingClientRect();
+        const panelX = panelRect.left - containerRect.left;
+        const panelY = panelRect.top - containerRect.top + panelRect.height / 2;
+
+        // Stepped orthogonal path: horizontal from node, then vertical, then horizontal to panel
+        const midX = panelX + (nodeX - panelX) * 0.35;
+        const points = `${nodeX},${nodeY} ${midX},${nodeY} ${midX},${panelY} ${panelX},${panelY}`;
+        this.tooltipLine.setAttribute('points', points);
     }
 
     updateHoverState() {
@@ -2927,41 +2944,43 @@ class TelarisNetwork {
                         this.tooltip.appendChild(hintDiv);
                     }
 
-                                        const styles = this.getNodeTooltipStyles(hoveredNode);
-                                        Object.assign(this.tooltip.style, {
-                                            backgroundColor: styles.backgroundColor,
-                                            color: styles.color,
-                    
-                            backdropFilter: 'blur(8px)',
-                            webkitBackdropFilter: 'blur(8px)',
-                            visibility: 'visible',
-                            display: 'block',
-                            opacity: '0',
-                            zIndex: '200',
-                            border: 'none',
-                            maxWidth: 'none',
-                            paddingBottom: '8px',
-                            transform: 'translate(-50%, -100%) translate(0, -10px) scale(0.95)'
-                        });                    
-                        
-                        const rect = this.renderer.domElement.getBoundingClientRect();
-                        const projected = new THREE.Vector3();
-                        hoveredNode.getWorldPosition(projected);
-                        const dist = projected.distanceTo(this.camera.position);
-                        projected.project(this.camera);
-                        
-                        const tooltipYOffset = 34 + Math.max(0, (18 - dist) * 1.5);
-                        const x = (projected.x * 0.5 + 0.5) * rect.width;
-                        const y = (0.5 - projected.y * 0.5) * rect.height + tooltipYOffset;
-                        
-                        Object.assign(this.tooltip.style, {
-                            left: x + 'px',
-                            top: y + 'px'
-                        });
-                        requestAnimationFrame(() => requestAnimationFrame(() => { 
-                            this.tooltip.style.opacity = '1'; 
-                            this.tooltip.style.transform = 'translate(-50%, -100%) translate(0, -20px) scale(1)';
-                        }));
+                    const styles = this.getNodeTooltipStyles(hoveredNode);
+                    Object.assign(this.tooltip.style, {
+                        backgroundColor: styles.backgroundColor,
+                        color: styles.color,
+                        backdropFilter: 'blur(8px)',
+                        webkitBackdropFilter: 'blur(8px)',
+                        visibility: 'visible',
+                        display: 'block',
+                        opacity: '0',
+                        zIndex: '200',
+                        border: 'none',
+                        paddingBottom: '8px'
+                    });
+
+                    // Style the connector line with node color
+                    if (this.tooltipLine) {
+                        const d = hoveredNode.userData;
+                        const lineColor = (d && d.colorR !== undefined)
+                            ? `rgb(${d.colorR},${d.colorG},${d.colorB})`
+                            : '#fff';
+                        this.tooltipLine.setAttribute('stroke', lineColor);
+                        this.tooltipLine.setAttribute('stroke-opacity', '0.5');
+                    }
+
+                    // Compute node screen position for the connector line
+                    const rect = this.renderer.domElement.getBoundingClientRect();
+                    const projected = new THREE.Vector3();
+                    hoveredNode.getWorldPosition(projected);
+                    projected.project(this.camera);
+                    const nodeX = (projected.x * 0.5 + 0.5) * rect.width;
+                    const nodeY = (0.5 - projected.y * 0.5) * rect.height;
+
+                    requestAnimationFrame(() => requestAnimationFrame(() => {
+                        this.tooltip.style.opacity = '1';
+                        if (this.tooltipLineSvg) this.tooltipLineSvg.style.opacity = '1';
+                        this._updateTooltipLine(nodeX, nodeY);
+                    }));
                     }
             }
         } else {

@@ -36,14 +36,28 @@ header("X-Content-Type-Options: nosniff");
         }
 
         #node-tooltip {
-            transition: opacity 0.3s ease, transform 0.3s ease;
+            position: absolute;
+            top: 3.5rem;
+            right: 3rem;
+            left: auto;
+            max-width: 280px;
+            transition: opacity 0.3s ease;
             border-radius: 12px;
             /* CRT Scanline / Interlace effect */
             background-image: linear-gradient(
-                rgba(0, 0, 0, 0.1) 50%, 
+                rgba(0, 0, 0, 0.1) 50%,
                 rgba(0, 0, 0, 0) 50%
             );
             background-size: 100% 4px;
+        }
+        #tooltip-line-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 190;
+            transition: opacity 0.3s ease;
         }
         .persistent-tooltip-item {
             transition: opacity 0.75s ease-in-out;
@@ -154,7 +168,8 @@ header("X-Content-Type-Options: nosniff");
         </button>
         <div id="webgl-canvas-wrapper" class="absolute inset-0" style="z-index: 1;"></div>
         <div id="persistent-tooltips" class="absolute inset-0 pointer-events-none z-[150]"></div>
-        <div id="node-tooltip" class="absolute px-3 py-2 rounded text-base pointer-events-none z-[200]" style="opacity: 0; visibility: hidden;"></div>
+        <svg id="tooltip-line-svg" style="opacity: 0;" aria-hidden="true"><polyline id="tooltip-line" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>
+        <div id="node-tooltip" class="px-3 py-2 rounded text-base pointer-events-none z-[200]" style="opacity: 0; visibility: hidden;"></div>
 
         <!-- Rich Media Window Overlay -->
         <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md hidden transition-opacity duration-500 opacity-0">
