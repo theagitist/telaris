@@ -109,8 +109,35 @@ function db_ensure_constellations_auto_increment(PDO $pdo): void {
             $pdo->exec("ALTER TABLE `{$fk['TABLE_NAME']}` DROP FOREIGN KEY `{$fk['CONSTRAINT_NAME']}`");
         }
 
-        // Apply AUTO_INCREMENT
+        // AUTO_INCREMENT cannot have id=0 (MySQL resequences it to 1, causing duplicates).
+        // Reassign id=0 to max(id)+1 in constellations and all referencing tables.
+        $hasZero = (bool)$pdo->query("SELECT 1 FROM constellations WHERE id = 0")->fetch();
         $maxId = (int)$pdo->query("SELECT COALESCE(MAX(id), 0) FROM constellations")->fetchColumn();
+        if ($hasZero) {
+            $newId = $maxId + 1;
+            // Update referencing tables (FK-based and known tables without FKs)
+            foreach ($fks as $fk) {
+                $pdo->exec("UPDATE `{$fk['TABLE_NAME']}` SET `{$fk['COLUMN_NAME']}` = {$newId} WHERE `{$fk['COLUMN_NAME']}` = 0");
+            }
+            // nodes and keywords may not have FKs but reference constellation_id
+            foreach (['nodes', 'keywords'] as $table) {
+                try {
+                    $pdo->exec("UPDATE `{$table}` SET constellation_id = {$newId} WHERE constellation_id = 0");
+                } catch (PDOException $e) {
+                    // table may not exist yet
+                }
+            }
+            $pdo->exec("UPDATE constellations SET id = {$newId} WHERE id = 0");
+            // Also update project_info default_constellation_id if it references 0
+            try {
+                $pdo->exec("UPDATE project_info SET default_constellation_id = {$newId} WHERE default_constellation_id = 0");
+            } catch (PDOException $e) {
+                // project_info may not have this column yet
+            }
+            $maxId = $newId;
+        }
+
+        // Apply AUTO_INCREMENT
         $pdo->exec("ALTER TABLE constellations MODIFY id INT NOT NULL AUTO_INCREMENT");
         if ($maxId > 0) {
             $pdo->exec("ALTER TABLE constellations AUTO_INCREMENT = " . ($maxId + 1));
@@ -282,6 +309,10 @@ function db_ensure_project_info_columns(?PDO $pdo = null): void {
         $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'open_portal_text'");
         if ($stmt->fetch() === false) {
             $pdo->exec("ALTER TABLE project_info ADD COLUMN open_portal_text VARCHAR(200) NOT NULL DEFAULT 'Open the Portal'");
+        }
+        $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'default_constellation_id'");
+        if ($stmt->fetch() === false) {
+            $pdo->exec("ALTER TABLE project_info ADD COLUMN default_constellation_id INT NOT NULL DEFAULT 0");
         }
 
         // Fill empty values for localized hints in existing rows
