@@ -2678,23 +2678,23 @@ class TelarisNetwork {
             let glitchOpacityMult = 1.0;
             let glitchRotation = 0;
 
+            // ── Universal node animations (all themes) ──────────────
+            if (d.animGlitchTimer === undefined) {
+                d.animGlitchTimer  = 15 + Math.random() * 20;
+                d.animGlitchActive = 0;
+                d.animFloatOffset  = Math.random() * Math.PI * 2;
+                d.animBlinkTimer   = 25 + Math.random() * 30;
+                d.animBlinkActive  = 0;
+            }
+
+            // 1. DRIFT — Lissajous float around anchor (always active to avoid jump when transition ends)
+            glitchOffset.add(this._scratchVec.set(
+                Math.sin(time * 0.37 + d.animFloatOffset) * 0.28,
+                Math.cos(time * 0.51 + d.animFloatOffset * 1.3) * 0.28,
+                0
+            ));
+
             if (!isTransitioning) {
-                // ── Universal node animations (all themes) ──────────────
-                if (d.animGlitchTimer === undefined) {
-                    d.animGlitchTimer  = 15 + Math.random() * 20;
-                    d.animGlitchActive = 0;
-                    d.animFloatOffset  = Math.random() * Math.PI * 2;
-                    d.animBlinkTimer   = 25 + Math.random() * 30;
-                    d.animBlinkActive  = 0;
-                }
-
-                // 1. DRIFT — Lissajous float around anchor
-                glitchOffset.add(this._scratchVec.set(
-                    Math.sin(time * 0.37 + d.animFloatOffset) * 0.28,
-                    Math.cos(time * 0.51 + d.animFloatOffset * 1.3) * 0.28,
-                    0
-                ));
-
                 // 2. GLITCH — brief random jitter/flicker episodes
                 d.animGlitchTimer -= dt;
                 if (d.animGlitchTimer <= 0) {
@@ -2786,17 +2786,13 @@ class TelarisNetwork {
 
             n.position.copy(d.originalPosition).add(glitchOffset);
             
-            // Stable scale during transition, dynamic pulse otherwise
-            if (isTransitioning) {
-                const baseS = d.is_accentuated ? 2.8 : 1.8;
-                n.scale.set(baseS, baseS, baseS);
-            } else {
-                const pulseFreq = d.is_accentuated ? 2.0 : 1.5;
-                const pulseAmp = d.is_accentuated ? 0.15 : 0.08;
-                const baseS = d.is_accentuated ? 2.8 : 1.8;
-                const s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * glitchScaleMult;
-                n.scale.set(s, s, s);
-            }
+            // Scale: always apply pulse to avoid jump when transition ends
+            const pulseFreq = d.is_accentuated ? 2.0 : 1.5;
+            const pulseAmp = d.is_accentuated ? 0.15 : 0.08;
+            const baseS = d.is_accentuated ? 2.8 : 1.8;
+            const scaleMult = isTransitioning ? 1.0 : glitchScaleMult;
+            const s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * scaleMult;
+            n.scale.set(s, s, s);
 
             // Optimization: iterate cached moons directly
             d.cachedMoons.forEach(moonGroup => {
@@ -3225,9 +3221,10 @@ class TelarisNetwork {
         const isZooming = this._portalTransition && this._portalTransition.phase === 'camera_fade_out';
         const isBackCrossFade = this._portalTransition && this._portalTransition.phase === 'back_cross_fade';
         
+        const isFadingIn = this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null && this._portalFadeInMultiplier < 1;
         if (!isZooming) {
             this.controls.autoRotate = (now - this.lastInteractionAt) > this.idleRotateDelayMs;
-            if (!isBackCrossFade) {
+            if (!isBackCrossFade && !isFadingIn) {
                 this.applyForces(dt, 0.05);
             }
             this.controls.update();
