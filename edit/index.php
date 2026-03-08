@@ -1025,6 +1025,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             document.getElementById('edit-url').value = node.url || '';
             document.getElementById('edit-embed-code').value = node.embed_code || '';
             document.getElementById('edit-audio-autoplay').checked = !!node.audio_autoplay;
+            document.getElementById('edit-audio-loop').checked = !!node.audio_loop;
             document.getElementById('edit-video-autoplay').checked = !!node.video_autoplay;
             document.getElementById('edit-accentuated').checked = !!node.is_accentuated;
 
@@ -1152,6 +1153,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (activeType === 'audio') {
                 formData.append('audio_url', document.getElementById('edit-audio-url').value.trim());
                 formData.append('audio_autoplay', document.getElementById('edit-audio-autoplay').checked ? 1 : 0);
+                formData.append('audio_loop', document.getElementById('edit-audio-loop').checked ? 1 : 0);
                 const audioFile = document.getElementById('edit-audio-file').files[0];
                 if (audioFile) formData.append('audio_file', audioFile);
                 // Clear video fields to enforce exclusivity
@@ -1376,6 +1378,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (activeType === 'audio') {
                 formData.append('audio_url', document.getElementById('node-audio-url').value.trim());
                 formData.append('audio_autoplay', document.getElementById('node-audio-autoplay').checked ? 1 : 0);
+                formData.append('audio_loop', document.getElementById('node-audio-loop').checked ? 1 : 0);
                 const audioFile = document.getElementById('node-audio-file').files[0];
                 if (audioFile) formData.append('audio_file', audioFile);
             } else {
@@ -1684,10 +1687,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <div id="create-audio-content">
                             <input type="text" id="node-audio-url" name="audio_url" placeholder="https://example.com/audio.mp3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                             <input type="file" id="node-audio-file" name="audio_file" accept="audio/*" class="text-xs">
-                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
-                                <input type="checkbox" id="node-audio-autoplay" name="audio_autoplay" checked>
-                                Autoplay audio
-                            </label>
+                            <div class="flex items-center gap-4 mt-2">
+                                <label class="flex items-center gap-2 text-xs text-gray-700">
+                                    <input type="checkbox" id="node-audio-autoplay" name="audio_autoplay" checked>
+                                    Autoplay
+                                </label>
+                                <label class="flex items-center gap-2 text-xs text-gray-700">
+                                    <input type="checkbox" id="node-audio-loop" name="audio_loop">
+                                    Loop
+                                </label>
+                            </div>
                         </div>
                         
                         <!-- Video Content -->
@@ -1818,10 +1827,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 <input type="text" id="edit-audio-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
                                 <button type="button" onclick="deleteModalFile('audio')" class="btn btn-error btn-sm btn-outline">Delete</button>
                             </div>
-                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
-                                <input type="checkbox" id="edit-audio-autoplay" name="audio_autoplay">
-                                Autoplay audio
-                            </label>
+                            <div class="flex items-center gap-4 mt-2">
+                                <label class="flex items-center gap-2 text-xs text-gray-700">
+                                    <input type="checkbox" id="edit-audio-autoplay" name="audio_autoplay">
+                                    Autoplay
+                                </label>
+                                <label class="flex items-center gap-2 text-xs text-gray-700">
+                                    <input type="checkbox" id="edit-audio-loop" name="audio_loop">
+                                    Loop
+                                </label>
+                            </div>
                         </div>
 
                         <!-- Video Content -->

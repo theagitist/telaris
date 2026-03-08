@@ -165,6 +165,7 @@ class TelarisNetwork {
         if (audioWrap && audioEl) {
             if (d.audio_url) {
                 audioEl.src = d.audio_url;
+                audioEl.loop = !!d.audio_loop;
                 audioEl.load();
                 audioWrap.classList.remove('hidden');
                 
@@ -2293,6 +2294,7 @@ class TelarisNetwork {
                     embed_code: data.embed_code,
                     audio_url: data.audio_url,
                     audio_autoplay: !!data.audio_autoplay,
+                    audio_loop: !!data.audio_loop,
                     video_url: data.video_url,
                     video_autoplay: !!data.video_autoplay,
                     node_type: data.node_type ?? 'object',

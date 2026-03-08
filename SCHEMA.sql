@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     embed_code TEXT NULL,
     audio_url VARCHAR(500) NULL,
     audio_autoplay BOOLEAN NOT NULL DEFAULT TRUE,
+    audio_loop BOOLEAN NOT NULL DEFAULT FALSE,
     video_url VARCHAR(500) NULL,
     video_autoplay BOOLEAN NOT NULL DEFAULT TRUE,
     -- NEW FIELDS START HERE --
