@@ -32,7 +32,8 @@ class TelarisNetwork {
         this.currentTheme = getTheme(window.TELARIS_THEME_ID || 'cosmic');
         this._portalFadeInMultiplier = null;
         this.raycaster = new THREE.Raycaster();
-        this.mouse = new THREE.Vector2();
+        this.mouse = new THREE.Vector2(-Infinity, -Infinity);
+        this._mouseHasMoved = false;
         this.tooltip = document.getElementById('node-tooltip');
         this.tooltipLineSvg = document.getElementById('tooltip-line-svg');
         this.tooltipLine = document.getElementById('tooltip-line');
@@ -1956,6 +1957,7 @@ class TelarisNetwork {
         
         this.renderer.domElement.addEventListener('mousemove', (e) => {
             this.markInteraction();
+            this._mouseHasMoved = true;
             const rect = this.renderer.domElement.getBoundingClientRect();
             this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
             this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -2389,7 +2391,7 @@ class TelarisNetwork {
             }
         }
 
-        const bands = [0.004, 0.009, 0.016, 0.024];
+        const bands = [0.008, 0.012, 0.018, 0.026];
         const opacities = [0.14, 0.28, 0.48, 0.58];
         const geometry = this.geometryManager.getOrCreate('connection_cylinder', () => new THREE.CylinderGeometry(0.5, 0.5, 1, 8));
 
@@ -2883,6 +2885,7 @@ class TelarisNetwork {
     }
 
     updateHoverState() {
+        if (!this._mouseHasMoved) return;
         this.raycaster.setFromCamera(this.mouse, this.camera);
         const intersects = this.raycaster.intersectObjects(this.nodes.filter(n => n.visible), true);
         
