@@ -46,3 +46,6 @@ yarn.lock
 dist/
 build/
 var/
+
+# Planning docs
+docs/planning/
