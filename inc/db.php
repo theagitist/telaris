@@ -51,105 +51,12 @@ function getDB(): PDO {
                 PDO::MYSQL_ATTR_INIT_COMMAND => 'SET sql_mode = "STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"'
             ]
         );
-        
-        // Run runtime migrations once per connection
-        db_run_runtime_migrations($pdo);
-        
         return $pdo;
     } catch (PDOException $e) {
         throw $e;
     }
 }
 
-/**
- * Run all runtime migrations to ensure database schema is up to date.
- */
-function db_run_runtime_migrations(PDO $pdo): void {
-    db_ensure_project_info_columns($pdo);
-    db_ensure_constellation_columns($pdo);
-    db_ensure_node_audio_loop_column($pdo);
-    db_ensure_node_video_columns($pdo);
-    db_ensure_updated_at_columns($pdo);
-    db_ensure_api_keys_active_column($pdo);
-    db_ensure_constellations_auto_increment($pdo);
-}
-
-/**
- * Ensure api_keys.is_active column exists (missing from early schema versions).
- */
-function db_ensure_api_keys_active_column(PDO $pdo): void {
-    $row = $pdo->query("SHOW COLUMNS FROM api_keys LIKE 'is_active'")->fetch();
-    if (!$row) {
-        $pdo->exec("ALTER TABLE api_keys ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE");
-        $pdo->exec("UPDATE api_keys SET is_active = TRUE WHERE is_active IS NULL");
-    }
-}
-
-/**
- * Ensure constellations.id uses AUTO_INCREMENT (missing from early schema).
- */
-function db_ensure_constellations_auto_increment(PDO $pdo): void {
-    $row = $pdo->query("SHOW CREATE TABLE constellations")->fetch(PDO::FETCH_ASSOC);
-    $createSql = $row['Create Table'] ?? '';
-    if ($row && !str_contains($createSql, 'auto_increment')) {
-        // Collect foreign keys referencing constellations.id so we can drop and re-add them
-        $fks = [];
-        $stmt = $pdo->query("
-            SELECT TABLE_NAME, CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_COLUMN_NAME
-            FROM information_schema.KEY_COLUMN_USAGE
-            WHERE REFERENCED_TABLE_SCHEMA = DATABASE()
-              AND REFERENCED_TABLE_NAME = 'constellations'
-              AND REFERENCED_COLUMN_NAME = 'id'
-        ");
-        while ($fk = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $fks[] = $fk;
-        }
-
-        // Drop foreign keys
-        foreach ($fks as $fk) {
-            $pdo->exec("ALTER TABLE `{$fk['TABLE_NAME']}` DROP FOREIGN KEY `{$fk['CONSTRAINT_NAME']}`");
-        }
-
-        // AUTO_INCREMENT cannot have id=0 (MySQL resequences it to 1, causing duplicates).
-        // Reassign id=0 to max(id)+1 in constellations and all referencing tables.
-        $hasZero = (bool)$pdo->query("SELECT 1 FROM constellations WHERE id = 0")->fetch();
-        $maxId = (int)$pdo->query("SELECT COALESCE(MAX(id), 0) FROM constellations")->fetchColumn();
-        if ($hasZero) {
-            $newId = $maxId + 1;
-            // Update referencing tables (FK-based and known tables without FKs)
-            foreach ($fks as $fk) {
-                $pdo->exec("UPDATE `{$fk['TABLE_NAME']}` SET `{$fk['COLUMN_NAME']}` = {$newId} WHERE `{$fk['COLUMN_NAME']}` = 0");
-            }
-            // nodes and keywords may not have FKs but reference constellation_id
-            foreach (['nodes', 'keywords'] as $table) {
-                try {
-                    $pdo->exec("UPDATE `{$table}` SET constellation_id = {$newId} WHERE constellation_id = 0");
-                } catch (PDOException $e) {
-                    // table may not exist yet
-                }
-            }
-            $pdo->exec("UPDATE constellations SET id = {$newId} WHERE id = 0");
-            // Also update project_info default_constellation_id if it references 0
-            try {
-                $pdo->exec("UPDATE project_info SET default_constellation_id = {$newId} WHERE default_constellation_id = 0");
-            } catch (PDOException $e) {
-                // project_info may not have this column yet
-            }
-            $maxId = $newId;
-        }
-
-        // Apply AUTO_INCREMENT
-        $pdo->exec("ALTER TABLE constellations MODIFY id INT NOT NULL AUTO_INCREMENT");
-        if ($maxId > 0) {
-            $pdo->exec("ALTER TABLE constellations AUTO_INCREMENT = " . ($maxId + 1));
-        }
-
-        // Re-add foreign keys
-        foreach ($fks as $fk) {
-            $pdo->exec("ALTER TABLE `{$fk['TABLE_NAME']}` ADD CONSTRAINT `{$fk['CONSTRAINT_NAME']}` FOREIGN KEY (`{$fk['COLUMN_NAME']}`) REFERENCES `constellations` (`{$fk['REFERENCED_COLUMN_NAME']}`) ON DELETE CASCADE");
-        }
-    }
-}
 
 /**
  * @param PDO|null $pdo
@@ -250,6 +157,10 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
 function db_ensure_project_info_table(): void {
 }
 
+/** No-op: all columns now exist in SCHEMA.sql. */
+function db_ensure_project_info_columns(): void {
+}
+
 /**
  * Insert default project_info rows (one per locale). Used by setup and when table is empty.
  */
@@ -274,136 +185,6 @@ function db_insert_default_project_info_rows(PDO $pdo, string $enName = 'Telaris
     }
 }
 
-/**
- * Ensure nodes table has audio_loop column.
- */
-function db_ensure_node_audio_loop_column(?PDO $pdo = null): void {
-    try {
-        if ($pdo === null) $pdo = getDB();
-        $stmt = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'audio_loop'");
-        if ($stmt->fetch() === false) {
-            $pdo->exec("ALTER TABLE nodes ADD COLUMN audio_loop BOOLEAN NOT NULL DEFAULT FALSE AFTER audio_autoplay");
-        }
-    } catch (PDOException $e) {
-        // Table might not exist yet
-    }
-}
-
-/**
- * Ensure nodes table has video columns.
- */
-function db_ensure_node_video_columns(?PDO $pdo = null): void {
-    try {
-        if ($pdo === null) $pdo = getDB();
-        $stmt = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'video_url'");
-        if ($stmt->fetch() === false) {
-            $pdo->exec("ALTER TABLE nodes ADD COLUMN video_url VARCHAR(500) NULL AFTER audio_autoplay");
-        }
-        $stmt = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'video_autoplay'");
-        if ($stmt->fetch() === false) {
-            $pdo->exec("ALTER TABLE nodes ADD COLUMN video_autoplay BOOLEAN NOT NULL DEFAULT TRUE AFTER video_url");
-        }
-    } catch (PDOException $e) {
-        // Table might not exist yet
-    }
-}
-
-/**
- * Ensure project_info table has all required columns and default values.
- */
-function db_ensure_project_info_columns(?PDO $pdo = null): void {
-    try {
-        if ($pdo === null) $pdo = getDB();
-        $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'click_to_view_text'");
-        if ($stmt->fetch() === false) {
-            $pdo->exec("ALTER TABLE project_info ADD COLUMN click_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Click to view'");
-        }
-        $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'tap_to_view_text'");
-        if ($stmt->fetch() === false) {
-            $pdo->exec("ALTER TABLE project_info ADD COLUMN tap_to_view_text VARCHAR(200) NOT NULL DEFAULT 'Tap again to view'");
-        }
-        $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'open_portal_text'");
-        if ($stmt->fetch() === false) {
-            $pdo->exec("ALTER TABLE project_info ADD COLUMN open_portal_text VARCHAR(200) NOT NULL DEFAULT 'Open the Portal'");
-        }
-        $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'default_constellation_id'");
-        if ($stmt->fetch() === false) {
-            $pdo->exec("ALTER TABLE project_info ADD COLUMN default_constellation_id INT NOT NULL DEFAULT 0");
-        }
-
-        // Fill empty values for localized hints in existing rows
-        $defaults = db_default_project_info_rows();
-        foreach (['en', 'es', 'pt'] as $locale) {
-            $pdo->prepare("
-                UPDATE project_info
-                SET click_to_view_text = :click
-                WHERE locale = :locale AND (click_to_view_text IS NULL OR click_to_view_text = '')
-            ")->execute([
-                ':click' => $defaults[$locale]['click_to_view_text'],
-                ':locale' => $locale
-            ]);
-            $pdo->prepare("
-                UPDATE project_info
-                SET tap_to_view_text = :tap
-                WHERE locale = :locale AND (tap_to_view_text IS NULL OR tap_to_view_text = '')
-            ")->execute([
-                ':tap' => $defaults[$locale]['tap_to_view_text'],
-                ':locale' => $locale
-            ]);
-            $pdo->prepare("
-                UPDATE project_info
-                SET open_portal_text = :portal
-                WHERE locale = :locale AND (open_portal_text IS NULL OR open_portal_text = '')
-            ")->execute([
-                ':portal' => $defaults[$locale]['open_portal_text'],
-                ':locale' => $locale
-            ]);
-        }
-    } catch (PDOException $e) {
-        // Table might not exist yet, which is fine during setup
-    }
-}
-
-/**
- * Ensure constellations table has required columns.
- */
-function db_ensure_constellation_columns(?PDO $pdo = null): void {
-    try {
-        if ($pdo === null) $pdo = getDB();
-        $stmt = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'created_at'");
-        if ($stmt->fetch() === false) {
-            $pdo->exec("ALTER TABLE constellations ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-        }
-        $stmt = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'theme'");
-        if ($stmt->fetch() === false) {
-            $pdo->exec("ALTER TABLE constellations ADD COLUMN theme VARCHAR(50) NOT NULL DEFAULT 'cosmic'");
-        }
-    } catch (PDOException $e) {
-        // Table might not exist yet
-    }
-}
-
-/**
- * Ensure tables have updated_at columns.
- */
-function db_ensure_updated_at_columns(?PDO $pdo = null): void {
-    try {
-        if ($pdo === null) $pdo = getDB();
-        $tables = [
-            'users' => 'updated_at',
-            'constellations' => 'updated_at',
-            'api_keys' => 'updated_at'
-        ];
-        foreach ($tables as $table => $column) {
-            $stmt = $pdo->query("SHOW COLUMNS FROM `$table` LIKE '$column'");
-            if ($stmt->fetch() === false) {
-                $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
-            }
-        }
-    } catch (PDOException $e) {
-        // Tables might not exist yet
-    }
-}
 
 /**
  * Read the description for English (Edit form).
