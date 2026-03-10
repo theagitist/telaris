@@ -222,6 +222,11 @@ header("X-Content-Type-Options: nosniff");
                         <!-- Description -->
                         <div id="rm-description" class="text-gray-300 leading-relaxed text-sm md:text-base whitespace-pre-wrap"></div>
 
+                        <!-- Keywords -->
+                        <div id="rm-keywords-wrap" class="hidden">
+                            <div id="rm-keywords" class="flex flex-wrap gap-2"></div>
+                        </div>
+
                         <!-- URL / Action Button -->
                         <div id="rm-url-wrap" class="hidden pt-4">
                             <button id="rm-url-button" class="w-full py-3 bg-transparent border text-xs font-bold uppercase tracking-widest transition-all hover:bg-white/10"

@@ -249,6 +249,42 @@ class TelarisNetwork {
             }
         }
 
+        // Keywords
+        const keywordsWrap = document.getElementById('rm-keywords-wrap');
+        const keywordsEl = document.getElementById('rm-keywords');
+        if (keywordsWrap && keywordsEl) {
+            keywordsEl.innerHTML = '';
+            if (d.show_keywords && d.keywords && d.keywords.length > 0) {
+                const pastelColors = [
+                    'rgba(254,202,202,0.25)', 'rgba(254,215,170,0.25)', 'rgba(253,230,138,0.25)',
+                    'rgba(254,240,138,0.25)', 'rgba(217,249,157,0.25)', 'rgba(187,247,208,0.25)',
+                    'rgba(167,243,208,0.25)', 'rgba(153,246,228,0.25)', 'rgba(165,243,252,0.25)',
+                    'rgba(186,230,253,0.25)', 'rgba(191,219,254,0.25)', 'rgba(199,210,254,0.25)',
+                    'rgba(221,214,254,0.25)', 'rgba(233,213,255,0.25)', 'rgba(245,208,254,0.25)',
+                    'rgba(251,207,232,0.25)', 'rgba(254,205,211,0.25)'
+                ];
+                const textColors = [
+                    '#fca5a5', '#fdba74', '#fcd34d', '#fde047', '#bef264', '#86efac',
+                    '#6ee7b7', '#5eead4', '#67e8f9', '#7dd3fc', '#93c5fd', '#a5b4fc',
+                    '#c4b5fd', '#d8b4fe', '#f0abfc', '#f9a8d4', '#fda4af'
+                ];
+                d.keywords.forEach(kw => {
+                    let hash = 0;
+                    for (let i = 0; i < kw.length; i++) {
+                        hash = kw.charCodeAt(i) + ((hash << 5) - hash);
+                    }
+                    const idx = Math.abs(hash) % pastelColors.length;
+                    const badge = document.createElement('span');
+                    badge.style.cssText = `background:${pastelColors[idx]};color:${textColors[idx]};border:1px solid ${textColors[idx]}40;padding:2px 10px;border-radius:9999px;font-size:0.75rem;font-weight:500;`;
+                    badge.textContent = `#${kw}`;
+                    keywordsEl.appendChild(badge);
+                });
+                keywordsWrap.classList.remove('hidden');
+            } else {
+                keywordsWrap.classList.add('hidden');
+            }
+        }
+
         // URL / Action Button
         if (urlWrap && urlButton) {
             if (d.node_type === 'portal' && d.target_constellation_id != null) {
@@ -2300,6 +2336,7 @@ class TelarisNetwork {
                     node_type: data.node_type ?? 'object',
                     target_constellation_id: (data.target_constellation_id !== undefined && data.target_constellation_id !== null && data.target_constellation_id !== '') ? Number(data.target_constellation_id) : null,
                     is_accentuated: !!data.is_accentuated,
+                    show_keywords: !!data.show_keywords,
                     originalPosition: pos.clone(),
                     speed: data.animation.speed / 4,
                     baseSpeed: data.animation.speed / 4,

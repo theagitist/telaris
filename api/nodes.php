@@ -160,6 +160,7 @@ try {
             $videoUrl = (isset($data['video_url']) && !empty(trim((string)$data['video_url']))) ? trim((string)$data['video_url']) : null;
             $videoAutoplay = isset($data['video_autoplay']) ? (bool)$data['video_autoplay'] : true;
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
+            $showKeywords = isset($data['show_keywords']) ? (bool)$data['show_keywords'] : false;
 
             // Mutual exclusivity: uploaded files take precedence; otherwise URL values decide
             if (isset($_FILES['video_file']) && $_FILES['video_file']['error'] === UPLOAD_ERR_OK) {
@@ -172,7 +173,7 @@ try {
                 $videoUrl = null;
             }
 
-            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop);
+            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords);
             if ($nodeId === 0) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to create node: Could not retrieve node ID'], JSON_THROW_ON_ERROR);
@@ -255,7 +256,7 @@ try {
             }
 
             if ($uploadedFiles) {
-                db_update_node($nodeId, $name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop);
+                db_update_node($nodeId, $name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords);
             }
 
             if (isset($data['keywords'])) {
@@ -323,6 +324,7 @@ try {
             $videoUrl = (isset($data['video_url']) && !empty(trim((string)$data['video_url']))) ? trim((string)$data['video_url']) : null;
             $videoAutoplay = isset($data['video_autoplay']) ? (bool)$data['video_autoplay'] : true;
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
+            $showKeywords = isset($data['show_keywords']) ? (bool)$data['show_keywords'] : false;
 
             // Mutual exclusivity logic for PUT
             $hasAudioFile = isset($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK;
@@ -414,7 +416,7 @@ try {
                 }
             }
 
-            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop);
+            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords);
             if (isset($data['keywords'])) {
                 $keywords = is_array($data['keywords']) ? $data['keywords'] : explode(',', (string)$data['keywords']);
                 db_save_node_keywords((int)$id, $keywords);

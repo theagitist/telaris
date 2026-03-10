@@ -592,13 +592,25 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         // Show message as a temporary toast
         function showMessage(text, type = 'success') {
-            const container = document.getElementById('notification-container');
+            // If a modal dialog is open, place notification inside it so it's visible
+            let container = null;
+            const openDialog = document.querySelector('dialog[open]');
+            if (openDialog) {
+                container = openDialog.querySelector('.dialog-notification-container');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.className = 'dialog-notification-container fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2 w-full max-w-md pointer-events-none';
+                    openDialog.appendChild(container);
+                }
+            } else {
+                container = document.getElementById('notification-container');
+            }
             if (!container) return;
 
             const toast = document.createElement('div');
             toast.className = `alert ${type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg mb-2 pointer-events-auto transition-all duration-500 transform -translate-y-4 opacity-0 text-white`;
             toast.innerHTML = `<div class="text-sm font-medium">${text}</div>`;
-            
+
             container.appendChild(toast);
 
             // Trigger animation
@@ -1099,10 +1111,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             document.getElementById('edit-audio-loop').checked = !!node.audio_loop;
             document.getElementById('edit-video-autoplay').checked = !!node.video_autoplay;
             document.getElementById('edit-accentuated').checked = !!node.is_accentuated;
+            document.getElementById('edit-show-keywords').checked = !!node.show_keywords;
 
             // Handle keywords
             keywordState['modal'] = [...(node.keywords || [])];
             updateKeywordTags('modal');
+
+            // Clear file inputs so previously selected files are not re-uploaded
+            document.getElementById('edit-image-file').value = '';
+            document.getElementById('edit-audio-file').value = '';
+            document.getElementById('edit-video-file').value = '';
 
             // Handle image fields
             const imageFileWrap = document.getElementById('edit-image-file-wrap');
@@ -1202,6 +1220,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('image_url', document.getElementById('edit-image-url').value.trim());
             formData.append('embed_code', document.getElementById('edit-embed-code').value.trim());
             formData.append('is_accentuated', document.getElementById('edit-accentuated').checked ? 1 : 0);
+            formData.append('show_keywords', document.getElementById('edit-show-keywords').checked ? 1 : 0);
             formData.append('constellation_id', document.getElementById('edit-constellation').value);
             
             const nodeType = document.getElementById('edit-node-type').value;
@@ -1433,6 +1452,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('image_url', document.getElementById('node-image-url').value.trim());
             formData.append('embed_code', document.getElementById('node-embed-code').value.trim());
             formData.append('is_accentuated', document.getElementById('node-accentuated').checked ? 1 : 0);
+            formData.append('show_keywords', document.getElementById('node-show-keywords').checked ? 1 : 0);
             formData.append('constellation_id', isNaN(constellationId) ? 0 : constellationId);
             formData.append('node_type', nodeType);
             
@@ -1713,6 +1733,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </label>
                         <span class="text-xs text-gray-500 block ml-1">Make this node larger and more prominent in the network.</span>
                     </div>
+                    <div class="flex flex-col justify-center">
+                        <label class="label cursor-pointer justify-start gap-4">
+                            <input type="checkbox" id="node-show-keywords" name="show_keywords" class="toggle toggle-neutral">
+                            <span class="label-text font-medium text-gray-800">Show Keywords</span>
+                        </label>
+                        <span class="text-xs text-gray-500 block ml-1">Display this node's keywords in its info window.</span>
+                    </div>
                 </div>
                 <div id="create-target-constellation-wrap" class="hidden">
                     <div class="flex flex-wrap items-end gap-2 mb-2">
@@ -1848,6 +1875,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <span class="label-text font-medium text-gray-800">Accentuate Node</span>
                         </label>
                         <span class="text-xs text-gray-500 block ml-1">Make this node larger and more prominent in the network.</span>
+                    </div>
+                    <div class="flex flex-col justify-center">
+                        <label class="label cursor-pointer justify-start gap-4">
+                            <input type="checkbox" id="edit-show-keywords" name="show_keywords" class="toggle toggle-neutral">
+                            <span class="label-text font-medium text-gray-800">Show Keywords</span>
+                        </label>
+                        <span class="text-xs text-gray-500 block ml-1">Display this node's keywords in its info window.</span>
                     </div>
                 </div>
                 <div id="edit-target-constellation-wrap-modal" class="hidden">
