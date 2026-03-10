@@ -23,6 +23,38 @@ $currentUserId = $_SESSION['admin_user_id'] ?? null;
 $isAdmin = isAdminLoggedIn();
 $constellations = db_get_constellations_for_user($currentUserId, $isAdmin);
 
+// Group constellations by [Tag] prefix for visual grouping
+function extractConstellationGroup(string $name): ?string {
+    if (preg_match('/^\[([^\]]+)\]/', $name, $m)) {
+        return $m[1];
+    }
+    return null;
+}
+
+$pastelPalette = [
+    '#FEF2F2', '#F0FAF0', '#EFF6FF', '#FFF8F0', '#F8F5FF',
+    '#F0FDFA', '#FEFEF0', '#FFF5F5', '#F5F5F7', '#F5FAE8',
+];
+$constellationGroupColors = [];
+$groupColorIndex = 0;
+
+usort($constellations, function ($a, $b) {
+    $ga = extractConstellationGroup($a['name']);
+    $gb = extractConstellationGroup($b['name']);
+    if ($ga !== null && $gb === null) return -1;
+    if ($ga === null && $gb !== null) return 1;
+    if ($ga !== null && $gb !== null && $ga !== $gb) return strcasecmp($ga, $gb);
+    return strcasecmp($a['name'], $b['name']);
+});
+
+foreach ($constellations as $c) {
+    $group = extractConstellationGroup($c['name']);
+    if ($group !== null && !isset($constellationGroupColors[$group])) {
+        $constellationGroupColors[$group] = $pastelPalette[$groupColorIndex % count($pastelPalette)];
+        $groupColorIndex++;
+    }
+}
+
 // Page title only (Global Settings are in Admin)
 $projectInfoEn = db_get_project_info_for_locale('en');
 $projectName = $projectInfoEn['name'] ?? 'Telaris';
@@ -63,12 +95,23 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             }
                             ?>
                             <option value="all"<?php echo $currentConstellationParam === 'all' ? ' selected' : ''; ?>><?php echo $isAdmin ? 'All constellations' : 'All my constellations'; ?></option>
-                            <?php foreach ($constellations as $c):
+                            <?php
+                            $currentOptgroup = null;
+                            $inOptgroup = false;
+                            foreach ($constellations as $c):
                                 $cid = (int)$c['id'];
                                 $sel = $currentConstellationParam === (string)$cid ? ' selected' : '';
+                                $g = extractConstellationGroup($c['name']);
+                                if ($g !== $currentOptgroup) {
+                                    if ($inOptgroup) { echo '</optgroup>'; $inOptgroup = false; }
+                                    if ($g !== null) { echo '<optgroup label="' . htmlspecialchars($g) . '">'; $inOptgroup = true; }
+                                    $currentOptgroup = $g;
+                                }
                             ?>
                                 <option value="<?php echo $cid; ?>"<?php echo $sel; ?>><?php echo htmlspecialchars($c['name']); ?></option>
-                            <?php endforeach; ?>
+                            <?php endforeach;
+                            if ($inOptgroup) echo '</optgroup>';
+                            ?>
                         </select>
                         <button type="button" onclick="viewNetwork()" class="btn btn-sm btn-neutral join-item">
                             View
@@ -421,12 +464,40 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const list = allConstellations.length ? allConstellations : CONSTELLATIONS;
             const currentValue = selectEl.value;
             selectEl.innerHTML = '';
+
+            // Group by [Tag] prefix
+            const groupRegex = /^\[([^\]]+)\]/;
+            const grouped = [], ungrouped = [];
             list.forEach(c => {
+                const m = (c.name || '').match(groupRegex);
+                if (m) { grouped.push({ ...c, group: m[1] }); }
+                else { ungrouped.push(c); }
+            });
+            // Sort grouped by group name then name
+            grouped.sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name));
+            ungrouped.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+            let currentGroup = null;
+            let optgroup = null;
+            grouped.forEach(c => {
+                if (c.group !== currentGroup) {
+                    optgroup = document.createElement('optgroup');
+                    optgroup.label = c.group;
+                    selectEl.appendChild(optgroup);
+                    currentGroup = c.group;
+                }
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name;
+                optgroup.appendChild(opt);
+            });
+            ungrouped.forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c.id;
                 opt.textContent = c.name;
                 selectEl.appendChild(opt);
             });
+
             const valueToSet = selectedId != null ? String(selectedId) : currentValue;
             if (valueToSet && Array.from(selectEl.options).some(o => o.value === valueToSet)) selectEl.value = valueToSet;
         }

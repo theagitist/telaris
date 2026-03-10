@@ -345,6 +345,40 @@ $apiKeys = db_get_api_keys();
 $users = db_get_users();
 $constellations = db_get_constellations();
 
+// Group constellations by [Tag] prefix for visual grouping
+function extractConstellationGroup(string $name): ?string {
+    if (preg_match('/^\[([^\]]+)\]/', $name, $m)) {
+        return $m[1];
+    }
+    return null;
+}
+
+$constellationGroupColors = [];
+$pastelPalette = [
+    '#FEF2F2', '#F0FAF0', '#EFF6FF', '#FFF8F0', '#F8F5FF',
+    '#F0FDFA', '#FEFEF0', '#FFF5F5', '#F5F5F7', '#F5FAE8',
+];
+$groupColorIndex = 0;
+
+// Sort: grouped constellations first (by group name), ungrouped after
+usort($constellations, function ($a, $b) {
+    $ga = extractConstellationGroup($a['name']);
+    $gb = extractConstellationGroup($b['name']);
+    if ($ga !== null && $gb === null) return -1;
+    if ($ga === null && $gb !== null) return 1;
+    if ($ga !== null && $gb !== null && $ga !== $gb) return strcasecmp($ga, $gb);
+    return strcasecmp($a['name'], $b['name']);
+});
+
+// Assign a pastel color per unique group
+foreach ($constellations as $c) {
+    $group = extractConstellationGroup($c['name']);
+    if ($group !== null && !isset($constellationGroupColors[$group])) {
+        $constellationGroupColors[$group] = $pastelPalette[$groupColorIndex % count($pastelPalette)];
+        $groupColorIndex++;
+    }
+}
+
 // Get constellation access mapping for JavaScript
 $userConstellationsMap = [];
 foreach ($users as $u) {
@@ -815,14 +849,18 @@ $fieldMeta = [
                                         $isDefault = $cId === (int)($projectAll['default_constellation_id'] ?? 0);
                                         $cTagline = isset($c['tagline']) ? (string)$c['tagline'] : '';
                                         $viewRel = $cId === (int)($projectAll['default_constellation_id'] ?? 0) ? '../index.php' : '../index.php?constellation_id=' . $cId;
+                                        $cGroup = extractConstellationGroup($c['name']);
+                                        $cGroupColor = $cGroup !== null ? ($constellationGroupColors[$cGroup] ?? '') : '';
                                         ?>
-                                        <tr class="constellation-row border-b border-gray-300 hover:bg-gray-50" 
-                                            data-id="<?php echo $cId; ?>" 
-                                            data-name="<?php echo htmlspecialchars(strtolower($c['name'])); ?>" 
+                                        <tr class="constellation-row border-b border-gray-300<?php echo $cGroupColor === '' ? ' hover:bg-gray-50' : ''; ?>"
+                                            data-id="<?php echo $cId; ?>"
+                                            data-name="<?php echo htmlspecialchars(strtolower($c['name'])); ?>"
                                             data-slug="<?php echo htmlspecialchars(strtolower($c['slug'] ?? '')); ?>"
                                             data-date-created="<?php echo isset($c['created_at']) ? strtotime($c['created_at']) : 0; ?>"
                                             data-updated-at="<?php echo isset($c['updated_at']) ? strtotime($c['updated_at']) : 0; ?>"
-                                            data-tagline="<?php echo htmlspecialchars(strtolower($cTagline)); ?>">
+                                            data-tagline="<?php echo htmlspecialchars(strtolower($cTagline)); ?>"
+                                            data-group="<?php echo htmlspecialchars($cGroup ?? ''); ?>"
+                                            <?php if ($cGroupColor !== ''): ?>style="background-color: <?php echo $cGroupColor; ?>"<?php endif; ?>>
                                             <?php 
                                             $cData = [
                                                 'id' => $cId,
@@ -902,11 +940,23 @@ $fieldMeta = [
                     <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                         <label for="default_constellation_id" class="block mb-1.5 text-gray-800 font-medium text-sm">Default Constellation</label>
                         <select id="default_constellation_id" name="default_constellation_id" class="select select-bordered select-sm w-full bg-white">
-                            <?php foreach ($constellations as $c): ?>
+                            <?php
+                            $currentOptgroup = null;
+                            $inOptgroup = false;
+                            foreach ($constellations as $c):
+                                $g = extractConstellationGroup($c['name']);
+                                if ($g !== $currentOptgroup) {
+                                    if ($inOptgroup) { echo '</optgroup>'; $inOptgroup = false; }
+                                    if ($g !== null) { echo '<optgroup label="' . htmlspecialchars($g) . '">'; $inOptgroup = true; }
+                                    $currentOptgroup = $g;
+                                }
+                            ?>
                                 <option value="<?php echo (int)$c['id']; ?>" <?php echo (isset($projectAll['default_constellation_id']) && (int)$projectAll['default_constellation_id'] === (int)$c['id']) ? 'selected' : ''; ?>>
                                     [ID: <?php echo (int)$c['id']; ?>] <?php echo htmlspecialchars($c['name']); ?>
                                 </option>
-                            <?php endforeach; ?>
+                            <?php endforeach;
+                            if ($inOptgroup) echo '</optgroup>';
+                            ?>
                         </select>
                         <span class="text-xs text-gray-500 mt-1 block">Choose which constellation is shown at the root of the website. The chosen constellation will also have its name and tagline synced with the "App name" and "Description" fields below.</span>
                     </div>
@@ -1850,13 +1900,25 @@ $fieldMeta = [
                 <div id="create-user-constellations-section" class="mb-4">
                     <label class="block mb-1.5 text-gray-800 font-medium">Constellation access (Editors only)</label>
                     <div class="border border-gray-200 rounded p-3 bg-white max-h-48 overflow-y-auto">
-                        <?php foreach ($constellations as $c): ?>
-                            <label class="flex items-center gap-2 py-1 text-sm cursor-pointer hover:bg-gray-50 rounded px-2">
+                        <?php
+                        $prevGroup = false;
+                        foreach ($constellations as $c):
+                            $g = extractConstellationGroup($c['name']);
+                            $bgColor = $g !== null ? ($constellationGroupColors[$g] ?? '') : '';
+                            if ($g !== $prevGroup) {
+                                if ($prevGroup !== false && $prevGroup !== null) echo '</div>';
+                                if ($g !== null) echo '<div class="rounded mb-1 mt-1 px-1" style="background-color: ' . htmlspecialchars($constellationGroupColors[$g] ?? '') . '">';
+                                $prevGroup = $g;
+                            }
+                        ?>
+                            <label class="flex items-center gap-2 py-1 text-sm cursor-pointer hover:opacity-80 rounded px-2">
                                 <input type="checkbox" name="constellation_ids[]" value="<?php echo (int)$c['id']; ?>" class="rounded border-gray-300">
                                 <span class="font-mono text-gray-600"><?php echo (int)$c['id']; ?></span>
                                 <span class="text-gray-800"><?php echo htmlspecialchars($c['name']); ?></span>
                             </label>
-                        <?php endforeach; ?>
+                        <?php endforeach;
+                        if ($prevGroup !== false && $prevGroup !== null) echo '</div>';
+                        ?>
                     </div>
                     <span class="text-xs text-gray-500 mt-1 block">Editors can only see and edit nodes in the constellations checked above. Admins see all constellations.</span>
                 </div>
@@ -1885,7 +1947,7 @@ $fieldMeta = [
                 </div>
 
                 <div class="mb-4">
-                    <label for="create-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">URL Slug (Optional)</label>
+                    <label for="create-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">URL Slug</label>
                     <input type="text" id="create-constellation-slug" name="slug" placeholder="e.g. archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     <span id="create-constellation-slug-error" class="text-xs text-red-600 mt-1 hidden">This slug is already in use.</span>
                     <span class="text-xs text-gray-500 mt-1 block">Custom URL path. If left blank, one will be generated from the name. Letters, numbers, and hyphens only.</span>
@@ -1959,13 +2021,24 @@ $fieldMeta = [
                 <div id="modal-user-constellations-section" class="mb-4 hidden">
                     <label class="block mb-1.5 text-gray-800 font-medium">Constellation access (Editors only)</label>
                     <div class="border border-gray-200 rounded p-3 bg-white max-h-48 overflow-y-auto">
-                        <?php foreach ($constellations as $c): ?>
-                            <label class="flex items-center gap-2 py-1 text-sm cursor-pointer hover:bg-gray-50 rounded px-2">
+                        <?php
+                        $prevGroup2 = false;
+                        foreach ($constellations as $c):
+                            $g2 = extractConstellationGroup($c['name']);
+                            if ($g2 !== $prevGroup2) {
+                                if ($prevGroup2 !== false && $prevGroup2 !== null) echo '</div>';
+                                if ($g2 !== null) echo '<div class="rounded mb-1 mt-1 px-1" style="background-color: ' . htmlspecialchars($constellationGroupColors[$g2] ?? '') . '">';
+                                $prevGroup2 = $g2;
+                            }
+                        ?>
+                            <label class="flex items-center gap-2 py-1 text-sm cursor-pointer hover:opacity-80 rounded px-2">
                                 <input type="checkbox" name="constellation_ids[]" value="<?php echo (int)$c['id']; ?>" class="modal-user-constellation-checkbox rounded border-gray-300">
                                 <span class="font-mono text-gray-600"><?php echo (int)$c['id']; ?></span>
                                 <span class="text-gray-800"><?php echo htmlspecialchars($c['name']); ?></span>
                             </label>
-                        <?php endforeach; ?>
+                        <?php endforeach;
+                        if ($prevGroup2 !== false && $prevGroup2 !== null) echo '</div>';
+                        ?>
                     </div>
                 </div>
                 
@@ -1993,15 +2066,15 @@ $fieldMeta = [
                 </div>
 
                 <div class="mb-4">
-                    <label for="modal-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">URL Slug (Optional)</label>
+                    <label for="modal-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
+                    <input type="text" id="modal-constellation-tagline" name="tagline" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div class="mb-4">
+                    <label for="modal-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">URL Slug</label>
                     <input type="text" id="modal-constellation-slug" name="slug" placeholder="e.g. archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     <span id="modal-constellation-slug-error" class="text-xs text-red-600 mt-1 hidden">This slug is already in use.</span>
                     <span class="text-xs text-gray-500 mt-1 block">Custom URL path. If left blank, one will be generated from the name. Letters, numbers, and hyphens only.</span>
-                </div>
-                
-                <div class="mb-4">
-                    <label for="modal-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
-                    <input type="text" id="modal-constellation-tagline" name="tagline" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                 </div>
 
                 <div class="mb-4">
@@ -2040,7 +2113,7 @@ $fieldMeta = [
                 </div>
 
                 <div class="mb-4">
-                    <label for="duplicate-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">New URL Slug (Optional)</label>
+                    <label for="duplicate-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">New URL Slug</label>
                     <input type="text" id="duplicate-constellation-slug" name="slug" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     <span id="duplicate-constellation-slug-error" class="text-xs text-red-600 mt-1 hidden">This slug is already in use.</span>
                 </div>

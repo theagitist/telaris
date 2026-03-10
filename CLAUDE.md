@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Telaris** — a 3D interactive node network visualization application. The PHP/MySQL backend serves data through a REST API; the frontend renders a Three.js 3D scene with nodes, connections, and themes directly in the browser.
 
-Current version: **5.3** (tracked in `VERSION` file).
+Current version: **5.4.7** (tracked in `VERSION` file).
 
 ## Tech Stack
 
@@ -41,16 +41,17 @@ All code uses `declare(strict_types=1)`.
 - `admin/setup.php` — one-time web-based setup wizard
 
 **Core includes:**
-- `config.php` — defines `DB_*` constants and `UPLOAD_DIR`; also serves as a REST endpoint when accessed directly (returns the default API key)
-- `inc/db.php` — **all** database logic lives here (connection, queries, runtime migrations). Never bypass this file to touch the DB. The `getDB()` function returns a singleton PDO and auto-runs `db_run_runtime_migrations()` on first connection.
+- `config.php` — defines `DB_*` constants and `UPLOAD_DIR` (not committed; `config_default.php` is the committed template)
+- `inc/db.php` — **all** database logic lives here (connection and queries). Never bypass this file to touch the DB. The `getDB()` function returns a singleton PDO.
 - `inc/bootstrap.php` — validates config/DB, detects locale (en/es/pt), resolves constellation from URL path (`/{id}`, `/{slug}`, or `?constellation_id=N`), sets template variables
 - `inc/main-view.php` — the HTML shell for the 3D visualization; receives variables from bootstrap
 
 **API directory (`api/`):**
 - Each resource has its own file: `nodes.php`, `connections.php`, `keywords.php`, `constellations.php`
+- `apikey.php` — public endpoint that returns the default API key (no auth required)
 - `auth.php` — validates `X-API-Key` header (or `Authorization: Bearer` or `?api_key=`)
 - `validate.php` — shared input validation helpers
-- All API endpoints require API key authentication via `requireApiKey()`
+- All API endpoints (except `apikey.php`) require API key authentication via `requireApiKey()`
 
 **Auth (`utils/auth.php`):**
 - Session-based auth for browser interfaces (`requireEditorOrAdminLogin()`, `requireAdminLogin()`)
@@ -73,30 +74,33 @@ main.js
 ```
 
 **Key globals injected by PHP into the page:**
-- `window.TELARIS_API_KEY` — fetched by JS from `config.php` on init
+- `window.TELARIS_API_KEY` — fetched by JS from `api/apikey.php` on init
 - `window.TELARIS_CONSTELLATION_ID` — current constellation integer ID
 - `window.TELARIS_THEME_ID` — theme identifier string (e.g. `'cosmic'`)
 - `window.TELARIS_APP_NAME`, `window.TELARIS_ALERT_MESSAGE` — localized strings
 
 ### Theme System
 
-Themes are defined in `js/themes.js` (exported `THEMES` object). Available themes: `cosmic`, `abstract`, `rectangles`, `stripes`. Each theme controls background elements, lighting, animations, and node icon type (`geometry` factories vs. image sprites/planes). Each constellation has a `theme` column in the DB.
+Themes are defined in `js/themes.js` (exported `THEMES` object). Available themes: `cosmic`, `abstract`, `rectangles`, `stripes`, `tech`. Each theme controls background elements, lighting, animations, and node icon type (`geometry` factories vs. image sprites/planes). Each constellation has a `theme` column in the DB.
 
 ### Database / Schema
 
-All tables use InnoDB + utf8mb4. Key relationships:
+All tables use InnoDB + utf8mb4. `SCHEMA.sql` is the sole source of truth for the schema (no runtime migrations).
+
+Key relationships:
 - `nodes` → `constellations` (many-to-one)
 - `keywords` → `constellations` (many-to-one, unique per constellation)
 - `node_keywords` — many-to-many junction between nodes and keywords
 - Connections between nodes are **computed** (not stored) — any two nodes sharing a keyword are connected
 - `project_info` — one row per locale (en, es, pt) for all UI strings
 - `user_constellations` — links editor users to permitted constellations
+- `api_keys` — API keys with name, description, is_active flag, and usage tracking
 
-**Runtime migrations** are in `db_run_runtime_migrations()` in `inc/db.php` — schema changes are applied automatically on first DB connection, no manual migration step needed.
+**Node fields of note:** `image_url`, `video_url`, `audio_url` (with `audio_autoplay` and `audio_loop` flags), `embed_code`, `node_type` (ENUM: `object` or `portal`), `target_constellation_id` (for portal nodes), `is_accentuated`.
 
 ### File Uploads
 
-Uploaded images and MP4 videos are stored in `uploads/`. The `UPLOAD_DIR` constant points to this directory. Nodes support either an image or a video (mutually exclusive).
+Uploaded images, MP4 videos, and audio files are stored in `uploads/`. The `UPLOAD_DIR` constant points to this directory. Nodes can have an image, video, audio, and/or embed code.
 
 ### Localization
 
