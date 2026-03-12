@@ -724,18 +724,46 @@ class TelarisNetwork {
 
     initGlitchyGrid() {
         this.glitchyGrid = new THREE.Group();
-        const size = 100;
+        const size = 80;
         const divisions = 20;
-        const gridHelper = new THREE.GridHelper(size, divisions, 0x222222, 0x111111);
-        gridHelper.rotation.x = Math.PI / 2; // Face forward
-        gridHelper.position.z = -30;
-        this.glitchyGrid.add(gridHelper);
+        const half = size / 2;
+        const colorCenter = 0x444444;
+        const colorGrid   = 0x222222;
 
-        // Add a second back grid for parallax
-        const gridHelper2 = new THREE.GridHelper(size * 2, divisions, 0x111111, 0x080808);
-        gridHelper2.rotation.x = Math.PI / 2;
-        gridHelper2.position.z = -60;
-        this.glitchyGrid.add(gridHelper2);
+        // 6 faces of a cube surrounding the nodes
+        // Floor (Y = -half)
+        const floor = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
+        floor.position.y = -half;
+        this.glitchyGrid.add(floor);
+
+        // Ceiling (Y = +half)
+        const ceiling = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
+        ceiling.position.y = half;
+        this.glitchyGrid.add(ceiling);
+
+        // Back wall (Z = -half)
+        const back = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
+        back.rotation.x = Math.PI / 2;
+        back.position.z = -half;
+        this.glitchyGrid.add(back);
+
+        // Front wall (Z = +half)
+        const front = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
+        front.rotation.x = Math.PI / 2;
+        front.position.z = half;
+        this.glitchyGrid.add(front);
+
+        // Left wall (X = -half)
+        const left = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
+        left.rotation.z = Math.PI / 2;
+        left.position.x = -half;
+        this.glitchyGrid.add(left);
+
+        // Right wall (X = +half)
+        const right = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
+        right.rotation.z = Math.PI / 2;
+        right.position.x = half;
+        this.glitchyGrid.add(right);
 
         this.glitchyGrid.visible = !!(this.currentTheme && this.currentTheme.background.grid);
         this.bgScene.add(this.glitchyGrid);
@@ -743,19 +771,18 @@ class TelarisNetwork {
 
     updateGlitchyGrid(dt) {
         if (!this.glitchyGrid || !this.glitchyGrid.visible) return;
-        
-        // Steady slow movement
-        this.glitchyGrid.children.forEach((grid, i) => {
-            grid.rotation.z += dt * (0.01 + i * 0.005);
-        });
+
+        // Slow rotation of the whole cube
+        this.glitchyGrid.rotation.x += dt * 0.008;
+        this.glitchyGrid.rotation.y += dt * 0.012;
 
         // Occasional twitch
         if (Math.random() < 0.01) {
             const twitchX = (Math.random() - 0.5) * 0.5;
             const twitchY = (Math.random() - 0.5) * 0.5;
             this.glitchyGrid.position.set(twitchX, twitchY, 0);
-            
-            // Randomly hide/show one grid for a frame
+
+            // Randomly hide/show one face for a frame
             const target = this.glitchyGrid.children[Math.floor(Math.random() * this.glitchyGrid.children.length)];
             target.visible = false;
             setTimeout(() => { target.visible = true; }, 50);
