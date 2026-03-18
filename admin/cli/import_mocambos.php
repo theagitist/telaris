@@ -419,7 +419,7 @@ if ($noMedia) {
             $tags = $item['tags'] ?? [];
             if (!is_array($tags)) $tags = [];
 
-            $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/permalink/';
+            $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . ($mucuaSlug !== '' ? $mucuaSlug . '/' : '') . 'permalink/';
             $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . ($item['slug'] ?? '') : 'acervo/' . ($item['slug'] ?? '');
 
             $animation = json_encode([
@@ -505,7 +505,7 @@ if ($noMedia) {
             $tags = $item['tags'] ?? [];
             if (!is_array($tags)) $tags = [];
 
-            $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/permalink/';
+            $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . ($mucuaSlug !== '' ? $mucuaSlug . '/' : '') . 'permalink/';
             $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . ($item['slug'] ?? '') : 'acervo/' . ($item['slug'] ?? '');
 
             $animation = json_encode([
@@ -573,7 +573,7 @@ if ($noMedia) {
         $mediaType = $item['type'] ?? 'arquivo';
         $counter = ($idx + 1) . "/{$expectedCount}";
 
-        $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/permalink/';
+        $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . ($mucuaSlug !== '' ? $mucuaSlug . '/' : '') . 'permalink/';
         $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . $itemSlug : 'acervo/' . $itemSlug;
 
         $animation = json_encode([

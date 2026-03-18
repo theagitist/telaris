@@ -95,7 +95,7 @@ function mocambos_apply_additions(
     foreach ($additions as $i => $apiData) {
         $item = $apiData['item'];
         $slug = $item['slug'] ?? '';
-        $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/permalink/';
+        $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . ($mucuaSlug !== '' ? $mucuaSlug . '/' : '') . 'permalink/';
         $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . $slug : 'acervo/' . $slug;
 
         $animation = json_encode([
