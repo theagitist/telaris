@@ -1942,21 +1942,48 @@ class TelarisNetwork {
             .then(json => Array.isArray(json) ? json : []);
 
         if (clusterKey) {
-            // Cluster drill-in: use portal-style transition (zoom out → loading torus → zoom in)
-            this._portalTransition = {
-                phase: 'camera_fade_out',
-                startTime: performance.now(),
-                duration: 800,
-                cameraEnd: portalPos.clone(),
-                targetEnd: portalPos.clone(),
-                cameraStart: this.camera.position.clone(),
-                targetStart: this.controls.target.clone(),
-                targetId,
-                clusterKey,
-                dataPromise,
-                targetFadeInDuration: 1000
-            };
+            // Cluster drill-in: show torus, load data, warp, fade in
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (loadingOverlay) {
+                loadingOverlay.style.display = 'flex';
+                loadingOverlay.style.opacity = '1';
+                loadingOverlay.style.pointerEvents = 'auto';
+                if (window._loadingTorus) window._loadingTorus.reset();
+            }
             this.controls.enabled = false;
+            this.clearAll();
+            this._portalFadeInMultiplier = 0;
+
+            dataPromise.then(async (nodeData) => {
+                await this.loadDataForConstellation(targetId, nodeData, false, false, false, clusterKey);
+
+                this.navigationStack.push({ constellationId: targetId, clusterKey });
+                this.updateBackButtonVisibility();
+                let navUrl = `?constellation_id=${targetId}`;
+                if (clusterKey) navUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
+                window.history.pushState({}, '', navUrl);
+
+                const fadeIn = () => {
+                    if (loadingOverlay) {
+                        loadingOverlay.style.opacity = '0';
+                        loadingOverlay.style.pointerEvents = 'none';
+                        setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
+                    }
+                    this._portalTransition = { phase: 'fade_in', fadeInStartTime: performance.now(), fadeInDuration: 1000 };
+                    this._portalFadeInMultiplier = 0;
+                };
+                if (window._loadingTorus) {
+                    window._loadingTorus.startWarp(fadeIn);
+                } else {
+                    fadeIn();
+                }
+            }).catch(err => {
+                console.error('Cluster transition failed:', err);
+                if (loadingOverlay) { loadingOverlay.style.opacity = '0'; loadingOverlay.style.pointerEvents = 'none'; setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300); }
+                this._portalTransition = null;
+                this._portalFadeInMultiplier = undefined;
+                this.controls.enabled = true;
+            });
         } else {
             // Portal transition: zoom + loading torus + fade-in (original flow)
             this._portalTransition = {
