@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     mucua_name VARCHAR(255) NULL,
     media_type VARCHAR(50) NULL,
     source_created_at VARCHAR(30) NULL,
+    import_slug VARCHAR(255) NULL,
     -- NEW FIELDS END HERE --
     created_by VARCHAR(255) NULL,
     animation JSON NOT NULL DEFAULT (JSON_OBJECT('radius', 5.0, 'theta', 0, 'phi', 0, 'speed', 0.0025, 'phase', 0)),
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     INDEX idx_constellation_id (constellation_id),
     INDEX idx_target_constellation_id (target_constellation_id),
     INDEX idx_created_by (created_by),
+    INDEX idx_import_slug (constellation_id, import_slug),
     FULLTEXT INDEX idx_name_desc (name, description)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

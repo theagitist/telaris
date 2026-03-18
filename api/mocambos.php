@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../utils/auth.php';
 require_once __DIR__ . '/../inc/mocambos-download.php';
+require_once __DIR__ . '/../inc/mocambos-sync.php';
 
 if (php_sapi_name() !== 'cli') {
     header('Content-Type: application/json');
@@ -300,6 +301,7 @@ try {
         db_ensure_constellations_import_source_column();
         db_ensure_nodes_icon_url_column();
         db_ensure_nodes_clustering_columns();
+        db_ensure_nodes_import_slug_column();
 
         $allConstellations = db_get_constellations();
 
@@ -429,10 +431,32 @@ try {
             $writeLog('INFO', "--- Galaxia: {$galaxiaSlug} (smid={$galaxiaSmid}), mucua: {$mucuaSlug}, items: " . count($galaxiaItems) . " ---");
             $streamMsg('info', "Processing galaxia: {$galaxiaSlug} (" . count($galaxiaItems) . " items)");
 
+            $isIncremental = false;
             if ($constellationId !== null) {
-                $writeLog('INFO', "Existing constellation found (ID {$constellationId}), clearing nodes for re-import");
-                $streamMsg('info', "Re-importing — clearing existing nodes...");
-                db_clear_constellation_nodes($constellationId);
+                $writeLog('INFO', "Existing constellation found (ID {$constellationId}), checking for incremental sync");
+                $streamMsg('info', "Re-importing — computing diff...");
+
+                // Backfill import_slug for nodes that don't have it
+                $backfilled = db_backfill_import_slugs($constellationId);
+                if ($backfilled > 0) {
+                    $streamMsg('info', "Backfilled {$backfilled} import slugs");
+                }
+
+                $existingBySlug = db_get_nodes_by_import_slug($constellationId);
+                $diff = mocambos_compute_diff($existingBySlug, $galaxiaItems, $mucuaNameMap);
+                $streamMsg('info', "Diff: " . count($diff['added']) . " new, " . count($diff['modified']) . " modified, " . count($diff['deleted']) . " deleted, " . $diff['unchanged'] . " unchanged");
+
+                if (!empty($diff['deleted'])) {
+                    $streamMsg('info', "Deleting " . count($diff['deleted']) . " removed items...");
+                    mocambos_apply_deletions($diff['deleted'], $constellationId, getDB());
+                }
+                if (!empty($diff['modified'])) {
+                    $streamMsg('info', "Updating " . count($diff['modified']) . " modified items...");
+                    mocambos_apply_modifications($diff['modified'], $constellationId, getDB());
+                }
+                $isIncremental = true;
+                // $diff['added'] will be processed in Phase 1 below (same as new items)
+                $galaxiaItems = array_map(fn($a) => $a['item'], $diff['added']);
             } else {
                 $galInfo = $galaxiaInfoMap[$galaxiaSlug] ?? [];
                 $galaxiaName = $galInfo['name'] ?? $galaxiaSlug;
@@ -470,12 +494,12 @@ try {
             $expectedCount = count($galaxiaItems);
             $importedCount = 0;
 
-            // ── Phase 1: Fast batch insert of all nodes ──────────────
-            $streamMsg('info', "Phase 1: Creating {$expectedCount} nodes...");
+            // ── Phase 1: Fast batch insert of new nodes ─────────────
+            $streamMsg('info', $isIncremental ? "Adding {$expectedCount} new nodes..." : "Phase 1: Creating {$expectedCount} nodes...");
             $pdo = getDB();
             $insertStmt = $pdo->prepare("
-                INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, audio_autoplay, video_autoplay, mucua_name, media_type, source_created_at)
-                VALUES (:name, :description, :url, :animation, :constellation_id, 'object', 1, 1, :mucua_name, :media_type, :source_created_at)
+                INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, audio_autoplay, video_autoplay, mucua_name, media_type, source_created_at, import_slug)
+                VALUES (:name, :description, :url, :animation, :constellation_id, 'object', 1, 1, :mucua_name, :media_type, :source_created_at, :import_slug)
             ");
             $kwInsertStmt = $pdo->prepare("INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :cid) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)");
             $kwLookupStmt = $pdo->prepare("SELECT id FROM keywords WHERE keyword = :keyword AND constellation_id = :cid LIMIT 1");
@@ -515,6 +539,7 @@ try {
                         ':mucua_name' => $resolvedMucuaName,
                         ':media_type' => $itemMediaType,
                         ':source_created_at' => $item['created'] ?? null,
+                        ':import_slug' => $item['slug'] ?? null,
                     ]);
                     $nodeId = (int)$pdo->lastInsertId();
                     $nodeIdMap[$itemIndex] = $nodeId;

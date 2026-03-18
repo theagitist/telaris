@@ -227,6 +227,74 @@ function db_ensure_nodes_clustering_columns(): void {
     }
 }
 
+/** Ensure nodes.import_slug column exists. */
+function db_ensure_nodes_import_slug_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'import_slug'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE nodes ADD COLUMN import_slug VARCHAR(255) NULL AFTER source_created_at, ADD INDEX idx_import_slug (constellation_id, import_slug)");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_nodes_import_slug_column: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Get all nodes for a constellation keyed by import_slug.
+ * Returns [slug => ['id' => int, 'name' => string, 'description' => string, 'media_type' => string, 'mucua_name' => string, 'source_created_at' => string, 'keywords' => string[]]].
+ */
+function db_get_nodes_by_import_slug(int $constellationId): array {
+    db_ensure_nodes_import_slug_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT id, name, description, import_slug, media_type, mucua_name, source_created_at, url FROM nodes WHERE constellation_id = :cid AND import_slug IS NOT NULL");
+    $stmt->execute([':cid' => $constellationId]);
+    $nodes = $stmt->fetchAll();
+
+    $result = [];
+    foreach ($nodes as $node) {
+        $slug = $node['import_slug'];
+        if ($slug === '' || $slug === null) continue;
+        $keywords = db_get_keywords_for_node((int)$node['id']);
+        $result[$slug] = [
+            'id' => (int)$node['id'],
+            'name' => $node['name'] ?? '',
+            'description' => $node['description'] ?? '',
+            'media_type' => $node['media_type'] ?? '',
+            'mucua_name' => $node['mucua_name'] ?? '',
+            'source_created_at' => $node['source_created_at'] ?? '',
+            'keywords' => $keywords,
+            'url' => $node['url'] ?? '',
+        ];
+    }
+    return $result;
+}
+
+/**
+ * Backfill import_slug for existing imported nodes by extracting from URL.
+ */
+function db_backfill_import_slugs(int $constellationId): int {
+    db_ensure_nodes_import_slug_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT id, url FROM nodes WHERE constellation_id = :cid AND import_slug IS NULL AND url IS NOT NULL AND url != ''");
+    $stmt->execute([':cid' => $constellationId]);
+    $updateStmt = $pdo->prepare("UPDATE nodes SET import_slug = :slug WHERE id = :id");
+    $count = 0;
+    while ($row = $stmt->fetch()) {
+        // URL format: .../permalink/acervo/SLUG or .../permalink/blog/artigo/SLUG
+        $url = $row['url'];
+        $slug = basename($url);
+        if ($slug !== '' && $slug !== $url) {
+            $updateStmt->execute([':slug' => $slug, ':id' => $row['id']]);
+            $count++;
+        }
+    }
+    return $count;
+}
+
 /** Set clustering metadata on a node. */
 function db_set_node_clustering_metadata(int $nodeId, ?string $mucuaName, ?string $mediaType, ?string $sourceCreatedAt): void {
     $pdo = getDB();
