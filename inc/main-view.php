@@ -19,7 +19,7 @@ header("X-Content-Type-Options: nosniff");
     <meta property="og:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <meta name="twitter:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
     <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
-    <script src="js/tailwind.min.js?v=5.4.7"></script>
+    <script src="js/tailwind.min.js?v=6.0.0"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
     <style>
         :root {
@@ -286,7 +286,7 @@ header("X-Content-Type-Options: nosniff");
                         if ($loc === ($currentLocale ?? 'en')) {
                             $links[] = '<span class="text-[#00ffcc]">' . strtoupper($loc) . '</span>';
                         } else {
-                            $links[] = '<a href="javascript:void(0)" onclick="switchLang(\'' . $loc . '\')" class="opacity-40 hover:opacity-100 hover:text-[#00ffcc] transition-all cursor-pointer">' . strtoupper($loc) . '</a>';
+                            $links[] = '<a href="#" class="lang-switch opacity-40 hover:opacity-100 hover:text-[#00ffcc] transition-all cursor-pointer" data-lang="' . $loc . '">' . strtoupper($loc) . '</a>';
                         }
                     }
                     echo implode(' <span class="opacity-20">|</span> ', $links);
@@ -308,11 +308,14 @@ header("X-Content-Type-Options: nosniff");
     </div>
 
     <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
-        function switchLang(lang) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('lang', lang);
-            window.location.href = url.toString();
-        }
+        document.querySelectorAll('.lang-switch').forEach(function(el) {
+            el.addEventListener('click', function(e) {
+                e.preventDefault();
+                var url = new URL(window.location.href);
+                url.searchParams.set('lang', el.dataset.lang);
+                window.location.href = url.toString();
+            });
+        });
         window.TELARIS_APP_NAME = <?php echo json_encode($projectName); ?>;
         window.TELARIS_IFRAME_BACK_TEXT = <?php echo json_encode($projectIframeBackText ?? 'Go back'); ?>;
         window.TELARIS_ALERT_MESSAGE = <?php echo json_encode($projectAlertMessage ?? "Close this window when you're done to go back to {APPNAME}."); ?>;
@@ -399,13 +402,13 @@ header("X-Content-Type-Options: nosniff");
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "./telaris-network.js": "./js/telaris-network.js?v=5.4.7",
-                "./network-manager.js": "./js/network-manager.js?v=5.4.7",
-                "./geometry-manager.js": "./js/geometry-manager.js?v=5.4.7",
-                "./api.js": "./js/api.js?v=5.4.7",
-                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=5.4.7",
-                "./themes.js": "./js/themes.js?v=5.4.7",
-                "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=5.4.7"
+                "./telaris-network.js": "./js/telaris-network.js?v=6.0.0",
+                "./network-manager.js": "./js/network-manager.js?v=6.0.0",
+                "./geometry-manager.js": "./js/geometry-manager.js?v=6.0.0",
+                "./api.js": "./js/api.js?v=6.0.0",
+                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=6.0.0",
+                "./themes.js": "./js/themes.js?v=6.0.0",
+                "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=6.0.0"
             }
         }
     </script>
@@ -499,7 +502,7 @@ header("X-Content-Type-Options: nosniff");
             };
         }
     </script>
-    <script src="js/telaris-soundscape.js?v=5.4.7"></script>
-    <script type="module" src="js/main.js?v=5.4.7"></script>
+    <script src="js/telaris-soundscape.js?v=6.0.0"></script>
+    <script type="module" src="js/main.js?v=6.0.0"></script>
 </body>
 </html>
