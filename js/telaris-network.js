@@ -1942,48 +1942,10 @@ class TelarisNetwork {
             .then(json => Array.isArray(json) ? json : []);
 
         if (clusterKey) {
-            // Cluster drill-in: show torus, load data, warp, fade in
-            const loadingOverlay = document.getElementById('loading-overlay');
-            if (loadingOverlay) {
-                loadingOverlay.style.display = 'flex';
-                loadingOverlay.style.opacity = '1';
-                loadingOverlay.style.pointerEvents = 'auto';
-                if (window._loadingTorus) window._loadingTorus.reset();
-            }
-            this.controls.enabled = false;
-            this.clearAll();
-            this._portalFadeInMultiplier = 0;
-
-            dataPromise.then(async (nodeData) => {
-                await this.loadDataForConstellation(targetId, nodeData, false, false, false, clusterKey);
-
-                this.navigationStack.push({ constellationId: targetId, clusterKey });
-                this.updateBackButtonVisibility();
-                let navUrl = `?constellation_id=${targetId}`;
-                if (clusterKey) navUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
-                window.history.pushState({}, '', navUrl);
-
-                const fadeIn = () => {
-                    if (loadingOverlay) {
-                        loadingOverlay.style.opacity = '0';
-                        loadingOverlay.style.pointerEvents = 'none';
-                        setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
-                    }
-                    this._portalTransition = { phase: 'fade_in', fadeInStartTime: performance.now(), fadeInDuration: 1000 };
-                    this._portalFadeInMultiplier = 0;
-                };
-                if (window._loadingTorus) {
-                    window._loadingTorus.startWarp(fadeIn);
-                } else {
-                    fadeIn();
-                }
-            }).catch(err => {
-                console.error('Cluster transition failed:', err);
-                if (loadingOverlay) { loadingOverlay.style.opacity = '0'; loadingOverlay.style.pointerEvents = 'none'; setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300); }
-                this._portalTransition = null;
-                this._portalFadeInMultiplier = undefined;
-                this.controls.enabled = true;
-            });
+            // Cluster drill-in
+            this.navigationStack.push({ constellationId: targetId, clusterKey });
+            this.updateBackButtonVisibility();
+            this._clusterLoading(targetId, clusterKey, dataPromise);
         } else {
             // Portal transition: zoom + loading torus + fade-in (original flow)
             this._portalTransition = {
@@ -2004,10 +1966,10 @@ class TelarisNetwork {
     }
 
     /**
-     * Run transition BACK: current constellation fades out while target constellation fades in.
+     * Unified cluster/back loading: show overlay, clear scene, load data, hide overlay.
+     * Does NOT use _portalFadeInMultiplier — nodes render at full opacity.
      */
-    runBackTransition(targetId) {
-        // Show loading overlay immediately
+    async _clusterLoading(constellationId, clusterKey, dataPromise, skipPushState = false) {
         const loadingOverlay = document.getElementById('loading-overlay');
         if (loadingOverlay) {
             loadingOverlay.style.display = 'flex';
@@ -2015,39 +1977,53 @@ class TelarisNetwork {
             loadingOverlay.style.pointerEvents = 'auto';
             if (window._loadingTorus) window._loadingTorus.reset();
         }
-
         this.controls.enabled = false;
         this.clearAll();
-        this._portalFadeInMultiplier = 0;
 
-        apiFetch(`api/nodes.php?constellation_id=${targetId}`)
-            .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
-            .then(json => Array.isArray(json) ? json : [])
-            .then(async (nodeData) => {
-                await this.loadDataForConstellation(targetId, nodeData);
+        try {
+            const nodeData = await dataPromise;
+            await this.loadDataForConstellation(constellationId, nodeData, false, false, false, clusterKey);
 
-                // Warp torus then fade in new scene
-                const fadeIn = () => {
-                    if (loadingOverlay) {
-                        loadingOverlay.style.opacity = '0';
-                        loadingOverlay.style.pointerEvents = 'none';
-                        setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
-                    }
-                    this._portalTransition = { phase: 'fade_in', fadeInStartTime: performance.now(), fadeInDuration: 1000 };
-                    this._portalFadeInMultiplier = 0;
-                };
-                if (window._loadingTorus) {
-                    window._loadingTorus.startWarp(fadeIn);
-                } else {
-                    fadeIn();
+            if (!skipPushState) {
+                let navUrl = `?constellation_id=${constellationId}`;
+                if (clusterKey) navUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
+                window.history.pushState({}, '', navUrl);
+            }
+
+            // Hide overlay (with torus warp if available)
+            const reveal = () => {
+                if (loadingOverlay) {
+                    loadingOverlay.style.opacity = '0';
+                    loadingOverlay.style.pointerEvents = 'none';
+                    setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
                 }
-            }).catch(err => {
-                console.error('Back transition data fetch failed:', err);
-                if (loadingOverlay) { loadingOverlay.style.opacity = '0'; loadingOverlay.style.pointerEvents = 'none'; setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300); }
-                this._portalTransition = null;
-                this._portalFadeInMultiplier = undefined;
                 this.controls.enabled = true;
-            });
+            };
+            if (window._loadingTorus) {
+                window._loadingTorus.startWarp(reveal);
+            } else {
+                reveal();
+            }
+        } catch (err) {
+            console.error('Cluster loading failed:', err);
+            if (loadingOverlay) {
+                loadingOverlay.style.opacity = '0';
+                loadingOverlay.style.pointerEvents = 'none';
+                setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
+            }
+            this.controls.enabled = true;
+        }
+    }
+
+    /**
+     * Run transition BACK: show overlay, load data, reveal.
+     */
+    runBackTransition(targetId) {
+        const fetchUrl = `api/nodes.php?constellation_id=${targetId}`;
+        const dataPromise = apiFetch(fetchUrl)
+            .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
+            .then(json => Array.isArray(json) ? json : []);
+        this._clusterLoading(targetId, null, dataPromise);
     }
 
     /**
@@ -2137,56 +2113,12 @@ class TelarisNetwork {
      * Transition to a cluster view using back-style cross-fade (for breadcrumb/back navigation).
      */
     transitionToCluster(constellationId, clusterKey, isBack = false) {
-        // Show loading overlay immediately
-        const loadingOverlay = document.getElementById('loading-overlay');
-        if (loadingOverlay) {
-            loadingOverlay.style.display = 'flex';
-            loadingOverlay.style.opacity = '1';
-            loadingOverlay.style.pointerEvents = 'auto';
-            if (window._loadingTorus) window._loadingTorus.reset();
-        }
-
-        this.controls.enabled = false;
-        this.clearAll();
-        this._portalFadeInMultiplier = 0;
-
         let fetchUrl = `api/nodes.php?constellation_id=${constellationId}`;
         if (clusterKey) fetchUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
-
-        apiFetch(fetchUrl)
+        const dataPromise = apiFetch(fetchUrl)
             .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
-            .then(json => Array.isArray(json) ? json : [])
-            .then(async (nodeData) => {
-                await this.loadDataForConstellation(constellationId, nodeData, false, false, false, clusterKey);
-
-                if (!isBack) {
-                    let navUrl = `?constellation_id=${constellationId}`;
-                    if (clusterKey) navUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
-                    window.history.pushState({}, '', navUrl);
-                }
-
-                // Warp torus then fade in
-                const fadeIn = () => {
-                    if (loadingOverlay) {
-                        loadingOverlay.style.opacity = '0';
-                        loadingOverlay.style.pointerEvents = 'none';
-                        setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
-                    }
-                    this._portalTransition = { phase: 'fade_in', fadeInStartTime: performance.now(), fadeInDuration: 1000 };
-                    this._portalFadeInMultiplier = 0;
-                };
-                if (window._loadingTorus) {
-                    window._loadingTorus.startWarp(fadeIn);
-                } else {
-                    fadeIn();
-                }
-            }).catch(err => {
-                console.error('Cluster transition failed:', err);
-                if (loadingOverlay) { loadingOverlay.style.opacity = '0'; loadingOverlay.style.pointerEvents = 'none'; setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300); }
-                this._portalTransition = null;
-                this._portalFadeInMultiplier = undefined;
-                this.controls.enabled = true;
-            });
+            .then(json => Array.isArray(json) ? json : []);
+        this._clusterLoading(constellationId, clusterKey, dataPromise, isBack);
     }
 
     /**
@@ -3790,60 +3722,23 @@ class TelarisNetwork {
         const nodeId = result.id;
 
         if ((clusterPath && clusterPath !== (this.currentClusterKey || '')) || (!clusterPath && this.currentClusterKey)) {
-            // Need to navigate to a different level — use torus loading transition
-            const loadingOverlay = document.getElementById('loading-overlay');
-            if (loadingOverlay) {
-                loadingOverlay.style.display = 'flex';
-                loadingOverlay.style.opacity = '1';
-                loadingOverlay.style.pointerEvents = 'auto';
-                if (window._loadingTorus) window._loadingTorus.reset();
+            // Navigate to a different level, then focus the node
+            let fetchUrl = `api/nodes.php?constellation_id=${cid}`;
+            if (clusterPath) fetchUrl += `&cluster=${encodeURIComponent(clusterPath)}`;
+            const dataPromise = apiFetch(fetchUrl)
+                .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to fetch')))
+                .then(json => Array.isArray(json) ? json : []);
+
+            if (clusterPath) {
+                this.navigationStack.push({ constellationId: cid, clusterKey: clusterPath });
+            } else {
+                this.navigationStack = [{ constellationId: cid, clusterKey: null }];
             }
-            this.controls.enabled = false;
-            this.clearAll();
-            this._portalFadeInMultiplier = 0;
+            this.updateBackButtonVisibility();
 
-            try {
-                let fetchUrl = `api/nodes.php?constellation_id=${cid}`;
-                if (clusterPath) fetchUrl += `&cluster=${encodeURIComponent(clusterPath)}`;
-                const resp = await apiFetch(fetchUrl);
-                if (!resp.ok) throw new Error('Failed to fetch');
-                const nodeData = await resp.json();
-
-                await this.loadDataForConstellation(cid, nodeData, false, false, false, clusterPath || null);
-
-                if (clusterPath) {
-                    this.navigationStack.push({ constellationId: cid, clusterKey: clusterPath });
-                    window.history.pushState({}, '', `?constellation_id=${cid}&cluster=${encodeURIComponent(clusterPath)}`);
-                } else {
-                    this.navigationStack = [{ constellationId: cid, clusterKey: null }];
-                    window.history.pushState({}, '', `?constellation_id=${cid}`);
-                }
-                this.updateBackButtonVisibility();
-
-                const fadeIn = () => {
-                    if (loadingOverlay) {
-                        loadingOverlay.style.opacity = '0';
-                        loadingOverlay.style.pointerEvents = 'none';
-                        setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
-                    }
-                    this._portalTransition = { phase: 'fade_in', fadeInStartTime: performance.now(), fadeInDuration: 1000 };
-                    this._portalFadeInMultiplier = 0;
-                    setTimeout(() => this._focusNodeById(nodeId), 1100);
-                };
-                if (window._loadingTorus) {
-                    window._loadingTorus.startWarp(fadeIn);
-                } else {
-                    fadeIn();
-                }
-            } catch (err) {
-                console.error('Navigate to search result failed:', err);
-                if (loadingOverlay) { loadingOverlay.style.opacity = '0'; loadingOverlay.style.pointerEvents = 'none'; setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300); }
-                this._portalTransition = null;
-                this._portalFadeInMultiplier = undefined;
-                this.controls.enabled = true;
-            }
+            await this._clusterLoading(cid, clusterPath || null, dataPromise);
+            setTimeout(() => this._focusNodeById(nodeId), 500);
         } else {
-            // Already at the right level — just focus the node
             this._focusNodeById(nodeId);
         }
     }
