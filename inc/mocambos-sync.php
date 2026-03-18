@@ -96,7 +96,7 @@ function mocambos_apply_additions(
         $item = $apiData['item'];
         $slug = $item['slug'] ?? '';
         $itemMucuaSlug = $mucuaSlugMap[$item['mucua_smid'] ?? ''] ?? '';
-        $nodeUrl = 'https://baobaxia.net/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlug . '/' . $slug;
+        $nodeUrl = $downloadBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlug . '/' . $slug;
 
         $animation = json_encode([
             'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,

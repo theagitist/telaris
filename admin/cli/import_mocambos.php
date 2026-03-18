@@ -422,7 +422,7 @@ if ($noMedia) {
             if (!is_array($tags)) $tags = [];
 
             $itemMucuaSlugForUrl = $mucuaSlugMap[$item['mucua_smid'] ?? ''] ?? '';
-            $nodeUrl = 'https://baobaxia.net/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . ($item['slug'] ?? '');
+            $nodeUrl = $downloadBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . ($item['slug'] ?? '');
 
             $animation = json_encode([
                 'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
@@ -508,7 +508,7 @@ if ($noMedia) {
             if (!is_array($tags)) $tags = [];
 
             $itemMucuaSlugForUrl = $mucuaSlugMap[$item['mucua_smid'] ?? ''] ?? '';
-            $nodeUrl = 'https://baobaxia.net/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . ($item['slug'] ?? '');
+            $nodeUrl = $downloadBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . ($item['slug'] ?? '');
 
             $animation = json_encode([
                 'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
@@ -577,7 +577,7 @@ if ($noMedia) {
 
         // Build frontend URL using slug aliases
         $itemMucuaSlugForUrl = $mucuaSlugMap[$item['mucua_smid'] ?? ''] ?? '';
-        $nodeUrl = 'https://baobaxia.net/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . $itemSlug;
+        $nodeUrl = $downloadBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . $itemSlug;
 
         $animation = json_encode([
             'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
