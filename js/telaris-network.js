@@ -1895,6 +1895,12 @@ class TelarisNetwork {
         this.connections = [];
         this.networkManager.setFocusedNode(null);
         if (this.tooltip) this.hideMainTooltip();
+        // Clear persistent tooltip labels
+        if (this.persistentTooltipNodeToDiv) {
+            this.persistentTooltipNodeToDiv.forEach(el => { if (el && el.parentNode) el.parentNode.removeChild(el); });
+            this.persistentTooltipNodeToDiv.clear();
+        }
+        if (this.persistentTooltipsContainer) this.persistentTooltipsContainer.innerHTML = '';
     }
 
     /** Get or create a full-screen overlay used for portal transition fade. */
@@ -1978,6 +1984,9 @@ class TelarisNetwork {
             if (window._loadingTorus) window._loadingTorus.reset();
         }
         this.controls.enabled = false;
+
+        // Wait for the overlay to paint before clearing the scene
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
         this.clearAll();
 
         try {
