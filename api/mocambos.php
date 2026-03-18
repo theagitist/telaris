@@ -457,6 +457,15 @@ try {
                 }
             }
 
+            // Set import_source immediately so it shows as imported even if aborted
+            $importSource = json_encode([
+                'source' => 'mocambos',
+                'api_base' => $apiBase,
+                'galaxia_slug' => $galaxiaSlug,
+                'mucua_slug' => $mucuaSlug,
+            ], JSON_THROW_ON_ERROR);
+            db_set_constellation_import_source($constellationId, $importSource);
+
             $expectedCount = count($galaxiaItems);
             $importedCount = 0;
 
@@ -644,15 +653,6 @@ try {
                     error_log('Mocambos import error for ' . $itemSlug . ': ' . $e->getMessage());
                 }
             }
-
-            // Set import_source on constellation
-            $importSource = json_encode([
-                'source' => 'mocambos',
-                'api_base' => $apiBase,
-                'galaxia_slug' => $galaxiaSlug,
-                'mucua_slug' => $mucuaSlug,
-            ], JSON_THROW_ON_ERROR);
-            db_set_constellation_import_source($constellationId, $importSource);
 
             // Verification: count nodes
             $actualNodes = db_get_nodes($constellationId);

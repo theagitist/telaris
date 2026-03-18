@@ -849,7 +849,8 @@ $fieldMeta = [
                                         $cId = (int)$c['id'];
                                         $isDefault = $cId === (int)($projectAll['default_constellation_id'] ?? 0);
                                         $cTagline = isset($c['tagline']) ? (string)$c['tagline'] : '';
-                                        $viewRel = $cId === (int)($projectAll['default_constellation_id'] ?? 0) ? '../index.php' : '../index.php?constellation_id=' . $cId;
+                                        $cSlug = isset($c['slug']) && $c['slug'] !== '' ? $c['slug'] : null;
+                                        $viewRel = $isDefault ? '../index.php' : ($cSlug !== null ? '../' . rawurlencode($cSlug) : '../index.php?constellation_id=' . $cId);
                                         $cGroup = extractConstellationGroup($c['name']);
                                         $cGroupColor = $cGroup !== null ? ($constellationGroupColors[$cGroup] ?? '') : '';
                                         ?>
