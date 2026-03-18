@@ -217,7 +217,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         const API_KEY = <?php echo $apiKey !== null ? json_encode($apiKey, JSON_THROW_ON_ERROR) : 'null'; ?>;
         const API_BASE = '../api/nodes.php';
         const CONSTELLATIONS_API = '../api/constellations.php';
-        const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'slug' => $c['slug']], $constellations), JSON_THROW_ON_ERROR); ?>;
+        const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'slug' => $c['slug'], 'import_source' => $c['import_source'] ?? null], $constellations), JSON_THROW_ON_ERROR); ?>;
 
         /** Constellations from API (all), populated at load for target dropdown when Portal is selected. */
         let allConstellations = [];
@@ -1121,6 +1121,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             document.getElementById('edit-image-file').value = '';
             document.getElementById('edit-audio-file').value = '';
             document.getElementById('edit-video-file').value = '';
+            document.getElementById('edit-icon-file').value = '';
 
             // Handle image fields
             const imageFileWrap = document.getElementById('edit-image-file-wrap');
@@ -1171,6 +1172,23 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 videoFileWrap.classList.remove('hidden');
                 videoExisting.classList.add('hidden');
                 videoUrlInput.value = node.video_url || '';
+            }
+
+            // Handle icon fields
+            const iconFileWrap = document.getElementById('edit-icon-file-wrap');
+            const iconExisting = document.getElementById('edit-icon-existing');
+            const iconExistingName = document.getElementById('edit-icon-existing-name');
+            const iconUrlInput = document.getElementById('edit-icon-url');
+
+            if (node.icon_url && node.icon_url.startsWith('uploads/')) {
+                iconFileWrap.classList.add('hidden');
+                iconExisting.classList.remove('hidden');
+                iconExistingName.value = node.icon_url.split('/').pop();
+                iconUrlInput.value = node.icon_url;
+            } else {
+                iconFileWrap.classList.remove('hidden');
+                iconExisting.classList.add('hidden');
+                iconUrlInput.value = node.icon_url || '';
             }
 
             // Set correct A/V tab and visibility
@@ -1238,7 +1256,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
             const imageFile = document.getElementById('edit-image-file').files[0];
             if (imageFile) formData.append('image_file', imageFile);
-            
+            formData.append('icon_url', document.getElementById('edit-icon-url').value.trim());
+            const iconFile = document.getElementById('edit-icon-file').files[0];
+            if (iconFile) formData.append('icon_file', iconFile);
+
             const activeType = document.getElementById('edit-av-type').value;
             if (activeType === 'audio') {
                 formData.append('audio_url', document.getElementById('edit-audio-url').value.trim());
@@ -1272,7 +1293,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             loader.classList.remove('hidden');
             
             // Only show progress if files are being uploaded
-            const hasFiles = formData.has('image_file') || formData.has('audio_file') || formData.has('video_file');
+            const hasFiles = formData.has('image_file') || formData.has('audio_file') || formData.has('video_file') || formData.has('icon_file');
             if (hasFiles) progressWrap.classList.remove('hidden');
 
             const xhr = new XMLHttpRequest();
@@ -1369,6 +1390,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         if (type === 'image') node.image_url = '';
                         else if (type === 'audio') node.audio_url = '';
                         else if (type === 'video') node.video_url = '';
+                        else if (type === 'icon') node.icon_url = '';
                     }
                     
                 } catch (error) {
@@ -1464,7 +1486,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
             const imageFile = document.getElementById('node-image-file').files[0];
             if (imageFile) formData.append('image_file', imageFile);
-            
+            formData.append('icon_url', document.getElementById('node-icon-url').value.trim());
+            const iconFile = document.getElementById('node-icon-file').files[0];
+            if (iconFile) formData.append('icon_file', iconFile);
+
             const activeType = document.getElementById('create-av-type').value;
             if (activeType === 'audio') {
                 formData.append('audio_url', document.getElementById('node-audio-url').value.trim());
@@ -1772,7 +1797,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <input type="file" id="node-image-file" name="image_file" accept="image/*" class="text-xs">
                         <span class="text-xs text-gray-500 mt-1 block">Upload an image or provide a link to be displayed.</span>
                     </div>
-                    
+                    <div>
+                        <label for="node-icon-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Icon URL / File</label>
+                        <input type="text" id="node-icon-url" name="icon_url" placeholder="https://example.com/icon.png" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                        <input type="file" id="node-icon-file" name="icon_file" accept="image/*" class="text-xs">
+                        <span class="text-xs text-gray-500 mt-1 block">Custom icon displayed in the 3D scene (overrides theme icon).</span>
+                    </div>
+
                     <div class="flex flex-col">
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Media (Audio or Video)</label>
                         <div class="tabs tabs-bordered mb-2">
@@ -1913,7 +1944,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <button type="button" onclick="deleteModalFile('image')" class="btn btn-error btn-sm btn-outline">Delete</button>
                         </div>
                     </div>
-                    
+                    <div id="edit-icon-container">
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Icon URL / File</label>
+                        <div id="edit-icon-file-wrap">
+                            <input type="text" id="edit-icon-url" name="icon_url" placeholder="https://example.com/icon.png" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="edit-icon-file" name="icon_file" accept="image/*" class="text-xs">
+                        </div>
+                        <div id="edit-icon-existing" class="hidden flex items-center gap-2 mb-2">
+                            <input type="text" id="edit-icon-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
+                            <button type="button" onclick="deleteModalFile('icon')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                        </div>
+                        <span class="text-xs text-gray-500 mt-1 block">Custom icon displayed in the 3D scene (overrides theme icon).</span>
+                    </div>
+
                     <div class="flex flex-col">
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Media (Audio or Video)</label>
                         <div class="tabs tabs-bordered mb-2">

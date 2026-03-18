@@ -161,6 +161,7 @@ try {
             $videoAutoplay = isset($data['video_autoplay']) ? (bool)$data['video_autoplay'] : true;
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
             $showKeywords = isset($data['show_keywords']) ? (bool)$data['show_keywords'] : false;
+            $iconUrl = (isset($data['icon_url']) && !empty(trim((string)$data['icon_url']))) ? trim((string)$data['icon_url']) : null;
 
             // Mutual exclusivity: uploaded files take precedence; otherwise URL values decide
             if (isset($_FILES['video_file']) && $_FILES['video_file']['error'] === UPLOAD_ERR_OK) {
@@ -173,7 +174,7 @@ try {
                 $videoUrl = null;
             }
 
-            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords);
+            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl);
             if ($nodeId === 0) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to create node: Could not retrieve node ID'], JSON_THROW_ON_ERROR);
@@ -209,6 +210,26 @@ try {
                 } else {
                     http_response_code(500);
                     echo json_encode(['error' => 'Failed to save uploaded image'], JSON_THROW_ON_ERROR);
+                    return;
+                }
+            }
+            if (isset($_FILES['icon_file']) && $_FILES['icon_file']['error'] === UPLOAD_ERR_OK) {
+                $detectedMime = '';
+                $err = validateUploadedFile($_FILES['icon_file'], ALLOWED_IMAGE_MIMES, MAX_IMAGE_BYTES, $detectedMime);
+                if ($err !== null) {
+                    http_response_code(400);
+                    echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
+                $iconRelPath = "{$nodeRelDir}/icon.{$ext}";
+                $iconFullPath = "{$nodeFullDir}/icon.{$ext}";
+                if (move_uploaded_file($_FILES['icon_file']['tmp_name'], $iconFullPath)) {
+                    $iconUrl = $iconRelPath;
+                    $uploadedFiles = true;
+                } else {
+                    http_response_code(500);
+                    echo json_encode(['error' => 'Failed to save uploaded icon'], JSON_THROW_ON_ERROR);
                     return;
                 }
             }
@@ -256,7 +277,7 @@ try {
             }
 
             if ($uploadedFiles) {
-                db_update_node($nodeId, $name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords);
+                db_update_node($nodeId, $name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl);
             }
 
             if (isset($data['keywords'])) {
@@ -325,10 +346,12 @@ try {
             $videoAutoplay = isset($data['video_autoplay']) ? (bool)$data['video_autoplay'] : true;
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
             $showKeywords = isset($data['show_keywords']) ? (bool)$data['show_keywords'] : false;
+            $iconUrl = (isset($data['icon_url']) && !empty(trim((string)$data['icon_url']))) ? trim((string)$data['icon_url']) : null;
 
             // Mutual exclusivity logic for PUT
             $hasAudioFile = isset($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK;
             $hasVideoFile = isset($_FILES['video_file']) && $_FILES['video_file']['error'] === UPLOAD_ERR_OK;
+            $hasIconFile = isset($_FILES['icon_file']) && $_FILES['icon_file']['error'] === UPLOAD_ERR_OK;
 
             if ($hasVideoFile) {
                 $audioUrl = null;
@@ -374,6 +397,25 @@ try {
                         return;
                     }
                 }
+                if ($hasIconFile) {
+                    $detectedMime = '';
+                    $err = validateUploadedFile($_FILES['icon_file'], ALLOWED_IMAGE_MIMES, MAX_IMAGE_BYTES, $detectedMime);
+                    if ($err !== null) {
+                        http_response_code(400);
+                        echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                    $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
+                    $iconRelPath = "{$nodeRelDir}/icon.{$ext}";
+                    $iconFullPath = "{$nodeFullDir}/icon.{$ext}";
+                    if (move_uploaded_file($_FILES['icon_file']['tmp_name'], $iconFullPath)) {
+                        $iconUrl = $iconRelPath;
+                    } else {
+                        http_response_code(500);
+                        echo json_encode(['error' => 'Failed to save uploaded icon'], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                }
                 if ($hasAudioFile) {
                     $detectedMime = '';
                     $err = validateUploadedFile($_FILES['audio_file'], ALLOWED_AUDIO_MIMES, MAX_AUDIO_BYTES, $detectedMime);
@@ -416,7 +458,7 @@ try {
                 }
             }
 
-            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords);
+            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl);
             if (isset($data['keywords'])) {
                 $keywords = is_array($data['keywords']) ? $data['keywords'] : explode(',', (string)$data['keywords']);
                 db_save_node_keywords((int)$id, $keywords);
@@ -451,7 +493,7 @@ try {
                 }
             }
 
-            if ($fileType && in_array($fileType, ['image', 'audio', 'video'])) {
+            if ($fileType && in_array($fileType, ['image', 'audio', 'video', 'icon'])) {
                 db_delete_node_file((int)$id, $fileType);
                 echo json_encode(['success' => true], JSON_THROW_ON_ERROR);
                 return;

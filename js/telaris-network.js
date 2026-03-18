@@ -2384,7 +2384,7 @@ class TelarisNetwork {
                     color, emissive: color, emissiveIntensity: node.is_accentuated ? 1.5 : 0.5,
                     metalness: 0.3, roughness: 0.7, transparent: true, opacity: 1.0
                 });
-                const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type, this.currentTheme.id);
+                const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type, this.currentTheme.id, node.icon_url);
                 mesh.visible = true;
                 mesh.position.copy(pos);
                 mesh.renderOrder = 100; // Force nodes to stay in front of lines

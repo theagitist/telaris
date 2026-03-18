@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS constellations (
     tagline VARCHAR(500) NOT NULL DEFAULT '',
     slug VARCHAR(255) NULL UNIQUE,
     theme VARCHAR(50) NOT NULL DEFAULT 'cosmic', -- cosmic, abstract, rectangles, stripes
+    import_source VARCHAR(500) NULL DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     description TEXT,
     url VARCHAR(500) NULL,
     image_url VARCHAR(500) NULL,
+    icon_url VARCHAR(500) NULL,
     embed_code TEXT NULL,
     audio_url VARCHAR(500) NULL,
     audio_autoplay BOOLEAN NOT NULL DEFAULT TRUE,

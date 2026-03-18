@@ -169,6 +169,36 @@ function db_ensure_nodes_show_keywords_column(): void {
     }
 }
 
+function db_ensure_constellations_import_source_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'import_source'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE constellations ADD COLUMN import_source VARCHAR(500) NULL DEFAULT NULL AFTER theme");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_constellations_import_source_column: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_nodes_icon_url_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'icon_url'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE nodes ADD COLUMN icon_url VARCHAR(500) NULL DEFAULT NULL AFTER image_url");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_nodes_icon_url_column: ' . $e->getMessage());
+    }
+}
+
 /** No-op: schema is created by setup only. */
 function db_ensure_project_info_table(): void {
 }
@@ -700,8 +730,9 @@ function db_default_constellation_tagline(PDO $pdo): string {
  * @return list<array{id: int, name: string, tagline: string}>
  */
 function db_get_constellations(): array {
+    db_ensure_constellations_import_source_column();
     $pdo = getDB();
-    $stmt = $pdo->query("SELECT id, name, tagline, slug, theme, created_at, updated_at FROM constellations ORDER BY id");
+    $stmt = $pdo->query("SELECT id, name, tagline, slug, theme, import_source, created_at, updated_at FROM constellations ORDER BY id");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -720,7 +751,7 @@ function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
     }
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.created_at, c.updated_at
+        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.import_source, c.created_at, c.updated_at
         FROM constellations c
         INNER JOIN user_constellations uc ON uc.constellation_id = c.id AND uc.user_id = :user_id
         ORDER BY c.id
@@ -734,8 +765,9 @@ function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
  * @return array{name: string, tagline: string, theme: string}|null
  */
 function db_get_constellation_by_id(int $id): ?array {
+    db_ensure_constellations_import_source_column();
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme FROM constellations WHERE id = :id LIMIT 1");
+    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme, import_source FROM constellations WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
@@ -745,8 +777,38 @@ function db_get_constellation_by_id(int $id): ?array {
         'name' => (string) ($row['name'] ?? ''),
         'tagline' => (string) ($row['tagline'] ?? ''),
         'slug' => $row['slug'],
-        'theme' => (string) ($row['theme'] ?? 'cosmic')
+        'theme' => (string) ($row['theme'] ?? 'cosmic'),
+        'import_source' => $row['import_source'] ?? null
     ];
+}
+
+function db_set_constellation_import_source(int $id, ?string $importSource): void {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE constellations SET import_source = :import_source WHERE id = :id");
+    $stmt->execute([':import_source' => $importSource, ':id' => $id]);
+}
+
+function db_get_constellation_import_source(int $id): ?string {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT import_source FROM constellations WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ? ($row['import_source'] !== null ? (string)$row['import_source'] : null) : null;
+}
+
+function db_clear_constellation_nodes(int $constellationId): void {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT id FROM nodes WHERE constellation_id = :cid");
+    $stmt->execute([':cid' => $constellationId]);
+    while ($node = $stmt->fetch()) {
+        db_delete_node((int)$node['id']);
+    }
+    // Delete orphan keywords (keywords with no node_keywords references)
+    $pdo->prepare("
+        DELETE k FROM keywords k
+        LEFT JOIN node_keywords nk ON nk.keyword_id = k.id
+        WHERE k.constellation_id = :cid AND nk.id IS NULL
+    ")->execute([':cid' => $constellationId]);
 }
 
 /**
@@ -1068,12 +1130,13 @@ function db_node_exists(string $name, int $constellationId, ?int $excludeId = nu
  */
 function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool $isAdmin = true): array {
     db_ensure_nodes_show_keywords_column();
+    db_ensure_nodes_icon_url_column();
     $pdo = getDB();
 
     // Admin or specific constellation requested
     if ($isAdmin && $constellationId === null) {
         $stmt = $pdo->query("
-            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
+            SELECT n.id, n.name, n.description, n.url, n.image_url, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords,
                    c.name AS constellation_name
             FROM nodes n
@@ -1094,7 +1157,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         }
 
         $stmt = $pdo->prepare("
-            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
+            SELECT n.id, n.name, n.description, n.url, n.image_url, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords,
                    c.name AS constellation_name
             FROM nodes n
@@ -1109,7 +1172,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
     // Editor requesting "all" constellations - show only those they have access to
     if (!$isAdmin && $userId !== null) {
         $stmt = $pdo->prepare("
-            SELECT n.id, n.name, n.description, n.url, n.image_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
+            SELECT n.id, n.name, n.description, n.url, n.image_url, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords,
                    c.name AS constellation_name
             FROM nodes n
@@ -1171,6 +1234,7 @@ function db_format_node(array $node): array {
         'description' => $node['description'] ?? null,
         'url' => $node['url'] ?? null,
         'image_url' => $node['image_url'] ?? null,
+        'icon_url' => $node['icon_url'] ?? null,
         'embed_code' => $node['embed_code'] ?? null,
         'audio_url' => $node['audio_url'] ?? null,
         'audio_autoplay' => (bool)($node['audio_autoplay'] ?? true),
@@ -1232,20 +1296,21 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
     }
 }
 
-function db_create_node(string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false, ?string $videoUrl = null, bool $videoAutoplay = true, bool $audioLoop = false, bool $showKeywords = false): int {
+function db_create_node(string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false, ?string $videoUrl = null, bool $videoAutoplay = true, bool $audioLoop = false, bool $showKeywords = false, ?string $iconUrl = null): int {
     if ($constellationId === null) {
         $constellationId = db_get_default_constellation_id();
     }
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        INSERT INTO nodes (name, description, url, image_url, embed_code, audio_url, audio_autoplay, audio_loop, video_url, video_autoplay, animation, constellation_id, node_type, target_constellation_id, is_accentuated, show_keywords)
-        VALUES (:name, :description, :url, :image_url, :embed_code, :audio_url, :audio_autoplay, :audio_loop, :video_url, :video_autoplay, :animation, :constellation_id, :node_type, :target_constellation_id, :is_accentuated, :show_keywords)
+        INSERT INTO nodes (name, description, url, image_url, icon_url, embed_code, audio_url, audio_autoplay, audio_loop, video_url, video_autoplay, animation, constellation_id, node_type, target_constellation_id, is_accentuated, show_keywords)
+        VALUES (:name, :description, :url, :image_url, :icon_url, :embed_code, :audio_url, :audio_autoplay, :audio_loop, :video_url, :video_autoplay, :animation, :constellation_id, :node_type, :target_constellation_id, :is_accentuated, :show_keywords)
     ");
     $stmt->execute([
         ':name' => $name,
         ':description' => $description,
         ':url' => $url,
         ':image_url' => $imageUrl,
+        ':icon_url' => $iconUrl,
         ':embed_code' => $embedCode,
         ':audio_url' => $audioUrl,
         ':audio_autoplay' => $audioAutoplay ? 1 : 0,
@@ -1262,11 +1327,11 @@ function db_create_node(string $name, ?string $description, ?string $url, string
     return (int)$pdo->lastInsertId();
 }
 
-function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false, ?string $videoUrl = null, bool $videoAutoplay = true, bool $audioLoop = false, bool $showKeywords = false): void {
+function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false, ?string $videoUrl = null, bool $videoAutoplay = true, bool $audioLoop = false, bool $showKeywords = false, ?string $iconUrl = null): void {
     $pdo = getDB();
     if ($constellationId !== null) {
         $stmt = $pdo->prepare("
-            UPDATE nodes SET name = :name, description = :description, url = :url, image_url = :image_url, embed_code = :embed_code, audio_url = :audio_url, audio_autoplay = :audio_autoplay, audio_loop = :audio_loop, video_url = :video_url, video_autoplay = :video_autoplay, animation = :animation, constellation_id = :constellation_id, node_type = :node_type, target_constellation_id = :target_constellation_id, is_accentuated = :is_accentuated, show_keywords = :show_keywords WHERE id = :id
+            UPDATE nodes SET name = :name, description = :description, url = :url, image_url = :image_url, icon_url = :icon_url, embed_code = :embed_code, audio_url = :audio_url, audio_autoplay = :audio_autoplay, audio_loop = :audio_loop, video_url = :video_url, video_autoplay = :video_autoplay, animation = :animation, constellation_id = :constellation_id, node_type = :node_type, target_constellation_id = :target_constellation_id, is_accentuated = :is_accentuated, show_keywords = :show_keywords WHERE id = :id
         ");
         $stmt->execute([
             ':id' => $id,
@@ -1274,6 +1339,7 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
             ':description' => $description,
             ':url' => $url,
             ':image_url' => $imageUrl,
+            ':icon_url' => $iconUrl,
             ':embed_code' => $embedCode,
             ':audio_url' => $audioUrl,
             ':audio_autoplay' => $audioAutoplay ? 1 : 0,
@@ -1289,7 +1355,7 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
         ]);
     } else {
         $stmt = $pdo->prepare("
-            UPDATE nodes SET name = :name, description = :description, url = :url, image_url = :image_url, embed_code = :embed_code, audio_url = :audio_url, audio_autoplay = :audio_autoplay, audio_loop = :audio_loop, video_url = :video_url, video_autoplay = :video_autoplay, animation = :animation, node_type = :node_type, target_constellation_id = :target_constellation_id, is_accentuated = :is_accentuated, show_keywords = :show_keywords WHERE id = :id
+            UPDATE nodes SET name = :name, description = :description, url = :url, image_url = :image_url, icon_url = :icon_url, embed_code = :embed_code, audio_url = :audio_url, audio_autoplay = :audio_autoplay, audio_loop = :audio_loop, video_url = :video_url, video_autoplay = :video_autoplay, animation = :animation, node_type = :node_type, target_constellation_id = :target_constellation_id, is_accentuated = :is_accentuated, show_keywords = :show_keywords WHERE id = :id
         ");
         $stmt->execute([
             ':id' => $id,
@@ -1297,6 +1363,7 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
             ':description' => $description,
             ':url' => $url,
             ':image_url' => $imageUrl,
+            ':icon_url' => $iconUrl,
             ':embed_code' => $embedCode,
             ':audio_url' => $audioUrl,
             ':audio_autoplay' => $audioAutoplay ? 1 : 0,
@@ -1317,12 +1384,12 @@ function db_delete_node(int $id): void {
 
     // Collect file paths to delete AFTER the DB row is removed
     $filesToDelete = [];
-    $stmt = $pdo->prepare("SELECT image_url, audio_url, video_url FROM nodes WHERE id = :id LIMIT 1");
+    $stmt = $pdo->prepare("SELECT image_url, icon_url, audio_url, video_url FROM nodes WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch();
     if ($row) {
         $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
-        foreach (['image_url', 'audio_url', 'video_url'] as $col) {
+        foreach (['image_url', 'icon_url', 'audio_url', 'video_url'] as $col) {
             if ($row[$col] && str_starts_with($row[$col], 'uploads/')) {
                 $fullPath = str_replace('uploads/', $uploadDir . '/', $row[$col]);
                 if (file_exists($fullPath)) {
@@ -1346,6 +1413,7 @@ function db_delete_node_file(int $id, string $type): void {
     $pdo = getDB();
     $column = match($type) {
         'image' => 'image_url',
+        'icon' => 'icon_url',
         'audio' => 'audio_url',
         'video' => 'video_url',
         default => throw new InvalidArgumentException('Invalid file type')

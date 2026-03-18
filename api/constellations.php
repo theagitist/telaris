@@ -43,6 +43,7 @@ try {
                 'name' => (string)($row['name'] ?? ''),
                 'tagline' => (string)($row['tagline'] ?? ''),
                 'theme' => (string)($row['theme'] ?? 'cosmic'),
+                'import_source' => $row['import_source'] ?? null,
             ], $list);
             echo json_encode($out, JSON_THROW_ON_ERROR);
         })(),

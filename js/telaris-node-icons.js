@@ -256,7 +256,11 @@ const iconFactories = {
     'sparkle': createSparkleNode
 };
 
-export function createNodeIcon(material, index, gm, type = 'object', themeId = 'cosmic') {
+export function createNodeIcon(material, index, gm, type = 'object', themeId = 'cosmic', iconUrl = null) {
+    if (iconUrl) {
+        return createImageNode(iconUrl, material);
+    }
+
     const theme = getTheme(themeId);
 
     if (type === 'portal') {
