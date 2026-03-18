@@ -34,6 +34,7 @@ php admin/cli/import_mocambos.php --api-base=https://oya.mocambos.net/api/v2 --g
 #   --no-media    Skip media downloads (faster, nodes still created)
 #   --limit=N     Import only the first N items
 #   --quiet       Minimal output (errors and summary only)
+#   --full        Full re-import (skip incremental diff, delete all nodes first)
 
 # Refresh a Mocambos constellation (interactive — shows list, prompts)
 php admin/cli/refresh_constellation.php

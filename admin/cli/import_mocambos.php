@@ -19,6 +19,7 @@ declare(strict_types=1);
  *   --no-media        Skip media file downloads (faster, nodes still created)
  *   --limit=N         Import only the first N items (useful for testing)
  *   --quiet           Minimal output (errors and summary only)
+ *   --full            Full re-import (delete all nodes first, skip incremental diff)
  */
 
 require_once __DIR__ . '/cli_auth.php';
@@ -72,8 +73,9 @@ function cli_confirm(string $prompt): bool {
 
 // ── Parse arguments ──────────────────────────────────────────────────────────
 
-$opts = getopt('', ['api-base:', 'galaxia:', 'list', 'no-media', 'limit:', 'quiet']);
+$opts = getopt('', ['api-base:', 'galaxia:', 'list', 'no-media', 'limit:', 'quiet', 'full']);
 $_CLI_QUIET = isset($opts['quiet']);
+$fullRefresh = isset($opts['full']);
 
 $apiBase = trim($opts['api-base'] ?? '');
 $listMode = isset($opts['list']);
@@ -309,7 +311,10 @@ foreach ($allConstellations as $c) {
     }
 }
 
-if ($constellationId !== null) {
+if ($constellationId !== null && $fullRefresh) {
+    cli_log('WARN', "Full refresh — clearing all nodes for re-import...");
+    db_clear_constellation_nodes($constellationId);
+} elseif ($constellationId !== null) {
     cli_log('INFO', "Existing constellation found (ID {$constellationId}), computing diff...");
 
     // Backfill import_slug for nodes that don't have it

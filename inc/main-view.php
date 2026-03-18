@@ -277,6 +277,21 @@ header("X-Content-Type-Options: nosniff");
                 <span class="uppercase"><?php echo htmlspecialchars($projectSoundLabelText ?? 'Sound:'); ?></span>
                 <button id="hud-sound-toggle" class="font-bold text-[#00ffcc] hover:text-white transition-colors cursor-pointer uppercase" data-on="<?php echo htmlspecialchars($projectSoundOnText ?? 'ON'); ?>" data-off="<?php echo htmlspecialchars($projectSoundOffText ?? 'OFF'); ?>"><?php echo htmlspecialchars($projectSoundOnText ?? 'ON'); ?></button>
             </div>
+            <div class="flex justify-between gap-12">
+                <span class="uppercase">Lang:</span>
+                <span class="font-bold text-xs uppercase tracking-wider"><?php
+                    $locales = ['en', 'es', 'pt'];
+                    $links = [];
+                    foreach ($locales as $loc) {
+                        if ($loc === ($currentLocale ?? 'en')) {
+                            $links[] = '<span class="text-[#00ffcc]">' . strtoupper($loc) . '</span>';
+                        } else {
+                            $links[] = '<a href="javascript:void(0)" onclick="switchLang(\'' . $loc . '\')" class="opacity-40 hover:opacity-100 hover:text-[#00ffcc] transition-all cursor-pointer">' . strtoupper($loc) . '</a>';
+                        }
+                    }
+                    echo implode(' <span class="opacity-20">|</span> ', $links);
+                ?></span>
+            </div>
         </div>
 
         <div class="flex gap-6 mt-4 font-bold text-xs uppercase">
@@ -293,6 +308,11 @@ header("X-Content-Type-Options: nosniff");
     </div>
 
     <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
+        function switchLang(lang) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('lang', lang);
+            window.location.href = url.toString();
+        }
         window.TELARIS_APP_NAME = <?php echo json_encode($projectName); ?>;
         window.TELARIS_IFRAME_BACK_TEXT = <?php echo json_encode($projectIframeBackText ?? 'Go back'); ?>;
         window.TELARIS_ALERT_MESSAGE = <?php echo json_encode($projectAlertMessage ?? "Close this window when you're done to go back to {APPNAME}."); ?>;

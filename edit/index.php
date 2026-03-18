@@ -159,12 +159,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         </div>
 
         <!-- Nodes List -->
+        <div id="read-only-banner" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 text-yellow-800 text-sm" style="display: none;">
+            This constellation was imported from Mocambos and is read-only. Use the Mocambos import tool to refresh its content.
+        </div>
         <div class="bg-white rounded-lg shadow-md mb-6">
             <div class="p-6 border-b border-gray-200">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
                         <h2 class="text-gray-800 text-xl font-semibold">Nodes (<span id="tab-list-count">0</span>)</h2>
-                        <button type="button" onclick="openCreateNodeModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Node</button>
+                        <button type="button" onclick="openCreateNodeModal()" class="node-edit-action text-blue-600 hover:text-blue-800 font-medium text-base">New Node</button>
                     </div>
                     
                     <!-- Top Pagination Container -->
@@ -218,6 +221,25 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         const API_BASE = '../api/nodes.php';
         const CONSTELLATIONS_API = '../api/constellations.php';
         const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'slug' => $c['slug'], 'import_source' => $c['import_source'] ?? null], $constellations), JSON_THROW_ON_ERROR); ?>;
+
+        /** Check if a constellation is imported (read-only). */
+        function isImportedConstellation(constellationId) {
+            const c = CONSTELLATIONS.find(x => x.id === constellationId);
+            return c && c.import_source != null && c.import_source !== '';
+        }
+
+        function updateReadOnlyState() {
+            const constellationEl = document.getElementById('current-constellation');
+            const cid = constellationEl ? parseInt(constellationEl.value, 10) : NaN;
+            const isImported = !isNaN(cid) && isImportedConstellation(cid);
+            const readOnlyBanner = document.getElementById('read-only-banner');
+            const createNodeSection = document.getElementById('create-node-section');
+            const bulkActions = document.getElementById('bulk-actions-bar');
+            if (readOnlyBanner) readOnlyBanner.style.display = isImported ? 'block' : 'none';
+            if (createNodeSection) createNodeSection.style.display = isImported ? 'none' : '';
+            document.querySelectorAll('.node-edit-action').forEach(el => el.style.display = isImported ? 'none' : '');
+            document.querySelectorAll('.node-checkbox').forEach(el => el.style.display = isImported ? 'none' : '');
+        }
 
         /** Constellations from API (all), populated at load for target dropdown when Portal is selected. */
         let allConstellations = [];
@@ -709,6 +731,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 if (countEl) countEl.textContent = nodes.length;
                 
                 applySorting();
+                updateReadOnlyState();
             } catch (error) {
                 const errorMsg = error.message || 'Unknown error';
                 if (listDiv) {
@@ -823,7 +846,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             ${updatedDate}
                         </div>
                         <div class="col-span-1 flex gap-2 justify-end pr-2">
-                            <button onclick="event.stopPropagation(); deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">
+                            <button onclick="event.stopPropagation(); deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="node-edit-action px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">
                                 Delete
                             </button>
                         </div>

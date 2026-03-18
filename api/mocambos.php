@@ -257,6 +257,7 @@ try {
         }
 
         $apiBase = trim($data['api_base'] ?? 'https://timbuktu.mocambos.net/api/v2');
+        $fullRefresh = !empty($data['full_refresh']);
         $galaxias = $data['galaxias'] ?? [];
         if (!is_array($galaxias) || empty($galaxias)) {
             http_response_code(400);
@@ -432,7 +433,11 @@ try {
             $streamMsg('info', "Processing galaxia: {$galaxiaSlug} (" . count($galaxiaItems) . " items)");
 
             $isIncremental = false;
-            if ($constellationId !== null) {
+            if ($constellationId !== null && $fullRefresh) {
+                $writeLog('INFO', "Full refresh — clearing all nodes for re-import");
+                $streamMsg('info', "Full refresh — clearing existing nodes...");
+                db_clear_constellation_nodes($constellationId);
+            } elseif ($constellationId !== null) {
                 $writeLog('INFO', "Existing constellation found (ID {$constellationId}), checking for incremental sync");
                 $streamMsg('info', "Re-importing — computing diff...");
 
