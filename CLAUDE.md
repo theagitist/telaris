@@ -118,7 +118,12 @@ Key relationships:
 
 ### Auto-Clustering
 
-Constellations with >50 nodes are dynamically grouped into navigable clusters. The clustering engine (`inc/clustering.php`) uses a cascade:
+Constellations with many nodes are dynamically grouped into navigable clusters. The clustering engine (`inc/clustering.php`) uses adaptive logic: the base threshold is 80 nodes, but clustering is only applied if the result is meaningful. Quality checks skip clustering when:
+- Fewer than 3 groups would be produced
+- One dominant group contains >80% of all nodes
+- More than half the items are single-node promotions (too fragmented)
+
+When clustering does apply, it uses a cascade:
 1. **Mucua** (origin community) — for Mocambos imports
 2. **Media type** (imagem, video, audio, arquivo, blog)
 3. **Date** (year, then year-month)

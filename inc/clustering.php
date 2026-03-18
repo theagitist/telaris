@@ -211,12 +211,21 @@ function cluster_recursive(array $nodes, string $parentKey, array $cascade, int 
 /**
  * Compute clusters for a set of nodes.
  *
+ * Uses adaptive clustering: the threshold is 80 nodes, but clustering is
+ * skipped if the result isn't meaningfully better than showing everything flat.
+ *
+ * Quality checks (any fails → show flat):
+ * - Fewer than 3 groups produced
+ * - Largest group contains >80% of all nodes (one dominant group)
+ * - More than half the items are single-node promotions (too fragmented)
+ *
  * @param array $nodes Formatted node arrays from db_format_node
- * @param int $threshold Maximum items to show at once (default 50)
+ * @param int $threshold Maximum items to show at once (default 80)
  * @return array Mixed array of cluster summaries and regular nodes
  */
-function compute_clusters(array $nodes, int $threshold = 50): array {
-    if (count($nodes) <= $threshold) {
+function compute_clusters(array $nodes, int $threshold = 80): array {
+    $totalCount = count($nodes);
+    if ($totalCount <= $threshold) {
         return $nodes;
     }
 
@@ -235,7 +244,33 @@ function compute_clusters(array $nodes, int $threshold = 50): array {
         $cascade = ['type', 'date_year', 'date_month', 'alpha'];
     }
 
-    return cluster_recursive($nodes, '', $cascade, $threshold);
+    $result = cluster_recursive($nodes, '', $cascade, $threshold);
+
+    // Quality check: is the clustering actually useful?
+    $clusterCount = 0;
+    $maxClusterSize = 0;
+    $promotedCount = 0; // single nodes promoted to parent level
+    foreach ($result as $item) {
+        if (($item['node_type'] ?? '') === 'cluster') {
+            $clusterCount++;
+            $maxClusterSize = max($maxClusterSize, $item['cluster_count'] ?? 0);
+        } else {
+            $promotedCount++;
+        }
+    }
+
+    // Skip clustering if result is not meaningful
+    if ($clusterCount < 3) {
+        return $nodes; // Too few groups — not worth it
+    }
+    if ($maxClusterSize > $totalCount * 0.8) {
+        return $nodes; // One dominant group has >80% of items — not useful
+    }
+    if ($promotedCount > count($result) * 0.5) {
+        return $nodes; // More than half are single-node promotions — too fragmented
+    }
+
+    return $result;
 }
 
 /**
