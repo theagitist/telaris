@@ -40,11 +40,12 @@ php admin/cli/import_mocambos.php --api-base=https://oya.mocambos.net/api/v2 --g
 php admin/cli/refresh_constellation.php
 
 # Refresh a Mocambos constellation (non-interactive — for automation/cron)
-php admin/cli/refresh_constellation.php --id=N [--no-media] [--limit=N]
+php admin/cli/refresh_constellation.php --id=N [--no-media] [--limit=N] [--full]
 #   --list        List all constellations with import status
+#   --full        Full re-import (skip incremental diff, delete all nodes first)
 ```
 
-There are no test suites, linters, or build steps in this project.
+Unit tests use PHPUnit: `vendor/bin/phpunit --testsuite unit`. No linters or build steps.
 
 ## Architecture
 
@@ -143,6 +144,10 @@ Each cluster appears as a special 3D node. Clicking drills in; back button and b
 **Incremental refresh:** Re-imports compute a diff by matching nodes on `import_slug`. Only additions, modifications, and deletions are applied. Use `--full` flag (CLI) or `full_refresh: true` (API) to force a full re-import.
 
 **Imported constellations** are read-only in the editor.
+
+**Node URLs:** Built using slug aliases from the Mocambos API: `{mucua_public_uri}/pt-BR/midia/{galaxia_slug}/{mucua_slug}/{item_slug}`. Each mucua can have its own `public_uri` (e.g. `oya.mocambos.net`, `baobaxia.net`); falls back to the API host when not set.
+
+**Media downloads:** Use the content hash from the API's `content[].hash_sum` field: `{api_base}/{galaxia_slug}/{mucua_slug}/acervo/download/{item_slug}/{hash_sum}`.
 
 ### Global Search
 
