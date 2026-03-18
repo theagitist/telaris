@@ -1796,6 +1796,7 @@ class TelarisNetwork {
             this.navigationStack.pop(); // Remove current entry
             const prev = this.navigationStack[this.navigationStack.length - 1]; // Peek at the target
             this.updateBackButtonVisibility();
+            this.clearSearch();
             if (typeof prev === 'object' && prev !== null) {
                 // New format: { constellationId, clusterKey }
                 if (prev.clusterKey) {
@@ -2185,6 +2186,7 @@ class TelarisNetwork {
             const cid = window.TELARIS_CONSTELLATION_ID;
             this.navigationStack = [{ constellationId: cid, clusterKey: null }];
             this.updateBackButtonVisibility();
+            this.clearSearch();
             this.transitionToCluster(cid, null);
         });
         bc.appendChild(rootLink);
@@ -2218,6 +2220,7 @@ class TelarisNetwork {
                         { constellationId: cid, clusterKey: targetKey }
                     ];
                     this.updateBackButtonVisibility();
+                    this.clearSearch();
                     this.transitionToCluster(cid, targetKey);
                 });
             } else {
@@ -3679,6 +3682,16 @@ class TelarisNetwork {
         }
     }
 
+    clearSearch() {
+        this.searchQuery = '';
+        const searchInput = document.getElementById('hud-search');
+        const clearBtn = document.getElementById('hud-search-clear');
+        const resultsDropdown = document.getElementById('hud-search-results');
+        if (searchInput) searchInput.value = '';
+        if (clearBtn) clearBtn.style.display = 'none';
+        if (resultsDropdown) resultsDropdown.style.display = 'none';
+    }
+
     setupSearch() {
         const searchInput = document.getElementById('hud-search');
         const clearBtn = document.getElementById('hud-search-clear');
@@ -3734,11 +3747,8 @@ class TelarisNetwork {
 
                 item.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    this.clearSearch();
                     this.navigateToSearchResult(r);
-                    searchInput.value = '';
-                    this.searchQuery = '';
-                    hideResults();
-                    if (clearBtn) clearBtn.style.display = 'none';
                 });
 
                 resultsDropdown.appendChild(item);
