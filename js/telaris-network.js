@@ -118,6 +118,19 @@ class TelarisNetwork {
         window.open(frameUrl, '_blank');
     }
 
+    /**
+     * Try to open a URL: if the node has any local content, show rich media window instead.
+     * For nodes with no content at all, open in frame directly.
+     */
+    smartOpenUrl(node, url) {
+        const d = node && node.userData;
+        if (d && (d.description || d.image_url || d.embed_code || d.audio_url)) {
+            this.showRichMediaWindow(node);
+        } else {
+            this.openInFrame(node, url);
+        }
+    }
+
     showRichMediaWindow(node) {
         const d = node && node.userData;
         if (!d) return;
@@ -322,6 +335,19 @@ class TelarisNetwork {
                     this.closeRichMediaWindow();
                     this.openInFrame(node, d.url);
                 };
+                // Add "external link may be unavailable" note for imported nodes
+                let urlNote = urlWrap.querySelector('.url-note');
+                if (!urlNote) {
+                    urlNote = document.createElement('div');
+                    urlNote.className = 'url-note text-[0.65rem] text-white/30 text-center mt-2 italic';
+                    urlWrap.appendChild(urlNote);
+                }
+                urlNote.textContent = '';
+                // Show note only for external URLs (not local uploads)
+                if (d.url.startsWith('http')) {
+                    urlNote.innerHTML = '⚠ External page — may be unavailable. <a href="' +
+                        d.url.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" style="color:rgba(0,255,204,0.5);text-decoration:underline;">Open directly</a>';
+                }
             } else {
                 urlWrap.classList.add('hidden');
             }
@@ -2351,17 +2377,14 @@ class TelarisNetwork {
                 } else if (data.node_type === 'object') {
                     event.preventDefault();
                     event.stopPropagation();
-                    
+
                     const hasMedia = !!(data.image_url || data.embed_code || data.audio_url);
                     const hasDesc = !!(data.description && data.description.trim() !== '');
-                    
-                    if (hasMedia) {
+
+                    if (hasMedia || hasDesc) {
                         this.showRichMediaWindow(targetNode);
                     } else if (data.url) {
-                        this.openInFrame(targetNode, data.url);
-                    } else if (hasDesc) {
-                        // If ONLY description (no media, no URL), still use rich-media window
-                        this.showRichMediaWindow(targetNode);
+                        this.smartOpenUrl(targetNode, data.url);
                     }
                 }
             }
@@ -2455,16 +2478,16 @@ class TelarisNetwork {
                             const hasMedia = !!(nodeData.image_url || nodeData.embed_code || nodeData.audio_url);
                             const hasDesc = !!(nodeData.description && nodeData.description.trim() !== '');
 
-                            if (hasMedia) {
+                            if (hasMedia || hasDesc) {
                                 e.preventDefault();
                                 this.showRichMediaWindow(touchStartNode);
                                 this.networkManager.setFocusedNode(null);
                             } else if (nodeData.url) {
                                 e.preventDefault();
-                                this.openInFrame(touchStartNode, nodeData.url);
+                                this.smartOpenUrl(touchStartNode, nodeData.url);
                                 this.networkManager.setFocusedNode(null);
-                            } else if (hasDesc) {
-                                e.preventDefault();
+                            } else if (false) {
+                                // dead branch kept for structure
                                 this.showRichMediaWindow(touchStartNode);
                                 this.networkManager.setFocusedNode(null);
                             } else {
