@@ -335,19 +335,6 @@ class TelarisNetwork {
                     this.closeRichMediaWindow();
                     this.openInFrame(node, d.url);
                 };
-                // Add "external link may be unavailable" note for imported nodes
-                let urlNote = urlWrap.querySelector('.url-note');
-                if (!urlNote) {
-                    urlNote = document.createElement('div');
-                    urlNote.className = 'url-note text-[0.65rem] text-white/30 text-center mt-2 italic';
-                    urlWrap.appendChild(urlNote);
-                }
-                urlNote.textContent = '';
-                // Show note only for external URLs (not local uploads)
-                if (d.url.startsWith('http')) {
-                    urlNote.innerHTML = '⚠ External page — may be unavailable. <a href="' +
-                        d.url.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener" style="color:rgba(0,255,204,0.5);text-decoration:underline;">Open directly</a>';
-                }
             } else {
                 urlWrap.classList.add('hidden');
             }
