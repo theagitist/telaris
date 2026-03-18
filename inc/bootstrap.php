@@ -9,6 +9,9 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__);
 
+// Read version from VERSION file (single source of truth)
+$appVersion = trim(@file_get_contents($root . '/VERSION') ?: '0.0.0');
+
 if (!file_exists($root . '/config.php')) {
     header('Location: admin/setup.php');
     exit();

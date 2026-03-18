@@ -19,7 +19,7 @@ header("X-Content-Type-Options: nosniff");
     <meta property="og:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <meta name="twitter:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
     <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
-    <script src="js/tailwind.min.js?v=6.0.1"></script>
+    <script src="js/tailwind.min.js?v=<?php echo $appVersion; ?>"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
     <style>
         :root {
@@ -403,13 +403,13 @@ header("X-Content-Type-Options: nosniff");
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "./telaris-network.js": "./js/telaris-network.js?v=6.0.1",
-                "./network-manager.js": "./js/network-manager.js?v=6.0.1",
-                "./geometry-manager.js": "./js/geometry-manager.js?v=6.0.1",
-                "./api.js": "./js/api.js?v=6.0.1",
-                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=6.0.1",
-                "./themes.js": "./js/themes.js?v=6.0.1",
-                "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=6.0.1"
+                "./telaris-network.js": "./js/telaris-network.js?v=<?php echo $appVersion; ?>",
+                "./network-manager.js": "./js/network-manager.js?v=<?php echo $appVersion; ?>",
+                "./geometry-manager.js": "./js/geometry-manager.js?v=<?php echo $appVersion; ?>",
+                "./api.js": "./js/api.js?v=<?php echo $appVersion; ?>",
+                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=<?php echo $appVersion; ?>",
+                "./themes.js": "./js/themes.js?v=<?php echo $appVersion; ?>",
+                "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=<?php echo $appVersion; ?>"
             }
         }
     </script>
@@ -503,7 +503,7 @@ header("X-Content-Type-Options: nosniff");
             };
         }
     </script>
-    <script src="js/telaris-soundscape.js?v=6.0.1"></script>
-    <script type="module" src="js/main.js?v=6.0.1"></script>
+    <script src="js/telaris-soundscape.js?v=<?php echo $appVersion; ?>"></script>
+    <script type="module" src="js/main.js?v=<?php echo $appVersion; ?>"></script>
 </body>
 </html>

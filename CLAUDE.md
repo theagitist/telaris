@@ -166,7 +166,4 @@ Requires Nginx rewrite rule so `/{number}` and `/{slug}` paths are handled by `i
 
 ### Cache Busting
 
-JavaScript modules and assets use `?v=VERSION` query strings. When bumping the version, update:
-1. `VERSION` file
-2. The `?v=` strings on `<script>` and `<link>` tags in `inc/main-view.php`, `admin/index.php`, `edit/index.php`
-3. The import map version entries
+JavaScript modules and assets use `?v=VERSION` query strings. The version is read from the `VERSION` file at runtime by `inc/bootstrap.php` (into `$appVersion`) and injected into all `<script>` and import map entries automatically. When bumping the version, only the `VERSION` file needs updating.
