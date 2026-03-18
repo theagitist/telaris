@@ -331,6 +331,7 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_SOUND_OFF = <?php echo json_encode($projectSoundOffText ?? 'OFF'); ?>;
         window.TELARIS_ITEMS_LABEL = <?php echo json_encode($projectItemsLabelText ?? 'items'); ?>;
         window.TELARIS_OTHER_LABEL = <?php echo json_encode($projectOtherLabelText ?? 'Other'); ?>;
+        window.TELARIS_LOADING_TEXT = <?php echo json_encode($projectLoadingText ?? 'Loading'); ?>;
         window.TELARIS_LAUNCHING_TEXT = <?php echo json_encode($projectLaunchingText ?? 'Launching'); ?>;
         window.TELARIS_MISSION_ACTIVE_TEXT = <?php echo json_encode($projectMissionActiveText ?? 'Mission Active'); ?>;
         window.TELARIS_GO_TEXT = <?php echo json_encode($projectGoText ?? 'GO'); ?>;

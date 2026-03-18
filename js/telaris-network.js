@@ -1972,17 +1972,44 @@ class TelarisNetwork {
     }
 
     /**
-     * Create a simple full-screen loading screen (independent of the loading-overlay element).
+     * Create a full-screen loading screen with spinning torus and localized text.
      */
     _showClusterScreen() {
         let screen = document.getElementById('cluster-loading-screen');
         if (!screen) {
             screen = document.createElement('div');
             screen.id = 'cluster-loading-screen';
-            screen.innerHTML = '<p style="color:rgba(255,255,255,0.6);font-family:var(--font-mono);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.15em;">Loading...</p>';
+
+            // Add CSS animation (only once)
+            if (!document.getElementById('cluster-loading-css')) {
+                const style = document.createElement('style');
+                style.id = 'cluster-loading-css';
+                style.textContent = `
+                    @keyframes cls-spin { 0% { transform: rotateX(55deg) rotateZ(0deg); } 100% { transform: rotateX(55deg) rotateZ(360deg); } }
+                    @keyframes cls-pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+                    #cluster-loading-screen .cls-torus {
+                        width: 80px; height: 80px; border-radius: 50%;
+                        border: 4px solid rgba(0,255,204,0.15);
+                        border-top-color: rgba(0,255,204,0.8);
+                        border-right-color: rgba(0,255,204,0.4);
+                        animation: cls-spin 1.2s linear infinite;
+                        box-shadow: 0 0 25px rgba(0,255,204,0.2), inset 0 0 25px rgba(0,255,204,0.05);
+                        margin-bottom: 24px;
+                    }
+                    #cluster-loading-screen .cls-text {
+                        color: rgba(255,255,255,0.5); font-family: var(--font-mono);
+                        font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.15em;
+                        animation: cls-pulse 2s ease-in-out infinite;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            const loadingText = window.TELARIS_LOADING_TEXT || 'Loading';
+            screen.innerHTML = '<div class="cls-torus"></div><p class="cls-text">' + loadingText + '</p>';
             Object.assign(screen.style, {
                 position: 'fixed', inset: '0', zIndex: '9999',
-                background: '#000', display: 'flex',
+                background: '#000', display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
                 opacity: '1', pointerEvents: 'auto'
             });
@@ -1991,6 +2018,7 @@ class TelarisNetwork {
             screen.style.display = 'flex';
             screen.style.opacity = '1';
             screen.style.pointerEvents = 'auto';
+            screen.style.transition = 'none';
         }
         return screen;
     }
@@ -1998,8 +2026,8 @@ class TelarisNetwork {
     _hideClusterScreen() {
         const screen = document.getElementById('cluster-loading-screen');
         if (screen) {
-            screen.style.opacity = '0';
             screen.style.transition = 'opacity 0.5s ease';
+            screen.style.opacity = '0';
             screen.style.pointerEvents = 'none';
             setTimeout(() => { screen.style.display = 'none'; }, 600);
         }
