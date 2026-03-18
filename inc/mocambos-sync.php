@@ -74,6 +74,7 @@ function mocambos_compute_diff(array $existingBySlug, array $apiItems, array $mu
 function mocambos_apply_additions(
     array $additions,
     int $constellationId,
+    string $galaxiaSmid,
     string $galaxiaSlug,
     string $mucuaSlug,
     string $downloadBase,
@@ -95,8 +96,9 @@ function mocambos_apply_additions(
     foreach ($additions as $i => $apiData) {
         $item = $apiData['item'];
         $slug = $item['slug'] ?? '';
-        $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . ($mucuaSlug !== '' ? $mucuaSlug . '/' : '') . 'permalink/';
-        $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . $slug : 'acervo/' . $slug;
+        $itemSmid = $item['smid'] ?? '';
+        $itemMucuaSmid = $item['mucua_smid'] ?? '';
+        $nodeUrl = 'https://baobaxia.net/pt-BR/midia/' . $galaxiaSmid . '/' . $itemMucuaSmid . '/' . $itemSmid;
 
         $animation = json_encode([
             'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,

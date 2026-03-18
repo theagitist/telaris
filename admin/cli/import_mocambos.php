@@ -419,8 +419,9 @@ if ($noMedia) {
             $tags = $item['tags'] ?? [];
             if (!is_array($tags)) $tags = [];
 
-            $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . ($mucuaSlug !== '' ? $mucuaSlug . '/' : '') . 'permalink/';
-            $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . ($item['slug'] ?? '') : 'acervo/' . ($item['slug'] ?? '');
+            $itemSmid = $item['smid'] ?? '';
+            $itemMucuaSmidForUrl = $item['mucua_smid'] ?? '';
+            $nodeUrl = 'https://baobaxia.net/pt-BR/midia/' . $galaxiaSmid . '/' . $itemMucuaSmidForUrl . '/' . $itemSmid;
 
             $animation = json_encode([
                 'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
@@ -505,8 +506,9 @@ if ($noMedia) {
             $tags = $item['tags'] ?? [];
             if (!is_array($tags)) $tags = [];
 
-            $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . ($mucuaSlug !== '' ? $mucuaSlug . '/' : '') . 'permalink/';
-            $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . ($item['slug'] ?? '') : 'acervo/' . ($item['slug'] ?? '');
+            $itemSmid = $item['smid'] ?? '';
+            $itemMucuaSmidForUrl = $item['mucua_smid'] ?? '';
+            $nodeUrl = 'https://baobaxia.net/pt-BR/midia/' . $galaxiaSmid . '/' . $itemMucuaSmidForUrl . '/' . $itemSmid;
 
             $animation = json_encode([
                 'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
