@@ -306,8 +306,9 @@ try {
 
         $allConstellations = db_get_constellations();
 
-        // Fetch mucua list for name resolution (smid → name)
+        // Fetch mucua list for name and slug resolution
         $mucuaNameMap = [];
+        $mucuaSlugMap = []; // smid → slug (for URL construction)
         $mucuaListJson = @file_get_contents($apiBase . '/mucua');
         if ($mucuaListJson !== false) {
             $mucuaList = json_decode($mucuaListJson, true);
@@ -315,8 +316,8 @@ try {
                 foreach ($mucuaList as $m) {
                     $mSmid = $m['smid'] ?? $m['uuid'] ?? null;
                     if ($mSmid !== null) {
-                        // Use name if available, fall back to slug
                         $mucuaNameMap[$mSmid] = $m['name'] ?? $m['slug'] ?? (string)$mSmid;
+                        $mucuaSlugMap[$mSmid] = $m['slug'] ?? (string)$mSmid;
                     }
                 }
             }
@@ -522,9 +523,8 @@ try {
                     $tags = $item['tags'] ?? [];
                     if (!is_array($tags)) $tags = [];
 
-                    $itemSmid = $item['smid'] ?? '';
-                    $itemMucuaSmidForUrl = $item['mucua_smid'] ?? '';
-                    $nodeUrl = 'https://baobaxia.net/pt-BR/midia/' . $galaxiaSmid . '/' . $itemMucuaSmidForUrl . '/' . $itemSmid;
+                    $itemMucuaSlugForUrl = $mucuaSlugMap[$item['mucua_smid'] ?? ''] ?? '';
+                    $nodeUrl = 'https://baobaxia.net/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . ($item['slug'] ?? '');
 
                     $animation = json_encode([
                         'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
@@ -593,8 +593,9 @@ try {
                 $nodeDesc = $item['description'] ?? '';
                 $mediaType = $item['type'] ?? 'arquivo';
 
-                $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . ($mucuaSlug !== '' ? $mucuaSlug . '/' : '') . 'permalink/';
-                $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . $itemSlug : 'acervo/' . $itemSlug;
+                // Build frontend URL using slug aliases
+                $itemMucuaSlugForUrl = $mucuaSlugMap[$item['mucua_smid'] ?? ''] ?? '';
+                $nodeUrl = 'https://baobaxia.net/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . $itemSlug;
 
                 $animation = json_encode([
                     'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
@@ -614,8 +615,17 @@ try {
 
                 $counter = ($itemIndex + 1) . "/{$expectedCount}";
 
+                // Extract content hash for download URL
+                $contentHash = '';
+                $content = $item['content'] ?? [];
+                if (is_array($content) && !empty($content) && isset($content[0]['hash_sum'])) {
+                    $contentHash = $content[0]['hash_sum'];
+                }
+                $dlMucuaSlug = $mucuaSlugMap[$item['mucua_smid'] ?? ''] ?? $mucuaSlug;
+                $dlBase = $downloadBase . '/' . $galaxiaSlug . '/' . $dlMucuaSlug;
+
                 if ($mediaType === 'imagem') {
-                    $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
+                    $dlUrl = $dlBase . '/acervo/download/' . $itemSlug . ($contentHash !== '' ? '/' . $contentHash : '');
                     $streamMsg('download', "({$counter}) Downloading image: {$nodeName}");
                     $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'image', $writeLog);
                     if ($localPath !== null) {
@@ -627,28 +637,28 @@ try {
                         $mediaErrors++;
                     }
                     if ($iconUrl === null) {
-                        $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
+                        $thumbUrl = $dlBase . '/acervo/thumbnail/' . $itemSlug;
                         $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
                         if ($thumbPath !== null) { $iconUrl = $nodeRelDir . '/' . basename($thumbPath); $needsUpdate = true; }
                     }
                 } elseif ($mediaType === 'video') {
-                    $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
+                    $dlUrl = $dlBase . '/acervo/download/' . $itemSlug . ($contentHash !== '' ? '/' . $contentHash : '');
                     $streamMsg('download', "({$counter}) Downloading video: {$nodeName}");
                     $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'video', $writeLog);
                     if ($localPath !== null) { $videoUrl = $nodeRelDir . '/' . basename($localPath); $needsUpdate = true; } else { $mediaErrors++; }
-                    $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
+                    $thumbUrl = $dlBase . '/acervo/thumbnail/' . $itemSlug;
                     $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
                     if ($thumbPath !== null) { $iconUrl = $nodeRelDir . '/' . basename($thumbPath); $needsUpdate = true; }
                 } elseif ($mediaType === 'audio') {
-                    $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
+                    $dlUrl = $dlBase . '/acervo/download/' . $itemSlug . ($contentHash !== '' ? '/' . $contentHash : '');
                     $streamMsg('download', "({$counter}) Downloading audio: {$nodeName}");
                     $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'audio', $writeLog);
                     if ($localPath !== null) { $audioUrl = $nodeRelDir . '/' . basename($localPath); $needsUpdate = true; } else { $mediaErrors++; }
-                    $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
+                    $thumbUrl = $dlBase . '/acervo/thumbnail/' . $itemSlug;
                     $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
                     if ($thumbPath !== null) { $iconUrl = $nodeRelDir . '/' . basename($thumbPath); $needsUpdate = true; }
                 } else {
-                    $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
+                    $thumbUrl = $dlBase . '/acervo/thumbnail/' . $itemSlug;
                     $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
                     if ($thumbPath !== null) { $iconUrl = $nodeRelDir . '/' . basename($thumbPath); $needsUpdate = true; }
                 }
