@@ -1815,7 +1815,6 @@ class TelarisNetwork {
                     } else {
                         this._portalFadeInMultiplier = undefined;
                         loadingOverlay.style.display = 'none';
-                        if (window._loadingTorus) window._loadingTorus.dispose();
                     }
                 };
                 requestAnimationFrame(animateFadeIn);
@@ -3452,17 +3451,23 @@ class TelarisNetwork {
                                     if (tr.clusterKey) navUrl += `&cluster=${encodeURIComponent(tr.clusterKey)}`;
                                     window.history.pushState({}, '', navUrl);
                                     
-                                    const loadingOverlay = document.getElementById('loading-overlay');
-                                    if (loadingOverlay) {
-                                        loadingOverlay.style.opacity = '0';
-                                        loadingOverlay.style.pointerEvents = 'none';
-                                        setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
+                                    const startFadeIn = () => {
+                                        const loadingOverlay = document.getElementById('loading-overlay');
+                                        if (loadingOverlay) {
+                                            loadingOverlay.style.opacity = '0';
+                                            loadingOverlay.style.pointerEvents = 'none';
+                                            setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
+                                        }
+                                        this._portalTransition.phase = 'fade_in';
+                                        this._portalTransition.fadeInStartTime = performance.now();
+                                        this._portalTransition.fadeInDuration = tr.targetFadeInDuration || 1000;
+                                        this._portalFadeInMultiplier = 0;
+                                    };
+                                    if (window._loadingTorus) {
+                                        window._loadingTorus.startWarp(startFadeIn);
+                                    } else {
+                                        startFadeIn();
                                     }
-
-                                    this._portalTransition.phase = 'fade_in';
-                                    this._portalTransition.fadeInStartTime = performance.now();
-                                    this._portalTransition.fadeInDuration = tr.targetFadeInDuration || 1000;
-                                    this._portalFadeInMultiplier = 0; // Explicitly 0 before any update occurs
                                 }
                             });
                         }
