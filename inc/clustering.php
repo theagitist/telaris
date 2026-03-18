@@ -6,14 +6,29 @@ declare(strict_types=1);
  * Groups nodes into navigable clusters when a constellation exceeds a threshold.
  */
 
+/** @var string Localized label for "items" (e.g. "items", "elementos", "itens"). */
+$CLUSTERING_ITEMS_LABEL = 'items';
+/** @var string Localized label for "Other" group. */
+$CLUSTERING_OTHER_LABEL = 'Other';
+
+/**
+ * Set localized labels for clustering output.
+ */
+function clustering_set_labels(string $itemsLabel, string $otherLabel): void {
+    global $CLUSTERING_ITEMS_LABEL, $CLUSTERING_OTHER_LABEL;
+    $CLUSTERING_ITEMS_LABEL = $itemsLabel;
+    $CLUSTERING_OTHER_LABEL = $otherLabel;
+}
+
 /**
  * Build a cluster summary node.
  */
 function make_cluster_summary(string $clusterKey, string $name, int $count, string $level): array {
+    global $CLUSTERING_ITEMS_LABEL;
     return [
         'id' => 'cluster:' . $clusterKey,
         'name' => $name,
-        'description' => number_format($count) . ' items',
+        'description' => number_format($count) . ' ' . $CLUSTERING_ITEMS_LABEL,
         'url' => null,
         'image_url' => null,
         'icon_url' => null,
@@ -163,7 +178,8 @@ function cluster_recursive(array $nodes, string $parentKey, array $cascade, int 
 
         if (count($groupNodes) <= $threshold) {
             // Small enough, make a single cluster that contains them directly
-            $displayName = $key === '__other__' ? 'Other' : $key;
+            global $CLUSTERING_OTHER_LABEL;
+                $displayName = $key === '__other__' ? $CLUSTERING_OTHER_LABEL : $key;
             $result[] = make_cluster_summary($clusterKey, $displayName, count($groupNodes), $levelLabel);
         } else {
             // Still too large — recurse with remaining cascade
@@ -177,11 +193,13 @@ function cluster_recursive(array $nodes, string $parentKey, array $cascade, int 
                 }
             }
             if ($hasClusters) {
-                $displayName = $key === '__other__' ? 'Other' : $key;
+                global $CLUSTERING_OTHER_LABEL;
+                $displayName = $key === '__other__' ? $CLUSTERING_OTHER_LABEL : $key;
                 $result[] = make_cluster_summary($clusterKey, $displayName, count($groupNodes), $levelLabel);
             } else {
                 // Recursion didn't help (ran out of cascade) — just make a cluster anyway
-                $displayName = $key === '__other__' ? 'Other' : $key;
+                global $CLUSTERING_OTHER_LABEL;
+                $displayName = $key === '__other__' ? $CLUSTERING_OTHER_LABEL : $key;
                 $result[] = make_cluster_summary($clusterKey, $displayName, count($groupNodes), $levelLabel);
             }
         }

@@ -231,7 +231,7 @@ header("X-Content-Type-Options: nosniff");
                         <div id="rm-url-wrap" class="hidden pt-4">
                             <button id="rm-url-button" class="w-full py-3 bg-transparent border text-xs font-bold uppercase tracking-widest transition-all hover:bg-white/10"
                                     style="border-color: var(--node-accent-muted); color: var(--node-accent);">
-                                LAUNCH...
+                                <?php echo htmlspecialchars($projectLaunchButtonText ?? 'LAUNCH'); ?>...
                             </button>
                         </div>
                     </div>
@@ -274,8 +274,8 @@ header("X-Content-Type-Options: nosniff");
                 <span id="hud-connections" class="font-bold text-[#00ffcc]">--</span>
             </div>
             <div class="flex justify-between gap-12">
-                <span class="uppercase">Sound:</span>
-                <button id="hud-sound-toggle" class="font-bold text-[#00ffcc] hover:text-white transition-colors cursor-pointer uppercase">ON</button>
+                <span class="uppercase"><?php echo htmlspecialchars($projectSoundLabelText ?? 'Sound:'); ?></span>
+                <button id="hud-sound-toggle" class="font-bold text-[#00ffcc] hover:text-white transition-colors cursor-pointer uppercase" data-on="<?php echo htmlspecialchars($projectSoundOnText ?? 'ON'); ?>" data-off="<?php echo htmlspecialchars($projectSoundOffText ?? 'OFF'); ?>"><?php echo htmlspecialchars($projectSoundOnText ?? 'ON'); ?></button>
             </div>
         </div>
 
@@ -301,6 +301,16 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_CLICK_TO_VIEW = <?php echo json_encode($projectClickToViewText ?? 'Click to view'); ?>;
         window.TELARIS_TAP_TO_VIEW = <?php echo json_encode($projectTapToViewText ?? 'Tap again to view'); ?>;
         window.TELARIS_OPEN_PORTAL_TEXT = <?php echo json_encode($projectOpenPortalText ?? 'Open the Portal'); ?>;
+        window.TELARIS_BREADCRUMB_ALL = <?php echo json_encode($projectBreadcrumbAllText ?? 'All'); ?>;
+        window.TELARIS_LAUNCH_TEXT = <?php echo json_encode($projectLaunchButtonText ?? 'LAUNCH'); ?>;
+        window.TELARIS_NO_RESULTS_TEXT = <?php echo json_encode($projectNoResultsText ?? 'No results'); ?>;
+        window.TELARIS_SOUND_ON = <?php echo json_encode($projectSoundOnText ?? 'ON'); ?>;
+        window.TELARIS_SOUND_OFF = <?php echo json_encode($projectSoundOffText ?? 'OFF'); ?>;
+        window.TELARIS_ITEMS_LABEL = <?php echo json_encode($projectItemsLabelText ?? 'items'); ?>;
+        window.TELARIS_OTHER_LABEL = <?php echo json_encode($projectOtherLabelText ?? 'Other'); ?>;
+        window.TELARIS_LAUNCHING_TEXT = <?php echo json_encode($projectLaunchingText ?? 'Launching'); ?>;
+        window.TELARIS_MISSION_ACTIVE_TEXT = <?php echo json_encode($projectMissionActiveText ?? 'Mission Active'); ?>;
+        window.TELARIS_GO_TEXT = <?php echo json_encode($projectGoText ?? 'GO'); ?>;
     </script>
     <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
     (function() {

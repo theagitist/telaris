@@ -26,6 +26,9 @@ $appName = isset($_GET['app']) ? trim((string) $_GET['app']) : 'Telaris';
 $alertMsg = isset($_GET['alert_msg']) ? trim((string) $_GET['alert_msg']) : 'Close this window to come back';
 $description = isset($_GET['description']) ? trim((string) $_GET['description']) : '';
 $openPortalText = isset($_GET['open_portal_text']) ? trim((string) $_GET['open_portal_text']) : 'Open the Portal';
+$launchingText = isset($_GET['launching_text']) ? trim((string) $_GET['launching_text']) : 'Launching';
+$missionActiveText = isset($_GET['mission_active_text']) ? trim((string) $_GET['mission_active_text']) : 'Mission Active';
+$goText = isset($_GET['go_text']) ? trim((string) $_GET['go_text']) : 'GO';
 
 $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>
@@ -34,7 +37,7 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Launching: <?php echo htmlspecialchars($nodeName); ?> - <?php echo htmlspecialchars($appName); ?></title>
+    <title><?php echo htmlspecialchars($launchingText); ?>: <?php echo htmlspecialchars($nodeName); ?> - <?php echo htmlspecialchars($appName); ?></title>
     <style>
         :root {
             --accent: rgb(<?php echo "$r,$g,$b"; ?>);
@@ -175,7 +178,7 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
     <canvas id="bg-canvas"></canvas>
 
     <div class="content" id="main-content">
-        <div class="title">Launching <?php echo htmlspecialchars($nodeName); ?></div>
+        <div class="title"><?php echo htmlspecialchars($launchingText); ?> <?php echo htmlspecialchars($nodeName); ?></div>
         <div class="subtitle"><?php echo nl2br(htmlspecialchars($alertMsg)); ?></div>
         <?php if ($description !== ''): ?>
         <div class="description"><?php echo nl2br(htmlspecialchars($description)); ?></div>
@@ -186,7 +189,7 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
     </div>
 
     <div class="footer-note">
-        Mission Active
+        <?php echo htmlspecialchars($missionActiveText); ?>
     </div>
 
     <script type="module" nonce="<?php echo htmlspecialchars($cspNonce); ?>">
@@ -290,7 +293,7 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
                         cdEl.innerText = count;
                     } else {
                         clearInterval(timer);
-                        cdEl.innerText = "GO";
+                        cdEl.innerText = <?php echo json_encode($goText); ?>;
                         startLaunch();
                     }
                 }, 1000);

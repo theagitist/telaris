@@ -80,7 +80,7 @@ function getDefaultApiKey(?PDO $pdo = null): ?string {
 // ---------------------------------------------------------------------------
 
 /** Column keys for project_info (one row per locale). */
-const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text', 'back_button_text', 'system_online_text', 'reload_system_text', 'scan_system_text', 'clear_scan_text', 'systems_label_text', 'hyperlinks_label_text', 'initialize_auth_text', 'admin_label_text', 'logout_label_text', 'click_to_view_text', 'tap_to_view_text', 'open_portal_text'];
+const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text', 'back_button_text', 'system_online_text', 'reload_system_text', 'scan_system_text', 'clear_scan_text', 'systems_label_text', 'hyperlinks_label_text', 'initialize_auth_text', 'admin_label_text', 'logout_label_text', 'click_to_view_text', 'tap_to_view_text', 'open_portal_text', 'sound_label_text', 'sound_on_text', 'sound_off_text', 'launching_text', 'mission_active_text', 'go_text', 'breadcrumb_all_text', 'launch_button_text', 'no_results_text', 'items_label_text', 'other_label_text'];
 
 /** Locales supported (one row per locale in project_info). */
 const PROJECT_INFO_LOCALES = ['en', 'es', 'pt'];
@@ -124,7 +124,11 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'hyperlinks_label_text' => 'Hyperlinks:', 'initialize_auth_text' => 'Login',
             'admin_label_text' => 'Admin', 'logout_label_text' => 'Logout',
             'click_to_view_text' => 'Click to view', 'tap_to_view_text' => 'Tap again to view',
-            'open_portal_text' => 'Open the Portal'
+            'open_portal_text' => 'Open the Portal',
+            'sound_label_text' => 'Sound:', 'sound_on_text' => 'ON', 'sound_off_text' => 'OFF',
+            'launching_text' => 'Launching', 'mission_active_text' => 'Mission Active', 'go_text' => 'GO',
+            'breadcrumb_all_text' => 'All', 'launch_button_text' => 'LAUNCH',
+            'no_results_text' => 'No results', 'items_label_text' => 'items', 'other_label_text' => 'Other'
         ],
         'es' => [
             'name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 
@@ -136,7 +140,11 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'hyperlinks_label_text' => 'Hipervínculos:', 'initialize_auth_text' => 'Iniciar sesión',
             'admin_label_text' => 'Admin', 'logout_label_text' => 'Cerrar sesión',
             'click_to_view_text' => 'Haz clic para ver', 'tap_to_view_text' => 'Toca de nuevo para ver',
-            'open_portal_text' => 'Abrir el Portal'
+            'open_portal_text' => 'Abrir el Portal',
+            'sound_label_text' => 'Sonido:', 'sound_on_text' => 'SÍ', 'sound_off_text' => 'NO',
+            'launching_text' => 'Lanzando', 'mission_active_text' => 'Misión Activa', 'go_text' => 'YA',
+            'breadcrumb_all_text' => 'Todo', 'launch_button_text' => 'LANZAR',
+            'no_results_text' => 'Sin resultados', 'items_label_text' => 'elementos', 'other_label_text' => 'Otros'
         ],
         'pt' => [
             'name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 
@@ -148,7 +156,11 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'hyperlinks_label_text' => 'Hiperlinks:', 'initialize_auth_text' => 'Entrar',
             'admin_label_text' => 'Admin', 'logout_label_text' => 'Sair',
             'click_to_view_text' => 'Clique para ver', 'tap_to_view_text' => 'Toque novamente para ver',
-            'open_portal_text' => 'Abrir o Portal'
+            'open_portal_text' => 'Abrir o Portal',
+            'sound_label_text' => 'Som:', 'sound_on_text' => 'SIM', 'sound_off_text' => 'NÃO',
+            'launching_text' => 'Lançando', 'mission_active_text' => 'Missão Ativa', 'go_text' => 'VAI',
+            'breadcrumb_all_text' => 'Tudo', 'launch_button_text' => 'LANÇAR',
+            'no_results_text' => 'Sem resultados', 'items_label_text' => 'itens', 'other_label_text' => 'Outros'
         ],
     ];
 }
@@ -231,8 +243,50 @@ function db_set_node_clustering_metadata(int $nodeId, ?string $mucuaName, ?strin
 function db_ensure_project_info_table(): void {
 }
 
-/** No-op: all columns now exist in SCHEMA.sql. */
+/** Ensure new localization columns exist in project_info. */
 function db_ensure_project_info_columns(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    $newCols = [
+        'sound_label_text' => "VARCHAR(200) NOT NULL DEFAULT 'Sound:'",
+        'sound_on_text' => "VARCHAR(200) NOT NULL DEFAULT 'ON'",
+        'sound_off_text' => "VARCHAR(200) NOT NULL DEFAULT 'OFF'",
+        'launching_text' => "VARCHAR(200) NOT NULL DEFAULT 'Launching'",
+        'mission_active_text' => "VARCHAR(200) NOT NULL DEFAULT 'Mission Active'",
+        'go_text' => "VARCHAR(200) NOT NULL DEFAULT 'GO'",
+        'breadcrumb_all_text' => "VARCHAR(200) NOT NULL DEFAULT 'All'",
+        'launch_button_text' => "VARCHAR(200) NOT NULL DEFAULT 'LAUNCH'",
+        'no_results_text' => "VARCHAR(200) NOT NULL DEFAULT 'No results'",
+        'items_label_text' => "VARCHAR(200) NOT NULL DEFAULT 'items'",
+        'other_label_text' => "VARCHAR(200) NOT NULL DEFAULT 'Other'",
+    ];
+    try {
+        $pdo = getDB();
+        foreach ($newCols as $col => $def) {
+            $row = $pdo->query("SHOW COLUMNS FROM project_info LIKE '{$col}'")->fetch();
+            if (!$row) {
+                $pdo->exec("ALTER TABLE project_info ADD COLUMN {$col} {$def}");
+            }
+        }
+        // Populate defaults for non-en locales
+        $defaults = db_default_project_info_rows();
+        foreach (['es', 'pt'] as $locale) {
+            $sets = [];
+            $params = [':locale' => $locale];
+            foreach ($newCols as $col => $_) {
+                if (isset($defaults[$locale][$col])) {
+                    $sets[] = "{$col} = CASE WHEN {$col} = '' OR {$col} = (SELECT {$col} FROM (SELECT {$col} FROM project_info WHERE locale = 'en' LIMIT 1) AS t) THEN :{$col} ELSE {$col} END";
+                    $params[":{$col}"] = $defaults[$locale][$col];
+                }
+            }
+            if (!empty($sets)) {
+                $pdo->prepare("UPDATE project_info SET " . implode(', ', $sets) . " WHERE locale = :locale")->execute($params);
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_project_info_columns: ' . $e->getMessage());
+    }
 }
 
 /**
@@ -355,6 +409,7 @@ function db_get_project_info_all_locales(): ?array {
 function db_get_project_info_for_locale(string $locale): array {
     try {
         db_ensure_project_info_table();
+        db_ensure_project_info_columns();
         $locale = strtolower($locale);
         if (!in_array($locale, PROJECT_INFO_LOCALES, true)) {
             $locale = 'en';
@@ -968,7 +1023,7 @@ function db_duplicate_constellation(int $sourceId, string $newName, string $newT
 
         $insertNodeKw = $pdo->prepare("INSERT INTO node_keywords (node_id, keyword_id) VALUES (:nid, :kid)");
         
-        $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
+        $uploadDir = UPLOAD_DIR;
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
@@ -1423,7 +1478,7 @@ function db_delete_node(int $id): void {
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch();
     if ($row) {
-        $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
+        $uploadDir = UPLOAD_DIR;
         foreach (['image_url', 'icon_url', 'audio_url', 'video_url'] as $col) {
             if ($row[$col] && str_starts_with($row[$col], 'uploads/')) {
                 $fullPath = str_replace('uploads/', $uploadDir . '/', $row[$col]);
@@ -1459,7 +1514,7 @@ function db_delete_node_file(int $id, string $type): void {
     $row = $stmt->fetch();
     
     if ($row && $row[$column] && str_starts_with($row[$column], 'uploads/')) {
-        $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
+        $uploadDir = UPLOAD_DIR;
         $fullPath = str_replace('uploads/', $uploadDir . '/', $row[$column]);
         if (file_exists($fullPath)) {
             unlink($fullPath);

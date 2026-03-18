@@ -97,7 +97,10 @@ class TelarisNetwork {
             '&alert_msg=' + encodeURIComponent(alertMsg) +
             '&node_name=' + encodeURIComponent(d.name || 'System') +
             '&description=' + encodeURIComponent(d.description || '') +
-            '&open_portal_text=' + encodeURIComponent(window.TELARIS_OPEN_PORTAL_TEXT || 'Open the Portal');
+            '&open_portal_text=' + encodeURIComponent(window.TELARIS_OPEN_PORTAL_TEXT || 'Open the Portal') +
+            '&launching_text=' + encodeURIComponent(window.TELARIS_LAUNCHING_TEXT || 'Launching') +
+            '&mission_active_text=' + encodeURIComponent(window.TELARIS_MISSION_ACTIVE_TEXT || 'Mission Active') +
+            '&go_text=' + encodeURIComponent(window.TELARIS_GO_TEXT || 'GO');
         window.open(frameUrl, '_blank', 'noopener,noreferrer');
     }
 
@@ -300,7 +303,7 @@ class TelarisNetwork {
                 };
             } else if (d.url) {
                 urlWrap.classList.remove('hidden');
-                urlButton.textContent = `LAUNCH ${d.name || 'SYSTEM'}`;
+                urlButton.textContent = `${window.TELARIS_LAUNCH_TEXT || 'LAUNCH'} ${d.name || 'SYSTEM'}`;
                 urlButton.onclick = () => {
                     this.closeRichMediaWindow();
                     this.openInFrame(node, d.url);
@@ -399,7 +402,7 @@ class TelarisNetwork {
         toggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.soundEnabled = !this.soundEnabled;
-            toggleBtn.innerText = this.soundEnabled ? 'ON' : 'OFF';
+            toggleBtn.innerText = this.soundEnabled ? (toggleBtn.dataset.on || 'ON') : (toggleBtn.dataset.off || 'OFF');
 
             const soundscape = this._getSoundscape();
             if (soundscape) {
@@ -2179,7 +2182,7 @@ class TelarisNetwork {
 
         // "All" root link
         const rootLink = document.createElement('span');
-        rootLink.textContent = 'All';
+        rootLink.textContent = window.TELARIS_BREADCRUMB_ALL || 'All';
         rootLink.style.cursor = 'pointer';
         rootLink.style.opacity = '0.7';
         rootLink.addEventListener('click', () => {
@@ -3712,7 +3715,7 @@ class TelarisNetwork {
             resultsDropdown.innerHTML = '';
 
             if (results.length === 0) {
-                resultsDropdown.innerHTML = '<div class="px-3 py-2 text-xs text-white/40 uppercase tracking-wider">No results</div>';
+                resultsDropdown.innerHTML = '<div class="px-3 py-2 text-xs text-white/40 uppercase tracking-wider">' + escapeHtml(window.TELARIS_NO_RESULTS_TEXT || 'No results') + '</div>';
                 resultsDropdown.style.display = 'block';
                 return;
             }

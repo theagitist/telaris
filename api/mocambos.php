@@ -549,7 +549,7 @@ try {
 
             // ── Phase 2: Download media files ────────────────────────
             $streamMsg('info', "Phase 2: Downloading media files...");
-            $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
+            $uploadDir = UPLOAD_DIR;
             $mediaCount = 0;
             $mediaErrors = 0;
 

@@ -6,6 +6,21 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../utils/auth.php';
 require_once __DIR__ . '/../inc/clustering.php';
 
+// Set clustering labels from locale
+$_locale = 'en';
+if (isset($_GET['lang'])) {
+    $_locale = strtolower(trim((string)$_GET['lang']));
+} elseif (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
+    $_al = strtolower($_SERVER['HTTP_ACCEPT_LANGUAGE']);
+    if (str_starts_with($_al, 'pt')) $_locale = 'pt';
+    elseif (str_starts_with($_al, 'es')) $_locale = 'es';
+}
+$_localeStrings = db_get_project_info_for_locale($_locale);
+clustering_set_labels(
+    $_localeStrings['items_label_text'] ?? 'items',
+    $_localeStrings['other_label_text'] ?? 'Other'
+);
+
 // Set CORS headers for API responses — restrict to same origin
 if (php_sapi_name() !== 'cli') {
     header('Content-Type: application/json');
@@ -237,7 +252,7 @@ try {
                 return;
             }
 
-            $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
+            $uploadDir = UPLOAD_DIR;
             $nodeRelDir = "uploads/{$constellationId}/{$nodeId}";
             $nodeFullDir = "{$uploadDir}/{$constellationId}/{$nodeId}";
             if (!is_dir($nodeFullDir)) {
@@ -423,7 +438,7 @@ try {
 
             // Handle file uploads for PUT
             if ($constellationId !== null) {
-                $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
+                $uploadDir = UPLOAD_DIR;
                 $nodeRelDir = "uploads/{$constellationId}/{$id}";
                 $nodeFullDir = "{$uploadDir}/{$constellationId}/{$id}";
                 if (!is_dir($nodeFullDir)) {

@@ -97,6 +97,17 @@ $projectLogoutLabelText = $projectStrings['logout_label_text'] ?? 'Logout';
 $projectClickToViewText = $projectStrings['click_to_view_text'] ?? 'Click to view';
 $projectTapToViewText = $projectStrings['tap_to_view_text'] ?? 'Tap again to view';
 $projectOpenPortalText = $projectStrings['open_portal_text'] ?? 'Open the Portal';
+$projectSoundLabelText = $projectStrings['sound_label_text'] ?? 'Sound:';
+$projectSoundOnText = $projectStrings['sound_on_text'] ?? 'ON';
+$projectSoundOffText = $projectStrings['sound_off_text'] ?? 'OFF';
+$projectLaunchingText = $projectStrings['launching_text'] ?? 'Launching';
+$projectMissionActiveText = $projectStrings['mission_active_text'] ?? 'Mission Active';
+$projectGoText = $projectStrings['go_text'] ?? 'GO';
+$projectBreadcrumbAllText = $projectStrings['breadcrumb_all_text'] ?? 'All';
+$projectLaunchButtonText = $projectStrings['launch_button_text'] ?? 'LAUNCH';
+$projectNoResultsText = $projectStrings['no_results_text'] ?? 'No results';
+$projectItemsLabelText = $projectStrings['items_label_text'] ?? 'items';
+$projectOtherLabelText = $projectStrings['other_label_text'] ?? 'Other';
 $defaultConstellationId = $projectStrings['default_constellation_id'] ?? 0;
 
 // Constellation for main view: root URL = default; /{NUMBER} or ?constellation_id=NUMBER = that constellation

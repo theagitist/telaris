@@ -349,7 +349,7 @@ $startTime = microtime(true);
 $writeLog = function(string $level, string $msg) { /* no-op for download function */ };
 
 // Pre-create constellation upload dir with correct permissions
-$uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../../uploads');
+$uploadDir = UPLOAD_DIR;
 if (!$noMedia) {
     $constDir = "{$uploadDir}/{$constellationId}";
     if (!is_dir($constDir) && !@mkdir($constDir, 0775, true)) {
