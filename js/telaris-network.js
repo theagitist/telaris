@@ -1972,26 +1972,45 @@ class TelarisNetwork {
     }
 
     /**
-     * Unified cluster/back loading: show overlay, clear scene, load data, hide overlay.
-     * Does NOT use _portalFadeInMultiplier — nodes render at full opacity.
+     * Create a simple full-screen loading screen (independent of the loading-overlay element).
+     */
+    _showClusterScreen() {
+        let screen = document.getElementById('cluster-loading-screen');
+        if (!screen) {
+            screen = document.createElement('div');
+            screen.id = 'cluster-loading-screen';
+            screen.innerHTML = '<p style="color:rgba(255,255,255,0.6);font-family:var(--font-mono);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.15em;">Loading...</p>';
+            Object.assign(screen.style, {
+                position: 'fixed', inset: '0', zIndex: '9999',
+                background: '#000', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                opacity: '1', pointerEvents: 'auto'
+            });
+            document.body.appendChild(screen);
+        } else {
+            screen.style.display = 'flex';
+            screen.style.opacity = '1';
+            screen.style.pointerEvents = 'auto';
+        }
+        return screen;
+    }
+
+    _hideClusterScreen() {
+        const screen = document.getElementById('cluster-loading-screen');
+        if (screen) {
+            screen.style.opacity = '0';
+            screen.style.transition = 'opacity 0.5s ease';
+            screen.style.pointerEvents = 'none';
+            setTimeout(() => { screen.style.display = 'none'; }, 600);
+        }
+    }
+
+    /**
+     * Unified cluster/back loading: show screen, clear scene, load data, hide screen.
      */
     async _clusterLoading(constellationId, clusterKey, dataPromise, skipPushState = false) {
-        const loadingOverlay = document.getElementById('loading-overlay');
-        if (loadingOverlay) {
-            // Show overlay instantly (no CSS transition delay)
-            loadingOverlay.style.transition = 'none';
-            loadingOverlay.style.display = 'flex';
-            loadingOverlay.style.opacity = '1';
-            loadingOverlay.style.pointerEvents = 'auto';
-            if (window._loadingTorus) window._loadingTorus.reset();
-            // Show the loading text too
-            const loadingText = loadingOverlay.querySelector('.loading-text');
-            if (loadingText) loadingText.style.display = '';
-        }
+        this._showClusterScreen();
         this.controls.enabled = false;
-
-        // Wait for the overlay to paint before clearing the scene
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
         // Reset all transition state so nodes are created at full opacity
         this._portalTransition = null;
@@ -2010,29 +2029,11 @@ class TelarisNetwork {
                 window.history.pushState({}, '', navUrl);
             }
 
-            // Hide overlay (with torus warp if available)
-            const reveal = () => {
-                if (loadingOverlay) {
-                    loadingOverlay.style.transition = 'opacity 0.6s ease';
-                    loadingOverlay.style.opacity = '0';
-                    loadingOverlay.style.pointerEvents = 'none';
-                    setTimeout(() => { loadingOverlay.style.display = 'none'; }, 700);
-                }
-                this.controls.enabled = true;
-            };
-            if (window._loadingTorus) {
-                window._loadingTorus.startWarp(reveal);
-            } else {
-                reveal();
-            }
+            this._hideClusterScreen();
+            this.controls.enabled = true;
         } catch (err) {
             console.error('Cluster loading failed:', err);
-            if (loadingOverlay) {
-                loadingOverlay.style.transition = 'opacity 0.6s ease';
-                loadingOverlay.style.opacity = '0';
-                loadingOverlay.style.pointerEvents = 'none';
-                setTimeout(() => { loadingOverlay.style.display = 'none'; }, 700);
-            }
+            this._hideClusterScreen();
             this.controls.enabled = true;
         }
     }
