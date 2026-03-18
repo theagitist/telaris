@@ -23,12 +23,13 @@ $g = isset($_GET['g']) ? max(0, min(255, (int) $_GET['g'])) : 255;
 $b = isset($_GET['b']) ? max(0, min(255, (int) $_GET['b'])) : 204;
 $nodeName = isset($_GET['node_name']) ? trim((string) $_GET['node_name']) : 'System';
 $appName = isset($_GET['app']) ? trim((string) $_GET['app']) : 'Telaris';
-$alertMsg = isset($_GET['alert_msg']) ? trim((string) $_GET['alert_msg']) : 'Close this window to come back';
+$alertMsg = isset($_GET['alert_msg']) ? trim((string) $_GET['alert_msg']) : '';
 $description = isset($_GET['description']) ? trim((string) $_GET['description']) : '';
 $openPortalText = isset($_GET['open_portal_text']) ? trim((string) $_GET['open_portal_text']) : 'Open the Portal';
 $launchingText = isset($_GET['launching_text']) ? trim((string) $_GET['launching_text']) : 'Launching';
 $missionActiveText = isset($_GET['mission_active_text']) ? trim((string) $_GET['mission_active_text']) : 'Mission Active';
 $goText = isset($_GET['go_text']) ? trim((string) $_GET['go_text']) : 'GO';
+$frameKey = isset($_GET['key']) ? trim((string) $_GET['key']) : '';
 
 $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>
@@ -178,20 +179,47 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
     <canvas id="bg-canvas"></canvas>
 
     <div class="content" id="main-content">
-        <div class="title"><?php echo htmlspecialchars($launchingText); ?> <?php echo htmlspecialchars($nodeName); ?></div>
-        <div class="subtitle"><?php echo nl2br(htmlspecialchars($alertMsg)); ?></div>
-        <?php if ($description !== ''): ?>
-        <div class="description"><?php echo nl2br(htmlspecialchars($description)); ?></div>
-        <button class="launch-button" id="launch-btn"><?php echo htmlspecialchars($openPortalText); ?></button>
-        <?php else: ?>
-        <div class="countdown" id="cd">5</div>
-        <?php endif; ?>
+        <div class="title" id="frame-title"><?php echo htmlspecialchars($launchingText); ?> <?php echo htmlspecialchars($nodeName); ?></div>
+        <div class="subtitle" id="frame-subtitle"><?php echo nl2br(htmlspecialchars($alertMsg)); ?></div>
+        <div class="description" id="frame-description" style="<?php echo $description === '' ? 'display:none' : ''; ?>"><?php echo nl2br(htmlspecialchars($description)); ?></div>
+        <button class="launch-button" id="launch-btn" style="<?php echo $description === '' ? 'display:none' : ''; ?>"><?php echo htmlspecialchars($openPortalText); ?></button>
+        <div class="countdown" id="cd" style="<?php echo $description !== '' ? 'display:none' : ''; ?>">5</div>
     </div>
 
-    <div class="footer-note">
+    <div class="footer-note" id="frame-footer">
         <?php echo htmlspecialchars($missionActiveText); ?>
     </div>
 
+    <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
+    // Load data from sessionStorage (avoids URL length limits for long descriptions)
+    (function() {
+        var key = <?php echo json_encode($frameKey); ?>;
+        if (!key) return;
+        try {
+            var raw = sessionStorage.getItem(key);
+            if (!raw) return;
+            sessionStorage.removeItem(key);
+            var data = JSON.parse(raw);
+
+            var descEl = document.getElementById('frame-description');
+            var subtitleEl = document.getElementById('frame-subtitle');
+            var launchBtn = document.getElementById('launch-btn');
+            var cdEl = document.getElementById('cd');
+
+            if (data.alertMsg && subtitleEl) {
+                subtitleEl.innerHTML = data.alertMsg.replace(/\n/g, '<br>');
+            }
+            if (data.description) {
+                if (descEl) {
+                    descEl.innerHTML = data.description.replace(/\n/g, '<br>');
+                    descEl.style.display = '';
+                }
+                if (launchBtn) launchBtn.style.display = '';
+                if (cdEl) cdEl.style.display = 'none';
+            }
+        } catch(e) {}
+    })();
+    </script>
     <script type="module" nonce="<?php echo htmlspecialchars($cspNonce); ?>">
         import * as THREE from 'three';
 
@@ -201,7 +229,7 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
             const launchBtn = document.getElementById('launch-btn');
             const overlay = document.getElementById('fade-overlay');
             const content = document.getElementById('main-content');
-            const hasDescription = <?php echo $description !== '' ? 'true' : 'false'; ?>;
+            const hasDescription = document.getElementById('frame-description')?.style.display !== 'none';
             let count = 5;
             let isLaunching = false;
             let launchStartTime = 0;

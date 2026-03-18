@@ -91,17 +91,31 @@ class TelarisNetwork {
         const app = typeof window.TELARIS_APP_NAME === 'string' ? window.TELARIS_APP_NAME : 'Telaris';
         let alertMsg = typeof window.TELARIS_ALERT_MESSAGE === 'string' ? window.TELARIS_ALERT_MESSAGE : "You are traversing to the Planar Dimension\nTo explore, zoom and scroll in all directions\nClose the browser window to return to the Cosmic Dimension.";
         alertMsg = alertMsg.replace(/\{APPNAME\}/g, app);
-        const frameUrl = 'utils/frame.php?url=' + encodeURIComponent(url) + 
-            '&r=' + r + '&g=' + g + '&b=' + b + 
-            '&app=' + encodeURIComponent(app) + 
-            '&alert_msg=' + encodeURIComponent(alertMsg) +
+
+        // Store large data in sessionStorage to avoid URL length limits
+        const frameKey = 'telaris_frame_' + Date.now();
+        try {
+            sessionStorage.setItem(frameKey, JSON.stringify({
+                url, r, g, b, app, alertMsg,
+                nodeName: d.name || 'System',
+                description: d.description || '',
+                openPortalText: window.TELARIS_OPEN_PORTAL_TEXT || 'Open the Portal',
+                launchingText: window.TELARIS_LAUNCHING_TEXT || 'Launching',
+                missionActiveText: window.TELARIS_MISSION_ACTIVE_TEXT || 'Mission Active',
+                goText: window.TELARIS_GO_TEXT || 'GO',
+            }));
+        } catch (e) { /* storage full — fall through to URL params */ }
+
+        const frameUrl = 'utils/frame.php?key=' + encodeURIComponent(frameKey) +
+            '&url=' + encodeURIComponent(url) +
+            '&r=' + r + '&g=' + g + '&b=' + b +
+            '&app=' + encodeURIComponent(app) +
             '&node_name=' + encodeURIComponent(d.name || 'System') +
-            '&description=' + encodeURIComponent(d.description || '') +
             '&open_portal_text=' + encodeURIComponent(window.TELARIS_OPEN_PORTAL_TEXT || 'Open the Portal') +
             '&launching_text=' + encodeURIComponent(window.TELARIS_LAUNCHING_TEXT || 'Launching') +
             '&mission_active_text=' + encodeURIComponent(window.TELARIS_MISSION_ACTIVE_TEXT || 'Mission Active') +
             '&go_text=' + encodeURIComponent(window.TELARIS_GO_TEXT || 'GO');
-        window.open(frameUrl, '_blank', 'noopener,noreferrer');
+        window.open(frameUrl, '_blank');
     }
 
     showRichMediaWindow(node) {
