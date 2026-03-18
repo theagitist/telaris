@@ -1978,10 +1978,15 @@ class TelarisNetwork {
     async _clusterLoading(constellationId, clusterKey, dataPromise, skipPushState = false) {
         const loadingOverlay = document.getElementById('loading-overlay');
         if (loadingOverlay) {
+            // Show overlay instantly (no CSS transition delay)
+            loadingOverlay.style.transition = 'none';
             loadingOverlay.style.display = 'flex';
             loadingOverlay.style.opacity = '1';
             loadingOverlay.style.pointerEvents = 'auto';
             if (window._loadingTorus) window._loadingTorus.reset();
+            // Show the loading text too
+            const loadingText = loadingOverlay.querySelector('.loading-text');
+            if (loadingText) loadingText.style.display = '';
         }
         this.controls.enabled = false;
 
@@ -2002,9 +2007,10 @@ class TelarisNetwork {
             // Hide overlay (with torus warp if available)
             const reveal = () => {
                 if (loadingOverlay) {
+                    loadingOverlay.style.transition = 'opacity 0.6s ease';
                     loadingOverlay.style.opacity = '0';
                     loadingOverlay.style.pointerEvents = 'none';
-                    setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
+                    setTimeout(() => { loadingOverlay.style.display = 'none'; }, 700);
                 }
                 this.controls.enabled = true;
             };
@@ -2016,9 +2022,10 @@ class TelarisNetwork {
         } catch (err) {
             console.error('Cluster loading failed:', err);
             if (loadingOverlay) {
+                loadingOverlay.style.transition = 'opacity 0.6s ease';
                 loadingOverlay.style.opacity = '0';
                 loadingOverlay.style.pointerEvents = 'none';
-                setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
+                setTimeout(() => { loadingOverlay.style.display = 'none'; }, 700);
             }
             this.controls.enabled = true;
         }
