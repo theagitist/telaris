@@ -1,0 +1,302 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Clustering engine for large constellations.
+ * Groups nodes into navigable clusters when a constellation exceeds a threshold.
+ */
+
+/**
+ * Build a cluster summary node.
+ */
+function make_cluster_summary(string $clusterKey, string $name, int $count, string $level): array {
+    return [
+        'id' => 'cluster:' . $clusterKey,
+        'name' => $name,
+        'description' => number_format($count) . ' items',
+        'url' => null,
+        'image_url' => null,
+        'icon_url' => null,
+        'embed_code' => null,
+        'audio_url' => null,
+        'audio_autoplay' => false,
+        'audio_loop' => false,
+        'video_url' => null,
+        'video_autoplay' => false,
+        'keywords' => [],
+        'animation' => [
+            'radius' => 5 + rand(0, 3),
+            'theta'  => rand(0, 628) / 100,
+            'phi'    => rand(0, 314) / 100,
+            'speed'  => 0.002 + (rand(0, 4) / 1000),
+            'phase'  => rand(0, 628) / 100,
+        ],
+        'created_at' => null,
+        'updated_at' => null,
+        'constellation_id' => null,
+        'constellation_name' => null,
+        'node_type' => 'cluster',
+        'target_constellation_id' => null,
+        'is_accentuated' => false,
+        'show_keywords' => false,
+        'cluster_key' => $clusterKey,
+        'cluster_count' => $count,
+        'cluster_level' => $level,
+        'mucua_name' => null,
+        'media_type' => null,
+        'source_created_at' => null,
+    ];
+}
+
+/**
+ * Group nodes by a field value, returning an associative array.
+ */
+function group_nodes_by(array $nodes, string $field): array {
+    $groups = [];
+    foreach ($nodes as $node) {
+        $val = $node[$field] ?? null;
+        $key = ($val !== null && $val !== '') ? (string)$val : '__other__';
+        $groups[$key][] = $node;
+    }
+    return $groups;
+}
+
+/**
+ * Extract year from source_created_at string.
+ */
+function extract_year(?string $dateStr): ?string {
+    if ($dateStr === null || $dateStr === '') return null;
+    if (preg_match('/^(\d{4})/', $dateStr, $m)) return $m[1];
+    return null;
+}
+
+/**
+ * Extract year-month from source_created_at string.
+ */
+function extract_year_month(?string $dateStr): ?string {
+    if ($dateStr === null || $dateStr === '') return null;
+    if (preg_match('/^(\d{4}-\d{2})/', $dateStr, $m)) return $m[1];
+    return null;
+}
+
+/**
+ * Get alphabetical bucket label for a name (A-F, G-L, M-R, S-Z).
+ */
+function alpha_bucket(string $name): string {
+    $first = mb_strtoupper(mb_substr(trim($name), 0, 1));
+    if ($first >= 'A' && $first <= 'F') return 'A-F';
+    if ($first >= 'G' && $first <= 'L') return 'G-L';
+    if ($first >= 'M' && $first <= 'R') return 'M-R';
+    return 'S-Z';
+}
+
+/**
+ * Recursively cluster nodes using a cascade of grouping criteria.
+ *
+ * @param array $nodes Formatted node arrays
+ * @param string $parentKey Current cluster key prefix (empty at root)
+ * @param array $cascade Remaining grouping criteria
+ * @param int $threshold Max items before clustering
+ * @return array Mixed array of cluster summaries and direct nodes
+ */
+function cluster_recursive(array $nodes, string $parentKey, array $cascade, int $threshold): array {
+    if (count($nodes) <= $threshold || empty($cascade)) {
+        return $nodes;
+    }
+
+    $criterion = array_shift($cascade);
+    $groups = [];
+
+    switch ($criterion) {
+        case 'mucua':
+            $groups = group_nodes_by($nodes, 'mucua_name');
+            break;
+        case 'type':
+            $groups = group_nodes_by($nodes, 'media_type');
+            break;
+        case 'date_year':
+            foreach ($nodes as $node) {
+                $year = extract_year($node['source_created_at'] ?? null) ?? '__other__';
+                $groups[$year][] = $node;
+            }
+            break;
+        case 'date_month':
+            foreach ($nodes as $node) {
+                $ym = extract_year_month($node['source_created_at'] ?? null) ?? '__other__';
+                $groups[$ym][] = $node;
+            }
+            break;
+        case 'alpha':
+            foreach ($nodes as $node) {
+                $bucket = alpha_bucket($node['name'] ?? '');
+                $groups[$bucket][] = $node;
+            }
+            break;
+    }
+
+    // If grouping produced only 1 group, skip this level and try next criterion
+    if (count($groups) <= 1) {
+        return cluster_recursive($nodes, $parentKey, $cascade, $threshold);
+    }
+
+    $result = [];
+    foreach ($groups as $key => $groupNodes) {
+        $key = (string)$key; // PHP casts numeric array keys to int
+
+        // Single-item groups: promote to parent level
+        if (count($groupNodes) === 1) {
+            $result[] = $groupNodes[0];
+            continue;
+        }
+
+        $levelLabel = match($criterion) {
+            'mucua' => 'mucua',
+            'type' => 'type',
+            'date_year' => 'date',
+            'date_month' => 'date',
+            'alpha' => 'alpha',
+            default => $criterion,
+        };
+
+        $segmentKey = $levelLabel . ':' . $key;
+        $clusterKey = $parentKey !== '' ? $parentKey . '/' . $segmentKey : $segmentKey;
+
+        if (count($groupNodes) <= $threshold) {
+            // Small enough, make a single cluster that contains them directly
+            $displayName = $key === '__other__' ? 'Other' : $key;
+            $result[] = make_cluster_summary($clusterKey, $displayName, count($groupNodes), $levelLabel);
+        } else {
+            // Still too large — recurse with remaining cascade
+            $subResult = cluster_recursive($groupNodes, $clusterKey, $cascade, $threshold);
+            // If recursion produced clusters, wrap in a parent cluster
+            $hasClusters = false;
+            foreach ($subResult as $item) {
+                if (($item['node_type'] ?? '') === 'cluster') {
+                    $hasClusters = true;
+                    break;
+                }
+            }
+            if ($hasClusters) {
+                $displayName = $key === '__other__' ? 'Other' : $key;
+                $result[] = make_cluster_summary($clusterKey, $displayName, count($groupNodes), $levelLabel);
+            } else {
+                // Recursion didn't help (ran out of cascade) — just make a cluster anyway
+                $displayName = $key === '__other__' ? 'Other' : $key;
+                $result[] = make_cluster_summary($clusterKey, $displayName, count($groupNodes), $levelLabel);
+            }
+        }
+    }
+
+    return $result;
+}
+
+/**
+ * Compute clusters for a set of nodes.
+ *
+ * @param array $nodes Formatted node arrays from db_format_node
+ * @param int $threshold Maximum items to show at once (default 50)
+ * @return array Mixed array of cluster summaries and regular nodes
+ */
+function compute_clusters(array $nodes, int $threshold = 50): array {
+    if (count($nodes) <= $threshold) {
+        return $nodes;
+    }
+
+    // Detect if this is Mocambos data (any node has mucua_name)
+    $hasMucua = false;
+    foreach ($nodes as $node) {
+        if (!empty($node['mucua_name'])) {
+            $hasMucua = true;
+            break;
+        }
+    }
+
+    if ($hasMucua) {
+        $cascade = ['mucua', 'type', 'date_year', 'date_month', 'alpha'];
+    } else {
+        $cascade = ['type', 'date_year', 'date_month', 'alpha'];
+    }
+
+    return cluster_recursive($nodes, '', $cascade, $threshold);
+}
+
+/**
+ * Filter nodes matching a cluster key, then compute sub-clusters if needed.
+ *
+ * @param array $nodes All formatted nodes for the constellation
+ * @param string $clusterKey e.g. "mucua:Abdias" or "mucua:Abdias/type:imagem"
+ * @param int $threshold Max items before clustering
+ * @return array Mixed array of cluster summaries and regular nodes
+ */
+function filter_nodes_by_cluster(array $nodes, string $clusterKey, int $threshold = 50): array {
+    // Parse cluster key into segments
+    $segments = explode('/', $clusterKey);
+    $filters = [];
+    foreach ($segments as $seg) {
+        $colonPos = strpos($seg, ':');
+        if ($colonPos === false) continue;
+        $level = substr($seg, 0, $colonPos);
+        $value = substr($seg, $colonPos + 1);
+        $filters[] = ['level' => $level, 'value' => $value];
+    }
+
+    // Filter nodes matching all segments
+    $filtered = $nodes;
+    foreach ($filters as $f) {
+        $filtered = array_values(array_filter($filtered, function ($node) use ($f) {
+            switch ($f['level']) {
+                case 'mucua':
+                    return ($node['mucua_name'] ?? '') === $f['value'];
+                case 'type':
+                    return ($node['media_type'] ?? '') === $f['value'];
+                case 'date':
+                    $dateStr = $node['source_created_at'] ?? '';
+                    // Match year or year-month
+                    if (strlen($f['value']) === 4) {
+                        return extract_year($dateStr) === $f['value'];
+                    }
+                    return extract_year_month($dateStr) === $f['value'];
+                case 'alpha':
+                    return alpha_bucket($node['name'] ?? '') === $f['value'];
+                default:
+                    return true;
+            }
+        }));
+    }
+
+    if (count($filtered) <= $threshold) {
+        return $filtered;
+    }
+
+    // Determine remaining cascade based on what's already been filtered
+    $usedLevels = array_map(fn($f) => $f['level'], $filters);
+
+    // Detect Mocambos
+    $hasMucua = false;
+    foreach ($filtered as $node) {
+        if (!empty($node['mucua_name'])) {
+            $hasMucua = true;
+            break;
+        }
+    }
+
+    if ($hasMucua) {
+        $fullCascade = ['mucua', 'type', 'date_year', 'date_month', 'alpha'];
+    } else {
+        $fullCascade = ['type', 'date_year', 'date_month', 'alpha'];
+    }
+
+    // Remove already-used levels from cascade
+    $remaining = [];
+    foreach ($fullCascade as $c) {
+        $cLevel = match($c) {
+            'date_year', 'date_month' => 'date',
+            default => $c,
+        };
+        if (!in_array($cLevel, $usedLevels, true)) {
+            $remaining[] = $c;
+        }
+    }
+
+    return cluster_recursive($filtered, $clusterKey, $remaining, $threshold);
+}

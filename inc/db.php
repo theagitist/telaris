@@ -199,6 +199,34 @@ function db_ensure_nodes_icon_url_column(): void {
     }
 }
 
+/** Ensure nodes clustering columns exist (mucua_name, media_type, source_created_at). */
+function db_ensure_nodes_clustering_columns(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'mucua_name'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE nodes ADD COLUMN mucua_name VARCHAR(255) NULL AFTER show_keywords, ADD COLUMN media_type VARCHAR(50) NULL AFTER mucua_name, ADD COLUMN source_created_at VARCHAR(30) NULL AFTER media_type");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_nodes_clustering_columns: ' . $e->getMessage());
+    }
+}
+
+/** Set clustering metadata on a node. */
+function db_set_node_clustering_metadata(int $nodeId, ?string $mucuaName, ?string $mediaType, ?string $sourceCreatedAt): void {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE nodes SET mucua_name = :mucua_name, media_type = :media_type, source_created_at = :source_created_at WHERE id = :id");
+    $stmt->execute([
+        ':id' => $nodeId,
+        ':mucua_name' => $mucuaName,
+        ':media_type' => $mediaType,
+        ':source_created_at' => $sourceCreatedAt,
+    ]);
+}
+
 /** No-op: schema is created by setup only. */
 function db_ensure_project_info_table(): void {
 }
@@ -1131,6 +1159,7 @@ function db_node_exists(string $name, int $constellationId, ?int $excludeId = nu
 function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool $isAdmin = true): array {
     db_ensure_nodes_show_keywords_column();
     db_ensure_nodes_icon_url_column();
+    db_ensure_nodes_clustering_columns();
     $pdo = getDB();
 
     // Admin or specific constellation requested
@@ -1138,6 +1167,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         $stmt = $pdo->query("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords,
+                   n.mucua_name, n.media_type, n.source_created_at,
                    c.name AS constellation_name
             FROM nodes n
             LEFT JOIN constellations c ON c.id = n.constellation_id
@@ -1159,6 +1189,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         $stmt = $pdo->prepare("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords,
+                   n.mucua_name, n.media_type, n.source_created_at,
                    c.name AS constellation_name
             FROM nodes n
             LEFT JOIN constellations c ON c.id = n.constellation_id
@@ -1174,6 +1205,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         $stmt = $pdo->prepare("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords,
+                   n.mucua_name, n.media_type, n.source_created_at,
                    c.name AS constellation_name
             FROM nodes n
             INNER JOIN user_constellations uc ON n.constellation_id = uc.constellation_id AND uc.user_id = :user_id
@@ -1250,7 +1282,10 @@ function db_format_node(array $node): array {
         'node_type' => $nodeType,
         'target_constellation_id' => $targetConstellationId,
         'is_accentuated' => (bool)($node['is_accentuated'] ?? false),
-        'show_keywords' => (bool)($node['show_keywords'] ?? false)
+        'show_keywords' => (bool)($node['show_keywords'] ?? false),
+        'mucua_name' => isset($node['mucua_name']) && $node['mucua_name'] !== null && $node['mucua_name'] !== '' ? (string)$node['mucua_name'] : null,
+        'media_type' => isset($node['media_type']) && $node['media_type'] !== null && $node['media_type'] !== '' ? (string)$node['media_type'] : null,
+        'source_created_at' => isset($node['source_created_at']) && $node['source_created_at'] !== null && $node['source_created_at'] !== '' ? (string)$node['source_created_at'] : null,
     ];
 }
 

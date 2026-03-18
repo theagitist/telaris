@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS nodes (
     target_constellation_id INT NULL,
     is_accentuated BOOLEAN NOT NULL DEFAULT FALSE,
     show_keywords BOOLEAN NOT NULL DEFAULT FALSE,
+    mucua_name VARCHAR(255) NULL,
+    media_type VARCHAR(50) NULL,
+    source_created_at VARCHAR(30) NULL,
     -- NEW FIELDS END HERE --
     created_by VARCHAR(255) NULL,
     animation JSON NOT NULL DEFAULT (JSON_OBJECT('radius', 5.0, 'theta', 0, 'phi', 0, 'speed', 0.0025, 'phase', 0)),

@@ -218,6 +218,50 @@ function createImageMeshNode(imageUrl, material) {
     return sprite;
 }
 
+function createClusterNode(material, gm) {
+    const group = new THREE.Group();
+
+    // Central translucent sphere
+    const coreGeo = gm.getSphere(0.35, 16);
+    const coreMat = material.clone();
+    coreMat.transparent = true;
+    coreMat.opacity = 0.3;
+    coreMat.emissiveIntensity = 0.8;
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    group.add(core);
+
+    // Orbiting smaller spheres (suggesting "group of nodes")
+    const orbitCount = 6;
+    const orbitGeo = gm.getSphere(0.09, 8);
+    for (let i = 0; i < orbitCount; i++) {
+        const angle = (i / orbitCount) * Math.PI * 2;
+        const orbitMat = material.clone();
+        orbitMat.emissiveIntensity = material.emissiveIntensity * 1.3;
+        const orb = new THREE.Mesh(orbitGeo, orbitMat);
+        const radius = 0.5;
+        // Distribute in 3D — vary the plane of each orbit point
+        const phi = (i / orbitCount) * Math.PI;
+        orb.position.set(
+            radius * Math.cos(angle) * Math.sin(phi),
+            radius * Math.cos(phi),
+            radius * Math.sin(angle) * Math.sin(phi)
+        );
+        group.add(orb);
+    }
+
+    // Invisible hitbox for easier clicking
+    const hitboxGeo = new THREE.SphereGeometry(0.6, 8, 8);
+    const hitboxMat = new THREE.MeshBasicMaterial({
+        transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide
+    });
+    const hitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
+    hitbox.name = 'cluster_hitbox';
+    group.add(hitbox);
+
+    group.isCluster = true;
+    return group;
+}
+
 function createPortalNode(material, gm) {
     const group = new THREE.Group();
 
@@ -262,6 +306,10 @@ export function createNodeIcon(material, index, gm, type = 'object', themeId = '
     }
 
     const theme = getTheme(themeId);
+
+    if (type === 'cluster') {
+        return createClusterNode(material, gm);
+    }
 
     if (type === 'portal') {
         // Torus wireframe sprite — looks like the other image nodes but is clearly a portal

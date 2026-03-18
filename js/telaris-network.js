@@ -26,7 +26,7 @@ class TelarisNetwork {
 
         this.nodes = [];
         this.connections = [];
-        this.navigationStack = [window.TELARIS_CONSTELLATION_ID ?? 0];
+        this.navigationStack = [{ constellationId: window.TELARIS_CONSTELLATION_ID ?? 0, clusterKey: null }];
         this.networkManager = new NetworkManager({ fadeSpeed: 0.1 });
         this.geometryManager = new GeometryManager();
         this.currentTheme = getTheme(window.TELARIS_THEME_ID || 'cosmic');
@@ -1684,7 +1684,12 @@ class TelarisNetwork {
             }
             
             const constellationId = window.TELARIS_CONSTELLATION_ID || 0;
-            const response = await apiFetch(`api/nodes.php?constellation_id=${constellationId}`);
+            const urlParams = new URLSearchParams(window.location.search);
+            const initialClusterKey = urlParams.get('cluster') || null;
+            this.currentClusterKey = initialClusterKey;
+            let fetchUrl = `api/nodes.php?constellation_id=${constellationId}`;
+            if (initialClusterKey) fetchUrl += `&cluster=${encodeURIComponent(initialClusterKey)}`;
+            const response = await apiFetch(fetchUrl);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             
             const nodesJson = await response.json();
@@ -1703,11 +1708,18 @@ class TelarisNetwork {
             } else {
                 this.clearAll();
             }
+            if (initialClusterKey) {
+                this.navigationStack = [
+                    { constellationId, clusterKey: null },
+                    { constellationId, clusterKey: initialClusterKey }
+                ];
+            }
         } catch (error) {
             console.error('Error loading data:', error);
             this.clearAll();
         } finally {
             this.updateBackButtonVisibility();
+            this.updateBreadcrumb();
             this.updateConstellationUI(window.TELARIS_CONSTELLATION_ID ?? 0);
             
             // Show BEGIN button instead of the loading torus
@@ -1781,10 +1793,20 @@ class TelarisNetwork {
         if (!btn) return;
         btn.addEventListener('click', () => {
             if (this.navigationStack.length <= 1) return;
-            this.navigationStack.pop(); // Remove current ID
-            const previousId = this.navigationStack[this.navigationStack.length - 1]; // Peek at the target ID
+            this.navigationStack.pop(); // Remove current entry
+            const prev = this.navigationStack[this.navigationStack.length - 1]; // Peek at the target
             this.updateBackButtonVisibility();
-            this.runBackTransition(previousId);
+            if (typeof prev === 'object' && prev !== null) {
+                // New format: { constellationId, clusterKey }
+                if (prev.clusterKey) {
+                    this.transitionToCluster(prev.constellationId, prev.clusterKey, true);
+                } else {
+                    this.runBackTransition(prev.constellationId);
+                }
+            } else {
+                // Legacy format (plain ID) — fallback
+                this.runBackTransition(prev);
+            }
         });
     }
 
@@ -1854,79 +1876,140 @@ class TelarisNetwork {
     }
 
     /**
-     * Start 500ms "rev" feedback on the clicked portal, then run the constellation transition.
+     * Start 500ms "rev" feedback on the clicked node, then run the transition.
+     * Works for both portals and clusters.
      */
-    startPortalRev(clickedNode, targetId) {
-        this._revvingPortal = { node: clickedNode, targetId, startTime: performance.now() };
+    startPortalRev(clickedNode, targetId, clusterKey = null) {
+        this._revvingPortal = { node: clickedNode, targetId, clusterKey, startTime: performance.now() };
     }
 
     /**
-     * Run portal transition: move camera toward portal over 1s while fading network to 0,
-     * then load new constellation, reset camera, and fade new network in.
+     * Run portal/cluster transition: move camera toward node over 800ms while fading network to 0,
+     * then show loading torus, load data, and fade new network in.
      */
-    runPortalTransition(clickedNode, targetId) {
+    runPortalTransition(clickedNode, targetId, clusterKey = null) {
         const portalPos = new THREE.Vector3();
         clickedNode.getWorldPosition(portalPos);
-        
+
         // Pre-fetch data immediately
-        const dataPromise = apiFetch(`api/nodes.php?constellation_id=${targetId}`)
+        let fetchUrl = `api/nodes.php?constellation_id=${targetId}`;
+        if (clusterKey) fetchUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
+        const dataPromise = apiFetch(fetchUrl)
             .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
             .then(json => Array.isArray(json) ? json : []);
 
-        this._portalTransition = {
-            phase: 'camera_fade_out',
-            startTime: performance.now(),
-            duration: 800,
-            cameraEnd: portalPos.clone(),
-            targetEnd: portalPos.clone(),
-            cameraStart: this.camera.position.clone(),
-            targetStart: this.controls.target.clone(),
-            targetId,
-            dataPromise,
-            targetFadeInDuration: 1000 // Slower fade in for portals
-        };
-        this.controls.enabled = false;
+        if (clusterKey) {
+            // Cluster drill-in: load data, then cross-fade with zoom-in
+            this.controls.enabled = false;
+
+            dataPromise.then(async (nodeData) => {
+                // Capture outgoing state
+                this._outgoingNodes = [...this.nodes];
+                this._outgoingConnections = [...this.connections];
+                this.nodes = [];
+                this.connections = [];
+
+                // Load new data (invisible) — fitCameraToNodes positions camera for new view
+                this._portalFadeInMultiplier = 0;
+                await this.loadDataForConstellation(targetId, nodeData, false, true, false, clusterKey);
+
+                // Camera end = fitted position for new nodes
+                const cameraEnd = this.camera.position.clone();
+                const targetEnd = this.controls.target.clone();
+
+                // Camera start = zoomed out (further away) to create zoom-in effect
+                const direction = cameraEnd.clone().sub(targetEnd).normalize();
+                const cameraStart = cameraEnd.clone().add(direction.multiplyScalar(8));
+
+                // Set camera to start position
+                this.camera.position.copy(cameraStart);
+
+                this._portalTransition = {
+                    phase: 'cluster_cross_fade',
+                    startTime: performance.now(),
+                    duration: 800,
+                    cameraStart,
+                    cameraEnd,
+                    targetEnd,
+                };
+
+                // Update nav stack and URL
+                this.navigationStack.push({ constellationId: targetId, clusterKey });
+                this.updateBackButtonVisibility();
+                let navUrl = `?constellation_id=${targetId}`;
+                if (clusterKey) navUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
+                window.history.pushState({}, '', navUrl);
+            }).catch(err => {
+                console.error('Cluster transition failed:', err);
+                this._portalTransition = null;
+                this._portalFadeInMultiplier = undefined;
+                this.controls.enabled = true;
+            });
+        } else {
+            // Portal transition: zoom + loading torus + fade-in (original flow)
+            this._portalTransition = {
+                phase: 'camera_fade_out',
+                startTime: performance.now(),
+                duration: 800,
+                cameraEnd: portalPos.clone(),
+                targetEnd: portalPos.clone(),
+                cameraStart: this.camera.position.clone(),
+                targetStart: this.controls.target.clone(),
+                targetId,
+                clusterKey: null,
+                dataPromise,
+                targetFadeInDuration: 1000
+            };
+            this.controls.enabled = false;
+        }
     }
 
     /**
      * Run transition BACK: current constellation fades out while target constellation fades in.
      */
     runBackTransition(targetId) {
-        // Capture current state as "outgoing"
-        this._outgoingNodes = [...this.nodes];
-        this._outgoingConnections = [...this.connections];
-        
-        // Reset main arrays so new nodes don't mix with outgoing
-        this.nodes = [];
-        this.connections = [];
-
-        // Pre-fetch data immediately
-        const dataPromise = apiFetch(`api/nodes.php?constellation_id=${targetId}`)
-            .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
-            .then(json => Array.isArray(json) ? json : []);
-
-        this._portalTransition = {
-            phase: 'back_cross_fade',
-            startTime: performance.now(),
-            duration: 800,
-            targetId,
-            dataPromise
-        };
         this.controls.enabled = false;
 
-        dataPromise.then(nodeData => {
-            if (this._portalTransition && this._portalTransition.phase === 'back_cross_fade') {
-                // Load new data WITHOUT clearing
-                this.loadDataForConstellation(targetId, nodeData, true, true).then(() => {
-                    // Trigger a camera fit NOW while everything is invisible so it is ready for fade in
-                    this.fitCameraToNodes();
-                });
-            }
-        }).catch(err => {
-            console.error('Back transition data fetch failed:', err);
-            this._portalTransition = null;
-            this.controls.enabled = true;
-        });
+        // Fetch and load data first, then start animation
+        apiFetch(`api/nodes.php?constellation_id=${targetId}`)
+            .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
+            .then(json => Array.isArray(json) ? json : [])
+            .then(async (nodeData) => {
+                // Capture outgoing state
+                this._outgoingNodes = [...this.nodes];
+                this._outgoingConnections = [...this.connections];
+                this.nodes = [];
+                this.connections = [];
+
+                // Load new data (invisible) and fit camera
+                this._portalFadeInMultiplier = 0;
+                await this.loadDataForConstellation(targetId, nodeData, false, true);
+
+                // Camera end = fitted position for new nodes
+                const cameraEnd = this.camera.position.clone();
+                const targetEnd = this.controls.target.clone();
+
+                // Camera start = zoomed in (closer) to create zoom-out effect
+                const direction = cameraEnd.clone().sub(targetEnd).normalize();
+                const cameraStart = cameraEnd.clone().sub(direction.multiplyScalar(6));
+
+                // Set camera to start position
+                this.camera.position.copy(cameraStart);
+
+                this._portalTransition = {
+                    phase: 'back_cross_fade',
+                    startTime: performance.now(),
+                    duration: 800,
+                    cameraStart,
+                    cameraEnd,
+                    targetEnd,
+                };
+            }).catch(err => {
+                console.error('Back transition data fetch failed:', err);
+                this._portalTransition = null;
+                this._portalFadeInMultiplier = undefined;
+                this.controls.enabled = true;
+            });
     }
 
     /**
@@ -1956,7 +2039,7 @@ class TelarisNetwork {
      */
     switchConstellation(id) {
         window.history.pushState({}, '', '?constellation_id=' + id);
-        this.navigationStack.push(id);
+        this.navigationStack.push({ constellationId: id, clusterKey: null });
         this.updateBackButtonVisibility();
         this.clearAll();
         this.loadDataForConstellation(id);
@@ -1965,44 +2048,183 @@ class TelarisNetwork {
     /**
      * Fetch nodes for a constellation and replace the current network (no fade).
      */
-    async loadDataForConstellation(constellationId, nodeData = null, skipFit = false, skipClear = false, skipPhysics = false) {
+    async loadDataForConstellation(constellationId, nodeData = null, skipFit = false, skipClear = false, skipPhysics = false, clusterKey = null) {
         if (!window.TELARIS_API_KEY) throw new Error('API key not available');
-        
-        // 1. Fetch constellation info to get the theme FIRST
-        const constellationInfo = await this.updateConstellationUI(constellationId);
-        const themeId = constellationInfo?.theme || 'cosmic';
-        this.currentTheme = getTheme(themeId);
-        this.setupTheme(this.currentTheme);
+
+        // Skip theme re-setup when navigating within the same constellation (cluster drill-in/out)
+        const isSameConstellation = constellationId === window.TELARIS_CONSTELLATION_ID;
+        if (!isSameConstellation) {
+            const constellationInfo = await this.updateConstellationUI(constellationId);
+            const themeId = constellationInfo?.theme || 'cosmic';
+            this.currentTheme = getTheme(themeId);
+            this.setupTheme(this.currentTheme);
+        }
 
         if (!nodeData) {
-            const response = await apiFetch(`api/nodes.php?constellation_id=${constellationId}`);
+            let url = `api/nodes.php?constellation_id=${constellationId}`;
+            if (clusterKey) url += `&cluster=${encodeURIComponent(clusterKey)}`;
+            const response = await apiFetch(url);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const nodesJson = await response.json();
             nodeData = Array.isArray(nodesJson) ? nodesJson : [];
         }
-        
+
         if (!skipClear) {
             this.clearAll();
         }
         if (nodeData.length > 0) {
             this.createNodes(nodeData);
             this.createConnections();
-            
+
             // Warm up physics IMMEDIATELY so they are in final positions when they first appear
             this.warmupPhysics();
             this.syncNodePositionsFromPhysics();
-            
+
             if (!skipFit) {
                 this.fitCameraToNodes();
             }
-            
+
             this.nodes.forEach(n => this.scene.add(n));
             if (this.connections.length > 0) {
                 this.connections.forEach(c => this.scene.add(c.mesh));
             }
         }
         window.TELARIS_CONSTELLATION_ID = constellationId;
+        this.currentClusterKey = clusterKey || null;
         this.updateBackButtonVisibility();
+        this.updateBreadcrumb();
+    }
+
+    /**
+     * Transition to a cluster view using back-style cross-fade (for breadcrumb/back navigation).
+     */
+    transitionToCluster(constellationId, clusterKey, isBack = false) {
+        this.controls.enabled = false;
+
+        // Fetch data first, then start animation
+        let fetchUrl = `api/nodes.php?constellation_id=${constellationId}`;
+        if (clusterKey) fetchUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
+
+        apiFetch(fetchUrl)
+            .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
+            .then(json => Array.isArray(json) ? json : [])
+            .then(async (nodeData) => {
+                // Capture outgoing state
+                this._outgoingNodes = [...this.nodes];
+                this._outgoingConnections = [...this.connections];
+                this.nodes = [];
+                this.connections = [];
+
+                // Load new data (invisible) and fit camera
+                this._portalFadeInMultiplier = 0;
+                await this.loadDataForConstellation(constellationId, nodeData, false, true, false, clusterKey);
+
+                // Camera end = fitted position; start zoomed in for zoom-out effect
+                const cameraEnd = this.camera.position.clone();
+                const targetEnd = this.controls.target.clone();
+                const direction = cameraEnd.clone().sub(targetEnd).normalize();
+                const cameraStart = cameraEnd.clone().sub(direction.multiplyScalar(6));
+                this.camera.position.copy(cameraStart);
+
+                this._portalTransition = {
+                    phase: 'back_cross_fade',
+                    startTime: performance.now(),
+                    duration: 800,
+                    cameraStart,
+                    cameraEnd,
+                    targetEnd,
+                };
+
+                if (!isBack) {
+                    let navUrl = `?constellation_id=${constellationId}`;
+                    if (clusterKey) navUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
+                    window.history.pushState({}, '', navUrl);
+                }
+            }).catch(err => {
+                console.error('Cluster transition failed:', err);
+                this._portalTransition = null;
+                this.controls.enabled = true;
+            });
+    }
+
+    /**
+     * Update the breadcrumb display for cluster navigation.
+     */
+    updateBreadcrumb() {
+        let bc = document.getElementById('cluster-breadcrumb');
+        if (!bc) {
+            bc = document.createElement('div');
+            bc.id = 'cluster-breadcrumb';
+            Object.assign(bc.style, {
+                position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)',
+                zIndex: '90', fontFamily: 'var(--font-mono)', fontSize: '0.65rem',
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                color: 'rgba(0, 255, 204, 0.8)', background: 'rgba(0, 0, 0, 0.4)',
+                padding: '0.3rem 0.7rem', borderRadius: '2px',
+                backdropFilter: 'blur(4px)', border: '1px solid rgba(0, 255, 204, 0.2)',
+                display: 'none', cursor: 'default', pointerEvents: 'auto'
+            });
+            const container = document.getElementById('canvas-container');
+            if (container) container.appendChild(bc);
+        }
+
+        if (!this.currentClusterKey) {
+            bc.style.display = 'none';
+            return;
+        }
+
+        bc.style.display = 'block';
+        bc.innerHTML = '';
+
+        // "All" root link
+        const rootLink = document.createElement('span');
+        rootLink.textContent = 'All';
+        rootLink.style.cursor = 'pointer';
+        rootLink.style.opacity = '0.7';
+        rootLink.addEventListener('click', () => {
+            const cid = window.TELARIS_CONSTELLATION_ID;
+            this.navigationStack = [{ constellationId: cid, clusterKey: null }];
+            this.updateBackButtonVisibility();
+            this.transitionToCluster(cid, null);
+        });
+        bc.appendChild(rootLink);
+
+        // Parse segments
+        const segments = this.currentClusterKey.split('/');
+        let accumulatedKey = '';
+        segments.forEach((seg, idx) => {
+            const sep = document.createElement('span');
+            sep.textContent = ' > ';
+            sep.style.opacity = '0.4';
+            bc.appendChild(sep);
+
+            accumulatedKey += (accumulatedKey ? '/' : '') + seg;
+            const colonIdx = seg.indexOf(':');
+            const label = colonIdx >= 0 ? seg.substring(colonIdx + 1) : seg;
+
+            const segLink = document.createElement('span');
+            segLink.textContent = label;
+
+            if (idx < segments.length - 1) {
+                // Clickable — navigate to this intermediate level
+                segLink.style.cursor = 'pointer';
+                segLink.style.opacity = '0.7';
+                const targetKey = accumulatedKey;
+                segLink.addEventListener('click', () => {
+                    const cid = window.TELARIS_CONSTELLATION_ID;
+                    // Trim navigation stack to root + this level
+                    this.navigationStack = [
+                        { constellationId: cid, clusterKey: null },
+                        { constellationId: cid, clusterKey: targetKey }
+                    ];
+                    this.updateBackButtonVisibility();
+                    this.transitionToCluster(cid, targetKey);
+                });
+            } else {
+                segLink.style.opacity = '1';
+            }
+            bc.appendChild(segLink);
+        });
     }
 
     setupMouseInteraction() {
@@ -2081,6 +2303,14 @@ class TelarisNetwork {
                 this.playGlitch();
                 
                 const data = targetNode.userData;
+
+                if (data.node_type === 'cluster' && data.cluster_key) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const cid = window.TELARIS_CONSTELLATION_ID;
+                    this.startPortalRev(targetNode, cid, data.cluster_key);
+                    return;
+                }
 
                 if (data.node_type === 'portal') {
                     if (data.target_constellation_id != null) {
@@ -2187,7 +2417,12 @@ class TelarisNetwork {
 
                     if (currentlyFocused === touchStartNode) {
                         // SECOND TAP: Open/Trigger action
-                        if (nodeData.node_type === 'portal' && nodeData.target_constellation_id != null) {
+                        if (nodeData.node_type === 'cluster' && nodeData.cluster_key) {
+                            e.preventDefault();
+                            const cid = window.TELARIS_CONSTELLATION_ID;
+                            this.startPortalRev(touchStartNode, cid, nodeData.cluster_key);
+                            this.networkManager.setFocusedNode(null);
+                        } else if (nodeData.node_type === 'portal' && nodeData.target_constellation_id != null) {
                             e.preventDefault();
                             const hasDesc = !!(nodeData.description && nodeData.description.trim() !== '');
                             if (hasDesc) {
@@ -2364,6 +2599,9 @@ class TelarisNetwork {
                     target_constellation_id: (data.target_constellation_id !== undefined && data.target_constellation_id !== null && data.target_constellation_id !== '') ? Number(data.target_constellation_id) : null,
                     is_accentuated: !!data.is_accentuated,
                     show_keywords: !!data.show_keywords,
+                    cluster_key: data.cluster_key || null,
+                    cluster_count: data.cluster_count || null,
+                    icon_url: data.icon_url || null,
                     originalPosition: pos.clone(),
                     speed: data.animation.speed / 4,
                     baseSpeed: data.animation.speed / 4,
@@ -2380,12 +2618,15 @@ class TelarisNetwork {
                 };
 
                 // 2. Create the icon/mesh using that data
+                // During cross-fade transitions, start nodes invisible so they don't flash at full opacity
+                const isTransitioningIn = this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null;
+                const initialOpacity = isTransitioningIn ? 0 : 1.0;
                 const material = new THREE.MeshStandardMaterial({
                     color, emissive: color, emissiveIntensity: node.is_accentuated ? 1.5 : 0.5,
-                    metalness: 0.3, roughness: 0.7, transparent: true, opacity: 1.0
+                    metalness: 0.3, roughness: 0.7, transparent: true, opacity: initialOpacity
                 });
                 const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type, this.currentTheme.id, node.icon_url);
-                mesh.visible = true;
+                mesh.visible = !isTransitioningIn;
                 mesh.position.copy(pos);
                 mesh.renderOrder = 100; // Force nodes to stay in front of lines
 
@@ -2402,6 +2643,13 @@ class TelarisNetwork {
                 if (node.node_type === 'portal') {
                     mesh.isPortal = true;
                     mesh.userData.baseScale = mesh.scale.x;
+                }
+
+                // Cluster mesh tagging
+                if (node.node_type === 'cluster') {
+                    mesh.isCluster = true;
+                    mesh.userData.baseScale = mesh.scale.x;
+                    mesh.scale.setScalar(1.5); // Slightly larger than regular nodes
                 }
 
                 // Random celestial event: 10% chance of a satellite moon (only if theme allows)
@@ -2422,7 +2670,7 @@ class TelarisNetwork {
 
                 mesh.traverse(c => {
                     // Skip portal hitbox material so it doesn't get rendered/faded as a sphere
-                    if (c.material && c.name !== 'portal_hitbox') {
+                    if (c.material && c.name !== 'portal_hitbox' && c.name !== 'cluster_hitbox') {
                         const mats = Array.isArray(c.material) ? c.material : [c.material];
                         // Ensure isSpriteMaterial is properly flagged if the parent is a Sprite or if the material itself is already tagged
                         mats.forEach(m => {
@@ -2834,7 +3082,7 @@ class TelarisNetwork {
                 } else if (m.isSpriteMaterial) {
                     // Sprites in Abstract theme can have random rotation jumps
                     // SKIP if this is a portal, as portals use 3D rotation logic in animate()
-                    if (n.userData.node_type !== 'portal') {
+                    if (n.userData.node_type !== 'portal' && n.userData.node_type !== 'cluster') {
                         if (glitchRotation !== 0) {
                             m.rotation = glitchRotation;
                         } else {
@@ -2869,7 +3117,7 @@ class TelarisNetwork {
             });
 
             // 5. IDLE SPIN-UP — cosmic geometry nodes only
-            if (this.currentTheme.id === 'cosmic' && !n.isPortal && !isTransitioning) {
+            if (this.currentTheme.id === 'cosmic' && !n.isPortal && !n.isCluster && !isTransitioning) {
                 if (d.animSpinTimer === undefined) {
                     d.animSpinTimer  = 15 + Math.random() * 25;
                     d.animSpinActive = 0;
@@ -2978,9 +3226,10 @@ class TelarisNetwork {
                 this.networkManager.setFocusedNode(hoveredNode);
                 
                 const isPortal = hoveredNode && hoveredNode.userData.node_type === 'portal' && hoveredNode.userData.target_constellation_id != null;
+                const isCluster = hoveredNode && hoveredNode.userData.node_type === 'cluster' && hoveredNode.userData.cluster_key;
                 const isObjectWithLink = hoveredNode.userData.node_type === 'object' && hoveredNode.userData.url;
-                
-                this.renderer.domElement.style.cursor = (isPortal || isObjectWithLink) ? 'pointer' : 'default';
+
+                this.renderer.domElement.style.cursor = (isPortal || isCluster || isObjectWithLink) ? 'pointer' : 'default';
 
                 if (this.tooltip && hoveredNode.userData.name) {
                     if (this.tooltipHideTimeout) {
@@ -3172,14 +3421,20 @@ class TelarisNetwork {
                     }
 
                     const app = window.telarisApp || this;
-                    const dataPromise = tr.dataPromise || apiFetch(`api/nodes.php?constellation_id=${tr.targetId}`).then(r => r.json());
-                    
+                    let fetchUrl = `api/nodes.php?constellation_id=${tr.targetId}`;
+                    if (tr.clusterKey) fetchUrl += `&cluster=${encodeURIComponent(tr.clusterKey)}`;
+                    const dataPromise = tr.dataPromise || apiFetch(fetchUrl).then(r => r.json());
+
                     dataPromise.then((nodeData) => {
                         if (this._portalTransition && this._portalTransition.phase === 'loading') {
-                            app.loadDataForConstellation(tr.targetId, nodeData).then(() => {
+                            app.loadDataForConstellation(tr.targetId, nodeData, false, false, false, tr.clusterKey).then(() => {
                                 if (this._portalTransition && this._portalTransition.phase === 'loading') {
-                                    this.navigationStack.push(tr.targetId);
+                                    this.navigationStack.push({ constellationId: tr.targetId, clusterKey: tr.clusterKey || null });
                                     this.updateBackButtonVisibility();
+                                    // Update URL for cluster navigation
+                                    let navUrl = `?constellation_id=${tr.targetId}`;
+                                    if (tr.clusterKey) navUrl += `&cluster=${encodeURIComponent(tr.clusterKey)}`;
+                                    window.history.pushState({}, '', navUrl);
                                     
                                     const loadingOverlay = document.getElementById('loading-overlay');
                                     if (loadingOverlay) {
@@ -3209,26 +3464,22 @@ class TelarisNetwork {
                     this._portalFadeInMultiplier = undefined;
                     this.controls.enabled = true;
                 }
-            } else if (tr.phase === 'back_cross_fade') {
+            } else if (tr.phase === 'cluster_cross_fade') {
                 const t = Math.min((now - tr.startTime) / tr.duration, 1);
-                // Ease In Out
                 const easeT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-                
-                // 1. Zoom OUT and fade OUT outgoing
+
+                // Zoom-in: camera moves from far to fitted position
+                if (tr.cameraStart && tr.cameraEnd) {
+                    this.camera.position.lerpVectors(tr.cameraStart, tr.cameraEnd, easeT);
+                    this.controls.target.copy(tr.targetEnd);
+                }
+
+                // Fade OUT outgoing
                 if (this._outgoingNodes) {
                     const opacity = (1 - easeT) * 0.94;
-                    const posScale = 1 - (easeT * 0.4); // Recede positions toward center
-                    const nodeScale = 1 - (easeT * 0.6); // Shrink nodes too
-                    
                     this._outgoingNodes.forEach(node => {
-                        // Move toward center
-                        if (node.userData.originalPosition) {
-                            node.position.copy(node.userData.originalPosition).multiplyScalar(posScale);
-                        }
-                        node.scale.set(nodeScale, nodeScale, nodeScale);
-                        
                         node.traverse(c => {
-                            if (c.material && c.name !== 'portal_hitbox') {
+                            if (c.material && c.name !== 'portal_hitbox' && c.name !== 'cluster_hitbox') {
                                 c.material.opacity = opacity;
                                 c.material.visible = opacity > 0.001;
                             }
@@ -3238,28 +3489,79 @@ class TelarisNetwork {
                 if (this._outgoingConnections) {
                     this._outgoingConnections.forEach(c => {
                         if (c.mesh.material) {
-                            // Scale by its existing currentOpacity so we don't flash lines that were hidden
                             c.mesh.material.opacity = c.currentOpacity * (1 - easeT);
                             c.mesh.visible = c.mesh.material.opacity > 0.001;
                         }
                     });
                 }
 
-                // 2. Fade IN new (using the shared multiplier)
+                // Fade IN new nodes (already at final positions)
                 this._portalFadeInMultiplier = easeT;
-                
                 if (this.nodes) {
-                    this.nodes.forEach(node => {
-                        node.visible = true;
-                        // Use original position during fade in to stay stable
-                        if (node.userData.originalPosition) {
-                            node.position.copy(node.userData.originalPosition);
+                    this.nodes.forEach(node => { node.visible = true; });
+                }
+
+                if (t >= 1) {
+                    if (this._outgoingNodes) {
+                        this._outgoingNodes.forEach(node => {
+                            this.scene.remove(node);
+                            node.traverse(c => {
+                                if (c.geometry) c.geometry.dispose();
+                                if (c.material) (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m.dispose());
+                            });
+                        });
+                        this._outgoingNodes = null;
+                    }
+                    if (this._outgoingConnections) {
+                        this._outgoingConnections.forEach(c => {
+                            this.scene.remove(c.mesh);
+                            if (c.mesh.geometry) c.mesh.geometry.dispose();
+                            if (c.mesh.material) c.mesh.material.dispose();
+                        });
+                        this._outgoingConnections = null;
+                    }
+                    this._portalTransition = null;
+                    this._portalFadeInMultiplier = undefined;
+                    this.controls.enabled = true;
+                }
+            } else if (tr.phase === 'back_cross_fade') {
+                const t = Math.min((now - tr.startTime) / tr.duration, 1);
+                const easeT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+                // Zoom-out: camera moves from close to fitted position
+                if (tr.cameraStart && tr.cameraEnd) {
+                    this.camera.position.lerpVectors(tr.cameraStart, tr.cameraEnd, easeT);
+                    this.controls.target.copy(tr.targetEnd);
+                }
+
+                // Fade OUT outgoing (pure opacity, no movement)
+                if (this._outgoingNodes) {
+                    const opacity = (1 - easeT) * 0.94;
+                    this._outgoingNodes.forEach(node => {
+                        node.traverse(c => {
+                            if (c.material && c.name !== 'portal_hitbox' && c.name !== 'cluster_hitbox') {
+                                c.material.opacity = opacity;
+                                c.material.visible = opacity > 0.001;
+                            }
+                        });
+                    });
+                }
+                if (this._outgoingConnections) {
+                    this._outgoingConnections.forEach(c => {
+                        if (c.mesh.material) {
+                            c.mesh.material.opacity = c.currentOpacity * (1 - easeT);
+                            c.mesh.visible = c.mesh.material.opacity > 0.001;
                         }
                     });
                 }
 
+                // Fade IN new (already at final positions)
+                this._portalFadeInMultiplier = easeT;
+                if (this.nodes) {
+                    this.nodes.forEach(node => { node.visible = true; });
+                }
+
                 if (t >= 1) {
-                    // Final cleanup of outgoing meshes
                     if (this._outgoingNodes) {
                         this._outgoingNodes.forEach(node => {
                             this.scene.remove(node);
@@ -3288,11 +3590,11 @@ class TelarisNetwork {
 
         // 2. Normal updates (will use the _portalFadeInMultiplier set above)
         const isZooming = this._portalTransition && this._portalTransition.phase === 'camera_fade_out';
-        const isBackCrossFade = this._portalTransition && this._portalTransition.phase === 'back_cross_fade';
+        const isBackCrossFade = this._portalTransition && (this._portalTransition.phase === 'back_cross_fade' || this._portalTransition.phase === 'cluster_cross_fade');
         
         const isFadingIn = this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null && this._portalFadeInMultiplier < 1;
         if (!isZooming) {
-            this.controls.autoRotate = (now - this.lastInteractionAt) > this.idleRotateDelayMs;
+            this.controls.autoRotate = !isBackCrossFade && (now - this.lastInteractionAt) > this.idleRotateDelayMs;
             if (!isBackCrossFade && !isFadingIn) {
                 this.applyForces(dt, 0.05);
             }
@@ -3314,9 +3616,9 @@ class TelarisNetwork {
         // Portal meshes: slow rotation + scale pulse; rev up when clicked
         const time = now * 0.001;
         if (this._revvingPortal && (now - this._revvingPortal.startTime) >= 300) {
-            const { node, targetId } = this._revvingPortal;
+            const { node, targetId, clusterKey } = this._revvingPortal;
             this._revvingPortal = null;
-            this.runPortalTransition(node, targetId);
+            this.runPortalTransition(node, targetId, clusterKey);
         }
         this.scene.traverse((object) => {
             if (object.isPortal) {
@@ -3333,6 +3635,17 @@ class TelarisNetwork {
                 }
                 const pulse = 1 + Math.sin(time * pulseSpeed) * pulseAmp;
                 const baseScale = object.userData.baseScale ?? 1;
+                object.scale.set(baseScale * pulse, baseScale * pulse, baseScale * pulse);
+            }
+            if (object.isCluster) {
+                const isRevving = this._revvingPortal && this._revvingPortal.node === object;
+                const revMult = isRevving ? 8 : 1;
+                const pulseSpeed = isRevving ? 12 : 1.5;
+                const pulseAmp = isRevving ? 0.3 : 0.08;
+                object.rotation.y += 0.005 * revMult;
+                object.rotation.x += 0.002 * revMult;
+                const pulse = 1 + Math.sin(time * pulseSpeed) * pulseAmp;
+                const baseScale = object.userData.baseScale ?? 1.5;
                 object.scale.set(baseScale * pulse, baseScale * pulse, baseScale * pulse);
             }
         });

@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../utils/auth.php';
+require_once __DIR__ . '/../inc/clustering.php';
 
 // Set CORS headers for API responses — restrict to same origin
 if (php_sapi_name() !== 'cli') {
@@ -12,6 +13,7 @@ if (php_sapi_name() !== 'cli') {
     header('Access-Control-Allow-Origin: ' . $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type, X-API-Key, Authorization, X-HTTP-Method-Override');
+    header('Access-Control-Expose-Headers: X-Telaris-Clustered, X-Telaris-Total-Nodes, X-Telaris-Cluster-Path');
 
     // Handle preflight OPTIONS request
     if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -73,6 +75,30 @@ try {
             }
             $nodes = db_get_nodes($constellationId, $currentUserId, $isAdmin);
             $formatted = array_map(fn($node) => db_format_node($node), $nodes);
+
+            $noCluster = isset($_GET['no_cluster']) && $_GET['no_cluster'] === '1';
+            $clusterKey = isset($_GET['cluster']) ? trim((string)$_GET['cluster']) : '';
+
+            $totalNodes = count($formatted);
+            $isClustered = false;
+            $clusterPath = '';
+
+            if (!$noCluster && $clusterKey !== '') {
+                $formatted = filter_nodes_by_cluster($formatted, $clusterKey);
+                $isClustered = true;
+                $clusterPath = $clusterKey;
+            } elseif (!$noCluster) {
+                $result = compute_clusters($formatted);
+                if (count($result) !== $totalNodes) {
+                    $formatted = $result;
+                    $isClustered = true;
+                }
+            }
+
+            header('X-Telaris-Clustered: ' . ($isClustered ? 'true' : 'false'));
+            header('X-Telaris-Total-Nodes: ' . $totalNodes);
+            header('X-Telaris-Cluster-Path: ' . $clusterPath);
+
             echo json_encode($formatted, JSON_THROW_ON_ERROR);
         })(),
 

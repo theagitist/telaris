@@ -656,7 +656,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 
                 const constellationEl = document.getElementById('current-constellation');
                 const constellationId = constellationEl ? constellationEl.value : 'all';
-                const query = constellationId === 'all' ? '?constellation_id=all' : ('?constellation_id=' + encodeURIComponent(constellationId));
+                const query = (constellationId === 'all' ? '?constellation_id=all' : ('?constellation_id=' + encodeURIComponent(constellationId))) + '&no_cluster=1';
                 let response;
                 try {
                     response = await fetch(API_BASE + query, {

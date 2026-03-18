@@ -298,8 +298,26 @@ try {
 
         db_ensure_constellations_import_source_column();
         db_ensure_nodes_icon_url_column();
+        db_ensure_nodes_clustering_columns();
 
         $allConstellations = db_get_constellations();
+
+        // Fetch mucua list for name resolution (smid → name)
+        $mucuaNameMap = [];
+        $mucuaListJson = @file_get_contents($apiBase . '/mucua');
+        if ($mucuaListJson !== false) {
+            $mucuaList = json_decode($mucuaListJson, true);
+            if (is_array($mucuaList)) {
+                foreach ($mucuaList as $m) {
+                    $mSmid = $m['smid'] ?? $m['uuid'] ?? null;
+                    if ($mSmid !== null) {
+                        // Use name if available, fall back to slug
+                        $mucuaNameMap[$mSmid] = $m['name'] ?? $m['slug'] ?? (string)$mSmid;
+                    }
+                }
+            }
+        }
+        $streamMsg('info', 'Resolved ' . count($mucuaNameMap) . ' mucua names');
 
         // Build smid-to-slug map for selected galaxias
         $galaxiaSmids = [];
@@ -492,6 +510,14 @@ try {
                         false, // show_keywords
                         null  // icon_url
                     );
+
+                    // Store clustering metadata
+                    $itemMucuaSmid = $item['mucua_smid'] ?? null;
+                    $resolvedMucuaName = ($itemMucuaSmid !== null && isset($mucuaNameMap[$itemMucuaSmid]))
+                        ? $mucuaNameMap[$itemMucuaSmid] : null;
+                    $itemMediaType = ($item['_source_type'] ?? '') === 'blog' ? 'blog' : ($mediaType ?? null);
+                    $itemSourceCreated = $item['created'] ?? null;
+                    db_set_node_clustering_metadata($nodeId, $resolvedMucuaName, $itemMediaType, $itemSourceCreated);
 
                     // Setup upload directory
                     $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
