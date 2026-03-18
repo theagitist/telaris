@@ -33,6 +33,7 @@ php admin/cli/import_mocambos.php --api-base=https://oya.mocambos.net/api/v2 --g
 #   --list        List available galaxias and exit
 #   --no-media    Skip media downloads (faster, nodes still created)
 #   --limit=N     Import only the first N items
+#   --quiet       Minimal output (errors and summary only)
 
 # Refresh a Mocambos constellation (interactive — shows list, prompts)
 php admin/cli/refresh_constellation.php

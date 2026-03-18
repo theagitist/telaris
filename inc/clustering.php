@@ -300,3 +300,123 @@ function filter_nodes_by_cluster(array $nodes, string $clusterKey, int $threshol
 
     return cluster_recursive($filtered, $clusterKey, $remaining, $threshold);
 }
+
+/**
+ * Find the cluster path that leads to a specific node being directly visible.
+ * Returns null if the constellation has ≤threshold nodes (no clustering needed),
+ * or the cluster key string to drill into to see the node.
+ *
+ * @param array $allNodes All formatted nodes for the constellation
+ * @param int $nodeId The node ID to find
+ * @param int $threshold Clustering threshold
+ * @return string|null Cluster key, or null if node is visible at root level
+ */
+function find_cluster_path_for_node(array $allNodes, int $nodeId, int $threshold = 50): ?string {
+    // No clustering needed
+    if (count($allNodes) <= $threshold) {
+        return null;
+    }
+
+    // Find the target node
+    $targetNode = null;
+    foreach ($allNodes as $node) {
+        if ((int)$node['id'] === $nodeId) {
+            $targetNode = $node;
+            break;
+        }
+    }
+    if ($targetNode === null) return null;
+
+    // Detect cascade
+    $hasMucua = false;
+    foreach ($allNodes as $node) {
+        if (!empty($node['mucua_name'])) { $hasMucua = true; break; }
+    }
+    $cascade = $hasMucua
+        ? ['mucua', 'type', 'date_year', 'date_month', 'alpha']
+        : ['type', 'date_year', 'date_month', 'alpha'];
+
+    // Walk down the clustering tree to find where this node ends up visible
+    return _find_path_recursive($allNodes, $targetNode, '', $cascade, $threshold);
+}
+
+function _find_path_recursive(array $nodes, array $targetNode, string $parentKey, array $cascade, int $threshold): ?string {
+    if (count($nodes) <= $threshold) {
+        // Node is directly visible at this level
+        return $parentKey === '' ? null : $parentKey;
+    }
+
+    if (empty($cascade)) {
+        return $parentKey === '' ? null : $parentKey;
+    }
+
+    $criterion = array_shift($cascade);
+    $groups = [];
+
+    switch ($criterion) {
+        case 'mucua':
+            $groups = group_nodes_by($nodes, 'mucua_name');
+            break;
+        case 'type':
+            $groups = group_nodes_by($nodes, 'media_type');
+            break;
+        case 'date_year':
+            foreach ($nodes as $node) {
+                $year = extract_year($node['source_created_at'] ?? null) ?? '__other__';
+                $groups[$year][] = $node;
+            }
+            break;
+        case 'date_month':
+            foreach ($nodes as $node) {
+                $ym = extract_year_month($node['source_created_at'] ?? null) ?? '__other__';
+                $groups[$ym][] = $node;
+            }
+            break;
+        case 'alpha':
+            foreach ($nodes as $node) {
+                $bucket = alpha_bucket($node['name'] ?? '');
+                $groups[$bucket][] = $node;
+            }
+            break;
+    }
+
+    // If grouping produced ≤1 group, skip this level
+    if (count($groups) <= 1) {
+        return _find_path_recursive($nodes, $targetNode, $parentKey, $cascade, $threshold);
+    }
+
+    $levelLabel = match($criterion) {
+        'mucua' => 'mucua', 'type' => 'type',
+        'date_year', 'date_month' => 'date',
+        'alpha' => 'alpha', default => $criterion,
+    };
+
+    // Find which group contains the target node
+    $targetId = (int)$targetNode['id'];
+    foreach ($groups as $key => $groupNodes) {
+        $key = (string)$key;
+        $found = false;
+        foreach ($groupNodes as $gn) {
+            if ((int)$gn['id'] === $targetId) { $found = true; break; }
+        }
+        if (!$found) continue;
+
+        // Single-item groups are promoted — node is visible at parent level
+        if (count($groupNodes) === 1) {
+            return $parentKey === '' ? null : $parentKey;
+        }
+
+        $segmentKey = $levelLabel . ':' . $key;
+        $clusterKey = $parentKey !== '' ? $parentKey . '/' . $segmentKey : $segmentKey;
+
+        if (count($groupNodes) <= $threshold) {
+            // Node is directly visible inside this cluster
+            return $clusterKey;
+        }
+
+        // Recurse deeper
+        return _find_path_recursive($groupNodes, $targetNode, $clusterKey, $cascade, $threshold);
+    }
+
+    return $parentKey === '' ? null : $parentKey;
+}

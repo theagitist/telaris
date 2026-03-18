@@ -470,190 +470,165 @@ try {
             $expectedCount = count($galaxiaItems);
             $importedCount = 0;
 
+            // ── Phase 1: Fast batch insert of all nodes ──────────────
+            $streamMsg('info', "Phase 1: Creating {$expectedCount} nodes...");
+            $pdo = getDB();
+            $insertStmt = $pdo->prepare("
+                INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, audio_autoplay, video_autoplay, mucua_name, media_type, source_created_at)
+                VALUES (:name, :description, :url, :animation, :constellation_id, 'object', 1, 1, :mucua_name, :media_type, :source_created_at)
+            ");
+            $kwInsertStmt = $pdo->prepare("INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :cid) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)");
+            $kwLookupStmt = $pdo->prepare("SELECT id FROM keywords WHERE keyword = :keyword AND constellation_id = :cid LIMIT 1");
+            $nkInsertStmt = $pdo->prepare("INSERT INTO node_keywords (node_id, keyword_id) VALUES (:nid, :kid) ON DUPLICATE KEY UPDATE node_id=node_id");
+
+            $batchSize = 500;
+            $pdo->beginTransaction();
+            $nodeIdMap = []; // itemIndex → nodeId for phase 2
+
             foreach ($galaxiaItems as $itemIndex => $item) {
-                $itemSlug = $item['slug'] ?? 'unknown';
                 try {
-                    $nodeName = $item['title'] ?? $itemSlug;
+                    $nodeName = $item['title'] ?? ($item['slug'] ?? 'unknown');
                     $nodeDesc = $item['description'] ?? '';
                     $mediaType = $item['type'] ?? 'arquivo';
                     $tags = $item['tags'] ?? [];
                     if (!is_array($tags)) $tags = [];
 
-                    // Build source permalink for URL
                     $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/permalink/';
-                    if (($item['_source_type'] ?? '') === 'blog') {
-                        $nodeUrl .= 'blog/artigo/' . $itemSlug;
-                    } else {
-                        $nodeUrl .= 'acervo/' . $itemSlug;
-                    }
+                    $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . ($item['slug'] ?? '') : 'acervo/' . ($item['slug'] ?? '');
 
-                    // Random animation
-                    $animationArray = [
-                        'radius' => 5 + rand(0, 3),
-                        'theta'  => rand(0, 628) / 100,
-                        'phi'    => rand(0, 314) / 100,
-                        'speed'  => 0.002 + (rand(0, 4) / 1000),
-                        'phase'  => rand(0, 628) / 100,
-                    ];
-                    $animation = json_encode($animationArray, JSON_THROW_ON_ERROR);
+                    $animation = json_encode([
+                        'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
+                        'phi' => rand(0, 314) / 100, 'speed' => 0.002 + (rand(0, 4) / 1000),
+                        'phase' => rand(0, 628) / 100,
+                    ], JSON_THROW_ON_ERROR);
 
-                    // Create node
-                    $counter = ($itemIndex + 1) . "/{$expectedCount}";
-                    $streamMsg('node', "({$counter}) Adding node: {$nodeName}", ['media_type' => $mediaType]);
-                    $writeLog('INFO', "Node [{$counter}]: \"{$nodeName}\" | type={$mediaType} | slug={$itemSlug} | url={$nodeUrl}");
-                    $nodeId = db_create_node(
-                        $nodeName,
-                        $nodeDesc ?: null,
-                        $nodeUrl,
-                        $animation,
-                        $constellationId,
-                        'object',
-                        null,
-                        null, // image_url
-                        null, // embed_code
-                        null, // audio_url
-                        true, // audio_autoplay
-                        false, // is_accentuated
-                        null, // video_url
-                        true, // video_autoplay
-                        false, // audio_loop
-                        false, // show_keywords
-                        null  // icon_url
-                    );
-
-                    // Store clustering metadata
                     $itemMucuaSmid = $item['mucua_smid'] ?? null;
-                    $resolvedMucuaName = ($itemMucuaSmid !== null && isset($mucuaNameMap[$itemMucuaSmid]))
-                        ? $mucuaNameMap[$itemMucuaSmid] : null;
-                    $itemMediaType = ($item['_source_type'] ?? '') === 'blog' ? 'blog' : ($mediaType ?? null);
-                    $itemSourceCreated = $item['created'] ?? null;
-                    db_set_node_clustering_metadata($nodeId, $resolvedMucuaName, $itemMediaType, $itemSourceCreated);
+                    $resolvedMucuaName = ($itemMucuaSmid !== null && isset($mucuaNameMap[$itemMucuaSmid])) ? $mucuaNameMap[$itemMucuaSmid] : null;
+                    $itemMediaType = ($item['_source_type'] ?? '') === 'blog' ? 'blog' : $mediaType;
 
-                    // Setup upload directory
-                    $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
-                    $nodeRelDir = "uploads/{$constellationId}/{$nodeId}";
-                    $nodeFullDir = "{$uploadDir}/{$constellationId}/{$nodeId}";
-                    if (!is_dir($nodeFullDir)) {
-                        mkdir($nodeFullDir, 0755, true);
-                    }
+                    $insertStmt->execute([
+                        ':name' => $nodeName,
+                        ':description' => $nodeDesc ?: null,
+                        ':url' => $nodeUrl,
+                        ':animation' => $animation,
+                        ':constellation_id' => $constellationId,
+                        ':mucua_name' => $resolvedMucuaName,
+                        ':media_type' => $itemMediaType,
+                        ':source_created_at' => $item['created'] ?? null,
+                    ]);
+                    $nodeId = (int)$pdo->lastInsertId();
+                    $nodeIdMap[$itemIndex] = $nodeId;
 
-                    $imageUrl = null;
-                    $iconUrl = null;
-                    $audioUrl = null;
-                    $videoUrl = null;
-                    $needsUpdate = false;
-
-                    // Download media based on type
-                    if ($mediaType === 'imagem') {
-                        // Download image → used for both icon and image
-                        $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
-                        $streamMsg('download', "  Downloading image...");
-                        $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'image', $writeLog);
-                        if ($localPath !== null) {
-                            $relPath = $nodeRelDir . '/' . basename($localPath);
-                            $imageUrl = $relPath;
-                            $iconUrl = $relPath;
-                            $needsUpdate = true;
-                            $streamMsg('success', "  Image saved");
-                        } else {
-                            $errors[] = 'Failed to download media for: ' . $itemSlug;
-                            $streamMsg('error', "  Image download failed");
+                    foreach ($tags as $tag) {
+                        $tag = trim($tag);
+                        if ($tag === '') continue;
+                        $kwInsertStmt->execute([':keyword' => $tag, ':cid' => $constellationId]);
+                        $kwId = (int)$pdo->lastInsertId();
+                        if ($kwId === 0) {
+                            $kwLookupStmt->execute([':keyword' => $tag, ':cid' => $constellationId]);
+                            $kwId = (int)($kwLookupStmt->fetchColumn() ?: 0);
                         }
-                        // Also try thumbnail as fallback icon
-                        if ($iconUrl === null) {
-                            $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
-                            $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
-                            if ($thumbPath !== null) {
-                                $iconUrl = $nodeRelDir . '/' . basename($thumbPath);
-                                $needsUpdate = true;
-                            }
+                        if ($kwId > 0) {
+                            $nkInsertStmt->execute([':nid' => $nodeId, ':kid' => $kwId]);
                         }
-                    } elseif ($mediaType === 'video') {
-                        // Download video
-                        $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
-                        $streamMsg('download', "  Downloading video...");
-                        $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'video', $writeLog);
-                        if ($localPath !== null) {
-                            $videoUrl = $nodeRelDir . '/' . basename($localPath);
-                            $needsUpdate = true;
-                            $streamMsg('success', "  Video saved");
-                        } else {
-                            $errors[] = 'Failed to download media for: ' . $itemSlug;
-                            $streamMsg('error', "  Video download failed");
-                        }
-                        // Download thumbnail as icon
-                        $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
-                        $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
-                        if ($thumbPath !== null) {
-                            $iconUrl = $nodeRelDir . '/' . basename($thumbPath);
-                            $needsUpdate = true;
-                        }
-                    } elseif ($mediaType === 'audio') {
-                        // Download audio
-                        $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
-                        $streamMsg('download', "  Downloading audio...");
-                        $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'audio', $writeLog);
-                        if ($localPath !== null) {
-                            $audioUrl = $nodeRelDir . '/' . basename($localPath);
-                            $needsUpdate = true;
-                            $streamMsg('success', "  Audio saved");
-                        } else {
-                            $errors[] = 'Failed to download media for: ' . $itemSlug;
-                            $streamMsg('error', "  Audio download failed");
-                        }
-                        // Download thumbnail as icon
-                        $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
-                        $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
-                        if ($thumbPath !== null) {
-                            $iconUrl = $nodeRelDir . '/' . basename($thumbPath);
-                            $needsUpdate = true;
-                        }
-                    } else {
-                        // arquivo or blog — try thumbnail for icon
-                        $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
-                        $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
-                        if ($thumbPath !== null) {
-                            $iconUrl = $nodeRelDir . '/' . basename($thumbPath);
-                            $needsUpdate = true;
-                        }
-                    }
-
-                    // Update node with downloaded file paths
-                    if ($needsUpdate) {
-                        db_update_node(
-                            $nodeId,
-                            $nodeName,
-                            $nodeDesc ?: null,
-                            $nodeUrl,
-                            $animation,
-                            $constellationId,
-                            'object',
-                            null,
-                            $imageUrl,
-                            null, // embed_code
-                            $audioUrl,
-                            true,
-                            false,
-                            $videoUrl,
-                            true,
-                            false,
-                            false,
-                            $iconUrl
-                        );
-                    }
-
-                    // Save keywords/tags
-                    if (!empty($tags)) {
-                        db_save_node_keywords($nodeId, $tags);
                     }
 
                     $importedCount++;
+                    if ($importedCount % $batchSize === 0) {
+                        $pdo->commit();
+                        $pdo->beginTransaction();
+                        $streamMsg('info', "  {$importedCount}/{$expectedCount} nodes created");
+                    }
                 } catch (Throwable $e) {
-                    $errors[] = 'Failed to import item: ' . $itemSlug . ' (' . $e->getMessage() . ')';
-                    $streamMsg('error', "  Error importing {$itemSlug}: " . $e->getMessage());
-                    error_log('Mocambos import error for ' . $itemSlug . ': ' . $e->getMessage());
+                    $errors[] = 'Failed to create node: ' . ($item['slug'] ?? '?') . ' (' . $e->getMessage() . ')';
+                    $writeLog('ERROR', 'Node create error: ' . $e->getMessage());
                 }
             }
+            $pdo->commit();
+            $streamMsg('success', "Phase 1 complete: {$importedCount}/{$expectedCount} nodes created");
+
+            // ── Phase 2: Download media files ────────────────────────
+            $streamMsg('info', "Phase 2: Downloading media files...");
+            $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../uploads');
+            $mediaCount = 0;
+            $mediaErrors = 0;
+
+            foreach ($galaxiaItems as $itemIndex => $item) {
+                $nodeId = $nodeIdMap[$itemIndex] ?? null;
+                if ($nodeId === null) continue;
+
+                $itemSlug = $item['slug'] ?? 'unknown';
+                $nodeName = $item['title'] ?? $itemSlug;
+                $nodeDesc = $item['description'] ?? '';
+                $mediaType = $item['type'] ?? 'arquivo';
+
+                $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/permalink/';
+                $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . $itemSlug : 'acervo/' . $itemSlug;
+
+                $animation = json_encode([
+                    'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
+                    'phi' => rand(0, 314) / 100, 'speed' => 0.002 + (rand(0, 4) / 1000),
+                    'phase' => rand(0, 628) / 100,
+                ], JSON_THROW_ON_ERROR);
+
+                $nodeRelDir = "uploads/{$constellationId}/{$nodeId}";
+                $nodeFullDir = "{$uploadDir}/{$constellationId}/{$nodeId}";
+                if (!is_dir($nodeFullDir)) @mkdir($nodeFullDir, 0775, true);
+
+                $imageUrl = null;
+                $iconUrl = null;
+                $audioUrl = null;
+                $videoUrl = null;
+                $needsUpdate = false;
+
+                $counter = ($itemIndex + 1) . "/{$expectedCount}";
+
+                if ($mediaType === 'imagem') {
+                    $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
+                    $streamMsg('download', "({$counter}) Downloading image: {$nodeName}");
+                    $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'image', $writeLog);
+                    if ($localPath !== null) {
+                        $relPath = $nodeRelDir . '/' . basename($localPath);
+                        $imageUrl = $relPath;
+                        $iconUrl = $relPath;
+                        $needsUpdate = true;
+                    } else {
+                        $mediaErrors++;
+                    }
+                    if ($iconUrl === null) {
+                        $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
+                        $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
+                        if ($thumbPath !== null) { $iconUrl = $nodeRelDir . '/' . basename($thumbPath); $needsUpdate = true; }
+                    }
+                } elseif ($mediaType === 'video') {
+                    $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
+                    $streamMsg('download', "({$counter}) Downloading video: {$nodeName}");
+                    $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'video', $writeLog);
+                    if ($localPath !== null) { $videoUrl = $nodeRelDir . '/' . basename($localPath); $needsUpdate = true; } else { $mediaErrors++; }
+                    $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
+                    $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
+                    if ($thumbPath !== null) { $iconUrl = $nodeRelDir . '/' . basename($thumbPath); $needsUpdate = true; }
+                } elseif ($mediaType === 'audio') {
+                    $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
+                    $streamMsg('download', "({$counter}) Downloading audio: {$nodeName}");
+                    $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'audio', $writeLog);
+                    if ($localPath !== null) { $audioUrl = $nodeRelDir . '/' . basename($localPath); $needsUpdate = true; } else { $mediaErrors++; }
+                    $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
+                    $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
+                    if ($thumbPath !== null) { $iconUrl = $nodeRelDir . '/' . basename($thumbPath); $needsUpdate = true; }
+                } else {
+                    $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
+                    $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
+                    if ($thumbPath !== null) { $iconUrl = $nodeRelDir . '/' . basename($thumbPath); $needsUpdate = true; }
+                }
+
+                if ($needsUpdate) {
+                    db_update_node($nodeId, $nodeName, $nodeDesc ?: null, $nodeUrl, $animation, $constellationId, 'object', null, $imageUrl, null, $audioUrl, true, false, $videoUrl, true, false, false, $iconUrl);
+                    $mediaCount++;
+                }
+            }
+            $streamMsg('success', "Phase 2 complete: {$mediaCount} media files downloaded" . ($mediaErrors > 0 ? " ({$mediaErrors} failed)" : ''));
+            if ($mediaErrors > 0) $errors[] = "{$mediaErrors} media downloads failed";
 
             // Verification: count nodes
             $actualNodes = db_get_nodes($constellationId);

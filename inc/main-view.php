@@ -259,6 +259,7 @@ header("X-Content-Type-Options: nosniff");
                     <path d="M18 6L6 18M6 6l12 12"/>
                 </svg>
             </button>
+            <div id="hud-search-results" class="absolute left-0 right-0 top-full mt-1 z-[200] max-h-64 overflow-y-auto rounded border border-white/20 bg-black/90 backdrop-blur-md" style="display: none;"></div>
         </div>
 
         <div class="hud-line"></div>

@@ -76,6 +76,36 @@ try {
             $nodes = db_get_nodes($constellationId, $currentUserId, $isAdmin);
             $formatted = array_map(fn($node) => db_format_node($node), $nodes);
 
+            // Global search mode: return matching nodes with cluster paths
+            $searchQuery = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
+            if ($searchQuery !== '') {
+                $searchLower = mb_strtolower($searchQuery);
+                $searchLimit = isset($_GET['search_limit']) ? min((int)$_GET['search_limit'], 50) : 10;
+                $results = [];
+                foreach ($formatted as $node) {
+                    $nameMatch = mb_stripos($node['name'] ?? '', $searchQuery) !== false;
+                    $descMatch = mb_stripos($node['description'] ?? '', $searchQuery) !== false;
+                    $keywordMatch = false;
+                    foreach ($node['keywords'] ?? [] as $kw) {
+                        if (mb_stripos($kw, $searchQuery) !== false) { $keywordMatch = true; break; }
+                    }
+                    if ($nameMatch || $descMatch || $keywordMatch) {
+                        $clusterPath = find_cluster_path_for_node($formatted, (int)$node['id']);
+                        $results[] = [
+                            'id' => $node['id'],
+                            'name' => $node['name'],
+                            'description' => $node['description'],
+                            'mucua_name' => $node['mucua_name'] ?? null,
+                            'media_type' => $node['media_type'] ?? null,
+                            'cluster_path' => $clusterPath,
+                        ];
+                        if (count($results) >= $searchLimit) break;
+                    }
+                }
+                echo json_encode(['search' => true, 'query' => $searchQuery, 'count' => count($results), 'results' => $results], JSON_THROW_ON_ERROR);
+                return;
+            }
+
             $noCluster = isset($_GET['no_cluster']) && $_GET['no_cluster'] === '1';
             $clusterKey = isset($_GET['cluster']) ? trim((string)$_GET['cluster']) : '';
 

@@ -2584,6 +2584,7 @@ class TelarisNetwork {
                 }
 
                 const node = {
+                    id: data.id,
                     name: data.name,
                     description: data.description,
                     keywords: data.keywords || [],
@@ -3681,31 +3682,283 @@ class TelarisNetwork {
     setupSearch() {
         const searchInput = document.getElementById('hud-search');
         const clearBtn = document.getElementById('hud-search-clear');
+        const resultsDropdown = document.getElementById('hud-search-results');
         if (!searchInput) return;
 
+        let searchTimer = null;
+        let abortController = null;
+        let selectedIndex = -1;
+
+        const hideResults = () => {
+            if (resultsDropdown) resultsDropdown.style.display = 'none';
+            selectedIndex = -1;
+        };
+
+        const showResults = (results, query) => {
+            if (!resultsDropdown) return;
+            resultsDropdown.innerHTML = '';
+
+            if (results.length === 0) {
+                resultsDropdown.innerHTML = '<div class="px-3 py-2 text-xs text-white/40 uppercase tracking-wider">No results</div>';
+                resultsDropdown.style.display = 'block';
+                return;
+            }
+
+            results.forEach((r, i) => {
+                const item = document.createElement('div');
+                item.className = 'search-result-item px-3 py-2 cursor-pointer hover:bg-white/10 transition-colors border-b border-white/5 last:border-b-0';
+                item.dataset.index = i;
+
+                // Highlight matching text in name
+                const name = r.name || '?';
+                const queryLower = query.toLowerCase();
+                const nameLower = name.toLowerCase();
+                const matchIdx = nameLower.indexOf(queryLower);
+                let nameHtml;
+                if (matchIdx >= 0) {
+                    nameHtml = escapeHtml(name.substring(0, matchIdx))
+                        + '<span class="text-[#00ffcc]">' + escapeHtml(name.substring(matchIdx, matchIdx + query.length)) + '</span>'
+                        + escapeHtml(name.substring(matchIdx + query.length));
+                } else {
+                    nameHtml = escapeHtml(name);
+                }
+
+                const meta = [r.mucua_name, r.media_type].filter(Boolean).join(' / ');
+                const clusterLabel = r.cluster_path ? r.cluster_path.split('/').map(s => { const c = s.indexOf(':'); return c >= 0 ? s.substring(c + 1) : s; }).join(' > ') : '';
+
+                item.innerHTML = `
+                    <div class="text-xs text-white/90 leading-tight">${nameHtml}</div>
+                    ${meta ? `<div class="text-[0.6rem] text-white/40 mt-0.5 uppercase tracking-wider">${escapeHtml(meta)}</div>` : ''}
+                    ${clusterLabel ? `<div class="text-[0.6rem] text-[#00ffcc]/40 mt-0.5">${escapeHtml(clusterLabel)}</div>` : ''}
+                `;
+
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.navigateToSearchResult(r);
+                    searchInput.value = '';
+                    this.searchQuery = '';
+                    hideResults();
+                    if (clearBtn) clearBtn.style.display = 'none';
+                });
+
+                resultsDropdown.appendChild(item);
+            });
+
+            resultsDropdown.style.display = 'block';
+            selectedIndex = -1;
+        };
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        const updateHighlight = () => {
+            if (!resultsDropdown) return;
+            const items = resultsDropdown.querySelectorAll('.search-result-item');
+            items.forEach((el, i) => {
+                el.style.background = i === selectedIndex ? 'rgba(0, 255, 204, 0.15)' : '';
+            });
+        };
+
+        const doSearch = async (query) => {
+            if (abortController) abortController.abort();
+            if (query.length < 2) {
+                hideResults();
+                return;
+            }
+
+            abortController = new AbortController();
+            const cid = window.TELARIS_CONSTELLATION_ID;
+            try {
+                const resp = await apiFetch(
+                    `api/nodes.php?constellation_id=${cid}&search=${encodeURIComponent(query)}&search_limit=10`,
+                    { signal: abortController.signal }
+                );
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data.search && Array.isArray(data.results)) {
+                    showResults(data.results, query);
+                }
+            } catch (e) {
+                if (e.name !== 'AbortError') console.error('Search failed:', e);
+            }
+        };
+
         const updateSearch = (val) => {
-            this.searchQuery = val.toLowerCase().trim();
-            if (clearBtn) clearBtn.style.display = this.searchQuery ? 'block' : 'none';
-            
-            // Clear focus immediately so no connections related to hidden nodes remain
+            const query = val.trim();
+            this.searchQuery = query.toLowerCase();
+            if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
+
+            // Local filtering for currently visible nodes
             this.networkManager.setFocusedNode(null);
             if (this.tooltip) this.hideMainTooltip();
-            
             this.markInteraction();
+
+            // Debounced remote search
+            if (searchTimer) clearTimeout(searchTimer);
+            if (query.length < 2) {
+                hideResults();
+                return;
+            }
+            searchTimer = setTimeout(() => doSearch(query), 300);
         };
 
         searchInput.addEventListener('input', (e) => updateSearch(e.target.value));
+
+        searchInput.addEventListener('keydown', (e) => {
+            e.stopPropagation();
+            if (!resultsDropdown || resultsDropdown.style.display === 'none') return;
+            const items = resultsDropdown.querySelectorAll('.search-result-item');
+            if (items.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                updateHighlight();
+                items[selectedIndex]?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, 0);
+                updateHighlight();
+                items[selectedIndex]?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                e.preventDefault();
+                items[selectedIndex]?.click();
+            } else if (e.key === 'Escape') {
+                hideResults();
+                searchInput.blur();
+            }
+        });
 
         if (clearBtn) {
             clearBtn.addEventListener('click', () => {
                 searchInput.value = '';
                 updateSearch('');
+                hideResults();
                 searchInput.focus();
             });
         }
 
-        // Prevent orbit controls from capturing keystrokes when typing
-        searchInput.addEventListener('keydown', (e) => e.stopPropagation());
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !resultsDropdown?.contains(e.target)) {
+                hideResults();
+            }
+        });
+    }
+
+    /**
+     * Navigate to a search result: drill into the correct cluster and highlight the node.
+     */
+    async navigateToSearchResult(result) {
+        const cid = window.TELARIS_CONSTELLATION_ID;
+        const clusterPath = result.cluster_path;
+        const nodeId = result.id;
+
+        if (clusterPath && clusterPath !== (this.currentClusterKey || '')) {
+            // Need to navigate to a different cluster level
+            this.controls.enabled = false;
+
+            try {
+                let fetchUrl = `api/nodes.php?constellation_id=${cid}&cluster=${encodeURIComponent(clusterPath)}`;
+                const resp = await apiFetch(fetchUrl);
+                if (!resp.ok) throw new Error('Failed to fetch cluster');
+                const nodeData = await resp.json();
+
+                // Capture outgoing
+                this._outgoingNodes = [...this.nodes];
+                this._outgoingConnections = [...this.connections];
+                this.nodes = [];
+                this.connections = [];
+
+                this._portalFadeInMultiplier = 0;
+                await this.loadDataForConstellation(cid, nodeData, false, true, false, clusterPath);
+
+                // Update nav stack
+                this.navigationStack.push({ constellationId: cid, clusterKey: clusterPath });
+                this.updateBackButtonVisibility();
+                window.history.pushState({}, '', `?constellation_id=${cid}&cluster=${encodeURIComponent(clusterPath)}`);
+
+                // Start cross-fade
+                this._portalTransition = {
+                    phase: 'cluster_cross_fade',
+                    startTime: performance.now(),
+                    duration: 800,
+                    cameraStart: this.camera.position.clone(),
+                    cameraEnd: this.camera.position.clone(),
+                    targetEnd: this.controls.target.clone(),
+                };
+
+                // After transition, find and focus the target node
+                setTimeout(() => this._focusNodeById(nodeId), 900);
+            } catch (err) {
+                console.error('Navigate to search result failed:', err);
+                this._portalTransition = null;
+                this._portalFadeInMultiplier = undefined;
+                this.controls.enabled = true;
+            }
+        } else if (!clusterPath && this.currentClusterKey) {
+            // Need to go back to root level (no clustering or ≤50 nodes)
+            this.controls.enabled = false;
+            try {
+                const resp = await apiFetch(`api/nodes.php?constellation_id=${cid}`);
+                if (!resp.ok) throw new Error('Failed to fetch root');
+                const nodeData = await resp.json();
+
+                this._outgoingNodes = [...this.nodes];
+                this._outgoingConnections = [...this.connections];
+                this.nodes = [];
+                this.connections = [];
+
+                this._portalFadeInMultiplier = 0;
+                await this.loadDataForConstellation(cid, nodeData, false, true, false, null);
+
+                this.navigationStack = [{ constellationId: cid, clusterKey: null }];
+                this.updateBackButtonVisibility();
+                window.history.pushState({}, '', `?constellation_id=${cid}`);
+
+                this._portalTransition = {
+                    phase: 'cluster_cross_fade',
+                    startTime: performance.now(),
+                    duration: 800,
+                    cameraStart: this.camera.position.clone(),
+                    cameraEnd: this.camera.position.clone(),
+                    targetEnd: this.controls.target.clone(),
+                };
+
+                setTimeout(() => this._focusNodeById(nodeId), 900);
+            } catch (err) {
+                console.error('Navigate to search result failed:', err);
+                this._portalTransition = null;
+                this._portalFadeInMultiplier = undefined;
+                this.controls.enabled = true;
+            }
+        } else {
+            // Already at the right level — just focus the node
+            this._focusNodeById(nodeId);
+        }
+    }
+
+    /**
+     * Find a node mesh by its data ID and focus/highlight it.
+     */
+    _focusNodeById(nodeId) {
+        const target = this.nodes.find(n => n.userData && n.userData.id === nodeId);
+        if (!target) {
+            // Try numeric comparison
+            const numId = typeof nodeId === 'string' ? parseInt(nodeId, 10) : nodeId;
+            const target2 = this.nodes.find(n => n.userData && (n.userData.id === numId || parseInt(n.userData.id, 10) === numId));
+            if (target2) {
+                this.networkManager.setFocusedNode(target2);
+                this.playGlitch();
+                return;
+            }
+            return;
+        }
+        this.networkManager.setFocusedNode(target);
+        this.playGlitch();
     }
 
     onWindowResize() {

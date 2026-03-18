@@ -18,6 +18,7 @@ declare(strict_types=1);
  *   --galaxia=SLUG    Galaxia slug to import
  *   --no-media        Skip media file downloads (faster, nodes still created)
  *   --limit=N         Import only the first N items (useful for testing)
+ *   --quiet           Minimal output (errors and summary only)
  */
 
 require_once __DIR__ . '/cli_auth.php';
@@ -31,12 +32,18 @@ ini_set('memory_limit', '512M');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function cli_log(string $level, string $msg): void {
+$_CLI_QUIET = false;
+
+function cli_log(string $level, string $msg, bool $verbose = false): void {
+    global $_CLI_QUIET;
+    if ($_CLI_QUIET && $verbose) return;
+    if ($_CLI_QUIET && $level === 'INFO') return;
     $ts = date('H:i:s');
     $prefix = match($level) {
         'ERROR' => "\033[31m[ERR]\033[0m",
         'WARN' => "\033[33m[WRN]\033[0m",
         'OK' => "\033[32m[OK ]\033[0m",
+        'DL' => "\033[35m[DL ]\033[0m",
         default => "\033[36m[INF]\033[0m",
     };
     echo "{$prefix} {$ts} {$msg}\n";
@@ -64,7 +71,8 @@ function cli_confirm(string $prompt): bool {
 
 // ── Parse arguments ──────────────────────────────────────────────────────────
 
-$opts = getopt('', ['api-base:', 'galaxia:', 'list', 'no-media', 'limit:']);
+$opts = getopt('', ['api-base:', 'galaxia:', 'list', 'no-media', 'limit:', 'quiet']);
+$_CLI_QUIET = isset($opts['quiet']);
 
 $apiBase = trim($opts['api-base'] ?? '');
 $listMode = isset($opts['list']);
@@ -340,109 +348,266 @@ $startTime = microtime(true);
 
 $writeLog = function(string $level, string $msg) { /* no-op for download function */ };
 
-foreach ($galaxiaItems as $idx => $item) {
-    $itemSlug = $item['slug'] ?? 'unknown';
-    $counter = ($idx + 1) . "/{$expectedCount}";
+// Pre-create constellation upload dir with correct permissions
+$uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../../uploads');
+if (!$noMedia) {
+    $constDir = "{$uploadDir}/{$constellationId}";
+    if (!is_dir($constDir) && !@mkdir($constDir, 0775, true)) {
+        cli_log('WARN', "Cannot create {$constDir} — skipping all media downloads. Fix: sudo chmod -R g+w uploads/ && sudo chown -R " . get_current_user() . ":www-data uploads/");
+        $noMedia = true;
+    }
+}
 
-    try {
+// ── Fast batch import (no media) ─────────────────────────────────────────────
+if ($noMedia) {
+    cli_log('INFO', "Fast import mode (no media)...");
+    $pdo = getDB();
+
+    // Prepare statements once
+    $insertStmt = $pdo->prepare("
+        INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, audio_autoplay, video_autoplay, mucua_name, media_type, source_created_at)
+        VALUES (:name, :description, :url, :animation, :constellation_id, 'object', 1, 1, :mucua_name, :media_type, :source_created_at)
+    ");
+    $kwInsertStmt = $pdo->prepare("INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :cid) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)");
+    $kwLookupStmt = $pdo->prepare("SELECT id FROM keywords WHERE keyword = :keyword AND constellation_id = :cid LIMIT 1");
+    $nkInsertStmt = $pdo->prepare("INSERT INTO node_keywords (node_id, keyword_id) VALUES (:nid, :kid) ON DUPLICATE KEY UPDATE node_id=node_id");
+
+    $batchSize = 500;
+    $pdo->beginTransaction();
+
+    foreach ($galaxiaItems as $idx => $item) {
+        try {
+            $nodeName = $item['title'] ?? ($item['slug'] ?? 'unknown');
+            $nodeDesc = $item['description'] ?? '';
+            $mediaType = $item['type'] ?? 'arquivo';
+            $tags = $item['tags'] ?? [];
+            if (!is_array($tags)) $tags = [];
+
+            $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/permalink/';
+            $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . ($item['slug'] ?? '') : 'acervo/' . ($item['slug'] ?? '');
+
+            $animation = json_encode([
+                'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
+                'phi' => rand(0, 314) / 100, 'speed' => 0.002 + (rand(0, 4) / 1000),
+                'phase' => rand(0, 628) / 100,
+            ], JSON_THROW_ON_ERROR);
+
+            $itemMucuaSmid = $item['mucua_smid'] ?? null;
+            $resolvedMucuaName = ($itemMucuaSmid !== null && isset($mucuaNameMap[$itemMucuaSmid])) ? $mucuaNameMap[$itemMucuaSmid] : null;
+            $itemMediaType = ($item['_source_type'] ?? '') === 'blog' ? 'blog' : $mediaType;
+
+            // Single INSERT with clustering metadata
+            $insertStmt->execute([
+                ':name' => $nodeName,
+                ':description' => $nodeDesc ?: null,
+                ':url' => $nodeUrl,
+                ':animation' => $animation,
+                ':constellation_id' => $constellationId,
+                ':mucua_name' => $resolvedMucuaName,
+                ':media_type' => $itemMediaType,
+                ':source_created_at' => $item['created'] ?? null,
+            ]);
+            $nodeId = (int)$pdo->lastInsertId();
+
+            // Keywords
+            foreach ($tags as $tag) {
+                $tag = trim($tag);
+                if ($tag === '') continue;
+                $kwInsertStmt->execute([':keyword' => $tag, ':cid' => $constellationId]);
+                $kwId = (int)$pdo->lastInsertId();
+                if ($kwId === 0) {
+                    $kwLookupStmt->execute([':keyword' => $tag, ':cid' => $constellationId]);
+                    $kwId = (int)($kwLookupStmt->fetchColumn() ?: 0);
+                }
+                if ($kwId > 0) {
+                    $nkInsertStmt->execute([':nid' => $nodeId, ':kid' => $kwId]);
+                }
+            }
+
+            $importedCount++;
+
+            // Commit in batches
+            if ($importedCount % $batchSize === 0) {
+                $pdo->commit();
+                $pdo->beginTransaction();
+                $rate = round($importedCount / (microtime(true) - $startTime), 0);
+                cli_log('INFO', "  {$importedCount}/{$expectedCount} imported ({$rate} nodes/sec)");
+            }
+        } catch (Throwable $e) {
+            $errorCount++;
+            if ($errorCount <= 5) cli_log('ERROR', ($item['slug'] ?? '?') . ': ' . $e->getMessage());
+        }
+    }
+
+    $pdo->commit();
+    cli_log('OK', "Batch import complete: {$importedCount}/{$expectedCount}");
+
+// ── Two-phase import (with media) ────────────────────────────────────────────
+} else {
+    // Phase 1: Fast batch insert of all nodes (same as --no-media path)
+    cli_log('OK', "Phase 1/2: Creating {$expectedCount} nodes...");
+    $pdo = getDB();
+
+    $insertStmt = $pdo->prepare("
+        INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, audio_autoplay, video_autoplay, mucua_name, media_type, source_created_at)
+        VALUES (:name, :description, :url, :animation, :constellation_id, 'object', 1, 1, :mucua_name, :media_type, :source_created_at)
+    ");
+    $kwInsertStmt = $pdo->prepare("INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :cid) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)");
+    $kwLookupStmt = $pdo->prepare("SELECT id FROM keywords WHERE keyword = :keyword AND constellation_id = :cid LIMIT 1");
+    $nkInsertStmt = $pdo->prepare("INSERT INTO node_keywords (node_id, keyword_id) VALUES (:nid, :kid) ON DUPLICATE KEY UPDATE node_id=node_id");
+
+    $batchSize = 500;
+    $pdo->beginTransaction();
+    $nodeIdMap = []; // itemIndex → nodeId
+
+    foreach ($galaxiaItems as $idx => $item) {
+        try {
+            $nodeName = $item['title'] ?? ($item['slug'] ?? 'unknown');
+            $nodeDesc = $item['description'] ?? '';
+            $mediaType = $item['type'] ?? 'arquivo';
+            $tags = $item['tags'] ?? [];
+            if (!is_array($tags)) $tags = [];
+
+            $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/permalink/';
+            $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . ($item['slug'] ?? '') : 'acervo/' . ($item['slug'] ?? '');
+
+            $animation = json_encode([
+                'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
+                'phi' => rand(0, 314) / 100, 'speed' => 0.002 + (rand(0, 4) / 1000),
+                'phase' => rand(0, 628) / 100,
+            ], JSON_THROW_ON_ERROR);
+
+            $itemMucuaSmid = $item['mucua_smid'] ?? null;
+            $resolvedMucuaName = ($itemMucuaSmid !== null && isset($mucuaNameMap[$itemMucuaSmid])) ? $mucuaNameMap[$itemMucuaSmid] : null;
+            $itemMediaType = ($item['_source_type'] ?? '') === 'blog' ? 'blog' : $mediaType;
+
+            $insertStmt->execute([
+                ':name' => $nodeName, ':description' => $nodeDesc ?: null, ':url' => $nodeUrl,
+                ':animation' => $animation, ':constellation_id' => $constellationId,
+                ':mucua_name' => $resolvedMucuaName, ':media_type' => $itemMediaType,
+                ':source_created_at' => $item['created'] ?? null,
+            ]);
+            $nodeId = (int)$pdo->lastInsertId();
+            $nodeIdMap[$idx] = $nodeId;
+
+            foreach ($tags as $tag) {
+                $tag = trim($tag);
+                if ($tag === '') continue;
+                $kwInsertStmt->execute([':keyword' => $tag, ':cid' => $constellationId]);
+                $kwId = (int)$pdo->lastInsertId();
+                if ($kwId === 0) {
+                    $kwLookupStmt->execute([':keyword' => $tag, ':cid' => $constellationId]);
+                    $kwId = (int)($kwLookupStmt->fetchColumn() ?: 0);
+                }
+                if ($kwId > 0) $nkInsertStmt->execute([':nid' => $nodeId, ':kid' => $kwId]);
+            }
+
+            $importedCount++;
+            if ($importedCount % $batchSize === 0) {
+                $pdo->commit();
+                $pdo->beginTransaction();
+                $rate = round($importedCount / (microtime(true) - $startTime), 0);
+                cli_log('INFO', "  {$importedCount}/{$expectedCount} nodes ({$rate}/sec)");
+            }
+        } catch (Throwable $e) {
+            $errorCount++;
+            if ($errorCount <= 5) cli_log('ERROR', ($item['slug'] ?? '?') . ': ' . $e->getMessage());
+        }
+    }
+    $pdo->commit();
+    $phase1Time = round(microtime(true) - $startTime, 1);
+    cli_log('OK', "Phase 1 complete: {$importedCount}/{$expectedCount} nodes in {$phase1Time}s");
+
+    // Phase 2: Download media files
+    $mediaStart = microtime(true);
+    $mediaOk = 0;
+    $mediaFail = 0;
+    $mediaSkip = 0;
+    cli_log('OK', "Phase 2/2: Downloading media for {$importedCount} nodes...");
+
+    foreach ($galaxiaItems as $idx => $item) {
+        $nodeId = $nodeIdMap[$idx] ?? null;
+        if ($nodeId === null) { $mediaSkip++; continue; }
+
+        $itemSlug = $item['slug'] ?? 'unknown';
         $nodeName = $item['title'] ?? $itemSlug;
         $nodeDesc = $item['description'] ?? '';
         $mediaType = $item['type'] ?? 'arquivo';
-        $tags = $item['tags'] ?? [];
-        if (!is_array($tags)) $tags = [];
+        $counter = ($idx + 1) . "/{$expectedCount}";
 
-        // Build URL
         $nodeUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/permalink/';
-        if (($item['_source_type'] ?? '') === 'blog') {
-            $nodeUrl .= 'blog/artigo/' . $itemSlug;
-        } else {
-            $nodeUrl .= 'acervo/' . $itemSlug;
-        }
+        $nodeUrl .= (($item['_source_type'] ?? '') === 'blog') ? 'blog/artigo/' . $itemSlug : 'acervo/' . $itemSlug;
 
-        $animationArray = [
-            'radius' => 5 + rand(0, 3),
-            'theta' => rand(0, 628) / 100,
-            'phi' => rand(0, 314) / 100,
-            'speed' => 0.002 + (rand(0, 4) / 1000),
+        $animation = json_encode([
+            'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
+            'phi' => rand(0, 314) / 100, 'speed' => 0.002 + (rand(0, 4) / 1000),
             'phase' => rand(0, 628) / 100,
-        ];
-        $animation = json_encode($animationArray, JSON_THROW_ON_ERROR);
+        ], JSON_THROW_ON_ERROR);
 
-        $nodeId = db_create_node($nodeName, $nodeDesc ?: null, $nodeUrl, $animation, $constellationId, 'object', null, null, null, null, true, false, null, true, false, false, null);
+        $nodeRelDir = "uploads/{$constellationId}/{$nodeId}";
+        $nodeFullDir = "{$uploadDir}/{$constellationId}/{$nodeId}";
+        if (!is_dir($nodeFullDir)) @mkdir($nodeFullDir, 0775, true);
 
-        // Clustering metadata
-        $itemMucuaSmid = $item['mucua_smid'] ?? null;
-        $resolvedMucuaName = ($itemMucuaSmid !== null && isset($mucuaNameMap[$itemMucuaSmid])) ? $mucuaNameMap[$itemMucuaSmid] : null;
-        $itemMediaType = ($item['_source_type'] ?? '') === 'blog' ? 'blog' : $mediaType;
-        $itemSourceCreated = $item['created'] ?? null;
-        db_set_node_clustering_metadata($nodeId, $resolvedMucuaName, $itemMediaType, $itemSourceCreated);
-
-        // Media downloads
-        $imageUrl = null;
-        $iconUrl = null;
-        $audioUrl = null;
-        $videoUrl = null;
+        $imageUrl = null; $iconUrl = null; $audioUrl = null; $videoUrl = null;
         $needsUpdate = false;
 
-        if (!$noMedia) {
-            $uploadDir = defined('UPLOAD_DIR') ? UPLOAD_DIR : (__DIR__ . '/../../uploads');
-            $nodeRelDir = "uploads/{$constellationId}/{$nodeId}";
-            $nodeFullDir = "{$uploadDir}/{$constellationId}/{$nodeId}";
-            if (!is_dir($nodeFullDir)) mkdir($nodeFullDir, 0755, true);
+        $dlBase = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug;
 
-            if ($mediaType === 'imagem') {
-                $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
-                $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'image', $writeLog);
-                if ($localPath !== null) {
-                    $relPath = $nodeRelDir . '/' . basename($localPath);
-                    $imageUrl = $relPath;
-                    $iconUrl = $relPath;
-                    $needsUpdate = true;
-                }
-            } elseif ($mediaType === 'video') {
-                $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
-                $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'video', $writeLog);
-                if ($localPath !== null) {
-                    $videoUrl = $nodeRelDir . '/' . basename($localPath);
-                    $needsUpdate = true;
-                }
-            } elseif ($mediaType === 'audio') {
-                $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
-                $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'audio', $writeLog);
-                if ($localPath !== null) {
-                    $audioUrl = $nodeRelDir . '/' . basename($localPath);
-                    $needsUpdate = true;
-                }
+        cli_log('DL', "({$counter}) {$nodeName} [{$mediaType}]", true);
+
+        if ($mediaType === 'imagem') {
+            $localPath = mocambos_download_file("{$dlBase}/acervo/download/{$itemSlug}", $nodeFullDir, 'image', $writeLog);
+            if ($localPath !== null) {
+                $relPath = $nodeRelDir . '/' . basename($localPath);
+                $imageUrl = $relPath; $iconUrl = $relPath; $needsUpdate = true;
+                cli_log('OK', "  image saved (" . round(filesize($localPath) / 1024, 1) . " KB)", true);
+            } else {
+                cli_log('WARN', "  image download failed", true);
             }
-
-            // Thumbnail as icon fallback
-            if ($iconUrl === null) {
-                $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
-                $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
-                if ($thumbPath !== null) {
-                    $iconUrl = $nodeRelDir . '/' . basename($thumbPath);
-                    $needsUpdate = true;
-                }
+        } elseif ($mediaType === 'video') {
+            $localPath = mocambos_download_file("{$dlBase}/acervo/download/{$itemSlug}", $nodeFullDir, 'video', $writeLog);
+            if ($localPath !== null) {
+                $videoUrl = $nodeRelDir . '/' . basename($localPath); $needsUpdate = true;
+                cli_log('OK', "  video saved (" . round(filesize($localPath) / 1024, 1) . " KB)", true);
+            } else {
+                cli_log('WARN', "  video download failed", true);
             }
-
-            if ($needsUpdate) {
-                db_update_node($nodeId, $nodeName, $nodeDesc ?: null, $nodeUrl, $animation, $constellationId, 'object', null, $imageUrl, null, $audioUrl, true, false, $videoUrl, true, false, false, $iconUrl);
+        } elseif ($mediaType === 'audio') {
+            $localPath = mocambos_download_file("{$dlBase}/acervo/download/{$itemSlug}", $nodeFullDir, 'audio', $writeLog);
+            if ($localPath !== null) {
+                $audioUrl = $nodeRelDir . '/' . basename($localPath); $needsUpdate = true;
+                cli_log('OK', "  audio saved (" . round(filesize($localPath) / 1024, 1) . " KB)", true);
+            } else {
+                cli_log('WARN', "  audio download failed", true);
             }
         }
 
-        // Save keywords
-        if (!empty($tags)) {
-            db_save_node_keywords($nodeId, $tags);
+        // Thumbnail as icon fallback
+        if ($iconUrl === null) {
+            $thumbPath = mocambos_download_file("{$dlBase}/acervo/thumbnail/{$itemSlug}", $nodeFullDir, 'icon', $writeLog);
+            if ($thumbPath !== null) {
+                $iconUrl = $nodeRelDir . '/' . basename($thumbPath); $needsUpdate = true;
+                cli_log('OK', "  thumbnail saved", true);
+            }
         }
 
-        $importedCount++;
-        $mediaFlag = $noMedia ? '' : ($needsUpdate ? ' [media]' : ' [no media]');
-        cli_log('OK', "({$counter}) {$nodeName}{$mediaFlag}");
+        if ($needsUpdate) {
+            db_update_node($nodeId, $nodeName, $nodeDesc ?: null, $nodeUrl, $animation, $constellationId, 'object', null, $imageUrl, null, $audioUrl, true, false, $videoUrl, true, false, false, $iconUrl);
+            $mediaOk++;
+        } else {
+            $mediaFail++;
+        }
 
-    } catch (Throwable $e) {
-        $errorCount++;
-        cli_log('ERROR', "({$counter}) {$itemSlug}: " . $e->getMessage());
+        // Progress summary every 100 items (always shown, even in quiet)
+        if (($idx + 1) % 100 === 0) {
+            $elapsed = round(microtime(true) - $mediaStart, 0);
+            $rate = $elapsed > 0 ? round(($idx + 1) / $elapsed, 1) : 0;
+            cli_log('INFO', "  Media progress: {$mediaOk} ok, {$mediaFail} failed, " . ($idx + 1) . "/{$expectedCount} processed ({$rate}/sec, {$elapsed}s)");
+        }
     }
+
+    $phase2Time = round(microtime(true) - $mediaStart, 1);
+    cli_log('OK', "Phase 2 complete: {$mediaOk} media saved, {$mediaFail} failed in {$phase2Time}s");
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────
