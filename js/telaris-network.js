@@ -1992,8 +1992,13 @@ class TelarisNetwork {
                 document.head.appendChild(style);
             }
 
-            const loadingText = window.TELARIS_LOADING_TEXT || 'Loading';
-            screen.innerHTML = '<div class="cls-torus"></div><p class="cls-text">' + loadingText + '</p>';
+            const torus = document.createElement('div');
+            torus.className = 'cls-torus';
+            const text = document.createElement('p');
+            text.className = 'cls-text';
+            text.textContent = window.TELARIS_LOADING_TEXT || 'Loading';
+            screen.appendChild(torus);
+            screen.appendChild(text);
             Object.assign(screen.style, {
                 position: 'fixed', inset: '0', zIndex: '9999',
                 background: '#000', display: 'flex', flexDirection: 'column',
@@ -2024,6 +2029,10 @@ class TelarisNetwork {
      * Unified cluster/back loading: show screen, clear scene, load data, hide screen.
      */
     async _clusterLoading(constellationId, clusterKey, dataPromise, skipPushState = false) {
+        // Prevent concurrent cluster loads
+        if (this._clusterLoadingInProgress) return;
+        this._clusterLoadingInProgress = true;
+
         this._showClusterScreen();
         this.controls.enabled = false;
 
@@ -2050,6 +2059,8 @@ class TelarisNetwork {
             console.error('Cluster loading failed:', err);
             this._hideClusterScreen();
             this.controls.enabled = true;
+        } finally {
+            this._clusterLoadingInProgress = false;
         }
     }
 

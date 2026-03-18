@@ -124,6 +124,13 @@ try {
             $noCluster = isset($_GET['no_cluster']) && $_GET['no_cluster'] === '1';
             $clusterKey = isset($_GET['cluster']) ? trim((string)$_GET['cluster']) : '';
 
+            // Validate cluster key format (alphanumeric, colons, slashes, hyphens, underscores, dots, spaces)
+            if ($clusterKey !== '' && !preg_match('/^[a-zA-Z0-9:\/\-_. ]+$/', $clusterKey)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Invalid cluster key format'], JSON_THROW_ON_ERROR);
+                return;
+            }
+
             $totalNodes = count($formatted);
             $isClustered = false;
             $clusterPath = '';
