@@ -2349,10 +2349,12 @@ class TelarisNetwork {
                     const hasMedia = !!(data.image_url || data.embed_code || data.audio_url);
                     const hasDesc = !!(data.description && data.description.trim() !== '');
 
-                    if (hasMedia || hasDesc) {
+                    if (hasMedia) {
                         this.showRichMediaWindow(targetNode);
                     } else if (data.url) {
-                        this.smartOpenUrl(targetNode, data.url);
+                        this.openInFrame(targetNode, data.url);
+                    } else if (hasDesc) {
+                        this.showRichMediaWindow(targetNode);
                     }
                 }
             }
@@ -2446,16 +2448,16 @@ class TelarisNetwork {
                             const hasMedia = !!(nodeData.image_url || nodeData.embed_code || nodeData.audio_url);
                             const hasDesc = !!(nodeData.description && nodeData.description.trim() !== '');
 
-                            if (hasMedia || hasDesc) {
+                            if (hasMedia) {
                                 e.preventDefault();
                                 this.showRichMediaWindow(touchStartNode);
                                 this.networkManager.setFocusedNode(null);
                             } else if (nodeData.url) {
                                 e.preventDefault();
-                                this.smartOpenUrl(touchStartNode, nodeData.url);
+                                this.openInFrame(touchStartNode, nodeData.url);
                                 this.networkManager.setFocusedNode(null);
-                            } else if (false) {
-                                // dead branch kept for structure
+                            } else if (hasDesc) {
+                                e.preventDefault();
                                 this.showRichMediaWindow(touchStartNode);
                                 this.networkManager.setFocusedNode(null);
                             } else {
