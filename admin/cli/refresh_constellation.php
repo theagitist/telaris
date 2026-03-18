@@ -28,9 +28,10 @@ require_once __DIR__ . '/../../inc/mocambos-download.php';
 set_time_limit(0);
 ini_set('memory_limit', '512M');
 
-$opts = getopt('', ['id:', 'list', 'no-media', 'limit:']);
+$opts = getopt('', ['id:', 'list', 'no-media', 'limit:', 'full']);
 $listMode = isset($opts['list']);
 $constellationId = isset($opts['id']) ? (int)$opts['id'] : 0;
+$fullRefresh = isset($opts['full']);
 $noMedia = isset($opts['no-media']);
 $limit = isset($opts['limit']) ? (int)$opts['limit'] : 0;
 
@@ -178,6 +179,7 @@ $cmd = PHP_BINARY . ' ' . escapeshellarg(__DIR__ . '/import_mocambos.php')
     . ' --api-base=' . escapeshellarg($apiBase)
     . ' --galaxia=' . escapeshellarg($galaxiaSlug);
 if ($noMedia) $cmd .= ' --no-media';
+if ($fullRefresh) $cmd .= ' --full';
 if ($limit > 0) $cmd .= ' --limit=' . $limit;
 
 $process = proc_open($cmd, [0 => STDIN, 1 => STDOUT, 2 => STDERR], $pipes);
