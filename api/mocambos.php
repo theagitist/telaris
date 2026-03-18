@@ -306,9 +306,10 @@ try {
 
         $allConstellations = db_get_constellations();
 
-        // Fetch mucua list for name and slug resolution
+        // Fetch mucua list for name, slug, and public_uri resolution
         $mucuaNameMap = [];
-        $mucuaSlugMap = []; // smid → slug (for URL construction)
+        $mucuaSlugMap = []; // smid → slug
+        $mucuaUriMap = []; // smid → public_uri (frontend base URL)
         $mucuaListJson = @file_get_contents($apiBase . '/mucua');
         if ($mucuaListJson !== false) {
             $mucuaList = json_decode($mucuaListJson, true);
@@ -318,6 +319,10 @@ try {
                     if ($mSmid !== null) {
                         $mucuaNameMap[$mSmid] = $m['name'] ?? $m['slug'] ?? (string)$mSmid;
                         $mucuaSlugMap[$mSmid] = $m['slug'] ?? (string)$mSmid;
+                        $pUri = $m['public_uri'] ?? null;
+                        if ($pUri !== null && $pUri !== '') {
+                            $mucuaUriMap[$mSmid] = rtrim($pUri, '/');
+                        }
                     }
                 }
             }
@@ -523,8 +528,10 @@ try {
                     $tags = $item['tags'] ?? [];
                     if (!is_array($tags)) $tags = [];
 
-                    $itemMucuaSlugForUrl = $mucuaSlugMap[$item['mucua_smid'] ?? ''] ?? '';
-                    $nodeUrl = $downloadBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . ($item['slug'] ?? '');
+                    $itemMucuaSmidVal = $item['mucua_smid'] ?? '';
+                    $itemMucuaSlugForUrl = $mucuaSlugMap[$itemMucuaSmidVal] ?? '';
+                    $itemFrontendBase = $mucuaUriMap[$itemMucuaSmidVal] ?? $downloadBase;
+                    $nodeUrl = $itemFrontendBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . ($item['slug'] ?? '');
 
                     $animation = json_encode([
                         'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,

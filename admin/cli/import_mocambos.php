@@ -111,7 +111,8 @@ if (!is_array($galaxias)) {
 
 // Fetch mucua map
 $mucuaNameMap = [];
-$mucuaSlugMap = []; // smid → slug (for URL construction)
+$mucuaSlugMap = []; // smid → slug
+$mucuaUriMap = []; // smid → public_uri (frontend base URL)
 $mucuaList = cli_fetch_json($apiBase . '/mucua');
 if (is_array($mucuaList)) {
     foreach ($mucuaList as $m) {
@@ -119,6 +120,10 @@ if (is_array($mucuaList)) {
         if ($mSmid !== null) {
             $mucuaNameMap[$mSmid] = $m['name'] ?? $m['slug'] ?? (string)$mSmid;
             $mucuaSlugMap[$mSmid] = $m['slug'] ?? (string)$mSmid;
+            $pUri = $m['public_uri'] ?? null;
+            if ($pUri !== null && $pUri !== '') {
+                $mucuaUriMap[$mSmid] = rtrim($pUri, '/');
+            }
         }
     }
 }
@@ -421,8 +426,10 @@ if ($noMedia) {
             $tags = $item['tags'] ?? [];
             if (!is_array($tags)) $tags = [];
 
-            $itemMucuaSlugForUrl = $mucuaSlugMap[$item['mucua_smid'] ?? ''] ?? '';
-            $nodeUrl = $downloadBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . ($item['slug'] ?? '');
+            $itemMucuaSmidVal = $item['mucua_smid'] ?? '';
+            $itemMucuaSlugForUrl = $mucuaSlugMap[$itemMucuaSmidVal] ?? '';
+            $itemFrontendBase = $mucuaUriMap[$itemMucuaSmidVal] ?? $downloadBase;
+            $nodeUrl = $itemFrontendBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . ($item['slug'] ?? '');
 
             $animation = json_encode([
                 'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
@@ -507,8 +514,10 @@ if ($noMedia) {
             $tags = $item['tags'] ?? [];
             if (!is_array($tags)) $tags = [];
 
-            $itemMucuaSlugForUrl = $mucuaSlugMap[$item['mucua_smid'] ?? ''] ?? '';
-            $nodeUrl = $downloadBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . ($item['slug'] ?? '');
+            $itemMucuaSmidVal = $item['mucua_smid'] ?? '';
+            $itemMucuaSlugForUrl = $mucuaSlugMap[$itemMucuaSmidVal] ?? '';
+            $itemFrontendBase = $mucuaUriMap[$itemMucuaSmidVal] ?? $downloadBase;
+            $nodeUrl = $itemFrontendBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . ($item['slug'] ?? '');
 
             $animation = json_encode([
                 'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
@@ -575,9 +584,11 @@ if ($noMedia) {
         $mediaType = $item['type'] ?? 'arquivo';
         $counter = ($idx + 1) . "/{$expectedCount}";
 
-        // Build frontend URL using slug aliases
-        $itemMucuaSlugForUrl = $mucuaSlugMap[$item['mucua_smid'] ?? ''] ?? '';
-        $nodeUrl = $downloadBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . $itemSlug;
+        // Build frontend URL using slug aliases and mucua's public_uri
+        $itemMucuaSmidVal = $item['mucua_smid'] ?? '';
+        $itemMucuaSlugForUrl = $mucuaSlugMap[$itemMucuaSmidVal] ?? '';
+        $itemFrontendBase = $mucuaUriMap[$itemMucuaSmidVal] ?? $downloadBase;
+        $nodeUrl = $itemFrontendBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlugForUrl . '/' . $itemSlug;
 
         $animation = json_encode([
             'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,

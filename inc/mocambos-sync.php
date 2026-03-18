@@ -76,6 +76,7 @@ function mocambos_apply_additions(
     int $constellationId,
     string $galaxiaSlug,
     array $mucuaSlugMap,
+    array $mucuaUriMap,
     string $downloadBase,
     PDO $pdo
 ): array {
@@ -95,8 +96,10 @@ function mocambos_apply_additions(
     foreach ($additions as $i => $apiData) {
         $item = $apiData['item'];
         $slug = $item['slug'] ?? '';
-        $itemMucuaSlug = $mucuaSlugMap[$item['mucua_smid'] ?? ''] ?? '';
-        $nodeUrl = $downloadBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlug . '/' . $slug;
+        $itemMucuaSmidVal = $item['mucua_smid'] ?? '';
+        $itemMucuaSlug = $mucuaSlugMap[$itemMucuaSmidVal] ?? '';
+        $itemFrontendBase = $mucuaUriMap[$itemMucuaSmidVal] ?? $downloadBase;
+        $nodeUrl = $itemFrontendBase . '/pt-BR/midia/' . $galaxiaSlug . '/' . $itemMucuaSlug . '/' . $slug;
 
         $animation = json_encode([
             'radius' => 5 + rand(0, 3), 'theta' => rand(0, 628) / 100,
