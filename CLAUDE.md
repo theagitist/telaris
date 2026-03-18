@@ -24,6 +24,22 @@ php admin/cli/create_user.php
 php admin/cli/hard_reset.php [--force]
 
 # Initial setup is browser-only — navigate to /admin/setup.php
+
+# Import a Mocambos galaxia (interactive — prompts for URL, galaxia, options)
+php admin/cli/import_mocambos.php
+
+# Import a Mocambos galaxia (non-interactive — for automation/cron)
+php admin/cli/import_mocambos.php --api-base=https://oya.mocambos.net/api/v2 --galaxia=SLUG
+#   --list        List available galaxias and exit
+#   --no-media    Skip media downloads (faster, nodes still created)
+#   --limit=N     Import only the first N items
+
+# Refresh a Mocambos constellation (interactive — shows list, prompts)
+php admin/cli/refresh_constellation.php
+
+# Refresh a Mocambos constellation (non-interactive — for automation/cron)
+php admin/cli/refresh_constellation.php --id=N [--no-media] [--limit=N]
+#   --list        List all constellations with import status
 ```
 
 There are no test suites, linters, or build steps in this project.
