@@ -220,7 +220,7 @@ header("X-Content-Type-Options: nosniff");
                         </div>
 
                         <!-- Description -->
-                        <div id="rm-description" class="text-gray-300 leading-relaxed text-sm md:text-base whitespace-pre-wrap"></div>
+                        <div id="rm-description" class="text-gray-300 leading-relaxed text-sm md:text-base whitespace-pre-wrap max-h-[40vh] overflow-y-auto pr-1" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent;"></div>
 
                         <!-- Keywords -->
                         <div id="rm-keywords-wrap" class="hidden">

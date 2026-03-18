@@ -58,6 +58,11 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
             margin-bottom: 3rem;
             z-index: 10;
             max-width: 80%;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.2) transparent;
         }
 
         .title {
@@ -79,12 +84,17 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
         .description {
             font-size: 0.9rem;
             max-width: 600px;
+            max-height: 45vh;
+            overflow-y: auto;
             margin: 0 auto 2rem;
             line-height: 1.6;
             color: rgba(255,255,255,0.8);
             border-top: 1px solid rgba(255,255,255,0.1);
             border-bottom: 1px solid rgba(255,255,255,0.1);
-            padding: 1.5rem 0;
+            padding: 1.5rem 0.5rem 1.5rem 0;
+            text-align: left;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.2) transparent;
         }
 
         .countdown {
