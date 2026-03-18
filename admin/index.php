@@ -1046,19 +1046,59 @@ $fieldMeta = [
         const API_KEY = <?php echo json_encode(getDefaultApiKey()); ?>;
         const API_URL = '../api/validate.php';
         const MOCAMBOS_API = '../api/mocambos.php';
-        const MOCAMBOS_API_BASE = 'https://timbuktu.mocambos.net/api/v2';
+        let mocambosApiBase = '';
 
-        async function openMocambosImportModal() {
-            const modal = document.getElementById('mocambos_import_modal');
+        function openMocambosImportModal() {
+            showMocambosUrlStep();
+            document.getElementById('mocambos_import_modal').showModal();
+        }
+
+        function showMocambosUrlStep() {
+            document.getElementById('mocambos-url-step').classList.remove('hidden');
+            document.getElementById('mocambos-loading').classList.add('hidden');
+            document.getElementById('mocambos-error').classList.add('hidden');
+            document.getElementById('mocambos-list').classList.add('hidden');
+            document.getElementById('mocambos-import-btn').classList.add('hidden');
+            document.getElementById('mocambos-import-progress').classList.add('hidden');
+            document.getElementById('mocambos-import-result').classList.add('hidden');
+        }
+
+        function buildValidationReport(apiBase, checks) {
+            const statusIcon = { ok: '✅', warn: '⚠️', fail: '❌' };
+            let lines = [];
+            lines.push('Mocambos API Validation Report');
+            lines.push('URL: ' + apiBase);
+            lines.push('Date: ' + new Date().toISOString());
+            lines.push('---');
+            checks.forEach(c => {
+                lines.push(`${statusIcon[c.status] || '?'} ${c.endpoint} (HTTP ${c.http_status || '—'})`);
+                lines.push(`   ${c.detail}`);
+            });
+            return lines.join('\n');
+        }
+
+        async function fetchMocambosGalaxias() {
+            const urlInput = document.getElementById('mocambos-api-url');
+            const apiBase = urlInput.value.trim().replace(/\/+$/, '').replace(/\/docs#?.*$/i, '');
+            if (!apiBase) {
+                showMessage('Please enter a Mocambos API URL.', 'error');
+                return;
+            }
+            mocambosApiBase = apiBase;
+
+            const urlStep = document.getElementById('mocambos-url-step');
             const loading = document.getElementById('mocambos-loading');
             const errorDiv = document.getElementById('mocambos-error');
+            const errorMsg = document.getElementById('mocambos-error-message');
             const listDiv = document.getElementById('mocambos-list');
             const galaxiasDiv = document.getElementById('mocambos-galaxias');
             const importBtn = document.getElementById('mocambos-import-btn');
-            const progressDiv = document.getElementById('mocambos-import-progress');
             const resultDiv = document.getElementById('mocambos-import-result');
+            const progressDiv = document.getElementById('mocambos-import-progress');
 
+            urlStep.classList.add('hidden');
             loading.classList.remove('hidden');
+            loading.querySelector('p').textContent = 'Validating API...';
             errorDiv.classList.add('hidden');
             listDiv.classList.add('hidden');
             importBtn.classList.add('hidden');
@@ -1067,10 +1107,52 @@ $fieldMeta = [
             resultDiv.innerHTML = '';
             galaxiasDiv.innerHTML = '';
 
-            modal.showModal();
-
+            // Step 1: Validate
             try {
-                const resp = await fetch(`${MOCAMBOS_API}?action=galaxias&api_base=${encodeURIComponent(MOCAMBOS_API_BASE)}`, {
+                const valResp = await fetch(`${MOCAMBOS_API}?action=validate&api_base=${encodeURIComponent(mocambosApiBase)}`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const valData = await valResp.json();
+
+                if (!valResp.ok || !valData.valid) {
+                    loading.classList.add('hidden');
+                    const checks = valData.checks || [];
+                    const report = buildValidationReport(mocambosApiBase, checks);
+
+                    let html = '<div class="text-left">';
+                    html += '<p class="font-medium text-red-700 mb-2">API validation failed. The following issues were found:</p>';
+                    html += '<div class="space-y-2 mb-3">';
+                    checks.forEach(c => {
+                        const color = c.status === 'ok' ? 'green' : c.status === 'warn' ? 'yellow' : 'red';
+                        const icon = c.status === 'ok' ? '✓' : c.status === 'warn' ? '⚠' : '✗';
+                        html += `<div class="p-2 rounded bg-${color}-50 border border-${color}-200">`;
+                        html += `<p class="text-sm font-mono"><span class="font-bold">${icon}</span> <strong>${c.endpoint}</strong> <span class="text-gray-500">(HTTP ${c.http_status || '—'})</span></p>`;
+                        html += `<p class="text-xs text-gray-700 mt-0.5">${c.detail}</p>`;
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                    html += `<button type="button" onclick="navigator.clipboard.writeText(this.dataset.report).then(() => { this.textContent = 'Copied!'; setTimeout(() => { this.textContent = 'Copy report to clipboard'; }, 1500); })" data-report="${report.replace(/"/g, '&quot;')}" class="btn btn-sm btn-outline text-xs">Copy report to clipboard</button>`;
+                    html += '</div>';
+
+                    if (!valData.valid && valData.error) {
+                        html = `<p class="text-red-700 font-medium">${valData.error}</p>`;
+                    }
+
+                    errorMsg.innerHTML = html;
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+            } catch (e) {
+                loading.classList.add('hidden');
+                errorMsg.textContent = 'Could not validate: ' + (e.message || 'Network error');
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            // Step 2: Fetch galaxias
+            loading.querySelector('p').textContent = 'Fetching available galaxias...';
+            try {
+                const resp = await fetch(`${MOCAMBOS_API}?action=galaxias&api_base=${encodeURIComponent(mocambosApiBase)}`, {
                     headers: { 'X-API-Key': API_KEY }
                 });
                 if (!resp.ok) {
@@ -1081,17 +1163,19 @@ $fieldMeta = [
                 loading.classList.add('hidden');
 
                 if (!Array.isArray(galaxias) || galaxias.length === 0) {
-                    document.getElementById('mocambos-error-message').textContent = 'No galaxias found.';
+                    errorMsg.textContent = 'No galaxias found at this URL.';
                     errorDiv.classList.remove('hidden');
                     return;
                 }
+
+                document.getElementById('mocambos-connected-url').textContent = mocambosApiBase;
 
                 galaxias.forEach((g, i) => {
                     const div = document.createElement('label');
                     div.className = 'flex items-center gap-3 p-2 rounded hover:bg-gray-50 cursor-pointer';
                     div.innerHTML = `
                         <input type="checkbox" class="checkbox checkbox-sm checkbox-primary mocambos-galaxia-cb"
-                               data-slug="${g.slug}" data-mucua="${g.mucua_slug}" data-name="${g.name}">
+                               data-slug="${g.slug}" data-smid="${g.smid}" data-mucua="${g.mucua_slug}" data-name="${g.name}">
                         <span class="flex-1 text-sm font-medium text-gray-800">${g.name}</span>
                         ${g.imported ? '<span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">Imported</span>' : ''}
                     `;
@@ -1102,7 +1186,7 @@ $fieldMeta = [
                 importBtn.classList.remove('hidden');
             } catch (e) {
                 loading.classList.add('hidden');
-                document.getElementById('mocambos-error-message').textContent = e.message || 'Failed to connect to Mocambos API';
+                errorMsg.textContent = e.message || 'Failed to connect to Mocambos API';
                 errorDiv.classList.remove('hidden');
             }
         }
@@ -1119,6 +1203,7 @@ $fieldMeta = [
             checkboxes.forEach(cb => {
                 selected.push({
                     galaxia_slug: cb.dataset.slug,
+                    galaxia_smid: cb.dataset.smid,
                     mucua_slug: cb.dataset.mucua
                 });
                 const badge = cb.closest('label').querySelector('.bg-purple-100');
@@ -1137,10 +1222,31 @@ $fieldMeta = [
             const importBtn = document.getElementById('mocambos-import-btn');
             const progressDiv = document.getElementById('mocambos-import-progress');
             const resultDiv = document.getElementById('mocambos-import-result');
+            const logDiv = document.getElementById('mocambos-log');
+            const statusEl = document.getElementById('mocambos-progress-status');
 
             importBtn.classList.add('hidden');
             progressDiv.classList.remove('hidden');
             resultDiv.classList.add('hidden');
+            logDiv.innerHTML = '';
+
+            const colorMap = {
+                info: 'text-blue-300',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400',
+                node: 'text-purple-300',
+                download: 'text-gray-400',
+                done: 'text-green-300 font-bold',
+            };
+
+            function appendLog(msg, type) {
+                const line = document.createElement('div');
+                line.className = colorMap[type] || 'text-gray-300';
+                line.textContent = msg;
+                logDiv.appendChild(line);
+                logDiv.scrollTop = logDiv.scrollHeight;
+            }
 
             try {
                 const resp = await fetch(`${MOCAMBOS_API}?action=import`, {
@@ -1150,48 +1256,89 @@ $fieldMeta = [
                         'X-API-Key': API_KEY
                     },
                     body: JSON.stringify({
-                        api_base: MOCAMBOS_API_BASE,
+                        api_base: mocambosApiBase,
                         galaxias: selected
                     })
                 });
 
-                progressDiv.classList.add('hidden');
-                const result = await resp.json();
-
-                if (!resp.ok || !result.success) {
-                    throw new Error(result.error || 'Import failed');
+                if (!resp.ok && resp.headers.get('content-type')?.includes('application/json')) {
+                    const err = await resp.json();
+                    throw new Error(err.error || 'Import failed');
                 }
 
-                let html = '<div class="space-y-2">';
-                let hasErrors = false;
-                result.results.forEach(r => {
-                    const status = r.is_new ? 'New' : 'Refreshed';
-                    const countInfo = `${r.imported_count} of ${r.expected_count} items`;
-                    const errCount = (r.errors || []).length;
-                    html += `<div class="p-2 rounded ${errCount > 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'}">`;
-                    html += `<p class="text-sm font-medium">${status}: <strong>${r.galaxia_slug}</strong> — ${countInfo}</p>`;
-                    if (errCount > 0) {
-                        hasErrors = true;
-                        html += `<ul class="text-xs text-red-600 mt-1 list-disc list-inside">`;
-                        r.errors.forEach(e => { html += `<li>${e}</li>`; });
-                        html += `</ul>`;
+                // Read streamed newline-delimited JSON
+                const reader = resp.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let finalData = null;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // keep incomplete line in buffer
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const evt = JSON.parse(line);
+                            appendLog(evt.message, evt.type);
+                            if (evt.type === 'node') {
+                                statusEl.textContent = evt.message.replace(/^\(\d+\/\d+\)\s*/, '');
+                            } else if (evt.type === 'info' || evt.type === 'success') {
+                                statusEl.textContent = evt.message;
+                            }
+                            if (evt.type === 'done') {
+                                finalData = evt;
+                            }
+                        } catch (e) { /* skip unparseable lines */ }
                     }
-                    html += `</div>`;
-                });
-                html += '</div>';
+                }
 
-                resultDiv.innerHTML = html;
-                resultDiv.classList.remove('hidden');
+                // Process any remaining buffer
+                if (buffer.trim()) {
+                    try {
+                        const evt = JSON.parse(buffer);
+                        appendLog(evt.message, evt.type);
+                        if (evt.type === 'done') finalData = evt;
+                    } catch (e) { /* skip */ }
+                }
 
-                showMessage('Import completed' + (hasErrors ? ' with some errors.' : ' successfully.'), hasErrors ? 'error' : 'success');
+                // Hide spinner, show summary
+                statusEl.textContent = 'Import complete';
+                document.querySelector('#mocambos-import-progress .loading')?.classList.add('hidden');
 
-                // Reload page after 2 seconds to show new constellations
-                setTimeout(() => { window.location.reload(); }, 2000);
+                if (finalData && finalData.results) {
+                    let html = '<div class="space-y-2 mt-3">';
+                    let hasErrors = false;
+                    finalData.results.forEach(r => {
+                        const status = r.is_new ? 'New' : 'Refreshed';
+                        const countInfo = `${r.imported_count} of ${r.expected_count} items`;
+                        const errCount = (r.errors || []).length;
+                        html += `<div class="p-2 rounded ${errCount > 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'}">`;
+                        html += `<p class="text-sm font-medium">${status}: <strong>${r.galaxia_slug}</strong> — ${countInfo}</p>`;
+                        if (errCount > 0) {
+                            hasErrors = true;
+                            html += `<ul class="text-xs text-red-600 mt-1 list-disc list-inside">`;
+                            r.errors.forEach(e => { html += `<li>${e}</li>`; });
+                            html += `</ul>`;
+                        }
+                        html += `</div>`;
+                    });
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                    resultDiv.classList.remove('hidden');
+
+                    showMessage('Import completed' + (hasErrors ? ' with some errors.' : ' successfully.'), hasErrors ? 'error' : 'success');
+                    setTimeout(() => { window.location.reload(); }, 3000);
+                }
 
             } catch (e) {
-                progressDiv.classList.add('hidden');
-                resultDiv.innerHTML = `<div class="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">${e.message}</div>`;
-                resultDiv.classList.remove('hidden');
+                appendLog('Error: ' + e.message, 'error');
+                statusEl.textContent = 'Import failed';
+                document.querySelector('#mocambos-import-progress .loading')?.classList.add('hidden');
                 importBtn.classList.remove('hidden');
             }
         }
@@ -2090,19 +2237,33 @@ $fieldMeta = [
     <dialog id="mocambos_import_modal" class="modal">
         <div class="modal-box bg-white max-w-lg">
             <h3 class="font-bold text-xl mb-4 text-gray-800">Import from Mocambos</h3>
-            <div id="mocambos-loading" class="text-center py-8">
+            <!-- Step 1: API URL -->
+            <div id="mocambos-url-step">
+                <label for="mocambos-api-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Mocambos API URL</label>
+                <input type="url" id="mocambos-api-url" placeholder="https://timbuktu.mocambos.net/api/v2" value="" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-1">
+                <span class="text-xs text-gray-500 block mb-4">The base API URL of the Mocambos instance (e.g. https://hostname/api/v2). You can also paste the docs URL — /docs will be stripped automatically.</span>
+                <button type="button" id="mocambos-fetch-btn" onclick="fetchMocambosGalaxias()" class="btn bg-purple-600 hover:bg-purple-700 text-white btn-sm">Connect</button>
+            </div>
+            <!-- Step 2: Loading -->
+            <div id="mocambos-loading" class="hidden text-center py-8">
                 <span class="loading loading-spinner loading-lg text-purple-600"></span>
                 <p class="text-gray-600 mt-2">Fetching available galaxias...</p>
             </div>
             <div id="mocambos-error" class="hidden text-center py-8">
                 <p class="text-red-600 font-medium" id="mocambos-error-message"></p>
+                <button type="button" onclick="showMocambosUrlStep()" class="btn btn-sm btn-outline mt-3">Back</button>
             </div>
+            <!-- Step 3: Galaxia selection + import -->
             <div id="mocambos-list" class="hidden">
+                <p class="text-sm text-gray-600 mb-1">Connected to: <strong id="mocambos-connected-url" class="font-mono text-xs"></strong></p>
                 <p class="text-sm text-gray-600 mb-3">Select galaxias to import. Each will become a new constellation. Already-imported ones will be refreshed.</p>
                 <div id="mocambos-galaxias" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded p-3 mb-4"></div>
-                <div id="mocambos-import-progress" class="hidden text-center py-4">
-                    <span class="loading loading-spinner loading-md text-purple-600"></span>
-                    <p class="text-gray-600 mt-2">Importing... this may take a while.</p>
+                <div id="mocambos-import-progress" class="hidden">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="loading loading-spinner loading-sm text-purple-600"></span>
+                        <span class="text-sm font-medium text-gray-700" id="mocambos-progress-status">Starting import...</span>
+                    </div>
+                    <div id="mocambos-log" class="bg-gray-900 text-gray-200 rounded p-3 font-mono text-xs max-h-64 overflow-y-auto space-y-0.5"></div>
                 </div>
                 <div id="mocambos-import-result" class="hidden mb-4"></div>
             </div>

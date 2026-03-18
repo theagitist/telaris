@@ -24,11 +24,156 @@ $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 
 try {
-    if ($method === 'GET' && $action === 'galaxias') {
+    if ($method === 'GET' && $action === 'validate') {
         requireWriteAccess();
 
-        $apiBase = trim($_GET['api_base'] ?? 'https://timbuktu.mocambos.net/api/v2');
-        if (!filter_var($apiBase, FILTER_VALIDATE_URL)) {
+        $apiBase = trim($_GET['api_base'] ?? '');
+        if ($apiBase === '' || !filter_var($apiBase, FILTER_VALIDATE_URL)) {
+            http_response_code(400);
+            echo json_encode(['valid' => false, 'error' => 'Invalid URL format. Expected a full URL like https://hostname/api/v2'], JSON_THROW_ON_ERROR);
+            exit();
+        }
+        if (!preg_match('#^https?://#', $apiBase)) {
+            http_response_code(400);
+            echo json_encode(['valid' => false, 'error' => 'URL must start with http:// or https://'], JSON_THROW_ON_ERROR);
+            exit();
+        }
+
+        $checks = [];
+        $allOk = true;
+
+        // Helper: fetch a URL and return [ok, http_status, body, error]
+        $probe = function(string $url) {
+            $ctx = stream_context_create(['http' => ['timeout' => 15, 'ignore_errors' => true]]);
+            $body = @file_get_contents($url, false, $ctx);
+            $status = 0;
+            if (isset($http_response_header)) {
+                foreach ($http_response_header as $h) {
+                    if (preg_match('#^HTTP/[\d.]+ (\d+)#', $h, $m)) {
+                        $status = (int)$m[1];
+                    }
+                }
+            }
+            if ($body === false) {
+                return [false, 0, null, 'Connection failed — could not reach the server'];
+            }
+            return [$status >= 200 && $status < 300, $status, $body, null];
+        };
+
+        // 1. Check /galaxia endpoint
+        [$ok, $status, $body, $err] = $probe($apiBase . '/galaxia');
+        if (!$ok) {
+            $checks[] = ['endpoint' => '/galaxia', 'status' => 'fail', 'http_status' => $status,
+                'detail' => $err ?? "HTTP {$status} — expected 200. This endpoint must return a JSON array of galaxia objects."];
+            $allOk = false;
+        } else {
+            $data = json_decode($body, true);
+            if (!is_array($data)) {
+                $checks[] = ['endpoint' => '/galaxia', 'status' => 'fail', 'http_status' => $status,
+                    'detail' => 'Response is not a valid JSON array. Received: ' . mb_substr((string)$body, 0, 200)];
+                $allOk = false;
+            } elseif (count($data) === 0) {
+                $checks[] = ['endpoint' => '/galaxia', 'status' => 'warn', 'http_status' => $status,
+                    'detail' => 'Returned an empty array — no galaxias available to import.'];
+            } else {
+                // Validate structure of first item
+                $first = $data[0];
+                $missing = [];
+                foreach (['name', 'slug', 'default_mucua'] as $field) {
+                    if (!isset($first[$field]) || $first[$field] === '') {
+                        $missing[] = $field;
+                    }
+                }
+                if ($missing) {
+                    $checks[] = ['endpoint' => '/galaxia', 'status' => 'fail', 'http_status' => $status,
+                        'detail' => 'Galaxia objects are missing required fields: ' . implode(', ', $missing) . '. Each galaxia must have: name, slug, default_mucua.'];
+                    $allOk = false;
+                } else {
+                    $checks[] = ['endpoint' => '/galaxia', 'status' => 'ok', 'http_status' => $status,
+                        'detail' => 'Found ' . count($data) . ' galaxia(s). Structure looks correct.'];
+                }
+            }
+        }
+
+        // 2. Check /mucua endpoint
+        [$ok, $status, $body, $err] = $probe($apiBase . '/mucua');
+        if (!$ok) {
+            $checks[] = ['endpoint' => '/mucua', 'status' => 'fail', 'http_status' => $status,
+                'detail' => $err ?? "HTTP {$status} — expected 200. This endpoint must return a JSON array of mucua objects."];
+            $allOk = false;
+        } else {
+            $data = json_decode($body, true);
+            if (!is_array($data)) {
+                $checks[] = ['endpoint' => '/mucua', 'status' => 'fail', 'http_status' => $status,
+                    'detail' => 'Response is not a valid JSON array. Received: ' . mb_substr((string)$body, 0, 200)];
+                $allOk = false;
+            } elseif (count($data) === 0) {
+                $checks[] = ['endpoint' => '/mucua', 'status' => 'warn', 'http_status' => $status,
+                    'detail' => 'Returned an empty array — no mucuas found. Media downloads may not work.'];
+            } else {
+                $first = $data[0];
+                $missing = [];
+                foreach (['smid', 'slug'] as $field) {
+                    if (!isset($first[$field]) || $first[$field] === '') {
+                        $missing[] = $field;
+                    }
+                }
+                if ($missing) {
+                    $checks[] = ['endpoint' => '/mucua', 'status' => 'fail', 'http_status' => $status,
+                        'detail' => 'Mucua objects are missing required fields: ' . implode(', ', $missing) . '. Each mucua must have: smid, slug.'];
+                    $allOk = false;
+                } else {
+                    $checks[] = ['endpoint' => '/mucua', 'status' => 'ok', 'http_status' => $status,
+                        'detail' => 'Found ' . count($data) . ' mucua(s). Structure looks correct.'];
+                }
+            }
+        }
+
+        // 3. Check /acervo/find endpoint
+        [$ok, $status, $body, $err] = $probe($apiBase . '/acervo/find?pag_tamanho=1');
+        if (!$ok) {
+            $checks[] = ['endpoint' => '/acervo/find', 'status' => 'fail', 'http_status' => $status,
+                'detail' => $err ?? "HTTP {$status} — expected 200. This endpoint must return a paginated JSON object with an 'items' array."];
+            $allOk = false;
+        } else {
+            $data = json_decode($body, true);
+            if (!is_array($data) || !isset($data['items'])) {
+                $checks[] = ['endpoint' => '/acervo/find', 'status' => 'fail', 'http_status' => $status,
+                    'detail' => 'Response missing "items" key. Expected {item_count, page_count, items: [...]}. Received: ' . mb_substr((string)$body, 0, 200)];
+                $allOk = false;
+            } else {
+                $itemCount = $data['item_count'] ?? count($data['items']);
+                $checks[] = ['endpoint' => '/acervo/find', 'status' => 'ok', 'http_status' => $status,
+                    'detail' => "Returned {$itemCount} media item(s) total. Structure looks correct."];
+            }
+        }
+
+        // 4. Check /blog/find endpoint
+        [$ok, $status, $body, $err] = $probe($apiBase . '/blog/find?pag_tamanho=1');
+        if (!$ok) {
+            $checks[] = ['endpoint' => '/blog/find', 'status' => 'fail', 'http_status' => $status,
+                'detail' => $err ?? "HTTP {$status} — expected 200. This endpoint must return a paginated JSON object with an 'items' array."];
+            // Blog is optional — don't fail the whole validation
+            $checks[count($checks) - 1]['status'] = 'warn';
+        } else {
+            $data = json_decode($body, true);
+            if (!is_array($data) || !isset($data['items'])) {
+                $checks[] = ['endpoint' => '/blog/find', 'status' => 'warn', 'http_status' => $status,
+                    'detail' => 'Response missing "items" key. Blog articles will not be imported.'];
+            } else {
+                $itemCount = $data['item_count'] ?? count($data['items']);
+                $checks[] = ['endpoint' => '/blog/find', 'status' => 'ok', 'http_status' => $status,
+                    'detail' => "Returned {$itemCount} blog article(s) total. Structure looks correct."];
+            }
+        }
+
+        echo json_encode(['valid' => $allOk, 'checks' => $checks], JSON_THROW_ON_ERROR);
+
+    } elseif ($method === 'GET' && $action === 'galaxias') {
+        requireWriteAccess();
+
+        $apiBase = trim($_GET['api_base'] ?? '');
+        if ($apiBase === '' || !filter_var($apiBase, FILTER_VALIDATE_URL)) {
             http_response_code(400);
             echo json_encode(['error' => 'Invalid api_base URL'], JSON_THROW_ON_ERROR);
             exit();
@@ -54,8 +199,9 @@ try {
         if (!is_array($mucuas)) $mucuas = [];
         $mucuaByUuid = [];
         foreach ($mucuas as $m) {
-            if (isset($m['uuid'])) {
-                $mucuaByUuid[$m['uuid']] = $m['slug'] ?? '';
+            $mucuaId = $m['smid'] ?? $m['uuid'] ?? null;
+            if ($mucuaId !== null) {
+                $mucuaByUuid[$mucuaId] = $m['slug'] ?? '';
             }
         }
 
@@ -87,6 +233,7 @@ try {
             $result[] = [
                 'name' => $name,
                 'slug' => $slug,
+                'smid' => $g['smid'] ?? '',
                 'mucua_slug' => $mucuaSlug,
                 'imported' => $imported,
                 'constellation_id' => $constellationId,
@@ -115,6 +262,37 @@ try {
             exit();
         }
 
+        // Switch to streaming newline-delimited JSON for real-time progress
+        header('Content-Type: text/plain; charset=utf-8');
+        header('X-Accel-Buffering: no'); // Disable Nginx buffering
+        if (ob_get_level()) ob_end_flush();
+
+        // Setup detailed log file
+        $logDir = defined('LOG_DIR') ? LOG_DIR : (__DIR__ . '/../logs');
+        if (!is_dir($logDir)) {
+            mkdir($logDir, 0755, true);
+        }
+        $logFile = $logDir . '/mocambos-import-' . date('Y-m-d_H-i-s') . '.log';
+        $logFp = fopen($logFile, 'w');
+
+        $writeLog = function(string $level, string $message) use ($logFp) {
+            if ($logFp) {
+                $ts = date('Y-m-d H:i:s');
+                fwrite($logFp, "[{$ts}] [{$level}] {$message}\n");
+                fflush($logFp);
+            }
+        };
+
+        $writeLog('INFO', 'Import started — api_base=' . $apiBase . ', galaxias=' . json_encode(array_column($galaxias, 'galaxia_slug')));
+
+        $streamMsg = function(string $type, string $message, array $extra = []) use ($writeLog) {
+            $line = json_encode(array_merge(['type' => $type, 'message' => $message], $extra), JSON_THROW_ON_ERROR);
+            echo $line . "\n";
+            flush();
+            $level = match($type) { 'error' => 'ERROR', 'warning' => 'WARN', default => 'INFO' };
+            $writeLog($level, $message);
+        };
+
         // Derive base URL for downloads (strip /api/v2)
         $downloadBase = preg_replace('#/api/v2/?$#', '', $apiBase);
 
@@ -122,12 +300,88 @@ try {
         db_ensure_nodes_icon_url_column();
 
         $allConstellations = db_get_constellations();
+
+        // Build smid-to-slug map for selected galaxias
+        $galaxiaSmids = [];
+        foreach ($galaxias as $gal) {
+            if (!empty($gal['galaxia_smid'])) {
+                $galaxiaSmids[$gal['galaxia_smid']] = $gal['galaxia_slug'] ?? '';
+            }
+        }
+
+        // ── Fetch ALL items once (shared across galaxias) ─────────────
+        $streamMsg('info', "Fetching media items from Mocambos API...");
+        $allItems = [];
+        $page = 1;
+        while (true) {
+            $acervoUrl = $apiBase . '/acervo/find?pag_tamanho=100&pag_atual=' . $page;
+            $writeLog('DEBUG', "GET {$acervoUrl}");
+            $acervoJson = @file_get_contents($acervoUrl);
+            if ($acervoJson === false) {
+                $streamMsg('warning', "Failed to fetch acervo page {$page}, stopping");
+                break;
+            }
+            $acervoData = json_decode($acervoJson, true);
+            if (!is_array($acervoData) || !isset($acervoData['items'])) break;
+            $pageCount = (int)($acervoData['page_count'] ?? 1);
+            foreach ($acervoData['items'] as $item) {
+                $item['_source_type'] = 'acervo';
+                $allItems[] = $item;
+            }
+            $streamMsg('info', "Fetched acervo page {$page}/{$pageCount} (" . count($allItems) . " items so far)");
+            if ($page >= $pageCount) break;
+            $page++;
+        }
+
+        $streamMsg('info', "Fetching blog articles from Mocambos API...");
+        $page = 1;
+        while (true) {
+            $blogUrl = $apiBase . '/blog/find?pag_tamanho=100&pag_atual=' . $page;
+            $writeLog('DEBUG', "GET {$blogUrl}");
+            $blogJson = @file_get_contents($blogUrl);
+            if ($blogJson === false) break;
+            $blogData = json_decode($blogJson, true);
+            if (!is_array($blogData) || !isset($blogData['items'])) break;
+            $pageCount = (int)($blogData['page_count'] ?? 1);
+            foreach ($blogData['items'] as $item) {
+                $item['_source_type'] = 'blog';
+                $allItems[] = $item;
+            }
+            if ($pageCount > 0) {
+                $streamMsg('info', "Fetched blog page {$page}/{$pageCount}");
+            }
+            if ($page >= $pageCount) break;
+            $page++;
+        }
+
+        $streamMsg('info', "Total items fetched: " . count($allItems));
+
+        // ── Fetch galaxia info for names (one request) ────────────────
+        $galaxiaInfoMap = [];
+        $galInfoJson = @file_get_contents($apiBase . '/galaxia');
+        if ($galInfoJson !== false) {
+            $galList = json_decode($galInfoJson, true);
+            if (is_array($galList)) {
+                foreach ($galList as $gl) {
+                    $galaxiaInfoMap[$gl['slug'] ?? ''] = $gl;
+                }
+            }
+        }
+
+        // ── Process each selected galaxia ─────────────────────────────
         $results = [];
 
         foreach ($galaxias as $gal) {
             $galaxiaSlug = $gal['galaxia_slug'] ?? '';
             $mucuaSlug = $gal['mucua_slug'] ?? '';
+            $galaxiaSmid = $gal['galaxia_smid'] ?? '';
             if ($galaxiaSlug === '') continue;
+
+            // Resolve smid from galaxia info if not provided by frontend
+            if ($galaxiaSmid === '' && isset($galaxiaInfoMap[$galaxiaSlug])) {
+                $galaxiaSmid = $galaxiaInfoMap[$galaxiaSlug]['smid'] ?? '';
+                $writeLog('INFO', "Resolved smid for {$galaxiaSlug} from galaxia list: {$galaxiaSmid}");
+            }
 
             $errors = [];
             $isNew = true;
@@ -145,26 +399,25 @@ try {
                 }
             }
 
+            // Filter items belonging to this galaxia
+            $galaxiaItems = [];
+            foreach ($allItems as $item) {
+                if (($item['galaxia_smid'] ?? '') === $galaxiaSmid) {
+                    $galaxiaItems[] = $item;
+                }
+            }
+
+            $writeLog('INFO', "--- Galaxia: {$galaxiaSlug} (smid={$galaxiaSmid}), mucua: {$mucuaSlug}, items: " . count($galaxiaItems) . " ---");
+            $streamMsg('info', "Processing galaxia: {$galaxiaSlug} (" . count($galaxiaItems) . " items)");
+
             if ($constellationId !== null) {
-                // Re-import: clear existing nodes
+                $writeLog('INFO', "Existing constellation found (ID {$constellationId}), clearing nodes for re-import");
+                $streamMsg('info', "Re-importing — clearing existing nodes...");
                 db_clear_constellation_nodes($constellationId);
             } else {
-                // New: fetch galaxia name
-                $galaxiaName = $galaxiaSlug;
-                $galaxiaDesc = '';
-                $galInfoJson = @file_get_contents($apiBase . '/galaxia');
-                if ($galInfoJson !== false) {
-                    $galList = json_decode($galInfoJson, true);
-                    if (is_array($galList)) {
-                        foreach ($galList as $gl) {
-                            if (($gl['slug'] ?? '') === $galaxiaSlug) {
-                                $galaxiaName = $gl['name'] ?? $galaxiaSlug;
-                                $galaxiaDesc = $gl['description'] ?? '';
-                                break;
-                            }
-                        }
-                    }
-                }
+                $galInfo = $galaxiaInfoMap[$galaxiaSlug] ?? [];
+                $galaxiaName = $galInfo['name'] ?? $galaxiaSlug;
+                $galaxiaDesc = $galInfo['description'] ?? '';
 
                 // Create constellation with unique slug
                 $baseSlug = db_slugify($galaxiaName);
@@ -172,7 +425,8 @@ try {
                 $suffix = 2;
                 while (true) {
                     try {
-                        $constellationId = db_create_constellation($galaxiaName, $galaxiaDesc, $slug, 'abstract');
+                        $constellationId = db_create_constellation($galaxiaName, $galaxiaDesc ?: '', $slug, 'abstract');
+                        $streamMsg('success', "Created constellation: {$galaxiaName} (ID {$constellationId})");
                         break;
                     } catch (PDOException $e) {
                         if (str_contains($e->getMessage(), 'Duplicate entry') && $suffix <= 20) {
@@ -185,45 +439,10 @@ try {
                 }
             }
 
-            // Fetch acervo (media) items
-            $allItems = [];
-            $page = 1;
-            while (true) {
-                $acervoUrl = $apiBase . '/acervo/find?pag_tamanho=100&pag_atual=' . $page;
-                $acervoJson = @file_get_contents($acervoUrl);
-                if ($acervoJson === false) break;
-                $acervoData = json_decode($acervoJson, true);
-                if (!is_array($acervoData) || !isset($acervoData['items'])) break;
-                foreach ($acervoData['items'] as $item) {
-                    $item['_source_type'] = 'acervo';
-                    $allItems[] = $item;
-                }
-                $pageCount = (int)($acervoData['page_count'] ?? 1);
-                if ($page >= $pageCount) break;
-                $page++;
-            }
-
-            // Fetch blog articles
-            $page = 1;
-            while (true) {
-                $blogUrl = $apiBase . '/blog/find?pag_tamanho=100&pag_atual=' . $page;
-                $blogJson = @file_get_contents($blogUrl);
-                if ($blogJson === false) break;
-                $blogData = json_decode($blogJson, true);
-                if (!is_array($blogData) || !isset($blogData['items'])) break;
-                foreach ($blogData['items'] as $item) {
-                    $item['_source_type'] = 'blog';
-                    $allItems[] = $item;
-                }
-                $pageCount = (int)($blogData['page_count'] ?? 1);
-                if ($page >= $pageCount) break;
-                $page++;
-            }
-
-            $expectedCount = count($allItems);
+            $expectedCount = count($galaxiaItems);
             $importedCount = 0;
 
-            foreach ($allItems as $item) {
+            foreach ($galaxiaItems as $itemIndex => $item) {
                 $itemSlug = $item['slug'] ?? 'unknown';
                 try {
                     $nodeName = $item['title'] ?? $itemSlug;
@@ -251,6 +470,9 @@ try {
                     $animation = json_encode($animationArray, JSON_THROW_ON_ERROR);
 
                     // Create node
+                    $counter = ($itemIndex + 1) . "/{$expectedCount}";
+                    $streamMsg('node', "({$counter}) Adding node: {$nodeName}", ['media_type' => $mediaType]);
+                    $writeLog('INFO', "Node [{$counter}]: \"{$nodeName}\" | type={$mediaType} | slug={$itemSlug} | url={$nodeUrl}");
                     $nodeId = db_create_node(
                         $nodeName,
                         $nodeDesc ?: null,
@@ -289,19 +511,22 @@ try {
                     if ($mediaType === 'imagem') {
                         // Download image → used for both icon and image
                         $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
-                        $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'image');
+                        $streamMsg('download', "  Downloading image...");
+                        $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'image', $writeLog);
                         if ($localPath !== null) {
                             $relPath = $nodeRelDir . '/' . basename($localPath);
                             $imageUrl = $relPath;
                             $iconUrl = $relPath;
                             $needsUpdate = true;
+                            $streamMsg('success', "  Image saved");
                         } else {
                             $errors[] = 'Failed to download media for: ' . $itemSlug;
+                            $streamMsg('error', "  Image download failed");
                         }
                         // Also try thumbnail as fallback icon
                         if ($iconUrl === null) {
                             $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
-                            $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon');
+                            $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
                             if ($thumbPath !== null) {
                                 $iconUrl = $nodeRelDir . '/' . basename($thumbPath);
                                 $needsUpdate = true;
@@ -310,16 +535,19 @@ try {
                     } elseif ($mediaType === 'video') {
                         // Download video
                         $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
-                        $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'video');
+                        $streamMsg('download', "  Downloading video...");
+                        $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'video', $writeLog);
                         if ($localPath !== null) {
                             $videoUrl = $nodeRelDir . '/' . basename($localPath);
                             $needsUpdate = true;
+                            $streamMsg('success', "  Video saved");
                         } else {
                             $errors[] = 'Failed to download media for: ' . $itemSlug;
+                            $streamMsg('error', "  Video download failed");
                         }
                         // Download thumbnail as icon
                         $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
-                        $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon');
+                        $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
                         if ($thumbPath !== null) {
                             $iconUrl = $nodeRelDir . '/' . basename($thumbPath);
                             $needsUpdate = true;
@@ -327,16 +555,19 @@ try {
                     } elseif ($mediaType === 'audio') {
                         // Download audio
                         $dlUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/download/' . $itemSlug;
-                        $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'audio');
+                        $streamMsg('download', "  Downloading audio...");
+                        $localPath = mocambos_download_file($dlUrl, $nodeFullDir, 'audio', $writeLog);
                         if ($localPath !== null) {
                             $audioUrl = $nodeRelDir . '/' . basename($localPath);
                             $needsUpdate = true;
+                            $streamMsg('success', "  Audio saved");
                         } else {
                             $errors[] = 'Failed to download media for: ' . $itemSlug;
+                            $streamMsg('error', "  Audio download failed");
                         }
                         // Download thumbnail as icon
                         $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
-                        $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon');
+                        $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
                         if ($thumbPath !== null) {
                             $iconUrl = $nodeRelDir . '/' . basename($thumbPath);
                             $needsUpdate = true;
@@ -344,7 +575,7 @@ try {
                     } else {
                         // arquivo or blog — try thumbnail for icon
                         $thumbUrl = $downloadBase . '/' . $galaxiaSlug . '/' . $mucuaSlug . '/acervo/thumbnail/' . $itemSlug;
-                        $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon');
+                        $thumbPath = mocambos_download_file($thumbUrl, $nodeFullDir, 'icon', $writeLog);
                         if ($thumbPath !== null) {
                             $iconUrl = $nodeRelDir . '/' . basename($thumbPath);
                             $needsUpdate = true;
@@ -383,6 +614,7 @@ try {
                     $importedCount++;
                 } catch (Throwable $e) {
                     $errors[] = 'Failed to import item: ' . $itemSlug . ' (' . $e->getMessage() . ')';
+                    $streamMsg('error', "  Error importing {$itemSlug}: " . $e->getMessage());
                     error_log('Mocambos import error for ' . $itemSlug . ': ' . $e->getMessage());
                 }
             }
@@ -400,6 +632,11 @@ try {
             $actualNodes = db_get_nodes($constellationId);
             $actualCount = count($actualNodes);
 
+            $errCount = count($errors);
+            $streamMsg($errCount > 0 ? 'warning' : 'success',
+                "Galaxia {$galaxiaSlug} done: {$importedCount}/{$expectedCount} items imported" .
+                ($errCount > 0 ? " ({$errCount} errors)" : ''));
+
             $results[] = [
                 'galaxia_slug' => $galaxiaSlug,
                 'constellation_id' => $constellationId,
@@ -411,13 +648,21 @@ try {
             ];
         }
 
-        echo json_encode(['success' => true, 'results' => $results], JSON_THROW_ON_ERROR);
+        $writeLog('INFO', 'Import complete — ' . count($results) . ' galaxia(s) processed');
+        if ($logFp) {
+            $writeLog('INFO', 'Log file: ' . $logFile);
+            fclose($logFp);
+            $logFp = null;
+        }
+        $streamMsg('done', 'Import complete', ['success' => true, 'results' => $results]);
 
     } else {
         http_response_code(405);
         echo json_encode(['error' => 'Method not allowed or unknown action'], JSON_THROW_ON_ERROR);
     }
 } catch (Throwable $e) {
+    if (isset($writeLog)) $writeLog('ERROR', 'Fatal: ' . $e->getMessage());
+    if (isset($logFp) && $logFp) fclose($logFp);
     http_response_code(500);
     error_log('mocambos.php error: ' . $e->getMessage());
     echo json_encode(['error' => 'Internal server error: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
@@ -427,7 +672,11 @@ try {
  * Download a file from a URL to local disk using streaming.
  * Returns the local file path on success, null on failure.
  */
-function mocambos_download_file(string $url, string $destDir, string $prefix): ?string {
+function mocambos_download_file(string $url, string $destDir, string $prefix, ?Closure $log = null): ?string {
+    $log ??= function(string $level, string $msg) {};
+
+    $log('DEBUG', "Download: GET {$url}");
+
     $ctx = stream_context_create([
         'http' => [
             'timeout' => 30,
@@ -438,34 +687,48 @@ function mocambos_download_file(string $url, string $destDir, string $prefix): ?
 
     $src = @fopen($url, 'r', false, $ctx);
     if ($src === false) {
-        error_log("Mocambos download failed: could not open $url");
+        $log('ERROR', "Download failed: could not open {$url}");
         return null;
     }
 
     // Detect extension from Content-Type
     $meta = stream_get_meta_data($src);
     $ext = 'bin';
+    $contentType = 'unknown';
+    $httpStatus = '';
     $headers = $meta['wrapper_data'] ?? [];
     foreach ($headers as $h) {
+        // Capture HTTP status line
+        if (preg_match('#^HTTP/[\d.]+ (\d+)#', $h, $m)) {
+            $httpStatus = $m[1];
+        }
         if (stripos($h, 'Content-Type:') === 0) {
             $ct = trim(substr($h, 13));
             $ct = explode(';', $ct)[0]; // strip charset
+            $contentType = trim($ct);
             $mimeMap = [
                 'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp',
                 'video/mp4' => 'mp4', 'video/webm' => 'webm',
                 'audio/mpeg' => 'mp3', 'audio/ogg' => 'ogg', 'audio/wav' => 'wav',
                 'application/pdf' => 'pdf',
             ];
-            $ext = $mimeMap[trim($ct)] ?? $ext;
-            break;
+            $ext = $mimeMap[$contentType] ?? $ext;
+            // Reject HTML responses — the API returned an error/landing page, not media
+            if (str_starts_with($contentType, 'text/html')) {
+                fclose($src);
+                $log('WARN', "Download rejected: HTTP {$httpStatus}, Content-Type={$contentType} (expected media) from {$url}");
+                return null;
+            }
         }
     }
+
+    $log('DEBUG', "Download: HTTP {$httpStatus}, Content-Type={$contentType}");
 
     $destPath = $destDir . '/' . $prefix . '.' . $ext;
     $dest = fopen($destPath, 'w');
     if ($dest === false) {
         fclose($src);
-        error_log("Mocambos download failed: could not write to $destPath");
+        $log('ERROR', "Download failed: could not write to {$destPath}");
         return null;
     }
 
@@ -483,9 +746,11 @@ function mocambos_download_file(string $url, string $destDir, string $prefix): ?
     // Delete 0-byte files
     if ($bytes === 0) {
         @unlink($destPath);
-        error_log("Mocambos download failed: 0 bytes from $url");
+        $log('WARN', "Download failed: 0 bytes received from {$url}");
         return null;
     }
 
+    $sizeKb = round($bytes / 1024, 1);
+    $log('INFO', "Download OK: {$destPath} ({$sizeKb} KB, {$contentType})");
     return $destPath;
 }

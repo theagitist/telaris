@@ -8,5 +8,6 @@ define('DB_NAME', '');
 define('DB_USER', '');
 define('DB_PASS', '');
 define('UPLOAD_DIR', __DIR__ . '/uploads');
+define('LOG_DIR', __DIR__ . '/logs');
 
 require_once __DIR__ . '/inc/db.php';
