@@ -1992,6 +1992,12 @@ class TelarisNetwork {
 
         // Wait for the overlay to paint before clearing the scene
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+        // Reset all transition state so nodes are created at full opacity
+        this._portalTransition = null;
+        this._portalFadeInMultiplier = undefined;
+        this._revvingPortal = null;
+
         this.clearAll();
 
         try {
