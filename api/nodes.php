@@ -147,6 +147,22 @@ try {
                 }
             }
 
+            // Set Baobáxia icon on cluster nodes for Mocambos constellations
+            if ($isClustered && $constellationId !== null) {
+                $importSource = db_get_constellation_import_source($constellationId);
+                if ($importSource !== null) {
+                    $src = json_decode($importSource, true);
+                    if (is_array($src) && ($src['source'] ?? '') === 'mocambos') {
+                        foreach ($formatted as &$item) {
+                            if (($item['node_type'] ?? '') === 'cluster') {
+                                $item['icon_url'] = 'img/baobaxia-cluster.svg';
+                            }
+                        }
+                        unset($item);
+                    }
+                }
+            }
+
             header('X-Telaris-Clustered: ' . ($isClustered ? 'true' : 'false'));
             header('X-Telaris-Total-Nodes: ' . $totalNodes);
             header('X-Telaris-Cluster-Path: ' . $clusterPath);

@@ -301,6 +301,14 @@ const iconFactories = {
 };
 
 export function createNodeIcon(material, index, gm, type = 'object', themeId = 'cosmic', iconUrl = null) {
+    if (type === 'cluster' && iconUrl) {
+        // Custom cluster icon (e.g. Baobáxia tree) — image sprite with cluster behavior
+        const sprite = createImageNode(iconUrl, material);
+        sprite.scale.set(2.5, 2.5, 1);
+        sprite.isCluster = true;
+        return sprite;
+    }
+
     if (iconUrl) {
         return createImageNode(iconUrl, material);
     }
