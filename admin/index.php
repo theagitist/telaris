@@ -974,6 +974,7 @@ $fieldMeta = [
             document.getElementById('mocambos-import-btn').classList.add('hidden');
             document.getElementById('mocambos-import-progress').classList.add('hidden');
             document.getElementById('mocambos-import-result').classList.add('hidden');
+            document.getElementById('refresh-confirm-step').classList.add('hidden');
         }
 
         function buildValidationReport(apiBase, checks) {
@@ -1631,23 +1632,14 @@ $fieldMeta = [
             document.getElementById('duplicate_constellation_modal').showModal();
         }
 
-        async function refreshImportedConstellation(id, importSourceJson, name) {
-            let source;
-            try {
-                source = typeof importSourceJson === 'string' ? JSON.parse(importSourceJson) : importSourceJson;
-            } catch (e) {
-                showMessage('Invalid import source data.', 'error');
-                return;
-            }
+        function refreshImportedConstellation(id, name) {
+            const source = constImportSources[id];
             if (!source || !source.api_base || !source.galaxia_slug) {
                 showMessage('Missing import source info for this constellation.', 'error');
                 return;
             }
-            if (!confirm(`Refresh "${name}" from Mocambos?\n\nThis will sync nodes with the remote source (incremental update).`)) {
-                return;
-            }
 
-            // Reuse the Mocambos import modal to show progress
+            // Show confirmation step in the modal
             const modal = document.getElementById('mocambos_import_modal');
             const urlStep = document.getElementById('mocambos-url-step');
             const galaxiasList = document.getElementById('mocambos-list');
@@ -1655,21 +1647,55 @@ $fieldMeta = [
             const errorDiv = document.getElementById('mocambos-error');
             const progressDiv = document.getElementById('mocambos-import-progress');
             const resultDiv = document.getElementById('mocambos-import-result');
-            const logDiv = document.getElementById('mocambos-log');
-            const statusEl = document.getElementById('mocambos-progress-status');
             const importBtn = document.getElementById('mocambos-import-btn');
+            const confirmStep = document.getElementById('refresh-confirm-step');
+            const confirmInput = document.getElementById('refresh-confirm-input');
+            const confirmBtn = document.getElementById('refresh-confirm-btn');
+            const confirmName = document.getElementById('refresh-confirm-name');
 
-            // Hide all steps, show progress
+            // Hide everything, show confirmation step
             urlStep.classList.add('hidden');
             galaxiasList.classList.add('hidden');
             loading.classList.add('hidden');
             errorDiv.classList.add('hidden');
             resultDiv.classList.add('hidden');
+            progressDiv.classList.add('hidden');
             if (importBtn) importBtn.classList.add('hidden');
+
+            confirmName.textContent = name;
+            confirmInput.value = '';
+            confirmBtn.disabled = true;
+            confirmInput.oninput = () => {
+                confirmBtn.disabled = confirmInput.value.trim() !== name;
+            };
+            confirmBtn.onclick = () => {
+                confirmStep.classList.add('hidden');
+                doRefreshImport(id, name);
+            };
+            confirmStep.classList.remove('hidden');
+            modal.showModal();
+            confirmInput.focus();
+        }
+
+        async function doRefreshImport(id, name) {
+            const source = constImportSources[id];
+            const modal = document.getElementById('mocambos_import_modal');
+            const galaxiasList = document.getElementById('mocambos-list');
+            const progressDiv = document.getElementById('mocambos-import-progress');
+            const resultDiv = document.getElementById('mocambos-import-result');
+            const logDiv = document.getElementById('mocambos-log');
+            const statusEl = document.getElementById('mocambos-progress-status');
+            const importBtn = document.getElementById('mocambos-import-btn');
+
+            // Show progress
+            if (importBtn) importBtn.classList.add('hidden');
+            galaxiasList.classList.remove('hidden');
+            document.getElementById('mocambos-galaxias').classList.add('hidden');
+            galaxiasList.querySelectorAll(':scope > p').forEach(p => p.classList.add('hidden'));
+            resultDiv.classList.add('hidden');
             progressDiv.classList.remove('hidden');
             logDiv.innerHTML = '';
             if (statusEl) statusEl.textContent = `Refreshing "${name}"...`;
-            modal.showModal();
 
             const colorMap = {
                 info: 'text-blue-300', success: 'text-green-400', error: 'text-red-400',
@@ -1734,11 +1760,6 @@ $fieldMeta = [
 
                 appendLog('Refresh complete.', 'done');
                 if (statusEl) statusEl.textContent = 'Refresh complete';
-
-                // Show result with reload button
-                resultDiv.innerHTML = '<button type="button" onclick="window.location.reload()" class="btn btn-sm btn-neutral mt-3">Reload page</button>';
-                resultDiv.classList.remove('hidden');
-
                 loadConstellations();
             } catch (e) {
                 appendLog('Error: ' + (e.message || 'Unknown error'), 'error');
@@ -2088,6 +2109,7 @@ $fieldMeta = [
         let constFilter = '';
         let constTotalPages = 0;
 
+        const constImportSources = {}; // id → import_source object
         const pastelPalette = ['#FEF2F2','#F0FAF0','#EFF6FF','#FFF8F0','#F8F5FF','#F0FDFA','#FEFEF0','#FFF5F5','#F5F5F7','#F5FAE8'];
         const groupColorMap = {};
         let groupColorIdx = 0;
@@ -2206,6 +2228,9 @@ $fieldMeta = [
                 const result = await response.json();
 
                 const constellations = result.constellations;
+                constellations.forEach(c => {
+                    if (c.import_source) constImportSources[c.id] = c.import_source;
+                });
                 const total = result.total;
                 constTotalPages = Math.ceil(total / constPerPage);
 
@@ -2295,7 +2320,7 @@ $fieldMeta = [
                                         <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">View</a></li>
                                         <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">Copy URL</a></li>
                                         <li><a onclick="event.stopPropagation(); duplicateConstellation(${cJsonAttr})" class="text-gray-700 text-xs">Duplicate</a></li>
-                                        ${c.import_source ? `<li><a onclick="event.stopPropagation(); refreshImportedConstellation(${c.id}, ${escapeHtmlAdmin(JSON.stringify(c.import_source))}, ${escapeHtmlAdmin(cNameJson)})" class="text-purple-600 text-xs">Refresh</a></li>` : ''}
+                                        ${c.import_source ? `<li><a onclick="event.stopPropagation(); refreshImportedConstellation(${c.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-purple-600 text-xs">Refresh</a></li>` : ''}
                                         ${!c.is_default ? `<li><a onclick="event.stopPropagation(); triggerDelete('delete_constellation', '${c.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">Delete</a></li>` : ''}
                                     </ul>
                                 </div>
@@ -2442,9 +2467,19 @@ $fieldMeta = [
                         <span class="loading loading-spinner loading-sm text-purple-600"></span>
                         <span class="text-sm font-medium text-gray-700" id="mocambos-progress-status">Starting import...</span>
                     </div>
-                    <div id="mocambos-log" class="bg-gray-900 text-gray-200 rounded p-3 font-mono text-xs max-h-64 overflow-y-auto space-y-0.5"></div>
+                    <div id="mocambos-log" class="bg-gray-900 text-gray-200 rounded p-3 font-mono text-xs h-64 overflow-y-auto space-y-0.5"></div>
                 </div>
                 <div id="mocambos-import-result" class="hidden mb-4"></div>
+            </div>
+            <!-- Refresh confirmation step -->
+            <div id="refresh-confirm-step" class="hidden">
+                <p class="text-gray-700 mb-2">This will sync nodes with the remote Mocambos source (incremental update).</p>
+                <p class="text-gray-700 mb-4">To confirm, type the constellation name <strong id="refresh-confirm-name" class="text-gray-900"></strong> below:</p>
+                <input type="text" id="refresh-confirm-input" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500 mb-4" placeholder="Type constellation name to confirm" autocomplete="off">
+                <div class="flex justify-end gap-2">
+                    <button type="button" id="refresh-confirm-btn" class="btn bg-purple-600 hover:bg-purple-700 text-white btn-sm" disabled>Refresh</button>
+                    <button type="button" class="btn btn-sm" onclick="document.getElementById('mocambos_import_modal').close()">Cancel</button>
+                </div>
             </div>
             <div class="modal-action">
                 <button type="button" id="mocambos-import-btn" class="btn bg-purple-600 hover:bg-purple-700 text-white hidden" onclick="doMocambosImport()">Import Selected</button>

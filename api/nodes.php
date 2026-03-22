@@ -127,7 +127,7 @@ try {
 
             // Flat array mode (for 3D frontend)
             $nodes = db_get_nodes($constellationId, $currentUserId, $isAdmin);
-            $formatted = array_map(fn($node) => db_format_node($node), $nodes);
+            $formatted = db_format_nodes_bulk($nodes);
 
             // Global search mode: return matching nodes with cluster paths
             $searchQuery = isset($_GET['search']) ? trim((string)$_GET['search']) : '';

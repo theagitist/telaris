@@ -55,7 +55,7 @@ try {
                     'tagline' => (string)($row['tagline'] ?? ''),
                     'slug' => (string)($row['slug'] ?? ''),
                     'theme' => (string)($row['theme'] ?? 'cosmic'),
-                    'import_source' => $row['import_source'] ?? null,
+                    'import_source' => $row['import_source'] !== null ? json_decode($row['import_source'], true) : null,
                     'created_at' => $row['created_at'] ?? null,
                     'updated_at' => $row['updated_at'] ?? null,
                     'is_default' => (int)$row['id'] === $defaultId,

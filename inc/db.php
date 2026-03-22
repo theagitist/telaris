@@ -254,19 +254,23 @@ function db_get_nodes_by_import_slug(int $constellationId): array {
     $stmt->execute([':cid' => $constellationId]);
     $nodes = $stmt->fetchAll();
 
+    // Bulk-load all keywords in a single query
+    $nodeIds = array_map(fn($n) => (int)$n['id'], $nodes);
+    $keywordsMap = db_get_keywords_for_nodes_bulk($nodeIds);
+
     $result = [];
     foreach ($nodes as $node) {
         $slug = $node['import_slug'];
         if ($slug === '' || $slug === null) continue;
-        $keywords = db_get_keywords_for_node((int)$node['id']);
+        $nodeId = (int)$node['id'];
         $result[$slug] = [
-            'id' => (int)$node['id'],
+            'id' => $nodeId,
             'name' => $node['name'] ?? '',
             'description' => $node['description'] ?? '',
             'media_type' => $node['media_type'] ?? '',
             'mucua_name' => $node['mucua_name'] ?? '',
             'source_created_at' => $node['source_created_at'] ?? '',
-            'keywords' => $keywords,
+            'keywords' => $keywordsMap[$nodeId] ?? [],
             'url' => $node['url'] ?? '',
         ];
     }
@@ -2014,48 +2018,45 @@ function db_get_connections(?int $constellationId = null): array {
         $nodesStmt = $pdo->query("SELECT n.id, n.name FROM nodes n ORDER BY n.id");
         $nodes = $nodesStmt->fetchAll();
     }
-    $nodeKeywords = [];
-    if ($constellationId !== null) {
-        foreach ($nodes as $node) {
-            $stmt = $pdo->prepare("
-                SELECT k.keyword FROM keywords k
-                JOIN node_keywords nk ON k.id = nk.keyword_id
-                WHERE nk.node_id = :node_id AND k.constellation_id = :constellation_id
-            ");
-            $stmt->execute([':node_id' => $node['id'], ':constellation_id' => $constellationId]);
-            $nodeKeywords[$node['id']] = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        }
-    } else {
-        foreach ($nodes as $node) {
-            $stmt = $pdo->prepare("
-                SELECT k.keyword FROM keywords k
-                JOIN node_keywords nk ON k.id = nk.keyword_id
-                WHERE nk.node_id = :node_id
-            ");
-            $stmt->execute([':node_id' => $node['id']]);
-            $nodeKeywords[$node['id']] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    // Bulk-load all keywords in a single query
+    $nodeIds = array_map(fn($n) => (int)$n['id'], $nodes);
+    $nodeKeywords = db_get_keywords_for_nodes_bulk($nodeIds);
+
+    // Build inverted index: keyword → list of node IDs that have it
+    // This avoids the O(n²) pairwise comparison
+    $keywordToNodes = [];
+    foreach ($nodeKeywords as $nodeId => $keywords) {
+        foreach ($keywords as $kw) {
+            $keywordToNodes[$kw][] = $nodeId;
         }
     }
-    $connections = [];
-    $connectionId = 1;
-    $n = count($nodes);
-    for ($i = 0; $i < $n; $i++) {
-        for ($j = $i + 1; $j < $n; $j++) {
-            $id1 = (int)$nodes[$i]['id'];
-            $id2 = (int)$nodes[$j]['id'];
-            $kw1 = $nodeKeywords[$id1] ?? [];
-            $kw2 = $nodeKeywords[$id2] ?? [];
-            $shared = array_values(array_intersect($kw1, $kw2));
-            if (count($shared) > 0) {
-                $connections[] = [
-                    'id' => $connectionId++,
-                    'node1_id' => $id1,
-                    'node2_id' => $id2,
-                    'shared_keywords' => $shared,
-                    'shared_count' => count($shared)
-                ];
+
+    // Build connections from the inverted index
+    // For each keyword, every pair of nodes sharing it gets a connection
+    $pairShared = []; // "id1:id2" => [keyword, ...]
+    foreach ($keywordToNodes as $kw => $ids) {
+        $count = count($ids);
+        for ($i = 0; $i < $count; $i++) {
+            for ($j = $i + 1; $j < $count; $j++) {
+                $id1 = min($ids[$i], $ids[$j]);
+                $id2 = max($ids[$i], $ids[$j]);
+                $pairShared["{$id1}:{$id2}"][] = $kw;
             }
         }
+    }
+
+    $connections = [];
+    $connectionId = 1;
+    foreach ($pairShared as $pair => $shared) {
+        [$id1, $id2] = explode(':', $pair);
+        $connections[] = [
+            'id' => $connectionId++,
+            'node1_id' => (int)$id1,
+            'node2_id' => (int)$id2,
+            'shared_keywords' => $shared,
+            'shared_count' => count($shared)
+        ];
     }
     return $connections;
 }
