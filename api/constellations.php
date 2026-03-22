@@ -59,6 +59,7 @@ try {
                     'created_at' => $row['created_at'] ?? null,
                     'updated_at' => $row['updated_at'] ?? null,
                     'is_default' => (int)$row['id'] === $defaultId,
+                    'node_count' => (int)($row['node_count'] ?? 0),
                 ], $result['constellations']);
                 echo json_encode($result, JSON_THROW_ON_ERROR);
                 return;

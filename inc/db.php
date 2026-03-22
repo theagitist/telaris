@@ -926,6 +926,7 @@ function db_get_constellations_paginated(
         'tagline' => 'c.tagline',
         'created_at' => 'c.created_at',
         'updated_at' => 'c.updated_at',
+        'node_count' => 'node_count',
     ];
     $orderDir = strtolower($order) === 'desc' ? 'DESC' : 'ASC';
     $orderClause = 'ORDER BY c.id ASC';
@@ -934,7 +935,7 @@ function db_get_constellations_paginated(
     }
 
     $offset = ($page - 1) * $perPage;
-    $dataStmt = $pdo->prepare("SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.import_source, c.created_at, c.updated_at FROM constellations c {$whereClause} {$orderClause} LIMIT :limit OFFSET :offset");
+    $dataStmt = $pdo->prepare("SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.import_source, c.created_at, c.updated_at, (SELECT COUNT(*) FROM nodes n WHERE n.constellation_id = c.id) AS node_count FROM constellations c {$whereClause} {$orderClause} LIMIT :limit OFFSET :offset");
     foreach ($params as $k => $v) {
         $dataStmt->bindValue($k, $v);
     }

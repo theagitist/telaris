@@ -2134,7 +2134,7 @@ $fieldMeta = [
         }
 
         function updateConstellationSortIndicators() {
-            ['id', 'name', 'slug', 'tagline', 'created_at', 'updated_at'].forEach(col => {
+            ['id', 'name', 'slug', 'tagline', 'node_count', 'created_at', 'updated_at'].forEach(col => {
                 const indicator = document.getElementById('sort-indicator-const-' + col);
                 if (indicator) indicator.innerHTML = '';
             });
@@ -2239,6 +2239,9 @@ $fieldMeta = [
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
                                     <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('tagline')">Tagline<span id="sort-indicator-const-tagline"></span></span>
                                 </th>
+                                <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('node_count')">Nodes<span id="sort-indicator-const-node_count"></span></span>
+                                </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
                                     <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('created_at')">Created<span id="sort-indicator-const-created_at"></span></span>
                                 </th>
@@ -2276,6 +2279,9 @@ $fieldMeta = [
                         </td>
                         <td class="py-2 px-2 font-mono text-xs text-blue-600 cursor-pointer" onclick="${clickEdit}">${escapeHtmlAdmin(slug)}</td>
                         <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="${clickEdit}" title="${escapeHtmlAdmin(c.tagline)}">${escapeHtmlAdmin(c.tagline)}</td>
+                        <td class="py-2 px-2 text-right whitespace-nowrap">
+                            <a href="../edit/?constellation_id=${c.id}" class="text-blue-600 hover:text-blue-800 hover:underline text-sm font-medium">${c.node_count}</a>
+                        </td>
                         <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(createdAt)}</td>
                         <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(updatedAt)}</td>
                         <td class="py-2 px-2 text-right">
