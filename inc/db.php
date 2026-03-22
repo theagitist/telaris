@@ -888,6 +888,65 @@ function db_get_constellations(): array {
 }
 
 /**
+ * Server-side paginated, sorted, filtered constellation query.
+ * @return array{constellations: list<array>, total: int, page: int, per_page: int}
+ */
+function db_get_constellations_paginated(
+    int $page = 1,
+    int $perPage = 20,
+    ?string $sort = null,
+    string $order = 'asc',
+    ?string $filter = null
+): array {
+    db_ensure_constellations_import_source_column();
+    $pdo = getDB();
+
+    $where = [];
+    $params = [];
+
+    if ($filter !== null && $filter !== '') {
+        $filterVal = '%' . $filter . '%';
+        $where[] = "(c.name LIKE :filter1 OR c.tagline LIKE :filter2 OR c.slug LIKE :filter3 OR CAST(c.id AS CHAR) LIKE :filter4)";
+        $params[':filter1'] = $filterVal;
+        $params[':filter2'] = $filterVal;
+        $params[':filter3'] = $filterVal;
+        $params[':filter4'] = $filterVal;
+    }
+
+    $whereClause = $where !== [] ? 'WHERE ' . implode(' AND ', $where) : '';
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM constellations c {$whereClause}");
+    $countStmt->execute($params);
+    $total = (int)$countStmt->fetchColumn();
+
+    $sortMap = [
+        'id' => 'c.id',
+        'name' => 'c.name',
+        'slug' => 'c.slug',
+        'tagline' => 'c.tagline',
+        'created_at' => 'c.created_at',
+        'updated_at' => 'c.updated_at',
+    ];
+    $orderDir = strtolower($order) === 'desc' ? 'DESC' : 'ASC';
+    $orderClause = 'ORDER BY c.id ASC';
+    if ($sort !== null && isset($sortMap[$sort])) {
+        $orderClause = "ORDER BY {$sortMap[$sort]} {$orderDir}, c.id ASC";
+    }
+
+    $offset = ($page - 1) * $perPage;
+    $dataStmt = $pdo->prepare("SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.import_source, c.created_at, c.updated_at FROM constellations c {$whereClause} {$orderClause} LIMIT :limit OFFSET :offset");
+    foreach ($params as $k => $v) {
+        $dataStmt->bindValue($k, $v);
+    }
+    $dataStmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+    $dataStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $dataStmt->execute();
+    $rows = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    return ['constellations' => $rows, 'total' => $total, 'page' => $page, 'per_page' => $perPage];
+}
+
+/**
  * Constellations visible to a user: admins see all; editors see only those assigned to them.
  * @param string|null $userId Current user id (session)
  * @param bool $isAdmin Whether the current user is an admin
@@ -1343,6 +1402,215 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
 }
 
 /**
+ * Fetch a single node by ID (raw DB row, not formatted).
+ */
+function db_get_node_by_id(int $nodeId): ?array {
+    $pdo = getDB();
+    db_ensure_nodes_show_keywords_column();
+    db_ensure_nodes_icon_url_column();
+    db_ensure_nodes_clustering_columns();
+    $stmt = $pdo->prepare("
+        SELECT n.id, n.name, n.description, n.url, n.image_url, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
+               n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords,
+               n.mucua_name, n.media_type, n.source_created_at,
+               c.name AS constellation_name
+        FROM nodes n
+        LEFT JOIN constellations c ON c.id = n.constellation_id
+        WHERE n.id = :id
+        LIMIT 1
+    ");
+    $stmt->execute([':id' => $nodeId]);
+    $row = $stmt->fetch();
+    return $row !== false ? $row : null;
+}
+
+/**
+ * Server-side paginated, sorted, filtered node query for the editor.
+ * @return array{nodes: list<array>, total: int, page: int, per_page: int}
+ */
+function db_get_nodes_paginated(
+    ?int $constellationId,
+    ?string $userId,
+    bool $isAdmin,
+    int $page = 1,
+    int $perPage = 25,
+    ?string $sort = null,
+    string $order = 'asc',
+    ?string $filter = null
+): array {
+    db_ensure_nodes_show_keywords_column();
+    db_ensure_nodes_icon_url_column();
+    db_ensure_nodes_clustering_columns();
+    $pdo = getDB();
+
+    $columns = "n.id, n.name, n.description, n.url, n.image_url, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
+               n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords,
+               n.mucua_name, n.media_type, n.source_created_at,
+               c.name AS constellation_name";
+
+    // Build FROM and WHERE clauses based on access
+    $from = "FROM nodes n LEFT JOIN constellations c ON c.id = n.constellation_id";
+    $where = [];
+    $params = [];
+
+    if ($constellationId !== null) {
+        $where[] = "n.constellation_id = :cid";
+        $params[':cid'] = $constellationId;
+        // Editor access check for specific constellation
+        if (!$isAdmin && $userId !== null) {
+            $check = $pdo->prepare("SELECT 1 FROM user_constellations WHERE user_id = :uid AND constellation_id = :cid LIMIT 1");
+            $check->execute([':uid' => $userId, ':cid' => $constellationId]);
+            if (!$check->fetch()) {
+                return ['nodes' => [], 'total' => 0, 'page' => $page, 'per_page' => $perPage];
+            }
+        }
+    } elseif (!$isAdmin && $userId !== null) {
+        // Editor "all" — restrict to assigned constellations
+        $from = "FROM nodes n INNER JOIN user_constellations uc ON n.constellation_id = uc.constellation_id AND uc.user_id = :uid LEFT JOIN constellations c ON c.id = n.constellation_id";
+        $params[':uid'] = $userId;
+    } elseif (!$isAdmin) {
+        return ['nodes' => [], 'total' => 0, 'page' => $page, 'per_page' => $perPage];
+    }
+
+    // Filter (search across name, description, constellation name, keywords)
+    if ($filter !== null && $filter !== '') {
+        $filterVal = '%' . $filter . '%';
+        $where[] = "(n.name LIKE :filter1 OR n.description LIKE :filter2 OR c.name LIKE :filter3 OR EXISTS (SELECT 1 FROM node_keywords nk JOIN keywords k ON k.id = nk.keyword_id WHERE nk.node_id = n.id AND k.keyword LIKE :filter4))";
+        $params[':filter1'] = $filterVal;
+        $params[':filter2'] = $filterVal;
+        $params[':filter3'] = $filterVal;
+        $params[':filter4'] = $filterVal;
+    }
+
+    $whereClause = $where !== [] ? 'WHERE ' . implode(' AND ', $where) : '';
+
+    // Count total
+    $countSql = "SELECT COUNT(*) {$from} {$whereClause}";
+    $countStmt = $pdo->prepare($countSql);
+    $countStmt->execute($params);
+    $total = (int)$countStmt->fetchColumn();
+
+    // Sort column whitelist
+    $sortMap = [
+        'name' => 'n.name',
+        'node_type' => 'n.node_type',
+        'constellation_name' => 'c.name',
+        'is_accentuated' => 'n.is_accentuated',
+        'created_at' => 'n.created_at',
+        'updated_at' => 'n.updated_at',
+        'keywords' => '(SELECT GROUP_CONCAT(k2.keyword ORDER BY k2.keyword) FROM node_keywords nk2 JOIN keywords k2 ON k2.id = nk2.keyword_id WHERE nk2.node_id = n.id)',
+    ];
+    $orderDir = strtolower($order) === 'desc' ? 'DESC' : 'ASC';
+    $orderClause = 'ORDER BY n.id ASC';
+    if ($sort !== null && isset($sortMap[$sort])) {
+        $orderClause = "ORDER BY {$sortMap[$sort]} {$orderDir}, n.id ASC";
+    }
+
+    // Paginate
+    $offset = ($page - 1) * $perPage;
+    $dataSql = "SELECT {$columns} {$from} {$whereClause} {$orderClause} LIMIT :limit OFFSET :offset";
+    $dataStmt = $pdo->prepare($dataSql);
+    foreach ($params as $k => $v) {
+        $dataStmt->bindValue($k, $v);
+    }
+    $dataStmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+    $dataStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $dataStmt->execute();
+    $nodes = $dataStmt->fetchAll();
+
+    return ['nodes' => $nodes, 'total' => $total, 'page' => $page, 'per_page' => $perPage];
+}
+
+/**
+ * Fetch keywords for multiple nodes in a single query.
+ * @param list<int> $nodeIds
+ * @return array<int, list<string>> Map of node_id => keywords
+ */
+function db_get_keywords_for_nodes_bulk(array $nodeIds): array {
+    if ($nodeIds === []) {
+        return [];
+    }
+    $pdo = getDB();
+    $placeholders = implode(',', array_fill(0, count($nodeIds), '?'));
+    $stmt = $pdo->prepare("
+        SELECT nk.node_id, k.keyword
+        FROM node_keywords nk
+        JOIN keywords k ON k.id = nk.keyword_id
+        WHERE nk.node_id IN ($placeholders)
+        ORDER BY nk.node_id, k.keyword
+    ");
+    $stmt->execute(array_values($nodeIds));
+    $rows = $stmt->fetchAll();
+    $result = array_fill_keys($nodeIds, []);
+    foreach ($rows as $row) {
+        $result[(int)$row['node_id']][] = $row['keyword'];
+    }
+    return $result;
+}
+
+/**
+ * Format multiple node rows for API output, using a single bulk keyword query.
+ * @param list<array<string, mixed>> $nodes Raw DB rows
+ * @return list<array<string, mixed>> Formatted nodes
+ */
+function db_format_nodes_bulk(array $nodes): array {
+    if ($nodes === []) {
+        return [];
+    }
+    $nodeIds = array_map(fn($n) => (int)$n['id'], $nodes);
+    $keywordsMap = db_get_keywords_for_nodes_bulk($nodeIds);
+    $result = [];
+    foreach ($nodes as $node) {
+        $nodeId = (int)$node['id'];
+        $keywords = $keywordsMap[$nodeId] ?? [];
+        $animation = json_decode($node['animation'], true, 512, JSON_THROW_ON_ERROR);
+        $createdAt = $node['created_at'] ?? null;
+        $updatedAt = $node['updated_at'] ?? null;
+        if ($createdAt !== null && $createdAt !== '') {
+            $ts = strtotime($createdAt);
+            $createdAt = $ts !== false ? gmdate('c', $ts) : $createdAt;
+        }
+        if ($updatedAt !== null && $updatedAt !== '') {
+            $ts = strtotime($updatedAt);
+            $updatedAt = $ts !== false ? gmdate('c', $ts) : $updatedAt;
+        }
+        $targetConstellationId = null;
+        if (isset($node['target_constellation_id']) && $node['target_constellation_id'] !== null && $node['target_constellation_id'] !== '') {
+            $targetConstellationId = (int)$node['target_constellation_id'];
+        }
+        $nodeType = isset($node['node_type']) && (string)$node['node_type'] !== '' ? (string)$node['node_type'] : 'object';
+        $result[] = [
+            'id' => $nodeId,
+            'name' => $node['name'],
+            'description' => $node['description'] ?? null,
+            'url' => $node['url'] ?? null,
+            'image_url' => $node['image_url'] ?? null,
+            'icon_url' => $node['icon_url'] ?? null,
+            'embed_code' => $node['embed_code'] ?? null,
+            'audio_url' => $node['audio_url'] ?? null,
+            'audio_autoplay' => (bool)($node['audio_autoplay'] ?? true),
+            'audio_loop' => (bool)($node['audio_loop'] ?? false),
+            'video_url' => $node['video_url'] ?? null,
+            'video_autoplay' => (bool)($node['video_autoplay'] ?? true),
+            'keywords' => $keywords,
+            'animation' => $animation,
+            'created_at' => $createdAt,
+            'updated_at' => $updatedAt,
+            'constellation_id' => isset($node['constellation_id']) ? (int)$node['constellation_id'] : db_get_default_constellation_id(),
+            'constellation_name' => isset($node['constellation_name']) && (string)$node['constellation_name'] !== '' ? (string)$node['constellation_name'] : 'Default',
+            'node_type' => $nodeType,
+            'target_constellation_id' => $targetConstellationId,
+            'is_accentuated' => (bool)($node['is_accentuated'] ?? false),
+            'show_keywords' => (bool)($node['show_keywords'] ?? false),
+            'mucua_name' => isset($node['mucua_name']) && $node['mucua_name'] !== null && $node['mucua_name'] !== '' ? (string)$node['mucua_name'] : null,
+            'media_type' => isset($node['media_type']) && $node['media_type'] !== null && $node['media_type'] !== '' ? (string)$node['media_type'] : null,
+            'source_created_at' => isset($node['source_created_at']) && $node['source_created_at'] !== null && $node['source_created_at'] !== '' ? (string)$node['source_created_at'] : null,
+        ];
+    }
+    return $result;
+}
+
+/**
  * @return list<string>
  */
 function db_get_keywords_for_node(int $nodeId): array {
@@ -1452,6 +1720,67 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
             error_log("db_save_node_keywords: failed to save keyword '{$keyword}' for node {$nodeId}: " . $e->getMessage());
         }
     }
+}
+
+/**
+ * Duplicate a node to the same or a different constellation.
+ * Copies all content fields and keywords. Generates fresh animation values.
+ * Does NOT copy import_slug, mucua_name, media_type, or source_created_at.
+ */
+function db_duplicate_node(int $sourceNodeId, ?int $targetConstellationId = null): int {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT * FROM nodes WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $sourceNodeId]);
+    $source = $stmt->fetch();
+    if ($source === false) {
+        throw new RuntimeException("Source node {$sourceNodeId} not found");
+    }
+
+    $constellationId = $targetConstellationId ?? (int)$source['constellation_id'];
+
+    // Generate fresh random animation so the duplicate appears at a different position
+    $animation = json_encode([
+        'radius' => 5 + rand(0, 3),
+        'theta'  => rand(0, 628) / 100,
+        'phi'    => rand(0, 314) / 100,
+        'speed'  => 0.002 + (rand(0, 4) / 1000),
+        'phase'  => rand(0, 628) / 100,
+    ], JSON_THROW_ON_ERROR);
+
+    $nodeType = (string)($source['node_type'] ?? 'object') ?: 'object';
+    $targetCid = $source['target_constellation_id'] !== null && $source['target_constellation_id'] !== '' ? (int)$source['target_constellation_id'] : null;
+
+    $newId = db_create_node(
+        $source['name'] . ' (Copy)',
+        $source['description'],
+        $source['url'],
+        $animation,
+        $constellationId,
+        $nodeType,
+        $targetCid,
+        $source['image_url'],
+        $source['embed_code'],
+        $source['audio_url'],
+        (bool)($source['audio_autoplay'] ?? true),
+        (bool)($source['is_accentuated'] ?? false),
+        $source['video_url'],
+        (bool)($source['video_autoplay'] ?? true),
+        (bool)($source['audio_loop'] ?? false),
+        (bool)($source['show_keywords'] ?? false),
+        $source['icon_url']
+    );
+
+    if ($newId === 0) {
+        throw new RuntimeException("Failed to create duplicate node");
+    }
+
+    // Copy keyword associations
+    $keywords = db_get_keywords_for_node($sourceNodeId);
+    if ($keywords !== []) {
+        db_save_node_keywords($newId, $keywords);
+    }
+
+    return $newId;
 }
 
 function db_create_node(string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false, ?string $videoUrl = null, bool $videoAutoplay = true, bool $audioLoop = false, bool $showKeywords = false, ?string $iconUrl = null): int {

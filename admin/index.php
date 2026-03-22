@@ -24,7 +24,7 @@ require_once __DIR__ . '/../config.php';
 $message = null;
 $error = null;
 $settingsError = null;
-$activeTab = $_GET['tab'] ?? 'users';
+$activeTab = $_GET['tab'] ?? 'constellations';
 // If editing a user, ensure we're on the users tab
 if (isset($_GET['edit_user'])) {
     $activeTab = 'users';
@@ -578,7 +578,7 @@ $fieldMeta = [
                     <?php if (empty($users)): ?>
                         <p class="text-gray-600">No users found.</p>
                     <?php else: ?>
-                        <div class="overflow-x-auto border border-gray-300 rounded">
+                        <div class="border border-gray-300 rounded">
                             <table id="users-list" class="w-full border-collapse">
                                 <thead>
                                     <tr class="border-b-2 border-gray-400 bg-gray-100">
@@ -657,16 +657,22 @@ $fieldMeta = [
                                                 <?php if ($updatedIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($updatedIso); ?>"><?php echo date('y-m-d H:i', $updatedTs); ?></span><?php else: ?>—<?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-right">
-                                                <div class="flex gap-2 justify-end">
-                                                    <?php if (!$isCurrentUser): ?>
-                                                        <?php 
-                                                        $delMsg = "Are you sure you want to delete the user \"$fullName\"? This action cannot be undone.";
-                                                        $delMsgJs = htmlspecialchars(json_encode($delMsg), ENT_QUOTES, 'UTF-8');
-                                                        ?>
-                                                        <button type="button" 
-                                                                onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, null)" 
-                                                                class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">Delete</button>
-                                                    <?php endif; ?>
+                                                <div class="flex justify-end">
+                                                    <div class="dropdown dropdown-end">
+                                                        <label tabindex="0" onclick="event.stopPropagation(); closeAllDropdowns(this)" class="btn btn-ghost btn-xs px-1.5">
+                                                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
+                                                        </label>
+                                                        <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-36">
+                                                            <li><a onclick="event.stopPropagation(); <?php echo $clickEdit; ?>" class="text-gray-700 text-xs">Edit</a></li>
+                                                            <?php if (!$isCurrentUser): ?>
+                                                                <?php
+                                                                $delMsg = "Are you sure you want to delete the user \"$fullName\"? This action cannot be undone.";
+                                                                $delMsgJs = htmlspecialchars(json_encode($delMsg), ENT_QUOTES, 'UTF-8');
+                                                                ?>
+                                                                <li><a onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, null)" class="text-red-600 text-xs">Delete</a></li>
+                                                            <?php endif; ?>
+                                                        </ul>
+                                                    </div>
                                                 </div>
                                             </td>
                                         </tr>
@@ -739,23 +745,31 @@ $fieldMeta = [
                                                 <p class="text-sm text-gray-600 mt-1"><?php echo htmlspecialchars($key['description']); ?></p>
                                             <?php endif; ?>
                                         </div>
-                                        <div class="flex gap-2">
-                                            <form method="POST" action="" class="inline">
-                                                <input type="hidden" name="action" value="toggle">
-                                                <input type="hidden" name="id" value="<?php echo $key['id']; ?>">
-                                                <input type="hidden" name="is_active" value="<?php echo $key['is_active'] ? '0' : '1'; ?>">
-                                                <button type="submit" 
-                                                        class="px-3 py-1 text-sm rounded <?php echo $key['is_active'] ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'; ?> text-white">
-                                                    <?php echo $key['is_active'] ? 'Deactivate' : 'Activate'; ?>
-                                                </button>
-                                            </form>
-                                            <form method="POST" action="" class="inline" onsubmit="return confirm('Are you sure you want to delete this API key? This action cannot be undone.');">
-                                                <input type="hidden" name="action" value="delete">
-                                                <input type="hidden" name="id" value="<?php echo $key['id']; ?>">
-                                                <button type="submit" class="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded">
-                                                    Delete
-                                                </button>
-                                            </form>
+                                        <div class="dropdown dropdown-end">
+                                            <label tabindex="0" onclick="closeAllDropdowns(this)" class="btn btn-ghost btn-xs px-1.5">
+                                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
+                                            </label>
+                                            <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-40">
+                                                <li>
+                                                    <form method="POST" action="" class="p-0 m-0">
+                                                        <input type="hidden" name="action" value="toggle">
+                                                        <input type="hidden" name="id" value="<?php echo $key['id']; ?>">
+                                                        <input type="hidden" name="is_active" value="<?php echo $key['is_active'] ? '0' : '1'; ?>">
+                                                        <button type="submit" class="w-full text-left text-gray-700 text-xs px-3 py-1.5 hover:bg-gray-100 rounded">
+                                                            <?php echo $key['is_active'] ? 'Deactivate' : 'Activate'; ?>
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                                <li>
+                                                    <form method="POST" action="" class="p-0 m-0" onsubmit="return confirm('Are you sure you want to delete this API key? This action cannot be undone.');">
+                                                        <input type="hidden" name="action" value="delete">
+                                                        <input type="hidden" name="id" value="<?php echo $key['id']; ?>">
+                                                        <button type="submit" class="w-full text-left text-red-600 text-xs px-3 py-1.5 hover:bg-gray-100 rounded">
+                                                            Delete
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                            </ul>
                                         </div>
                                     </div>
                                     <div class="mt-2 text-xs text-gray-500 space-y-1">
@@ -786,7 +800,7 @@ $fieldMeta = [
                 <div>
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
-                            <h2 class="text-gray-800 text-base font-semibold">Constellations (<?php echo count($constellations); ?>)</h2>
+                            <h2 class="text-gray-800 text-base font-semibold">Constellations (<span id="constellations-count">...</span>)</h2>
                             <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Constellation</button>
                             <button type="button" onclick="openMocambosImportModal()" class="text-purple-600 hover:text-purple-800 font-medium text-base">Import from Mocambos</button>
                         </div>
@@ -799,7 +813,7 @@ $fieldMeta = [
                             <input type="text" 
                                    id="search-constellations" 
                                    placeholder="Search constellations..." 
-                                   oninput="applyConstellationSearch()"
+                                   oninput="debouncedConstSearch()"
                                    class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
                     </div>
@@ -813,119 +827,9 @@ $fieldMeta = [
                             }
                         }
                     ?>
-                    <p class="text-sm text-gray-600 mb-4">Each constellation is a separate set of nodes and keywords. The current default constellation, <strong><?php echo $defaultName; ?></strong>, cannot be deleted. You can change the default constellation in the <button onclick="showTab(\'settings\')" class="text-blue-600 hover:underline">Global Settings</button> tab.</p>
+                    <p class="text-sm text-gray-600 mb-4">Each constellation is a separate set of nodes and keywords. The current default constellation, <strong><?php echo $defaultName; ?></strong>, cannot be deleted.<br>You can change the default constellation in the <button onclick="showTab(\'settings\')" class="text-blue-600 hover:underline">Global Settings</button> tab.</p>
                     <div id="copy-url-toast" class="hidden fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded shadow-lg text-sm" role="status" aria-live="polite">URL copied to clipboard.</div>
-                    <?php if (empty($constellations)): ?>
-                        <p class="text-gray-600">No constellations found.</p>
-                    <?php else: ?>
-                        <div class="overflow-x-auto border border-gray-300 rounded">
-                            <table id="constellations-list" class="w-full border-collapse">
-                                <thead>
-                                    <tr class="border-b-2 border-gray-400 bg-gray-100">
-                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('id')">ID<span id="sort-indicator-const-id"></span></span>
-                                        </th>
-                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('name')">Name<span id="sort-indicator-const-name"></span></span>
-                                        </th>
-                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('slug')">Slug<span id="sort-indicator-const-slug"></span></span>
-                                        </th>
-                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('tagline')">Tagline<span id="sort-indicator-const-tagline"></span></span>
-                                        </th>
-                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('created_at')">Created<span id="sort-indicator-const-created_at"></span></span>
-                                        </th>
-                                        <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('updated_at')">Last Updated<span id="sort-indicator-const-updated_at"></span></span>
-                                        </th>
-                                        <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($constellations as $c): ?>
-                                        <?php
-                                        $cId = (int)$c['id'];
-                                        $isDefault = $cId === (int)($projectAll['default_constellation_id'] ?? 0);
-                                        $cTagline = isset($c['tagline']) ? (string)$c['tagline'] : '';
-                                        $cSlug = isset($c['slug']) && $c['slug'] !== '' ? $c['slug'] : null;
-                                        $viewRel = $isDefault ? '../index.php' : ($cSlug !== null ? '../' . rawurlencode($cSlug) : '../index.php?constellation_id=' . $cId);
-                                        $cGroup = extractConstellationGroup($c['name']);
-                                        $cGroupColor = $cGroup !== null ? ($constellationGroupColors[$cGroup] ?? '') : '';
-                                        ?>
-                                        <tr class="constellation-row border-b border-gray-300<?php echo $cGroupColor === '' ? ' hover:bg-gray-50' : ''; ?>"
-                                            data-id="<?php echo $cId; ?>"
-                                            data-name="<?php echo htmlspecialchars(strtolower($c['name'])); ?>"
-                                            data-slug="<?php echo htmlspecialchars(strtolower($c['slug'] ?? '')); ?>"
-                                            data-date-created="<?php echo isset($c['created_at']) ? strtotime($c['created_at']) : 0; ?>"
-                                            data-updated-at="<?php echo isset($c['updated_at']) ? strtotime($c['updated_at']) : 0; ?>"
-                                            data-tagline="<?php echo htmlspecialchars(strtolower($cTagline)); ?>"
-                                            data-group="<?php echo htmlspecialchars($cGroup ?? ''); ?>"
-                                            <?php if ($cGroupColor !== ''): ?>style="background-color: <?php echo $cGroupColor; ?>"<?php endif; ?>>
-                                            <?php 
-                                            $cData = [
-                                                'id' => $cId,
-                                                'name' => $c['name'],
-                                                'tagline' => $cTagline,
-                                                'slug' => $c['slug'],
-                                                'theme' => $c['theme'] ?? 'cosmic'
-                                            ];
-                                            $cJson = htmlspecialchars(json_encode($cData), ENT_QUOTES, 'UTF-8');
-                                            $clickEditC = "editConstellation($cJson)";
-                                            $cCreatedTs = isset($c['created_at']) ? strtotime($c['created_at']) : false;
-                                            $cUpdatedTs = isset($c['updated_at']) ? strtotime($c['updated_at']) : false;
-                                            $cCreatedIso = $cCreatedTs !== false ? gmdate('c', $cCreatedTs) : '';
-                                            $cUpdatedIso = $cUpdatedTs !== false ? gmdate('c', $cUpdatedTs) : '';
-                                            ?>
-                                            <td class="py-2 px-2 font-mono text-gray-800 cursor-pointer whitespace-nowrap" onclick="<?php echo $clickEditC; ?>"><?php echo $cId; ?></td>
-                                            <td class="py-2 px-2 font-semibold text-gray-800 cursor-pointer" onclick="<?php echo $clickEditC; ?>">
-                                                <?php echo htmlspecialchars($c['name']); ?>
-                                                <?php if ($isDefault): ?>
-                                                    <span class="ml-2 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">Default</span>
-                                                <?php endif; ?>
-                                                <?php if (!empty($c['import_source'])): ?>
-                                                    <span class="ml-2 text-xs bg-purple-400 text-white px-1.5 py-0.5 rounded">Imported</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td class="py-2 px-2 font-mono text-xs text-blue-600 cursor-pointer" onclick="<?php echo $clickEditC; ?>">
-                                                <?php echo htmlspecialchars($c['slug'] ?? ''); ?>
-                                            </td>
-                                            <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="<?php echo $clickEditC; ?>" title="<?php echo htmlspecialchars($cTagline); ?>"><?php echo htmlspecialchars($cTagline); ?></td>
-                                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEditC; ?>">
-                                                <?php if ($cCreatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($cCreatedIso); ?>"><?php echo date('y-m-d H:i', $cCreatedTs); ?></span><?php else: ?>—<?php endif; ?>
-                                            </td>
-                                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEditC; ?>">
-                                                <?php if ($cUpdatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($cUpdatedIso); ?>"><?php echo date('y-m-d H:i', $cUpdatedTs); ?></span><?php else: ?>—<?php endif; ?>
-                                            </td>
-                                            <td class="py-2 px-2 text-right">
-                                                <div class="flex gap-2 justify-end items-center">
-                                                    <?php if (!$isDefault): ?>
-                                                        <?php 
-                                                        $cName = $c['name'];
-                                                        $delMsgC = "Are you sure you want to delete the constellation \"$cName\"? This will permanently remove ALL nodes and keywords inside it.";
-                                                        $delMsgJsC = htmlspecialchars(json_encode($delMsgC), ENT_QUOTES, 'UTF-8');
-                                                        $cNameJs = htmlspecialchars(json_encode($cName), ENT_QUOTES, 'UTF-8');
-                                                        ?>
-                                                        <button type="button" 
-                                                                onclick="event.stopPropagation(); triggerDelete('delete_constellation', '<?php echo $cId; ?>', <?php echo $delMsgJsC; ?>, <?php echo $cNameJs; ?>)" 
-                                                                class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">Delete</button>
-                                                    <?php endif; ?>
-                                                    <button type="button" 
-                                                            onclick="event.stopPropagation(); duplicateConstellation(<?php echo $cJson; ?>)" 
-                                                            class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded">Duplicate</button>
-                                                    <a href="<?php echo htmlspecialchars($viewRel); ?>" target="_blank" rel="noopener" class="px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white text-xs rounded inline-flex items-center gap-1" onclick="event.stopPropagation()">View</a>
-                                                    <button type="button" onclick="event.stopPropagation(); copyConstellationUrl('<?php echo htmlspecialchars($viewRel, ENT_QUOTES); ?>', this)" class="p-1.5 rounded border border-gray-300 hover:bg-gray-100 text-gray-600 hover:text-gray-800" title="Copy constellation URL">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php endif; ?>
+                    <div id="constellations-list-container"></div>
                 </div>
             </div>
 
@@ -1048,6 +952,14 @@ $fieldMeta = [
         const API_URL = '../api/validate.php';
         const MOCAMBOS_API = '../api/mocambos.php';
         let mocambosApiBase = '';
+
+        function closeAllDropdowns(except) {
+            document.querySelectorAll('.dropdown').forEach(d => {
+                const label = d.querySelector('[tabindex="0"]');
+                if (label && label !== except) label.blur();
+            });
+        }
+        document.addEventListener('click', () => closeAllDropdowns(null));
 
         function openMocambosImportModal() {
             showMocambosUrlStep();
@@ -1567,8 +1479,7 @@ $fieldMeta = [
 
         // Pagination State
         const paginationState = {
-            users: { currentPage: 1, itemsPerPage: 20 },
-            constellations: { currentPage: 1, itemsPerPage: 20 }
+            users: { currentPage: 1, itemsPerPage: 20 }
         };
 
         function applyPagination(type) {
@@ -1720,6 +1631,123 @@ $fieldMeta = [
             document.getElementById('duplicate_constellation_modal').showModal();
         }
 
+        async function refreshImportedConstellation(id, importSourceJson, name) {
+            let source;
+            try {
+                source = typeof importSourceJson === 'string' ? JSON.parse(importSourceJson) : importSourceJson;
+            } catch (e) {
+                showMessage('Invalid import source data.', 'error');
+                return;
+            }
+            if (!source || !source.api_base || !source.galaxia_slug) {
+                showMessage('Missing import source info for this constellation.', 'error');
+                return;
+            }
+            if (!confirm(`Refresh "${name}" from Mocambos?\n\nThis will sync nodes with the remote source (incremental update).`)) {
+                return;
+            }
+
+            // Reuse the Mocambos import modal to show progress
+            const modal = document.getElementById('mocambos_import_modal');
+            const urlStep = document.getElementById('mocambos-url-step');
+            const galaxiasList = document.getElementById('mocambos-list');
+            const loading = document.getElementById('mocambos-loading');
+            const errorDiv = document.getElementById('mocambos-error');
+            const progressDiv = document.getElementById('mocambos-import-progress');
+            const resultDiv = document.getElementById('mocambos-import-result');
+            const logDiv = document.getElementById('mocambos-log');
+            const statusEl = document.getElementById('mocambos-progress-status');
+            const importBtn = document.getElementById('mocambos-import-btn');
+
+            // Hide all steps, show progress
+            urlStep.classList.add('hidden');
+            galaxiasList.classList.add('hidden');
+            loading.classList.add('hidden');
+            errorDiv.classList.add('hidden');
+            resultDiv.classList.add('hidden');
+            if (importBtn) importBtn.classList.add('hidden');
+            progressDiv.classList.remove('hidden');
+            logDiv.innerHTML = '';
+            if (statusEl) statusEl.textContent = `Refreshing "${name}"...`;
+            modal.showModal();
+
+            const colorMap = {
+                info: 'text-blue-300', success: 'text-green-400', error: 'text-red-400',
+                warning: 'text-yellow-400', node: 'text-purple-300', download: 'text-gray-400',
+                done: 'text-green-300 font-bold',
+            };
+            function appendLog(msg, type) {
+                const line = document.createElement('div');
+                line.className = colorMap[type] || 'text-gray-300';
+                line.textContent = msg;
+                logDiv.appendChild(line);
+                logDiv.scrollTop = logDiv.scrollHeight;
+            }
+
+            try {
+                const resp = await fetch(`${MOCAMBOS_API}?action=import`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+                    body: JSON.stringify({
+                        api_base: source.api_base,
+                        galaxias: [{
+                            galaxia_slug: source.galaxia_slug,
+                            galaxia_smid: source.galaxia_smid || '',
+                            mucua_slug: source.mucua_slug || ''
+                        }]
+                    })
+                });
+
+                if (!resp.ok && resp.headers.get('content-type')?.includes('application/json')) {
+                    const err = await resp.json();
+                    throw new Error(err.error || 'Refresh failed');
+                }
+
+                const reader = resp.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const msg = JSON.parse(line);
+                            appendLog(msg.message || line, msg.type || 'info');
+                        } catch (e) {
+                            appendLog(line, 'info');
+                        }
+                    }
+                }
+                if (buffer.trim()) {
+                    try {
+                        const msg = JSON.parse(buffer);
+                        appendLog(msg.message || buffer, msg.type || 'info');
+                    } catch (e) {
+                        appendLog(buffer, 'info');
+                    }
+                }
+
+                appendLog('Refresh complete.', 'done');
+                if (statusEl) statusEl.textContent = 'Refresh complete';
+
+                // Show result with reload button
+                resultDiv.innerHTML = '<button type="button" onclick="window.location.reload()" class="btn btn-sm btn-neutral mt-3">Reload page</button>';
+                resultDiv.classList.remove('hidden');
+
+                loadConstellations();
+            } catch (e) {
+                appendLog('Error: ' + (e.message || 'Unknown error'), 'error');
+                if (statusEl) statusEl.textContent = 'Refresh failed';
+                resultDiv.innerHTML = '<button type="button" onclick="document.getElementById(\'mocambos_import_modal\').close()" class="btn btn-sm mt-3">Close</button>';
+                resultDiv.classList.remove('hidden');
+            }
+        }
+
         async function triggerDelete(action, id, message, confirmName = null) {
             document.getElementById('delete-action').value = action;
             document.getElementById('delete-id').value = id;
@@ -1866,7 +1894,7 @@ $fieldMeta = [
 
         // Initialize tab on page load
         document.addEventListener('DOMContentLoaded', function() {
-            const tab = new URLSearchParams(window.location.search).get('tab') || 'users';
+            const tab = new URLSearchParams(window.location.search).get('tab') || 'constellations';
             showTab(tab);
             formatLocalDatetimes();
             initCreateUserModalLogic();
@@ -1889,7 +1917,7 @@ $fieldMeta = [
 
             // Initial pagination
             applyPagination('users');
-            applyPagination('constellations');
+            loadConstellations();
 
             // Hide loading overlay
             const overlay = document.getElementById('admin-loading-overlay');
@@ -2051,95 +2079,239 @@ $fieldMeta = [
             applyPagination('users');
         }
 
-        // Constellation list sorting
-        let currentConstSortColumn = null;
-        let currentConstSortOrder = 'asc';
+        // --- Constellations: server-side pagination ---
+        const CONST_API = '../api/constellations.php';
+        let constPage = 1;
+        const constPerPage = 20;
+        let constSortColumn = null;
+        let constSortOrder = 'asc';
+        let constFilter = '';
+        let constTotalPages = 0;
+
+        const pastelPalette = ['#FEF2F2','#F0FAF0','#EFF6FF','#FFF8F0','#F8F5FF','#F0FDFA','#FEFEF0','#FFF5F5','#F5F5F7','#F5FAE8'];
+        const groupColorMap = {};
+        let groupColorIdx = 0;
+
+        function getGroupColor(name) {
+            const m = name.match(/^\[([^\]]+)\]/);
+            if (!m) return '';
+            const g = m[1];
+            if (!groupColorMap[g]) {
+                groupColorMap[g] = pastelPalette[groupColorIdx % pastelPalette.length];
+                groupColorIdx++;
+            }
+            return groupColorMap[g];
+        }
+
+        function escapeHtmlAdmin(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        }
+
+        const debouncedConstSearch = (() => {
+            let timer;
+            return () => {
+                clearTimeout(timer);
+                timer = setTimeout(() => {
+                    constFilter = document.getElementById('search-constellations').value.trim();
+                    constPage = 1;
+                    loadConstellations();
+                }, 300);
+            };
+        })();
 
         function sortConstellationsByColumn(column) {
-            if (currentConstSortColumn === column) {
-                currentConstSortOrder = currentConstSortOrder === 'asc' ? 'desc' : 'asc';
+            if (constSortColumn === column) {
+                constSortOrder = constSortOrder === 'asc' ? 'desc' : 'asc';
             } else {
-                currentConstSortColumn = column;
-                currentConstSortOrder = 'asc';
+                constSortColumn = column;
+                constSortOrder = 'asc';
             }
+            constPage = 1;
             updateConstellationSortIndicators();
-            applyConstellationSorting();
+            loadConstellations();
         }
 
         function updateConstellationSortIndicators() {
             ['id', 'name', 'slug', 'tagline', 'created_at', 'updated_at'].forEach(col => {
                 const indicator = document.getElementById('sort-indicator-const-' + col);
-                if (indicator) {
-                    indicator.innerHTML = '';
-                }
+                if (indicator) indicator.innerHTML = '';
             });
-            
-            if (currentConstSortColumn) {
-                const indicator = document.getElementById('sort-indicator-const-' + currentConstSortColumn);
-                if (indicator) {
-                    indicator.innerHTML = currentConstSortOrder === 'asc' ? ' ↑' : ' ↓';
-                }
+            if (constSortColumn) {
+                const indicator = document.getElementById('sort-indicator-const-' + constSortColumn);
+                if (indicator) indicator.innerHTML = constSortOrder === 'asc' ? ' ↑' : ' ↓';
             }
         }
 
-        function applyConstellationSorting() {
-            const constTable = document.getElementById('constellations-list');
-            if (!constTable) return;
-            const tbody = constTable.querySelector('tbody');
-            if (!tbody) return;
-            
-            const rows = Array.from(tbody.querySelectorAll('tr.constellation-row'));
-            if (rows.length === 0) return;
-            
-            const sortedRows = rows.sort((a, b) => {
-                let aVal, bVal;
-                
-                switch(currentConstSortColumn) {
-                    case 'id':
-                        aVal = parseInt(a.dataset.id) || 0;
-                        bVal = parseInt(b.dataset.id) || 0;
-                        break;
-                    case 'name':
-                        aVal = a.dataset.name || '';
-                        bVal = b.dataset.name || '';
-                        break;
-                    case 'slug':
-                        aVal = a.dataset.slug || '';
-                        bVal = b.dataset.slug || '';
-                        break;
-                    case 'tagline':
-                        aVal = a.dataset.tagline || '';
-                        bVal = b.dataset.tagline || '';
-                        break;
-                    case 'created_at':
-                        aVal = parseInt(a.dataset.dateCreated) || 0;
-                        bVal = parseInt(b.dataset.dateCreated) || 0;
-                        break;
-                    case 'updated_at':
-                        aVal = parseInt(a.dataset.updatedAt) || 0;
-                        bVal = parseInt(b.dataset.updatedAt) || 0;
-                        break;
-                    default:
-                        return 0;
+        function constGoToPage(page) {
+            if (page < 1 || page > constTotalPages) return;
+            constPage = page;
+            loadConstellations();
+        }
+
+        function updateConstPagination() {
+            const headerContainer = document.getElementById('constellations-pagination-header');
+            if (headerContainer) headerContainer.innerHTML = '';
+
+            const oldBottom = document.getElementById('constellations-pagination-bottom');
+            if (oldBottom) oldBottom.remove();
+
+            if (constTotalPages <= 1) return;
+
+            const createHTML = (isTop) => {
+                let html = `<div id="constellations-pagination-${isTop ? 'top' : 'bottom'}" class="flex items-center gap-2 ${isTop ? '' : 'mt-6 pb-4 flex justify-center'}">`;
+                html += `<button type="button" onclick="constGoToPage(${constPage - 1})" class="btn btn-xs ${constPage === 1 ? 'btn-disabled' : ''}">«</button>`;
+                for (let i = 1; i <= constTotalPages; i++) {
+                    if (i === 1 || i === constTotalPages || (i >= constPage - 2 && i <= constPage + 2)) {
+                        html += `<button type="button" onclick="constGoToPage(${i})" class="btn btn-xs ${i === constPage ? 'btn-neutral' : ''}">${i}</button>`;
+                    } else if (i === constPage - 3 || i === constPage + 3) {
+                        html += `<span class="px-0.5 text-gray-400">...</span>`;
+                    }
                 }
-                
-                if (aVal < bVal) return currentConstSortOrder === 'asc' ? -1 : 1;
-                if (aVal > bVal) return currentConstSortOrder === 'asc' ? 1 : -1;
-                return 0;
-            });
-            
-            sortedRows.forEach(row => tbody.appendChild(row));
-            applyPagination('constellations');
+                html += `<button type="button" onclick="constGoToPage(${constPage + 1})" class="btn btn-xs ${constPage === constTotalPages ? 'btn-disabled' : ''}">»</button>`;
+                html += `</div>`;
+                return html;
+            };
+
+            if (headerContainer) headerContainer.innerHTML = createHTML(true);
+
+            const container = document.getElementById('constellations-list-container');
+            if (container) {
+                const bottom = document.createElement('div');
+                bottom.id = 'constellations-pagination-bottom';
+                bottom.innerHTML = createHTML(false);
+                container.appendChild(bottom);
+            }
+        }
+
+        async function loadConstellations() {
+            const container = document.getElementById('constellations-list-container');
+            if (!container) return;
+
+            const params = new URLSearchParams();
+            params.set('page', constPage);
+            params.set('per_page', constPerPage);
+            if (constSortColumn) {
+                params.set('sort', constSortColumn);
+                params.set('order', constSortOrder);
+            }
+            if (constFilter) params.set('filter', constFilter);
+
+            try {
+                const response = await fetch(CONST_API + '?' + params.toString(), {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                if (!response.ok) throw new Error('Failed to load constellations');
+                const result = await response.json();
+
+                const constellations = result.constellations;
+                const total = result.total;
+                constTotalPages = Math.ceil(total / constPerPage);
+
+                if (constPage > constTotalPages && constTotalPages > 0) {
+                    constPage = constTotalPages;
+                    return loadConstellations();
+                }
+
+                const countEl = document.getElementById('constellations-count');
+                if (countEl) countEl.textContent = total;
+
+                if (constellations.length === 0) {
+                    container.innerHTML = '<p class="text-gray-600 py-4">No constellations found.</p>';
+                    updateConstPagination();
+                    return;
+                }
+
+                let html = `<div class="border border-gray-300 rounded">
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr class="border-b-2 border-gray-400 bg-gray-100">
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('id')">ID<span id="sort-indicator-const-id"></span></span>
+                                </th>
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('name')">Name<span id="sort-indicator-const-name"></span></span>
+                                </th>
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('slug')">Slug<span id="sort-indicator-const-slug"></span></span>
+                                </th>
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('tagline')">Tagline<span id="sort-indicator-const-tagline"></span></span>
+                                </th>
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('created_at')">Created<span id="sort-indicator-const-created_at"></span></span>
+                                </th>
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('updated_at')">Last Updated<span id="sort-indicator-const-updated_at"></span></span>
+                                </th>
+                                <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                constellations.forEach(c => {
+                    const bgColor = getGroupColor(c.name);
+                    const bgStyle = bgColor ? ` style="background-color: ${bgColor}"` : '';
+                    const hoverClass = bgColor ? '' : ' hover:bg-gray-50';
+                    const slug = c.slug || '';
+                    const viewRel = c.is_default ? '../index.php' : (slug ? '../' + encodeURIComponent(slug) : '../index.php?constellation_id=' + c.id);
+                    const cJson = JSON.stringify({ id: c.id, name: c.name, tagline: c.tagline, slug: slug, theme: c.theme });
+                    const cJsonAttr = escapeHtmlAdmin(cJson);
+                    const clickEdit = `editConstellation(${cJsonAttr})`;
+
+                    const createdAt = c.created_at ? new Date(c.created_at) : null;
+                    const updatedAt = c.updated_at ? new Date(c.updated_at) : null;
+                    const fmtDate = (d) => d ? `${d.getFullYear().toString().slice(-2)}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}` : '—';
+
+                    const delMsg = JSON.stringify(`Are you sure you want to delete the constellation "${c.name}"? This will permanently remove ALL nodes and keywords inside it.`);
+                    const cNameJson = JSON.stringify(c.name);
+
+                    html += `<tr class="constellation-row border-b border-gray-300${hoverClass}"${bgStyle}>
+                        <td class="py-2 px-2 font-mono text-gray-800 cursor-pointer whitespace-nowrap" onclick="${clickEdit}">${c.id}</td>
+                        <td class="py-2 px-2 font-semibold text-gray-800 cursor-pointer" onclick="${clickEdit}">
+                            ${escapeHtmlAdmin(c.name)}
+                            ${c.is_default ? '<span class="ml-2 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">Default</span>' : ''}
+                            ${c.import_source ? '<span class="ml-2 text-xs bg-purple-400 text-white px-1.5 py-0.5 rounded">Imported</span>' : ''}
+                        </td>
+                        <td class="py-2 px-2 font-mono text-xs text-blue-600 cursor-pointer" onclick="${clickEdit}">${escapeHtmlAdmin(slug)}</td>
+                        <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="${clickEdit}" title="${escapeHtmlAdmin(c.tagline)}">${escapeHtmlAdmin(c.tagline)}</td>
+                        <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(createdAt)}</td>
+                        <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(updatedAt)}</td>
+                        <td class="py-2 px-2 text-right">
+                            <div class="flex justify-end">
+                                <div class="dropdown dropdown-end">
+                                    <label tabindex="0" onclick="event.stopPropagation(); closeAllDropdowns(this)" class="btn btn-ghost btn-xs px-1.5">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
+                                    </label>
+                                    <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-40">
+                                        <li><a onclick="event.stopPropagation(); editConstellation(${cJsonAttr})" class="text-gray-700 text-xs">Edit</a></li>
+                                        <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">View</a></li>
+                                        <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">Copy URL</a></li>
+                                        <li><a onclick="event.stopPropagation(); duplicateConstellation(${cJsonAttr})" class="text-gray-700 text-xs">Duplicate</a></li>
+                                        ${c.import_source ? `<li><a onclick="event.stopPropagation(); refreshImportedConstellation(${c.id}, ${escapeHtmlAdmin(JSON.stringify(c.import_source))}, ${escapeHtmlAdmin(cNameJson)})" class="text-purple-600 text-xs">Refresh</a></li>` : ''}
+                                        ${!c.is_default ? `<li><a onclick="event.stopPropagation(); triggerDelete('delete_constellation', '${c.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">Delete</a></li>` : ''}
+                                    </ul>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>`;
+                });
+
+                html += `</tbody></table></div>`;
+                container.innerHTML = html;
+
+                updateConstPagination();
+                updateConstellationSortIndicators();
+                formatLocalDatetimes();
+            } catch (e) {
+                container.innerHTML = '<p class="text-red-600">Error loading constellations: ' + escapeHtmlAdmin(e.message) + '</p>';
+            }
         }
 
         function applyUserSearch() {
             paginationState.users.currentPage = 1;
             applyPagination('users');
-        }
-
-        function applyConstellationSearch() {
-            paginationState.constellations.currentPage = 1;
-            applyPagination('constellations');
         }
     </script>
     <!-- Create User Modal -->

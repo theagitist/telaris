@@ -37,6 +37,34 @@ try {
                 ], JSON_THROW_ON_ERROR);
                 return;
             }
+
+            // Server-side paginated mode (for admin)
+            if (isset($_GET['page'])) {
+                $page = max(1, (int)$_GET['page']);
+                $perPage = isset($_GET['per_page']) ? min(max(1, (int)$_GET['per_page']), 100) : 20;
+                $sort = isset($_GET['sort']) && $_GET['sort'] !== '' ? (string)$_GET['sort'] : null;
+                $order = (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') ? 'desc' : 'asc';
+                $filter = isset($_GET['filter']) ? trim((string)$_GET['filter']) : null;
+                if ($filter === '') $filter = null;
+
+                $result = db_get_constellations_paginated($page, $perPage, $sort, $order, $filter);
+                $defaultId = (int)(db_get_project_info()['default_constellation_id'] ?? 0);
+                $result['constellations'] = array_map(fn(array $row) => [
+                    'id' => (int)$row['id'],
+                    'name' => (string)($row['name'] ?? ''),
+                    'tagline' => (string)($row['tagline'] ?? ''),
+                    'slug' => (string)($row['slug'] ?? ''),
+                    'theme' => (string)($row['theme'] ?? 'cosmic'),
+                    'import_source' => $row['import_source'] ?? null,
+                    'created_at' => $row['created_at'] ?? null,
+                    'updated_at' => $row['updated_at'] ?? null,
+                    'is_default' => (int)$row['id'] === $defaultId,
+                ], $result['constellations']);
+                echo json_encode($result, JSON_THROW_ON_ERROR);
+                return;
+            }
+
+            // Flat array mode (for dropdowns, 3D frontend, etc.)
             $list = db_get_constellations();
             $out = array_map(fn(array $row) => [
                 'id' => (int)$row['id'],

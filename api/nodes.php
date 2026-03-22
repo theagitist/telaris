@@ -77,6 +77,27 @@ try {
             $currentUserId = $_SESSION['admin_user_id'] ?? null;
             $isAdmin = isAdminLoggedIn();
 
+            // Single node fetch by ID (for editor)
+            if (isset($_GET['id']) && ctype_digit((string)$_GET['id'])) {
+                $row = db_get_node_by_id((int)$_GET['id']);
+                if ($row === null) {
+                    http_response_code(404);
+                    echo json_encode(['error' => 'Node not found'], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                if (!$isAdmin && $currentUserId !== null) {
+                    $allowed = db_get_constellations_for_user($currentUserId, false);
+                    $allowedIds = array_column($allowed, 'id');
+                    if (!in_array((int)$row['constellation_id'], $allowedIds, true)) {
+                        http_response_code(403);
+                        echo json_encode(['error' => 'Access denied'], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                }
+                echo json_encode(db_format_node($row), JSON_THROW_ON_ERROR);
+                return;
+            }
+
             $constellationId = null;
             if (isset($_GET['constellation_id'])) {
                 if ($_GET['constellation_id'] === 'all') {
@@ -88,6 +109,23 @@ try {
             if ($constellationId === null && !isset($_GET['constellation_id'])) {
                 $constellationId = db_get_default_constellation_id(); // main view without param: show default constellation only
             }
+
+            // Server-side paginated mode (for editor)
+            if (isset($_GET['page'])) {
+                $page = max(1, (int)$_GET['page']);
+                $perPage = isset($_GET['per_page']) ? min(max(1, (int)$_GET['per_page']), 100) : 25;
+                $sort = isset($_GET['sort']) && $_GET['sort'] !== '' ? (string)$_GET['sort'] : null;
+                $order = (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') ? 'desc' : 'asc';
+                $filter = isset($_GET['filter']) ? trim((string)$_GET['filter']) : null;
+                if ($filter === '') $filter = null;
+
+                $result = db_get_nodes_paginated($constellationId, $currentUserId, $isAdmin, $page, $perPage, $sort, $order, $filter);
+                $result['nodes'] = db_format_nodes_bulk($result['nodes']);
+                echo json_encode($result, JSON_THROW_ON_ERROR);
+                return;
+            }
+
+            // Flat array mode (for 3D frontend)
             $nodes = db_get_nodes($constellationId, $currentUserId, $isAdmin);
             $formatted = array_map(fn($node) => db_format_node($node), $nodes);
 
@@ -184,6 +222,34 @@ try {
                     }
                 }
             }
+            // Handle node duplication
+            if (isset($data['duplicate_from'])) {
+                $sourceId = (int)$data['duplicate_from'];
+                $sourceConstellationId = db_get_node_constellation_id($sourceId);
+                if ($sourceConstellationId === null) {
+                    http_response_code(404);
+                    echo json_encode(['error' => 'Source node not found'], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                $targetConstellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : null;
+                // Check editor access on target constellation (or source if same)
+                $accessCid = $targetConstellationId ?? $sourceConstellationId;
+                $accessError = checkEditorConstellationAccess($accessCid);
+                if ($accessError !== null) {
+                    http_response_code(403);
+                    echo json_encode(['error' => $accessError], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                try {
+                    $newId = db_duplicate_node($sourceId, $targetConstellationId);
+                    echo json_encode(['id' => $newId, 'success' => true, 'duplicated_from' => $sourceId], JSON_THROW_ON_ERROR);
+                } catch (RuntimeException $e) {
+                    http_response_code(500);
+                    echo json_encode(['error' => $e->getMessage()], JSON_THROW_ON_ERROR);
+                }
+                return;
+            }
+
             if (empty($data['name'])) {
                 http_response_code(400);
                 echo json_encode(['error' => 'Node name is required'], JSON_THROW_ON_ERROR);

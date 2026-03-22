@@ -154,6 +154,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="openBulkMoveModal()" class="btn btn-sm btn-outline text-white border-white/30 hover:bg-white/10 hover:border-white">Move Selected</button>
+                <button onclick="openBulkDuplicateModal()" class="btn btn-sm btn-outline text-white border-white/30 hover:bg-white/10 hover:border-white">Duplicate Selected</button>
                 <button onclick="bulkDelete()" class="btn btn-sm btn-error text-white">Delete Selected</button>
             </div>
         </div>
@@ -178,7 +179,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <input type="text" 
                                id="search-nodes" 
                                placeholder="Search nodes..." 
-                               oninput="applySorting()"
+                               oninput="debouncedSearch()"
                                class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     </div>
                 </div>
@@ -284,22 +285,23 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         function toggleSelectAll(checkbox) {
             const isChecked = checkbox.checked;
             if (isChecked) {
-                // Select all currently filtered nodes
-                filteredNodes.forEach(node => selectedNodeIds.add(node.id));
+                // Select all nodes on current page
+                allNodes.forEach(node => selectedNodeIds.add(node.id));
             } else {
-                // Unselect all currently filtered nodes
-                filteredNodes.forEach(node => selectedNodeIds.delete(node.id));
+                // Unselect all nodes on current page
+                allNodes.forEach(node => selectedNodeIds.delete(node.id));
             }
             updateBulkActionsBar();
-            // Re-render to show updated checkbox states and header checkbox through updateSelectAllCheckbox
-            applySorting(false);
+            // Re-render to show updated checkbox states
+            displayNodes(allNodes);
+            updateSelectAllCheckbox();
         }
 
         function updateSelectAllCheckbox() {
             const selectAllCb = document.getElementById('select-all-nodes');
             if (!selectAllCb) return;
-            
-            const currentPageNodes = filteredNodes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+            const currentPageNodes = allNodes;
             if (currentPageNodes.length === 0) {
                 selectAllCb.checked = false;
                 selectAllCb.indeterminate = false;
@@ -389,6 +391,99 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
         }
 
+        // --- Duplicate Node ---
+
+        async function openDuplicateModal(id) {
+            let node = allNodes.find(n => n.id === id);
+            if (!node) {
+                try {
+                    const response = await fetch(`${API_BASE}?id=${id}`, {
+                        headers: { 'X-API-Key': API_KEY }
+                    });
+                    if (!response.ok) return;
+                    node = await response.json();
+                } catch (e) { return; }
+            }
+            document.getElementById('duplicate-source-id').value = id;
+            document.getElementById('duplicate-source-name').textContent = node.name;
+            document.getElementById('duplicate-constellation').value = node.constellation_id;
+            document.getElementById('duplicate_node_modal').showModal();
+        }
+
+        async function confirmDuplicate() {
+            const sourceId = parseInt(document.getElementById('duplicate-source-id').value);
+            const constellationId = parseInt(document.getElementById('duplicate-constellation').value);
+            if (!sourceId) return;
+
+            try {
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ duplicate_from: sourceId, constellation_id: constellationId })
+                });
+                if (response.ok) {
+                    showMessage('Node duplicated successfully.');
+                    document.getElementById('duplicate_node_modal').close();
+                    loadNodes();
+                } else {
+                    const err = await response.json();
+                    showMessage('Error: ' + (err.error || 'Failed to duplicate'), 'error');
+                }
+            } catch (e) {
+                showMessage('An error occurred while duplicating.', 'error');
+            }
+        }
+
+        function openBulkDuplicateModal() {
+            const count = selectedNodeIds.size;
+            if (count === 0) return;
+            document.getElementById('bulk-duplicate-count').textContent = count;
+            document.getElementById('bulk_duplicate_modal').showModal();
+        }
+
+        async function bulkDuplicate() {
+            const constellationId = parseInt(document.getElementById('bulk-duplicate-constellation').value);
+            if (!constellationId) return;
+
+            const ids = Array.from(selectedNodeIds);
+            let successCount = 0;
+            let errorCount = 0;
+
+            const bar = document.getElementById('bulk-actions-bar');
+            bar.classList.add('opacity-50', 'pointer-events-none');
+            document.getElementById('bulk_duplicate_modal').close();
+
+            try {
+                const promises = ids.map(id =>
+                    fetch(API_BASE, {
+                        method: 'POST',
+                        headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ duplicate_from: id, constellation_id: constellationId })
+                    }).then(r => {
+                        if (r.ok) successCount++;
+                        else errorCount++;
+                    }).catch(() => errorCount++)
+                );
+
+                await Promise.all(promises);
+
+                if (successCount > 0) {
+                    showMessage(`Successfully duplicated ${successCount} nodes.`);
+                }
+                if (errorCount > 0) {
+                    showMessage(`Failed to duplicate ${errorCount} nodes.`, 'error');
+                }
+
+                selectedNodeIds.clear();
+                updateBulkActionsBar();
+                loadNodes();
+            } catch (e) {
+                showMessage('An error occurred during bulk duplicate.', 'error');
+            } finally {
+                bar.classList.remove('opacity-50', 'pointer-events-none');
+            }
+        }
+
         function clearSelection() {
             selectedNodeIds.clear();
             updateBulkActionsBar();
@@ -397,8 +492,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 selectAllCb.checked = false;
                 selectAllCb.indeterminate = false;
             }
-            // Simple re-render
-            applySorting(false);
+            // Re-render current page without server fetch
+            displayNodes(allNodes);
+            updateSelectAllCheckbox();
         }
 
         async function bulkDelete() {
@@ -649,7 +745,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }, 2000);
         }
 
-        // Load nodes
+        // Load nodes with server-side pagination
         async function loadNodes() {
             const listDiv = document.getElementById('nodes-list');
             if (!listDiv) return;
@@ -657,7 +753,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             // Show loading state
             const countEl = document.getElementById('tab-list-count');
             if (countEl) countEl.textContent = '...';
-            
+
             listDiv.innerHTML = `
                 <div class="flex flex-col items-center justify-center py-12 text-gray-500">
                     <span class="loading loading-spinner loading-lg text-neutral mb-4"></span>
@@ -665,72 +761,72 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div>
             `;
 
-            // Check if API key exists
             if (!API_KEY) {
                 listDiv.innerHTML = '<p class="text-red-600">Error: API key is missing. Please contact an administrator.</p>';
                 return;
             }
 
             try {
-                // Add timeout to fetch request
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-                
                 const constellationEl = document.getElementById('current-constellation');
                 const constellationId = constellationEl ? constellationEl.value : 'all';
-                const query = (constellationId === 'all' ? '?constellation_id=all' : ('?constellation_id=' + encodeURIComponent(constellationId))) + '&no_cluster=1';
-                let response;
-                try {
-                    response = await fetch(API_BASE + query, {
-                        headers: {
-                            'X-API-Key': API_KEY
-                        },
-                        signal: controller.signal
-                    });
-                    clearTimeout(timeoutId);
-                } catch (fetchError) {
-                    clearTimeout(timeoutId);
-                    if (fetchError.name === 'AbortError') {
-                        throw new Error('Request timeout: The server took too long to respond');
-                    }
-                    throw fetchError;
+
+                const params = new URLSearchParams();
+                params.set('constellation_id', constellationId);
+                params.set('no_cluster', '1');
+                params.set('page', currentPage);
+                params.set('per_page', itemsPerPage);
+                if (currentSortColumn) {
+                    params.set('sort', currentSortColumn);
+                    params.set('order', currentSortOrder);
                 }
-                
-                // Get response text first to handle both JSON and non-JSON errors
+                if (currentFilter) {
+                    params.set('filter', currentFilter);
+                }
+
+                const response = await fetch(API_BASE + '?' + params.toString(), {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+
                 const responseText = await response.text();
-                
+
                 if (!response.ok) {
                     let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
                     try {
                         const errorData = JSON.parse(responseText);
                         errorMessage = errorData.error || errorData.message || errorMessage;
                     } catch (e) {
-                        // Not JSON, use the text directly
                         errorMessage = responseText.substring(0, 200) || errorMessage;
                     }
                     throw new Error(errorMessage);
                 }
-                
-                // Parse JSON response
-                let nodes;
+
+                let result;
                 try {
-                    nodes = JSON.parse(responseText);
+                    result = JSON.parse(responseText);
                 } catch (e) {
                     throw new Error('Invalid JSON response from server');
                 }
-                
-                if (!Array.isArray(nodes)) {
-                    throw new Error('Invalid response format: expected array, got ' + typeof nodes);
-                }
-                
-                // Store nodes for sorting
-                allNodes = nodes;
 
-                // Update node count
-                const countEl = document.getElementById('tab-list-count');
-                if (countEl) countEl.textContent = nodes.length;
-                
-                applySorting();
+                if (!result.nodes || !Array.isArray(result.nodes)) {
+                    throw new Error('Invalid response format');
+                }
+
+                allNodes = result.nodes;
+                totalNodes = result.total;
+                totalPages = Math.ceil(totalNodes / itemsPerPage);
+
+                // Guard against page exceeding total after deletions
+                if (currentPage > totalPages && totalPages > 0) {
+                    currentPage = totalPages;
+                    return loadNodes();
+                }
+
+                if (countEl) countEl.textContent = totalNodes;
+
+                displayNodes(allNodes);
+                updatePagination();
+                updateSelectAllCheckbox();
+                updateSortIndicators();
                 updateReadOnlyState();
             } catch (error) {
                 const errorMsg = error.message || 'Unknown error';
@@ -845,10 +941,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <div class="col-span-1 text-xs text-gray-500 whitespace-nowrap">
                             ${updatedDate}
                         </div>
-                        <div class="col-span-1 flex gap-2 justify-end pr-2">
-                            <button onclick="event.stopPropagation(); deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="node-edit-action px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded">
-                                Delete
-                            </button>
+                        <div class="col-span-1 flex justify-end pr-2">
+                            <div class="dropdown dropdown-end">
+                                <label tabindex="0" onclick="event.stopPropagation(); closeAllDropdowns(this)" class="btn btn-ghost btn-xs px-1.5">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
+                                </label>
+                                <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-36">
+                                    <li><a onclick="event.stopPropagation(); editNode(${node.id})" class="text-gray-700 text-xs">Edit</a></li>
+                                    <li><a onclick="event.stopPropagation(); openDuplicateModal(${node.id})" class="text-gray-700 text-xs">Duplicate</a></li>
+                                    <li class="node-edit-action"><a onclick="event.stopPropagation(); deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="text-red-600 text-xs">Delete</a></li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -857,57 +960,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 
                 // Set innerHTML with header + nodes
                 listDiv.innerHTML = headerHTML + html;
-
-                // Update Select All checkbox state after rendering
-                const selectAllCb = document.getElementById('select-all-nodes');
-                if (selectAllCb) {
-                    const currentPageNodes = nodes;
-                    const allSelected = currentPageNodes.length > 0 && currentPageNodes.every(node => selectedNodeIds.has(node.id));
-                    const someSelected = currentPageNodes.some(node => selectedNodeIds.has(node.id));
-                    
-                    selectAllCb.checked = allSelected;
-                    selectAllCb.indeterminate = someSelected && !allSelected;
-                }
-
-                // Add Pagination Controls (Top and Bottom)
-                const totalPages = Math.ceil(filteredNodes.length / itemsPerPage);
-                
-                // Clear any existing pagination
-                const headerContainer = document.getElementById('nodes-pagination-header');
-                if (headerContainer) headerContainer.innerHTML = '';
-                
-                const oldBottom = document.getElementById('nodes-pagination-bottom');
-                if (oldBottom) oldBottom.remove();
-
-                if (totalPages > 1) {
-                    const createPaginationHTML = (isTop) => {
-                        let html = `<div id="nodes-pagination-${isTop ? 'top' : 'bottom'}" class="flex items-center gap-2 ${isTop ? '' : 'mt-8 pb-4 flex justify-center'}">`;
-                        html += `<button onclick="changePage(${currentPage - 1})" class="btn btn-xs ${currentPage === 1 ? 'btn-disabled' : ''}">«</button>`;
-                        for (let i = 1; i <= totalPages; i++) {
-                            if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-                                html += `<button onclick="changePage(${i})" class="btn btn-xs ${i === currentPage ? 'btn-neutral' : ''}">${i}</button>`;
-                            } else if (i === currentPage - 3 || i === currentPage + 3) {
-                                html += `<span class="px-0.5 text-gray-400">...</span>`;
-                            }
-                        }
-                        html += `<button onclick="changePage(${currentPage + 1})" class="btn btn-xs ${currentPage === totalPages ? 'btn-disabled' : ''}">»</button>`;
-                        html += `</div>`;
-                        return html;
-                    };
-
-                    // Header pagination
-                    if (headerContainer) {
-                        headerContainer.innerHTML = createPaginationHTML(true);
-                    }
-
-                    // Bottom pagination
-                    const bottomPagination = document.createElement('div');
-                    bottomPagination.id = 'nodes-pagination-bottom';
-                    bottomPagination.innerHTML = createPaginationHTML(false);
-                    listDiv.appendChild(bottomPagination);
-                }
-
-                updateSortIndicators();
 
                 // Initialize keywords for the node being edited
                 if (editingNodeId !== null) {
@@ -929,6 +981,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             return div.innerHTML;
         }
 
+        function closeAllDropdowns(except) {
+            document.querySelectorAll('.dropdown').forEach(d => {
+                const label = d.querySelector('[tabindex="0"]');
+                if (label && label !== except) label.blur();
+            });
+        }
+        document.addEventListener('click', () => closeAllDropdowns(null));
+
         function isValidUrl(string) {
             try {
                 new URL(string);
@@ -939,8 +999,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         }
 
         // Store all nodes for sorting
-        let allNodes = [];
-        let filteredNodes = [];
+        let allNodes = [];       // Current page nodes only
+        let totalNodes = 0;      // Server-provided total after filter
+        let totalPages = 0;
 
         // Pagination state
         let currentPage = 1;
@@ -949,19 +1010,30 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Sort state
         let currentSortColumn = null;
         let currentSortOrder = 'asc'; // 'asc' or 'desc'
-        
+
+        // Filter state
+        let currentFilter = '';
+
+        // Debounced search
+        const debouncedSearch = (() => {
+            let timer;
+            return () => {
+                clearTimeout(timer);
+                timer = setTimeout(() => applySorting(), 300);
+            };
+        })();
+
         // Sort by column header click
         function sortByColumn(column) {
             if (currentSortColumn === column) {
-                // Toggle order if clicking same column
                 currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
             } else {
-                // New column, default to ascending
                 currentSortColumn = column;
                 currentSortOrder = 'asc';
             }
+            currentPage = 1;
             updateSortIndicators();
-            applySorting();
+            loadNodes();
         }
         
         // Update sort indicators in header
@@ -983,102 +1055,56 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
         }
         
-        // Apply sorting and filtering to displayed nodes
+        // Apply sorting and filtering — triggers a server-side fetch
         function applySorting(resetPage = true) {
             const searchInput = document.getElementById('search-nodes');
-            
+            currentFilter = searchInput ? searchInput.value.trim() : '';
             if (resetPage) currentPage = 1;
-            
-            // Get search query
-            const searchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
-            
-            // Filter nodes based on search query
-            filteredNodes = [...allNodes];
-            if (searchQuery) {
-                filteredNodes = allNodes.filter(node => {
-                    // Search in name
-                    const nameMatch = (node.name || '').toLowerCase().includes(searchQuery);
-                    
-                    // Search in description
-                    const descriptionMatch = (node.description || '').toLowerCase().includes(searchQuery);
-                    
-                    // Search in URL
-                    const urlMatch = (node.url || '').toLowerCase().includes(searchQuery);
-                    
-                    // Search in keywords
-                    const keywordsMatch = node.keywords && node.keywords.length > 0
-                        ? node.keywords.some(k => k.toLowerCase().includes(searchQuery))
-                        : false;
-                    const constellationMatch = (node.constellation_name || '').toLowerCase().includes(searchQuery);
-                    const typeMatch = (node.node_type || 'object').toLowerCase().includes(searchQuery);
-                    
-                    return nameMatch || descriptionMatch || urlMatch || keywordsMatch || constellationMatch || typeMatch;
-                });
-            }
-            
-            // Apply sorting to filtered nodes if a column is selected
-            if (currentSortColumn) {
-                filteredNodes.sort((a, b) => {
-                    let aVal, bVal;
-                    
-                    switch(currentSortColumn) {
-                        case 'name':
-                            aVal = (a.name || '').toLowerCase();
-                            bVal = (b.name || '').toLowerCase();
-                            break;
-                        case 'created_at':
-                            aVal = a.created_at ? new Date(a.created_at).getTime() : 0;
-                            bVal = b.created_at ? new Date(b.created_at).getTime() : 0;
-                            break;
-                        case 'updated_at':
-                            aVal = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-                            bVal = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-                            break;
-                        case 'url':
-                            aVal = (a.url || '').toLowerCase();
-                            bVal = (b.url || '').toLowerCase();
-                            break;
-                        case 'keywords':
-                            aVal = a.keywords && a.keywords.length > 0 ? a.keywords.join(', ').toLowerCase() : '';
-                            bVal = b.keywords && b.keywords.length > 0 ? b.keywords.join(', ').toLowerCase() : '';
-                            break;
-                        case 'constellation_name':
-                            aVal = (a.constellation_name || '').toLowerCase();
-                            bVal = (b.constellation_name || '').toLowerCase();
-                            break;
-                        case 'node_type':
-                            aVal = (a.node_type || 'object').toLowerCase();
-                            bVal = (b.node_type || 'object').toLowerCase();
-                            break;
-                        case 'is_accentuated':
-                            aVal = a.is_accentuated ? 1 : 0;
-                            bVal = b.is_accentuated ? 1 : 0;
-                            break;
-                        default:
-                            return 0;
-                    }
-                    
-                    if (aVal < bVal) return currentSortOrder === 'asc' ? -1 : 1;
-                    if (aVal > bVal) return currentSortOrder === 'asc' ? 1 : -1;
-                    return 0;
-                });
-            }
-            
-            // Calculate slice for pagination
-            const start = (currentPage - 1) * itemsPerPage;
-            const end = start + itemsPerPage;
-            const paginatedNodes = filteredNodes.slice(start, end);
+            loadNodes();
+        }
 
-            displayNodes(paginatedNodes);
-            updateSelectAllCheckbox();
+        // Server-side pagination rendering
+        function updatePagination() {
+            const headerContainer = document.getElementById('nodes-pagination-header');
+            if (headerContainer) headerContainer.innerHTML = '';
+
+            const oldBottom = document.getElementById('nodes-pagination-bottom');
+            if (oldBottom) oldBottom.remove();
+
+            if (totalPages <= 1) return;
+
+            const createPaginationHTML = (isTop) => {
+                let html = `<div id="nodes-pagination-${isTop ? 'top' : 'bottom'}" class="flex items-center gap-2 ${isTop ? '' : 'mt-8 pb-4 flex justify-center'}">`;
+                html += `<button onclick="changePage(${currentPage - 1})" class="btn btn-xs ${currentPage === 1 ? 'btn-disabled' : ''}">«</button>`;
+                for (let i = 1; i <= totalPages; i++) {
+                    if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                        html += `<button onclick="changePage(${i})" class="btn btn-xs ${i === currentPage ? 'btn-neutral' : ''}">${i}</button>`;
+                    } else if (i === currentPage - 3 || i === currentPage + 3) {
+                        html += `<span class="px-0.5 text-gray-400">...</span>`;
+                    }
+                }
+                html += `<button onclick="changePage(${currentPage + 1})" class="btn btn-xs ${currentPage === totalPages ? 'btn-disabled' : ''}">»</button>`;
+                html += `</div>`;
+                return html;
+            };
+
+            if (headerContainer) {
+                headerContainer.innerHTML = createPaginationHTML(true);
+            }
+
+            const listDiv = document.getElementById('nodes-list');
+            if (listDiv) {
+                const bottomPagination = document.createElement('div');
+                bottomPagination.id = 'nodes-pagination-bottom';
+                bottomPagination.innerHTML = createPaginationHTML(false);
+                listDiv.appendChild(bottomPagination);
+            }
         }
 
         function changePage(page) {
-            const totalPages = Math.ceil(filteredNodes.length / itemsPerPage);
             if (page < 1 || page > totalPages) return;
             currentPage = page;
-            applySorting(false);
-            updateSelectAllCheckbox();
+            loadNodes();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -1116,10 +1142,22 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         }
 
         // Edit node - show modal
-        function editNode(id) {
-            const node = allNodes.find(n => n.id === id);
-            if (!node) return;
-            
+        async function editNode(id) {
+            let node = allNodes.find(n => n.id === id);
+            if (!node) {
+                // Node not on current page — fetch from API
+                try {
+                    const response = await fetch(`${API_BASE}?id=${id}`, {
+                        headers: { 'X-API-Key': API_KEY }
+                    });
+                    if (!response.ok) throw new Error('Failed to fetch node');
+                    node = await response.json();
+                } catch (e) {
+                    showMessage('Error loading node: ' + e.message, 'error');
+                    return;
+                }
+            }
+
             editingNodeId = id;
             
             // Populate basic fields
@@ -2070,7 +2108,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <div class="modal-box bg-white">
             <h3 class="font-bold text-xl mb-4 text-gray-800">Move Nodes</h3>
             <p class="text-gray-600 mb-4">Move <span id="bulk-move-count" class="font-bold">0</span> selected nodes to another constellation.</p>
-            
+
             <div class="mb-6">
                 <label for="bulk-move-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Constellation</label>
                 <select id="bulk-move-constellation" class="select select-bordered select-sm w-full bg-white">
@@ -2083,6 +2121,53 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             <div class="modal-action">
                 <button onclick="bulkMove()" class="btn btn-neutral">Move Nodes</button>
                 <button type="button" class="btn" onclick="document.getElementById('bulk_move_modal').close()">Cancel</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Duplicate Node Modal -->
+    <dialog id="duplicate_node_modal" class="modal">
+        <div class="modal-box bg-white">
+            <h3 class="font-bold text-xl mb-4 text-gray-800">Duplicate Node</h3>
+            <input type="hidden" id="duplicate-source-id" value="">
+            <p class="text-gray-600 mb-4">Duplicate "<span id="duplicate-source-name" class="font-semibold"></span>" to:</p>
+
+            <div class="mb-6">
+                <label for="duplicate-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Constellation</label>
+                <select id="duplicate-constellation" class="select select-bordered select-sm w-full bg-white">
+                    <?php foreach ($constellations as $c): ?>
+                        <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="modal-action">
+                <button onclick="confirmDuplicate()" class="btn btn-neutral">Duplicate</button>
+                <button type="button" class="btn" onclick="document.getElementById('duplicate_node_modal').close()">Cancel</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Bulk Duplicate Modal -->
+    <dialog id="bulk_duplicate_modal" class="modal">
+        <div class="modal-box bg-white">
+            <h3 class="font-bold text-xl mb-4 text-gray-800">Duplicate Nodes</h3>
+            <p class="text-gray-600 mb-4">Duplicate <span id="bulk-duplicate-count" class="font-bold">0</span> selected nodes to:</p>
+
+            <div class="mb-6">
+                <label for="bulk-duplicate-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Constellation</label>
+                <select id="bulk-duplicate-constellation" class="select select-bordered select-sm w-full bg-white">
+                    <?php foreach ($constellations as $c): ?>
+                        <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="modal-action">
+                <button onclick="bulkDuplicate()" class="btn btn-neutral">Duplicate Nodes</button>
+                <button type="button" class="btn" onclick="document.getElementById('bulk_duplicate_modal').close()">Cancel</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
