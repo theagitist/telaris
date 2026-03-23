@@ -149,6 +149,29 @@ Each cluster appears as a special 3D node. Clicking drills in; back button and b
 
 **Media downloads:** Use the content hash from the API's `content[].hash_sum` field: `{api_base}/{galaxia_slug}/{mucua_slug}/acervo/download/{item_slug}/{hash_sum}`.
 
+### Node Duplication
+
+Nodes can be duplicated (single or bulk) to the same or a different constellation via the editor. The API accepts `POST` with `{ "duplicate_from": nodeId, "constellation_id": targetId }`. Duplicated nodes get a "(Copy)" name suffix, fresh random animation, and all keyword associations copied. Import metadata (`import_slug`, `mucua_name`, etc.) is NOT copied.
+
+### Server-Side Pagination
+
+The editor and admin console use server-side pagination for large datasets:
+
+**Nodes API** (`api/nodes.php`):
+- `?page=N&per_page=N&sort=COLUMN&order=asc|desc&filter=TEXT` — paginated envelope `{nodes, total, page, per_page}`
+- `?id=N` — single node fetch (for edit modal)
+- Without `?page=`, returns the flat array (used by the 3D frontend)
+
+**Constellations API** (`api/constellations.php`):
+- `?page=N&per_page=N&sort=COLUMN&order=asc|desc&filter=TEXT` — paginated envelope `{constellations, total, page, per_page}` with `node_count` and `is_default` fields
+- Without `?page=`, returns the flat array (used by dropdowns, 3D frontend)
+
+### Performance Optimizations
+
+- `db_format_nodes_bulk()` / `db_get_keywords_for_nodes_bulk()` — batch keyword loading in a single query instead of one per node (N+1 fix)
+- `db_get_connections()` uses an inverted index algorithm (keyword→nodes map) instead of O(n²) pairwise comparison
+- `db_get_nodes_by_import_slug()` uses bulk keyword loading for import diff computation
+
 ### Global Search
 
 The search bar queries all nodes in the constellation (not just visible ones) via `&search=QUERY` on the nodes API. Results include `cluster_path` so clicking a result navigates to the correct cluster level.

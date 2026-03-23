@@ -254,12 +254,18 @@ tests/
 - Orbit controls for camera navigation (drag to rotate, scroll to zoom).
 - Idle auto-rotation - the scene slowly rotates when the user is inactive.
 - Real-time data loading from API.
+- **Editor**: Server-side paginated node list with sortable columns, debounced search, kebab dropdown action menus (Edit, Duplicate, Delete), and bulk operations (Move, Duplicate, Delete).
+- **Admin Console**: Server-side paginated constellation list with sortable node count column, kebab dropdown action menus (Edit, View, Copy URL, Duplicate, Refresh, Delete).
 
 ### Backend
 - Database-driven node management.
+- **Node Duplication**: Duplicate nodes (single or bulk) to the same or a different constellation, copying all content and keyword associations.
 - Keywords system for tagging and categorizing nodes.
 - Many-to-many relationship between nodes and keywords.
-- Automatic connection calculation based on shared keywords.
+- Automatic connection calculation based on shared keywords (using inverted index algorithm).
+- **Server-Side Pagination**: Nodes and constellations APIs support paginated, sorted, and filtered queries for efficient handling of large datasets (10K+ nodes).
+- **Bulk Keyword Loading**: Optimized database access with batch queries to eliminate N+1 performance issues.
+- **Constellation Refresh**: Imported constellations can be refreshed directly from the admin dropdown with in-modal confirmation.
 - User authentication and authorization with secure password hashing (bcrypt).
 - API key authentication for API endpoints.
 
