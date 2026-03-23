@@ -946,8 +946,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 <label tabindex="0" onclick="event.stopPropagation(); closeAllDropdowns(this)" class="btn btn-ghost btn-xs px-1.5">
                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
                                 </label>
-                                <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-36">
-                                    <li><a onclick="event.stopPropagation(); editNode(${node.id})" class="text-gray-700 text-xs">Edit</a></li>
+                                <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-44">
+                                    <li><a onclick="event.stopPropagation(); viewNode(${node.id})" class="text-gray-700 text-xs">View Node</a></li>
+                                    <li><a onclick="event.stopPropagation(); viewConstellation(${node.constellation_id})" class="text-gray-700 text-xs">View Constellation</a></li>
+                                    <li class="border-t border-gray-100 mt-1 pt-1"><a onclick="event.stopPropagation(); editNode(${node.id})" class="text-gray-700 text-xs">Edit</a></li>
                                     <li><a onclick="event.stopPropagation(); openDuplicateModal(${node.id})" class="text-gray-700 text-xs">Duplicate</a></li>
                                     <li class="node-edit-action"><a onclick="event.stopPropagation(); deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="text-red-600 text-xs">Delete</a></li>
                                 </ul>
@@ -1141,6 +1143,180 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
         }
 
+        // View node - preview modal
+        async function viewNode(id) {
+            let node = allNodes.find(n => n.id === id);
+            if (!node) {
+                try {
+                    const res = await fetch(`${NODES_API}?id=${id}`, { headers: { 'X-API-Key': API_KEY } });
+                    if (res.ok) node = await res.json();
+                } catch (e) { /* ignore */ }
+            }
+            if (!node) return;
+
+            const title = document.getElementById('preview-title');
+            const image = document.getElementById('preview-image');
+            const imageWrap = document.getElementById('preview-image-wrap');
+            const imageAttr = document.getElementById('preview-image-attribution');
+            const embed = document.getElementById('preview-embed');
+            const embedWrap = document.getElementById('preview-embed-wrap');
+            const video = document.getElementById('preview-video');
+            const videoWrap = document.getElementById('preview-video-wrap');
+            const audio = document.getElementById('preview-audio');
+            const audioWrap = document.getElementById('preview-audio-wrap');
+            const desc = document.getElementById('preview-description');
+            const urlWrap = document.getElementById('preview-url-wrap');
+            const urlBtn = document.getElementById('preview-url-button');
+            const kwWrap = document.getElementById('preview-keywords-wrap');
+            const kwEl = document.getElementById('preview-keywords');
+
+            title.textContent = node.name || '';
+
+            // Ensure relative upload paths resolve correctly from /edit/
+            const absUrl = (url) => url && url.startsWith('uploads/') ? '/' + url : url;
+
+            if (node.image_url) {
+                image.src = absUrl(node.image_url);
+                imageWrap.classList.remove('hidden');
+                if (node.image_attribution) {
+                    imageAttr.textContent = node.image_attribution;
+                    imageAttr.classList.remove('hidden');
+                } else {
+                    imageAttr.classList.add('hidden');
+                }
+            } else {
+                imageWrap.classList.add('hidden');
+            }
+
+            if (node.embed_code) {
+                const tmp = document.createElement('div');
+                tmp.innerHTML = node.embed_code;
+                embed.innerHTML = '';
+                tmp.querySelectorAll('iframe').forEach(iframe => {
+                    const src = iframe.getAttribute('src') || '';
+                    if (src.match(/^https?:\/\//i)) embed.appendChild(iframe.cloneNode(true));
+                });
+                embedWrap.classList.toggle('hidden', embed.children.length === 0);
+            } else {
+                embedWrap.classList.add('hidden');
+                embed.innerHTML = '';
+            }
+
+            if (node.video_url) {
+                video.src = absUrl(node.video_url);
+                video.load();
+                videoWrap.classList.remove('hidden');
+            } else {
+                video.src = '';
+                video.load();
+                videoWrap.classList.add('hidden');
+            }
+
+            if (node.audio_url) {
+                audio.src = absUrl(node.audio_url);
+                audio.loop = !!node.audio_loop;
+                audio.load();
+                audioWrap.classList.remove('hidden');
+
+                const playPauseBtn = document.getElementById('preview-audio-play-pause');
+                const stopBtn = document.getElementById('preview-audio-stop');
+                const playIcon = document.getElementById('preview-play-icon');
+                const pauseIcon = document.getElementById('preview-pause-icon');
+                const progressBar = document.getElementById('preview-audio-progress');
+                const progressContainer = document.getElementById('preview-audio-progress-container');
+                const timeDisplay = document.getElementById('preview-audio-time');
+
+                const updateTime = () => {
+                    if (!audio.duration) return;
+                    const pct = (audio.currentTime / audio.duration) * 100;
+                    progressBar.style.width = pct + '%';
+                    const mins = Math.floor(audio.currentTime / 60);
+                    const secs = Math.floor(audio.currentTime % 60);
+                    timeDisplay.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+                };
+
+                audio.onplay = () => { playIcon.classList.add('hidden'); pauseIcon.classList.remove('hidden'); };
+                audio.onpause = () => { playIcon.classList.remove('hidden'); pauseIcon.classList.add('hidden'); };
+                audio.onended = () => { playIcon.classList.remove('hidden'); pauseIcon.classList.add('hidden'); progressBar.style.width = '0%'; };
+                audio.ontimeupdate = updateTime;
+
+                playPauseBtn.onclick = () => { if (audio.paused) audio.play(); else audio.pause(); };
+                stopBtn.onclick = () => { audio.pause(); audio.currentTime = 0; };
+                progressContainer.onclick = (e) => {
+                    const rect = progressContainer.getBoundingClientRect();
+                    audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+                };
+
+                audio.play().catch(() => {});
+            } else {
+                audio.pause();
+                audio.onplay = null;
+                audio.onpause = null;
+                audio.onended = null;
+                audio.ontimeupdate = null;
+                audio.src = '';
+                audioWrap.classList.add('hidden');
+            }
+
+            desc.textContent = node.description || '';
+            desc.classList.toggle('hidden', !node.description);
+
+            if (node.url) {
+                urlBtn.href = node.url;
+                urlWrap.classList.remove('hidden');
+            } else {
+                urlWrap.classList.add('hidden');
+            }
+
+            const kws = node.keywords || [];
+            if (kws.length > 0) {
+                const pastelBgs = [
+                    'rgba(254,202,202,0.25)', 'rgba(254,215,170,0.25)', 'rgba(253,230,138,0.25)',
+                    'rgba(254,240,138,0.25)', 'rgba(217,249,157,0.25)', 'rgba(187,247,208,0.25)',
+                    'rgba(167,243,208,0.25)', 'rgba(153,246,228,0.25)', 'rgba(165,243,252,0.25)',
+                    'rgba(186,230,253,0.25)', 'rgba(191,219,254,0.25)', 'rgba(199,210,254,0.25)',
+                    'rgba(221,214,254,0.25)', 'rgba(233,213,255,0.25)', 'rgba(245,208,254,0.25)',
+                    'rgba(251,207,232,0.25)', 'rgba(254,205,211,0.25)'
+                ];
+                const pastelText = [
+                    '#fca5a5', '#fdba74', '#fcd34d', '#fde047', '#bef264', '#86efac',
+                    '#6ee7b7', '#5eead4', '#67e8f9', '#7dd3fc', '#93c5fd', '#a5b4fc',
+                    '#c4b5fd', '#d8b4fe', '#f0abfc', '#f9a8d4', '#fda4af'
+                ];
+                kwEl.innerHTML = '';
+                kws.forEach(k => {
+                    let hash = 0;
+                    for (let i = 0; i < k.length; i++) hash = k.charCodeAt(i) + ((hash << 5) - hash);
+                    const idx = Math.abs(hash) % pastelBgs.length;
+                    const span = document.createElement('span');
+                    span.style.cssText = `background:${pastelBgs[idx]};color:${pastelText[idx]};border:1px solid ${pastelText[idx]}40;padding:2px 10px;border-radius:9999px;font-size:0.75rem;font-weight:500;`;
+                    span.textContent = `#${k}`;
+                    kwEl.appendChild(span);
+                });
+                kwWrap.classList.remove('hidden');
+            } else {
+                kwWrap.classList.add('hidden');
+            }
+
+            const modal = document.getElementById('view_node_modal');
+            modal.showModal();
+            modal.onclose = () => {
+                const a = document.getElementById('preview-audio');
+                if (a) { a.pause(); a.onplay = null; a.onpause = null; a.onended = null; a.ontimeupdate = null; a.src = ''; }
+                const v = document.getElementById('preview-video');
+                if (v) { v.pause(); v.src = ''; v.load(); }
+                const e = document.getElementById('preview-embed');
+                if (e) e.innerHTML = '';
+            };
+        }
+
+        // View constellation - open in new tab
+        function viewConstellation(constellationId) {
+            const c = CONSTELLATIONS.find(c => c.id === constellationId);
+            const path = c && c.slug ? `/${c.slug}` : `/${constellationId}`;
+            window.open(path, '_blank');
+        }
+
         // Edit node - show modal
         async function editNode(id) {
             let node = allNodes.find(n => n.id === id);
@@ -1200,6 +1376,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 imageExisting.classList.add('hidden');
                 imageUrlInput.value = node.image_url || '';
             }
+            document.getElementById('edit-image-attribution').value = node.image_attribution || '';
 
             // Handle audio fields
             const audioFileWrap = document.getElementById('edit-audio-file-wrap');
@@ -1297,6 +1474,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('url', document.getElementById('edit-url').value.trim());
             
             formData.append('image_url', document.getElementById('edit-image-url').value.trim());
+            formData.append('image_attribution', document.getElementById('edit-image-attribution').value.trim());
             formData.append('embed_code', document.getElementById('edit-embed-code').value.trim());
             formData.append('is_accentuated', document.getElementById('edit-accentuated').checked ? 1 : 0);
             formData.append('show_keywords', document.getElementById('edit-show-keywords').checked ? 1 : 0);
@@ -1381,7 +1559,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
                 if (xhr.status >= 200 && xhr.status < 300) {
                     document.getElementById(modalId).close();
-                    showMessage(`Node ${context === 'edit' ? 'updated' : 'created'} successfully`);
+                    let successMsg = `Node ${context === 'edit' ? 'updated' : 'created'} successfully`;
+                    try {
+                        const resp = JSON.parse(xhr.responseText);
+                        if (resp.notice) successMsg += '. ' + resp.notice;
+                    } catch (e) {}
+                    showMessage(successMsg);
                     loadNodes();
                 } else {
                     let errorMsg = `Failed to ${context === 'edit' ? 'update' : 'create'} node`;
@@ -1533,6 +1716,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('description', document.getElementById('node-description').value.trim());
             formData.append('url', document.getElementById('node-url').value.trim());
             formData.append('image_url', document.getElementById('node-image-url').value.trim());
+            formData.append('image_attribution', document.getElementById('node-image-attribution').value.trim());
             formData.append('embed_code', document.getElementById('node-embed-code').value.trim());
             formData.append('is_accentuated', document.getElementById('node-accentuated').checked ? 1 : 0);
             formData.append('show_keywords', document.getElementById('node-show-keywords').checked ? 1 : 0);
@@ -1855,8 +2039,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <div>
                         <label for="node-image-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Image URL / File</label>
                         <input type="text" id="node-image-url" name="image_url" placeholder="https://example.com/image.jpg" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                        <input type="file" id="node-image-file" name="image_file" accept="image/*" class="text-xs">
+                        <input type="file" id="node-image-file" name="image_file" accept="image/*,video/*" class="text-xs">
                         <span class="text-xs text-gray-500 mt-1 block">Upload an image or provide a link to be displayed.</span>
+                        <input type="text" id="node-image-attribution" name="image_attribution" placeholder="Photo by..." class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-2" maxlength="255">
+                        <span class="text-xs text-gray-500 mt-0.5 block">Attribution text shown on the image (optional).</span>
                     </div>
                     <div>
                         <label for="node-icon-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Icon URL / File</label>
@@ -1998,12 +2184,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Image URL / File</label>
                         <div id="edit-image-file-wrap">
                             <input type="text" id="edit-image-url" name="image_url" placeholder="https://example.com/image.jpg" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="edit-image-file" name="image_file" accept="image/*" class="text-xs">
+                            <input type="file" id="edit-image-file" name="image_file" accept="image/*,video/*" class="text-xs">
                         </div>
                         <div id="edit-image-existing" class="hidden flex items-center gap-2 mb-2">
                             <input type="text" id="edit-image-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
                             <button type="button" onclick="deleteModalFile('image')" class="btn btn-error btn-sm btn-outline">Delete</button>
                         </div>
+                        <input type="text" id="edit-image-attribution" name="image_attribution" placeholder="Photo by..." class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-2" maxlength="255">
+                        <span class="text-xs text-gray-500 mt-0.5 block">Attribution text shown on the image (optional).</span>
                     </div>
                     <div id="edit-icon-container">
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Icon URL / File</label>
@@ -2168,6 +2356,76 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             <div class="modal-action">
                 <button onclick="bulkDuplicate()" class="btn btn-neutral">Duplicate Nodes</button>
                 <button type="button" class="btn" onclick="document.getElementById('bulk_duplicate_modal').close()">Cancel</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- View Node Preview Modal -->
+    <dialog id="view_node_modal" class="modal">
+        <div class="modal-box max-w-2xl p-0 bg-[#0a0a0c]/90 border border-white/20 text-white" style="box-shadow: 0 0 50px -10px rgba(0, 255, 204, 0.3);">
+            <!-- Close Button -->
+            <form method="dialog">
+                <button class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-10 bg-transparent border-none p-0 cursor-pointer">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </form>
+
+            <!-- Content -->
+            <div class="p-6 md:p-8">
+                <h3 id="preview-title" class="text-2xl font-bold mb-4 tracking-tight uppercase border-b-2 border-white/20 pb-2"></h3>
+                <div class="space-y-6">
+                    <!-- Image -->
+                    <div id="preview-image-wrap" class="hidden relative">
+                        <img id="preview-image" src="" alt="" class="w-full h-auto rounded-md border border-white/20">
+                        <span id="preview-image-attribution" class="hidden absolute bottom-1 right-1 text-[10px] text-white/80 bg-black/50 px-1.5 py-0.5 rounded pointer-events-none"></span>
+                    </div>
+
+                    <!-- Embed -->
+                    <div id="preview-embed-wrap" class="hidden aspect-video">
+                        <div id="preview-embed" class="w-full h-full"></div>
+                    </div>
+
+                    <!-- Video -->
+                    <div id="preview-video-wrap" class="hidden">
+                        <video id="preview-video" controls preload="auto" class="w-full h-auto rounded-md border border-white/20" style="width: 100% !important;"></video>
+                    </div>
+
+                    <!-- Audio -->
+                    <div id="preview-audio-wrap" class="hidden">
+                        <audio id="preview-audio" preload="auto"></audio>
+                        <div class="flex items-center gap-4 bg-white/5 border border-white/10 rounded-lg p-3">
+                            <button id="preview-audio-play-pause" class="text-[#00ffcc] hover:opacity-80 transition-opacity">
+                                <svg id="preview-play-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                <svg id="preview-pause-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" class="hidden"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                            </button>
+                            <button id="preview-audio-stop" class="text-[#00ffcc] hover:opacity-80 transition-opacity">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                            </button>
+                            <div class="flex-1 h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer relative" id="preview-audio-progress-container">
+                                <div id="preview-audio-progress" class="absolute top-0 left-0 h-full w-0 bg-[#00ffcc] transition-all duration-100"></div>
+                            </div>
+                            <span id="preview-audio-time" class="text-[10px] font-mono text-[#00ffcc] opacity-50 tabular-nums">0:00</span>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div id="preview-description" class="hidden text-gray-300 leading-relaxed text-sm md:text-base whitespace-pre-wrap max-h-[40vh] overflow-y-auto pr-1" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent;"></div>
+
+                    <!-- Keywords -->
+                    <div id="preview-keywords-wrap" class="hidden">
+                        <div id="preview-keywords" class="flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <!-- URL / Action Button -->
+                    <div id="preview-url-wrap" class="hidden pt-4">
+                        <a id="preview-url-button" href="#" target="_blank" class="block w-full py-3 bg-transparent border border-white/20 text-[#00ffcc] text-xs font-bold uppercase tracking-widest text-center transition-all hover:bg-white/10 rounded no-underline">
+                            Open Link
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>

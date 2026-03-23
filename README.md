@@ -206,7 +206,7 @@ node --test tests/js/*.test.js
 ```
 tests/
   php/
-    bootstrap.php                          # Loads config, db, validation, auth
+    bootstrap.php                          # Loads config, db, validation, auth, media-optimize
     Unit/
       DbSlugifyTest.php                    # db_slugify() edge cases
       ValidateSafeUrlTest.php              # URL scheme validation
@@ -214,6 +214,10 @@ tests/
       SanitizeEmbedCodeTest.php            # iframe allowlist, XSS filtering
       HashPasswordTest.php                 # Hash/verify round-trip
       CspCompatibilityTest.php             # Scans templates for inline event handlers
+      ClusteringTest.php                   # Adaptive clustering, quality checks, hierarchy
+      MocambosSyncTest.php                 # Incremental diff detection for imports
+      MediaOptimizeTest.php                # Image/audio/video optimization, frame extraction
+      FormatNodesBulkTest.php              # Node API output format, field presence
     Integration/
       MigrationAutoIncrementTest.php       # AUTO_INCREMENT + FK migration
       MigrationApiKeysActiveTest.php       # is_active column migration
@@ -224,7 +228,7 @@ tests/
 
 ### What the Tests Cover
 
-**PHP Unit Tests** validate pure functions extracted into `inc/validation.php` and `utils/auth.php` — URL validation, embed code sanitization, node type handling, password hashing, and slug generation. The CSP compatibility test scans public-facing HTML templates for inline event handlers (`onclick=`, `onload=`, etc.) that break nonce-based Content Security Policy.
+**PHP Unit Tests** validate pure functions extracted into `inc/validation.php`, `inc/media-optimize.php`, and `utils/auth.php` — URL validation, embed code sanitization, node type handling, password hashing, slug generation, media optimization (image resize, audio re-encoding, video downscaling, video frame extraction), and node API output format validation. The CSP compatibility test scans public-facing HTML templates for inline event handlers (`onclick=`, `onload=`, etc.) that break nonce-based Content Security Policy.
 
 **PHP Integration Tests** exercise runtime database migrations against a real MySQL connection using temporary test tables (suffixed `_aitest` / `_test`) that are created and dropped per test. The critical test reproduces the AUTO_INCREMENT migration that must drop and re-add foreign keys — the exact scenario that broke production.
 
@@ -254,7 +258,10 @@ tests/
 - Orbit controls for camera navigation (drag to rotate, scroll to zoom).
 - Idle auto-rotation - the scene slowly rotates when the user is inactive.
 - Real-time data loading from API.
-- **Editor**: Server-side paginated node list with sortable columns, debounced search, kebab dropdown action menus (Edit, Duplicate, Delete), and bulk operations (Move, Duplicate, Delete).
+- **Image Attribution Overlay**: Optional text overlay on node images in the info view, showing source credits at the bottom-right corner.
+- **Node Preview**: View Node action in the editor shows a full info box preview (matching the main view's look and feel) with image, audio, video, description, and keywords.
+- **View Constellation**: Quick action to open a node's constellation in the main view from the editor.
+- **Editor**: Server-side paginated node list with sortable columns, debounced search, kebab dropdown action menus (View Node, View Constellation, Edit, Duplicate, Delete), and bulk operations (Move, Duplicate, Delete).
 - **Admin Console**: Server-side paginated constellation list with sortable node count column, kebab dropdown action menus (Edit, View, Copy URL, Duplicate, Refresh, Delete).
 
 ### Backend
@@ -264,12 +271,25 @@ tests/
 - Many-to-many relationship between nodes and keywords.
 - Automatic connection calculation based on shared keywords (using inverted index algorithm).
 - **Server-Side Pagination**: Nodes and constellations APIs support paginated, sorted, and filtered queries for efficient handling of large datasets (10K+ nodes).
+- **Media Optimization**: Uploaded images are resized to 1344px (2x retina), icons to 256px; audio is re-encoded to mono 128kbps; video is downscaled to 720p H.264 CRF 28. All optimization is in-place and silent on failure.
+- **Video Frame Extraction**: Uploading a video file in the image field automatically extracts the first frame as a JPEG thumbnail (supports MP4, MOV, AVI, MKV, WebM, and other formats).
+- **Uploaded File Serving**: Media files stored outside the document root are served via a PHP proxy (`serve-upload.php`) with MIME detection, HTTP Range support for audio/video seeking, and directory traversal protection.
 - **Bulk Keyword Loading**: Optimized database access with batch queries to eliminate N+1 performance issues.
 - **Constellation Refresh**: Imported constellations can be refreshed directly from the admin dropdown with in-modal confirmation.
 - User authentication and authorization with secure password hashing (bcrypt).
 - API key authentication for API endpoints.
 
 ## Version History
+
+### Version 6.2.0
+- **Image Attribution**: New optional attribution text field on nodes, displayed as a small overlay at the bottom-right corner of images in the info view and node preview.
+- **Node Preview**: Added "View Node" action in the editor that opens a preview modal matching the main info view's dark theme, custom audio player, colored keyword badges, and all media types.
+- **View Constellation**: Added "View Constellation" action in the editor that opens the node's constellation in a new tab.
+- **Media Optimization**: All uploaded media files are automatically optimized — images resized to retina-ready dimensions (1344px for info box, 256px for icons), audio re-encoded to mono 128kbps, video downscaled to 720p H.264 CRF 28. Uses ImageMagick, jpegoptim, optipng, cwebp, and ffmpeg; silently skips if tools are unavailable.
+- **Video-to-Image Extraction**: Uploading a video file in the image field extracts the first frame as a JPEG. Supports MP4, MOV, AVI, MKV, WebM, and other common video formats.
+- **Upload File Serving**: Added `serve-upload.php` to serve media files from external storage with proper MIME types, HTTP Range request support (required for audio/video seeking), caching headers, and directory traversal protection.
+- **Database**: Added `image_attribution` column to nodes table with runtime migration for existing installations.
+- **Tests**: Added MediaOptimizeTest (image resize, audio mono conversion, video downscale, frame extraction, skip conditions, error handling) and FormatNodesBulkTest (node API output format, field presence, boolean casting). Total: 105 tests, 296 assertions.
 
 ### Version 5.4.7
 - **Tech Theme**: Fully realized immersive 3D corridor background with structural geometry (ceiling, floor, walls, frame rings, energy beams, PCB traces, floating panels) converging to symmetric vanishing points at both ends of the hallway.

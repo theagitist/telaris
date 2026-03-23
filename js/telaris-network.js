@@ -163,11 +163,21 @@ class TelarisNetwork {
 
         // Image
         if (imageWrap && imageEl) {
+            const attrEl = document.getElementById('rm-image-attribution');
             if (d.image_url) {
                 imageEl.src = d.image_url;
                 imageWrap.classList.remove('hidden');
+                if (attrEl) {
+                    if (d.image_attribution) {
+                        attrEl.textContent = d.image_attribution;
+                        attrEl.style.display = '';
+                    } else {
+                        attrEl.style.display = 'none';
+                    }
+                }
             } else {
                 imageWrap.classList.add('hidden');
+                if (attrEl) attrEl.style.display = 'none';
             }
         }
 
@@ -2614,6 +2624,7 @@ class TelarisNetwork {
                     keywords: data.keywords || [],
                     url: data.url,
                     image_url: data.image_url,
+                    image_attribution: data.image_attribution || null,
                     embed_code: data.embed_code,
                     audio_url: data.audio_url,
                     audio_autoplay: !!data.audio_autoplay,

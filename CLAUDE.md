@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Telaris** — a 3D interactive node network visualization application. The PHP/MySQL backend serves data through a REST API; the frontend renders a Three.js 3D scene with nodes, connections, and themes directly in the browser.
 
-Current version: **6.0.1** (tracked in `VERSION` file).
+Current version: **6.2.0** (tracked in `VERSION` file).
 
 ## Tech Stack
 

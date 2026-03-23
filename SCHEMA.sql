@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     description TEXT,
     url VARCHAR(500) NULL,
     image_url VARCHAR(500) NULL,
+    image_attribution VARCHAR(255) NULL,
     icon_url VARCHAR(500) NULL,
     embed_code TEXT NULL,
     audio_url VARCHAR(500) NULL,

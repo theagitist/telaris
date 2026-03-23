@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../utils/auth.php';
 require_once __DIR__ . '/../inc/clustering.php';
+require_once __DIR__ . '/../inc/media-optimize.php';
 
 // Set clustering labels from locale
 $_locale = 'en';
@@ -322,6 +323,7 @@ try {
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
             $showKeywords = isset($data['show_keywords']) ? (bool)$data['show_keywords'] : false;
             $iconUrl = (isset($data['icon_url']) && !empty(trim((string)$data['icon_url']))) ? trim((string)$data['icon_url']) : null;
+            $imageAttribution = (isset($data['image_attribution']) && !empty(trim((string)$data['image_attribution']))) ? trim((string)$data['image_attribution']) : null;
 
             // Mutual exclusivity: uploaded files take precedence; otherwise URL values decide
             if (isset($_FILES['video_file']) && $_FILES['video_file']['error'] === UPLOAD_ERR_OK) {
@@ -334,7 +336,7 @@ try {
                 $videoUrl = null;
             }
 
-            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl);
+            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution);
             if ($nodeId === 0) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to create node: Could not retrieve node ID'], JSON_THROW_ON_ERROR);
@@ -353,24 +355,54 @@ try {
             }
 
             $uploadedFiles = false;
+            $uploadNotice = null;
             if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
                 $detectedMime = '';
                 $err = validateUploadedFile($_FILES['image_file'], ALLOWED_IMAGE_MIMES, MAX_IMAGE_BYTES, $detectedMime);
                 if ($err !== null) {
-                    http_response_code(400);
-                    echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
-                    return;
-                }
-                $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
-                $imageRelPath = "{$nodeRelDir}/image.{$ext}";
-                $imageFullPath = "{$nodeFullDir}/image.{$ext}";
-                if (move_uploaded_file($_FILES['image_file']['tmp_name'], $imageFullPath)) {
-                    $imageUrl = $imageRelPath;
-                    $uploadedFiles = true;
+                    // Check if the file is a video — extract first frame as the image
+                    $videoMime = '';
+                    $videoErr = validateUploadedFile($_FILES['image_file'], FRAME_EXTRACTABLE_VIDEO_MIMES, MAX_VIDEO_BYTES, $videoMime);
+                    if ($videoErr === null) {
+                        $tmpVideo = $nodeFullDir . '/tmp_video_frame.' . (MIME_TO_EXT[$videoMime] ?? 'mp4');
+                        if (move_uploaded_file($_FILES['image_file']['tmp_name'], $tmpVideo)) {
+                            $imageRelPath = "{$nodeRelDir}/image.jpg";
+                            $imageFullPath = "{$nodeFullDir}/image.jpg";
+                            if (extract_video_frame($tmpVideo, $imageFullPath)) {
+                                optimize_image($imageFullPath);
+                                $imageUrl = $imageRelPath;
+                                $uploadedFiles = true;
+                                $uploadNotice = 'A video was uploaded as the image. The first frame was extracted and used instead.';
+                            } else {
+                                @unlink($tmpVideo);
+                                http_response_code(400);
+                                echo json_encode(['error' => 'Could not extract a frame from the uploaded video'], JSON_THROW_ON_ERROR);
+                                return;
+                            }
+                            @unlink($tmpVideo);
+                        } else {
+                            http_response_code(500);
+                            echo json_encode(['error' => 'Failed to save uploaded file'], JSON_THROW_ON_ERROR);
+                            return;
+                        }
+                    } else {
+                        http_response_code(400);
+                        echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                        return;
+                    }
                 } else {
-                    http_response_code(500);
-                    echo json_encode(['error' => 'Failed to save uploaded image'], JSON_THROW_ON_ERROR);
-                    return;
+                    $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
+                    $imageRelPath = "{$nodeRelDir}/image.{$ext}";
+                    $imageFullPath = "{$nodeFullDir}/image.{$ext}";
+                    if (move_uploaded_file($_FILES['image_file']['tmp_name'], $imageFullPath)) {
+                        optimize_image($imageFullPath);
+                        $imageUrl = $imageRelPath;
+                        $uploadedFiles = true;
+                    } else {
+                        http_response_code(500);
+                        echo json_encode(['error' => 'Failed to save uploaded image'], JSON_THROW_ON_ERROR);
+                        return;
+                    }
                 }
             }
             if (isset($_FILES['icon_file']) && $_FILES['icon_file']['error'] === UPLOAD_ERR_OK) {
@@ -385,6 +417,7 @@ try {
                 $iconRelPath = "{$nodeRelDir}/icon.{$ext}";
                 $iconFullPath = "{$nodeFullDir}/icon.{$ext}";
                 if (move_uploaded_file($_FILES['icon_file']['tmp_name'], $iconFullPath)) {
+                    optimize_icon($iconFullPath);
                     $iconUrl = $iconRelPath;
                     $uploadedFiles = true;
                 } else {
@@ -405,6 +438,7 @@ try {
                 $audioRelPath = "{$nodeRelDir}/audio.{$ext}";
                 $audioFullPath = "{$nodeFullDir}/audio.{$ext}";
                 if (move_uploaded_file($_FILES['audio_file']['tmp_name'], $audioFullPath)) {
+                    optimize_audio($audioFullPath);
                     $audioUrl = $audioRelPath;
                     $videoUrl = null; // Ensure exclusivity
                     $uploadedFiles = true;
@@ -426,6 +460,7 @@ try {
                 $videoRelPath = "{$nodeRelDir}/video.{$ext}";
                 $videoFullPath = "{$nodeFullDir}/video.{$ext}";
                 if (move_uploaded_file($_FILES['video_file']['tmp_name'], $videoFullPath)) {
+                    optimize_video($videoFullPath);
                     $videoUrl = $videoRelPath;
                     $audioUrl = null; // Ensure exclusivity
                     $uploadedFiles = true;
@@ -437,14 +472,16 @@ try {
             }
 
             if ($uploadedFiles) {
-                db_update_node($nodeId, $name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl);
+                db_update_node($nodeId, $name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution);
             }
 
             if (isset($data['keywords'])) {
                 $keywords = is_array($data['keywords']) ? $data['keywords'] : explode(',', (string)$data['keywords']);
                 db_save_node_keywords($nodeId, $keywords);
             }
-            echo json_encode(['id' => $nodeId, 'success' => true], JSON_THROW_ON_ERROR);
+            $result = ['id' => $nodeId, 'success' => true];
+            if ($uploadNotice !== null) $result['notice'] = $uploadNotice;
+            echo json_encode($result, JSON_THROW_ON_ERROR);
         })(),
 
         'PUT' => (function(): void {
@@ -507,6 +544,7 @@ try {
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
             $showKeywords = isset($data['show_keywords']) ? (bool)$data['show_keywords'] : false;
             $iconUrl = (isset($data['icon_url']) && !empty(trim((string)$data['icon_url']))) ? trim((string)$data['icon_url']) : null;
+            $imageAttribution = (isset($data['image_attribution']) && !empty(trim((string)$data['image_attribution']))) ? trim((string)$data['image_attribution']) : null;
 
             // Mutual exclusivity logic for PUT
             $hasAudioFile = isset($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK;
@@ -538,23 +576,52 @@ try {
                     }
                 }
 
+                $uploadNotice = null;
                 if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
                     $detectedMime = '';
                     $err = validateUploadedFile($_FILES['image_file'], ALLOWED_IMAGE_MIMES, MAX_IMAGE_BYTES, $detectedMime);
                     if ($err !== null) {
-                        http_response_code(400);
-                        echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
-                        return;
-                    }
-                    $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
-                    $imageRelPath = "{$nodeRelDir}/image.{$ext}";
-                    $imageFullPath = "{$nodeFullDir}/image.{$ext}";
-                    if (move_uploaded_file($_FILES['image_file']['tmp_name'], $imageFullPath)) {
-                        $imageUrl = $imageRelPath;
+                        // Check if the file is a video — extract first frame
+                        $videoMime = '';
+                        $videoErr = validateUploadedFile($_FILES['image_file'], FRAME_EXTRACTABLE_VIDEO_MIMES, MAX_VIDEO_BYTES, $videoMime);
+                        if ($videoErr === null) {
+                            $tmpVideo = $nodeFullDir . '/tmp_video_frame.' . (MIME_TO_EXT[$videoMime] ?? 'mp4');
+                            if (move_uploaded_file($_FILES['image_file']['tmp_name'], $tmpVideo)) {
+                                $imageRelPath = "{$nodeRelDir}/image.jpg";
+                                $imageFullPath = "{$nodeFullDir}/image.jpg";
+                                if (extract_video_frame($tmpVideo, $imageFullPath)) {
+                                    optimize_image($imageFullPath);
+                                    $imageUrl = $imageRelPath;
+                                    $uploadNotice = 'A video was uploaded as the image. The first frame was extracted and used instead.';
+                                } else {
+                                    @unlink($tmpVideo);
+                                    http_response_code(400);
+                                    echo json_encode(['error' => 'Could not extract a frame from the uploaded video'], JSON_THROW_ON_ERROR);
+                                    return;
+                                }
+                                @unlink($tmpVideo);
+                            } else {
+                                http_response_code(500);
+                                echo json_encode(['error' => 'Failed to save uploaded file'], JSON_THROW_ON_ERROR);
+                                return;
+                            }
+                        } else {
+                            http_response_code(400);
+                            echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                            return;
+                        }
                     } else {
-                        http_response_code(500);
-                        echo json_encode(['error' => 'Failed to save uploaded image'], JSON_THROW_ON_ERROR);
-                        return;
+                        $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
+                        $imageRelPath = "{$nodeRelDir}/image.{$ext}";
+                        $imageFullPath = "{$nodeFullDir}/image.{$ext}";
+                        if (move_uploaded_file($_FILES['image_file']['tmp_name'], $imageFullPath)) {
+                            optimize_image($imageFullPath);
+                            $imageUrl = $imageRelPath;
+                        } else {
+                            http_response_code(500);
+                            echo json_encode(['error' => 'Failed to save uploaded image'], JSON_THROW_ON_ERROR);
+                            return;
+                        }
                     }
                 }
                 if ($hasIconFile) {
@@ -569,6 +636,7 @@ try {
                     $iconRelPath = "{$nodeRelDir}/icon.{$ext}";
                     $iconFullPath = "{$nodeFullDir}/icon.{$ext}";
                     if (move_uploaded_file($_FILES['icon_file']['tmp_name'], $iconFullPath)) {
+                        optimize_icon($iconFullPath);
                         $iconUrl = $iconRelPath;
                     } else {
                         http_response_code(500);
@@ -588,6 +656,7 @@ try {
                     $audioRelPath = "{$nodeRelDir}/audio.{$ext}";
                     $audioFullPath = "{$nodeFullDir}/audio.{$ext}";
                     if (move_uploaded_file($_FILES['audio_file']['tmp_name'], $audioFullPath)) {
+                        optimize_audio($audioFullPath);
                         $audioUrl = $audioRelPath;
                         $videoUrl = null; // Enforce exclusivity
                     } else {
@@ -608,6 +677,7 @@ try {
                     $videoRelPath = "{$nodeRelDir}/video.{$ext}";
                     $videoFullPath = "{$nodeFullDir}/video.{$ext}";
                     if (move_uploaded_file($_FILES['video_file']['tmp_name'], $videoFullPath)) {
+                        optimize_video($videoFullPath);
                         $videoUrl = $videoRelPath;
                         $audioUrl = null; // Enforce exclusivity
                     } else {
@@ -618,12 +688,14 @@ try {
                 }
             }
 
-            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl);
+            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution);
             if (isset($data['keywords'])) {
                 $keywords = is_array($data['keywords']) ? $data['keywords'] : explode(',', (string)$data['keywords']);
                 db_save_node_keywords((int)$id, $keywords);
             }
-            echo json_encode(['success' => true], JSON_THROW_ON_ERROR);
+            $putResult = ['success' => true];
+            if (isset($uploadNotice) && $uploadNotice !== null) $putResult['notice'] = $uploadNotice;
+            echo json_encode($putResult, JSON_THROW_ON_ERROR);
         })(),
 
         'DELETE' => (function(): void {

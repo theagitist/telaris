@@ -187,8 +187,9 @@ header("X-Content-Type-Options: nosniff");
                     
                     <div id="rm-media-container" class="space-y-6">
                         <!-- Image -->
-                        <div id="rm-image-wrap" class="hidden">
+                        <div id="rm-image-wrap" class="hidden relative">
                             <img id="rm-image" src="" alt="" class="w-full h-auto rounded-md border" style="border-color: var(--node-accent-muted);">
+                            <span id="rm-image-attribution" style="display:none;position:absolute;bottom:0.25rem;right:0.25rem;font-size:10px;color:rgba(255,255,255,0.8);background:rgba(0,0,0,0.5);padding:2px 6px;border-radius:4px;pointer-events:none;"></span>
                         </div>
 
                         <!-- Embed -->

@@ -15,4 +15,5 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 // Load core includes
 require_once __DIR__ . '/../../inc/db.php';
 require_once __DIR__ . '/../../inc/validation.php';
+require_once __DIR__ . '/../../inc/media-optimize.php';
 require_once __DIR__ . '/../../utils/auth.php';

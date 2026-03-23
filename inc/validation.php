@@ -14,6 +14,9 @@ const ALLOWED_IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp
 const ALLOWED_AUDIO_MIMES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/mp4', 'audio/aac', 'audio/webm', 'audio/x-m4a'];
 const ALLOWED_VIDEO_MIMES = ['video/mp4'];
 
+/** Video MIME types accepted for frame extraction (broader than upload — file is discarded after). */
+const FRAME_EXTRACTABLE_VIDEO_MIMES = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm', 'video/mpeg', 'video/3gpp', 'video/x-ms-wmv', 'video/x-flv'];
+
 /** Safe extensions derived from MIME type — avoids trusting client-supplied filenames. */
 const MIME_TO_EXT = [
     'image/jpeg' => 'jpg',
@@ -27,7 +30,15 @@ const MIME_TO_EXT = [
     'audio/aac'  => 'aac',
     'audio/webm' => 'webm',
     'audio/x-m4a' => 'm4a',
-    'video/mp4'  => 'mp4',
+    'video/mp4'       => 'mp4',
+    'video/quicktime' => 'mov',
+    'video/x-msvideo' => 'avi',
+    'video/x-matroska' => 'mkv',
+    'video/webm'      => 'webm',
+    'video/mpeg'      => 'mpeg',
+    'video/3gpp'      => '3gp',
+    'video/x-ms-wmv'  => 'wmv',
+    'video/x-flv'     => 'flv',
 ];
 
 /** Maximum upload sizes. */
