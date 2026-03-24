@@ -2186,7 +2186,20 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <label class="block mb-1.5 text-gray-800 font-medium text-sm">URL</label>
                     <input type="url" id="edit-url" name="url" placeholder="https://example.com" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                 </div>
+                <div class="divider text-gray-400 text-xs">Media</div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div id="edit-icon-container">
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Icon URL / File</label>
+                        <div id="edit-icon-file-wrap">
+                            <input type="text" id="edit-icon-url" name="icon_url" placeholder="https://example.com/icon.png" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="edit-icon-file" name="icon_file" accept="image/*" class="text-xs">
+                        </div>
+                        <div id="edit-icon-existing" class="hidden flex items-center gap-2 mb-2">
+                            <input type="text" id="edit-icon-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
+                            <button type="button" onclick="deleteModalFile('icon')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                        </div>
+                        <span class="text-xs text-gray-500 mt-1 block">Custom icon displayed in the 3D scene (overrides theme icon).</span>
+                    </div>
                     <div id="edit-image-container">
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Image URL / File</label>
                         <div id="edit-image-file-wrap">
@@ -2199,18 +2212,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </div>
                         <input type="text" id="edit-image-attribution" name="image_attribution" placeholder="Photo by..." class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-2" maxlength="255">
                         <span class="text-xs text-gray-500 mt-0.5 block">Attribution text shown on the image (optional).</span>
-                    </div>
-                    <div id="edit-icon-container">
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Icon URL / File</label>
-                        <div id="edit-icon-file-wrap">
-                            <input type="text" id="edit-icon-url" name="icon_url" placeholder="https://example.com/icon.png" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="edit-icon-file" name="icon_file" accept="image/*" class="text-xs">
-                        </div>
-                        <div id="edit-icon-existing" class="hidden flex items-center gap-2 mb-2">
-                            <input type="text" id="edit-icon-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
-                            <button type="button" onclick="deleteModalFile('icon')" class="btn btn-error btn-sm btn-outline">Delete</button>
-                        </div>
-                        <span class="text-xs text-gray-500 mt-1 block">Custom icon displayed in the 3D scene (overrides theme icon).</span>
                     </div>
 
                     <div class="flex flex-col">
@@ -2259,10 +2260,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             </label>
                         </div>
                     </div>
-                </div>
-                <div>
-                    <label class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
-                    <textarea id="edit-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
+                    <div>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
+                        <textarea id="edit-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
+                    </div>
                 </div>
                 <div id="edit-progress-wrap" class="hidden space-y-2">
                     <div class="flex justify-between text-xs font-medium">
