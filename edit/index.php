@@ -407,6 +407,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             document.getElementById('duplicate-source-id').value = id;
             document.getElementById('duplicate-source-name').textContent = node.name;
             document.getElementById('duplicate-constellation').value = node.constellation_id;
+            document.getElementById('duplicate-node-constellation-badge').textContent = '#' + id;
             document.getElementById('duplicate_node_modal').showModal();
         }
 
@@ -1340,6 +1341,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             document.getElementById('edit-id').value = node.id;
             document.getElementById('edit-name').value = node.name || '';
             document.getElementById('edit-constellation').value = node.constellation_id;
+            document.getElementById('edit-node-constellation-badge').textContent = '#' + node.id;
             document.getElementById('edit-node-type').value = node.node_type || 'object';
             document.getElementById('edit-description').value = node.description || '';
             document.getElementById('edit-url').value = node.url || '';
@@ -1683,7 +1685,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             keywordState['create'] = [];
             updateKeywordTags('create');
             toggleTargetConstellation('object', 'create');
-            
+
             document.getElementById('create_node_modal').showModal();
         }
 
@@ -1958,9 +1960,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     </script>
     <!-- Create Node Modal -->
     <dialog id="create_node_modal" class="modal">
-        <div class="modal-box max-w-4xl bg-white">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Add New Node</h3>
-            <form id="create-node-form" class="space-y-4" onsubmit="saveNewNode(event)">
+        <div class="modal-box max-w-4xl bg-white !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
+                <h3 class="font-bold text-xl">Add New Node</h3>
+            </div>
+            <form id="create-node-form" class="space-y-4 mt-4" onsubmit="saveNewNode(event)">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label for="node-name" class="block mb-1.5 text-gray-800 font-medium text-sm">Name *</label>
@@ -2111,9 +2115,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     </dialog>
 
     <dialog id="edit_modal" class="modal">
-        <div class="modal-box max-w-4xl bg-white">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Edit Node</h3>
-            <form id="edit-node-form" class="space-y-4" onsubmit="saveNodeEdit(event)">
+        <div class="modal-box max-w-4xl bg-white !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
+                <h3 class="font-bold text-xl">Edit Node</h3>
+                <span id="edit-node-constellation-badge" class="text-xs opacity-70 font-mono"></span>
+            </div>
+            <form id="edit-node-form" class="space-y-4 mt-4" onsubmit="saveNodeEdit(event)">
                 <input type="hidden" id="edit-id" name="id">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -2280,9 +2287,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
     <!-- Delete Confirmation Modal -->
     <dialog id="delete_confirm_modal" class="modal">
-        <div class="modal-box bg-white border-t-4 border-error">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Confirm Deletion</h3>
-            <p id="delete-confirm-message" class="text-gray-600 mb-6"></p>
+        <div class="modal-box bg-white !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-error text-error-content rounded-t-2xl">
+                <h3 class="font-bold text-xl">Confirm Deletion</h3>
+            </div>
+            <p id="delete-confirm-message" class="text-gray-600 mb-6 mt-4"></p>
             <div class="modal-action">
                 <button id="delete-confirm-btn" class="btn btn-error text-white">Delete</button>
                 <button type="button" class="btn" onclick="document.getElementById('delete_confirm_modal').close()">Cancel</button>
@@ -2293,9 +2302,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
     <!-- Bulk Move Modal -->
     <dialog id="bulk_move_modal" class="modal">
-        <div class="modal-box bg-white">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Move Nodes</h3>
-            <p class="text-gray-600 mb-4">Move <span id="bulk-move-count" class="font-bold">0</span> selected nodes to another constellation.</p>
+        <div class="modal-box bg-white !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
+                <h3 class="font-bold text-xl">Move Nodes</h3>
+            </div>
+            <p class="text-gray-600 mb-4 mt-4">Move <span id="bulk-move-count" class="font-bold">0</span> selected nodes to another constellation.</p>
 
             <div class="mb-6">
                 <label for="bulk-move-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Constellation</label>
@@ -2316,10 +2327,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
     <!-- Duplicate Node Modal -->
     <dialog id="duplicate_node_modal" class="modal">
-        <div class="modal-box bg-white">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Duplicate Node</h3>
+        <div class="modal-box bg-white !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
+                <h3 class="font-bold text-xl">Duplicate Node</h3>
+                <span id="duplicate-node-constellation-badge" class="text-xs opacity-70 font-mono"></span>
+            </div>
             <input type="hidden" id="duplicate-source-id" value="">
-            <p class="text-gray-600 mb-4">Duplicate "<span id="duplicate-source-name" class="font-semibold"></span>" to:</p>
+            <p class="text-gray-600 mb-4 mt-4">Duplicate "<span id="duplicate-source-name" class="font-semibold"></span>" to:</p>
 
             <div class="mb-6">
                 <label for="duplicate-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Constellation</label>
@@ -2340,9 +2354,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
     <!-- Bulk Duplicate Modal -->
     <dialog id="bulk_duplicate_modal" class="modal">
-        <div class="modal-box bg-white">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Duplicate Nodes</h3>
-            <p class="text-gray-600 mb-4">Duplicate <span id="bulk-duplicate-count" class="font-bold">0</span> selected nodes to:</p>
+        <div class="modal-box bg-white !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
+                <h3 class="font-bold text-xl">Duplicate Nodes</h3>
+            </div>
+            <p class="text-gray-600 mb-4 mt-4">Duplicate <span id="bulk-duplicate-count" class="font-bold">0</span> selected nodes to:</p>
 
             <div class="mb-6">
                 <label for="bulk-duplicate-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Constellation</label>

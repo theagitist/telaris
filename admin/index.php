@@ -1611,6 +1611,7 @@ $fieldMeta = [
             });
 
             toggleModalUserConstellations();
+            document.getElementById('modal-user-id-badge').textContent = '#' + user.id;
             document.getElementById('user_modal').showModal();
         }
 
@@ -1620,6 +1621,7 @@ $fieldMeta = [
             document.getElementById('modal-constellation-slug').value = c.slug || '';
             document.getElementById('modal-constellation-tagline').value = c.tagline;
             document.getElementById('modal-constellation-theme').value = c.theme || 'cosmic';
+            document.getElementById('modal-constellation-id-badge').textContent = '#' + c.id;
             document.getElementById('constellation_modal').showModal();
         }
 
@@ -1629,6 +1631,7 @@ $fieldMeta = [
             document.getElementById('duplicate-constellation-name').value = c.name + ' (Copy)';
             document.getElementById('duplicate-constellation-slug').value = (c.slug ? c.slug + '-copy' : '');
             document.getElementById('duplicate-constellation-tagline').value = c.tagline;
+            document.getElementById('duplicate-constellation-id-badge').textContent = '#' + c.id;
             document.getElementById('duplicate_constellation_modal').showModal();
         }
 
@@ -2347,9 +2350,11 @@ $fieldMeta = [
     </script>
     <!-- Create User Modal -->
     <dialog id="create_user_modal" class="modal">
-        <div class="modal-box max-w-2xl bg-white">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Create New User</h3>
-            <form method="POST" action="">
+        <div class="modal-box max-w-2xl bg-white !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
+                <h3 class="font-bold text-xl">Create New User</h3>
+            </div>
+            <form method="POST" action="" class="mt-4">
                 <input type="hidden" name="action" value="create_user">
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -2439,10 +2444,12 @@ $fieldMeta = [
 
     <!-- Mocambos Import Modal -->
     <dialog id="mocambos_import_modal" class="modal">
-        <div class="modal-box bg-white max-w-lg">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Import from Mocambos</h3>
+        <div class="modal-box bg-white max-w-lg !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
+                <h3 class="font-bold text-xl">Import from Mocambos</h3>
+            </div>
             <!-- Step 1: API URL -->
-            <div id="mocambos-url-step">
+            <div id="mocambos-url-step" class="mt-4">
                 <label for="mocambos-api-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Mocambos API URL</label>
                 <input type="url" id="mocambos-api-url" placeholder="https://timbuktu.mocambos.net/api/v2" value="" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-1">
                 <span class="text-xs text-gray-500 block mb-4">The base API URL of the Mocambos instance (e.g. https://hostname/api/v2). You can also paste the docs URL — /docs will be stripped automatically.</span>
@@ -2491,9 +2498,11 @@ $fieldMeta = [
 
     <!-- Create Constellation Modal -->
     <dialog id="create_constellation_modal" class="modal">
-        <div class="modal-box bg-white">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Create New Constellation</h3>
-            <form method="POST" action="">
+        <div class="modal-box bg-white !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
+                <h3 class="font-bold text-xl">Create New Constellation</h3>
+            </div>
+            <form method="POST" action="" class="mt-4">
                 <input type="hidden" name="action" value="create_constellation">
                 
                 <div class="mb-4">
@@ -2539,9 +2548,12 @@ $fieldMeta = [
 
     <!-- User Edit Modal -->
     <dialog id="user_modal" class="modal">
-        <div class="modal-box max-w-2xl bg-white">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Edit User</h3>
-            <form method="POST" action="">
+        <div class="modal-box max-w-2xl bg-white !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
+                <h3 class="font-bold text-xl">Edit User</h3>
+                <span id="modal-user-id-badge" class="text-xs opacity-70 font-mono"></span>
+            </div>
+            <form method="POST" action="" class="mt-4">
                 <input type="hidden" name="action" value="update_user">
                 <input type="hidden" id="modal-user-id" name="id">
                 
@@ -2610,9 +2622,12 @@ $fieldMeta = [
 
     <!-- Constellation Edit Modal -->
     <dialog id="constellation_modal" class="modal">
-        <div class="modal-box bg-white">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Edit Constellation</h3>
-            <form method="POST" action="">
+        <div class="modal-box bg-white !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
+                <h3 class="font-bold text-xl">Edit Constellation</h3>
+                <span id="modal-constellation-id-badge" class="text-xs opacity-70 font-mono"></span>
+            </div>
+            <form method="POST" action="" class="mt-4">
                 <input type="hidden" name="action" value="update_constellation">
                 <input type="hidden" id="modal-constellation-id" name="id">
                 
@@ -2656,9 +2671,12 @@ $fieldMeta = [
 
     <!-- Duplicate Constellation Modal -->
     <dialog id="duplicate_constellation_modal" class="modal">
-        <div class="modal-box bg-white">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Duplicate Constellation</h3>
-            <p class="text-sm text-gray-600 mb-4">Duplicating: <strong id="duplicate-constellation-source-name"></strong></p>
+        <div class="modal-box bg-white !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
+                <h3 class="font-bold text-xl">Duplicate Constellation</h3>
+                <span id="duplicate-constellation-id-badge" class="text-xs opacity-70 font-mono"></span>
+            </div>
+            <p class="text-sm text-gray-600 mb-4 mt-4">Duplicating: <strong id="duplicate-constellation-source-name"></strong></p>
             <form method="POST" action="">
                 <input type="hidden" name="action" value="duplicate_constellation">
                 <input type="hidden" id="duplicate-source-id" name="source_id">
@@ -2691,10 +2709,12 @@ $fieldMeta = [
 
     <!-- Delete Confirmation Modal -->
     <dialog id="delete_confirm_modal" class="modal">
-        <div class="modal-box bg-white border-t-4 border-error">
-            <h3 class="font-bold text-xl mb-4 text-gray-800">Confirm Deletion</h3>
-            <div id="delete-confirm-message" class="text-gray-600 mb-6"></div>
-            
+        <div class="modal-box bg-white !pt-0">
+            <div class="-mx-6 px-6 py-4 bg-error text-error-content rounded-t-2xl">
+                <h3 class="font-bold text-xl">Confirm Deletion</h3>
+            </div>
+            <div id="delete-confirm-message" class="text-gray-600 mb-6 mt-4"></div>
+
             <div id="delete-impact-wrap" class="mb-6 hidden"></div>
 
             <div id="delete-name-confirm-wrap" class="mb-6 hidden">
