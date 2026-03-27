@@ -333,9 +333,9 @@ class TelarisNetwork {
                 urlButton.onclick = () => {
                     this.closeRichMediaWindow();
                     if (window.telarisApp) {
-                        window.telarisApp.startPortalRev(node, d.target_constellation_id);
+                        window.telarisApp.startPortalRev(node, d.target_constellation_id, null, d.target_constellation_slug);
                     } else {
-                        window.location.href = `index.php?constellation_id=${d.target_constellation_id}`;
+                        window.location.href = this.constellationUrl(d.target_constellation_id, d.target_constellation_slug);
                     }
                 };
             } else if (d.url) {
@@ -1855,6 +1855,17 @@ class TelarisNetwork {
         if (btn) btn.style.display = this.navigationStack.length > 1 ? 'block' : 'none';
     }
 
+    /**
+     * Build a browser URL path for a constellation, preferring slug over query param.
+     */
+    constellationUrl(constellationId, slug = null, clusterKey = null) {
+        let base = slug ? `/${slug}` : `/?constellation_id=${constellationId}`;
+        if (clusterKey) {
+            base += (slug ? '?' : '&') + `cluster=${encodeURIComponent(clusterKey)}`;
+        }
+        return base;
+    }
+
     async updateConstellationUI(constellationId) {
         const titleEl = document.getElementById('constellation-title');
         const taglineEl = document.getElementById('constellation-tagline');
@@ -1867,6 +1878,7 @@ class TelarisNetwork {
                 document.title = c.name || document.title;
                 if (titleEl) titleEl.textContent = c.name || '';
                 if (taglineEl) taglineEl.textContent = c.tagline || '';
+                window.TELARIS_CONSTELLATION_SLUG = c.slug || null;
                 return c;
             }
         } catch (err) {
@@ -1925,15 +1937,15 @@ class TelarisNetwork {
      * Start 500ms "rev" feedback on the clicked node, then run the transition.
      * Works for both portals and clusters.
      */
-    startPortalRev(clickedNode, targetId, clusterKey = null) {
-        this._revvingPortal = { node: clickedNode, targetId, clusterKey, startTime: performance.now() };
+    startPortalRev(clickedNode, targetId, clusterKey = null, targetSlug = null) {
+        this._revvingPortal = { node: clickedNode, targetId, clusterKey, targetSlug, startTime: performance.now() };
     }
 
     /**
      * Run portal/cluster transition: move camera toward node over 800ms while fading network to 0,
      * then show loading torus, load data, and fade new network in.
      */
-    runPortalTransition(clickedNode, targetId, clusterKey = null) {
+    runPortalTransition(clickedNode, targetId, clusterKey = null, targetSlug = null) {
         const portalPos = new THREE.Vector3();
         clickedNode.getWorldPosition(portalPos);
 
@@ -1960,6 +1972,7 @@ class TelarisNetwork {
                 cameraStart: this.camera.position.clone(),
                 targetStart: this.controls.target.clone(),
                 targetId,
+                targetSlug,
                 clusterKey: null,
                 dataPromise,
                 targetFadeInDuration: 1000
@@ -2058,8 +2071,7 @@ class TelarisNetwork {
             await this.loadDataForConstellation(constellationId, nodeData, false, false, false, clusterKey);
 
             if (!skipPushState) {
-                let navUrl = `?constellation_id=${constellationId}`;
-                if (clusterKey) navUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
+                const navUrl = this.constellationUrl(constellationId, window.TELARIS_CONSTELLATION_SLUG, clusterKey);
                 window.history.pushState({}, '', navUrl);
             }
 
@@ -2110,8 +2122,9 @@ class TelarisNetwork {
     /**
      * Switch to another constellation: update URL, clear scene, fetch and render new data.
      */
-    switchConstellation(id) {
-        window.history.pushState({}, '', '?constellation_id=' + id);
+    switchConstellation(id, slug = null) {
+        const navUrl = this.constellationUrl(id, slug);
+        window.history.pushState({}, '', navUrl);
         this.navigationStack.push({ constellationId: id, clusterKey: null });
         this.updateBackButtonVisibility();
         this.clearAll();
@@ -2357,9 +2370,9 @@ class TelarisNetwork {
                             this.showRichMediaWindow(targetNode);
                         } else {
                             if (window.telarisApp) {
-                                window.telarisApp.startPortalRev(targetNode, data.target_constellation_id);
+                                window.telarisApp.startPortalRev(targetNode, data.target_constellation_id, null, data.target_constellation_slug);
                             } else {
-                                window.location.href = `index.php?constellation_id=${data.target_constellation_id}`;
+                                window.location.href = this.constellationUrl(data.target_constellation_id, data.target_constellation_slug);
                             }
                         }
                     }
@@ -2462,7 +2475,7 @@ class TelarisNetwork {
                             if (hasDesc) {
                                 this.showRichMediaWindow(touchStartNode);
                             } else {
-                                this.startPortalRev(touchStartNode, nodeData.target_constellation_id);
+                                this.startPortalRev(touchStartNode, nodeData.target_constellation_id, null, nodeData.target_constellation_slug);
                             }
                             this.networkManager.setFocusedNode(null);
                         } else if (nodeData.node_type === 'object') {
@@ -2633,6 +2646,7 @@ class TelarisNetwork {
                     video_autoplay: !!data.video_autoplay,
                     node_type: data.node_type ?? 'object',
                     target_constellation_id: (data.target_constellation_id !== undefined && data.target_constellation_id !== null && data.target_constellation_id !== '') ? Number(data.target_constellation_id) : null,
+                    target_constellation_slug: data.target_constellation_slug || null,
                     is_accentuated: !!data.is_accentuated,
                     show_keywords: !!data.show_keywords,
                     cluster_key: data.cluster_key || null,
@@ -3467,9 +3481,8 @@ class TelarisNetwork {
                                 if (this._portalTransition && this._portalTransition.phase === 'loading') {
                                     this.navigationStack.push({ constellationId: tr.targetId, clusterKey: tr.clusterKey || null });
                                     this.updateBackButtonVisibility();
-                                    // Update URL for cluster navigation
-                                    let navUrl = `?constellation_id=${tr.targetId}`;
-                                    if (tr.clusterKey) navUrl += `&cluster=${encodeURIComponent(tr.clusterKey)}`;
+                                    // Update URL for portal/cluster navigation
+                                    const navUrl = this.constellationUrl(tr.targetId, tr.targetSlug || window.TELARIS_CONSTELLATION_SLUG, tr.clusterKey);
                                     window.history.pushState({}, '', navUrl);
                                     
                                     const startFadeIn = () => {
@@ -3536,9 +3549,9 @@ class TelarisNetwork {
         // Portal meshes: slow rotation + scale pulse; rev up when clicked
         const time = now * 0.001;
         if (this._revvingPortal && (now - this._revvingPortal.startTime) >= 300) {
-            const { node, targetId, clusterKey } = this._revvingPortal;
+            const { node, targetId, clusterKey, targetSlug } = this._revvingPortal;
             this._revvingPortal = null;
-            this.runPortalTransition(node, targetId, clusterKey);
+            this.runPortalTransition(node, targetId, clusterKey, targetSlug);
         }
         this.scene.traverse((object) => {
             if (object.isPortal) {

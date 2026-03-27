@@ -321,6 +321,7 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_IFRAME_BACK_TEXT = <?php echo json_encode($projectIframeBackText ?? 'Go back'); ?>;
         window.TELARIS_ALERT_MESSAGE = <?php echo json_encode($projectAlertMessage ?? "Close this window when you're done to go back to {APPNAME}."); ?>;
         window.TELARIS_CONSTELLATION_ID = <?php echo isset($constellationId) ? (int) $constellationId : 0; ?>;
+        window.TELARIS_CONSTELLATION_SLUG = <?php echo json_encode($constellationSlug ?? null); ?>;
         window.TELARIS_THEME_ID = <?php echo json_encode($constellationTheme ?? 'cosmic'); ?>;
         window.TELARIS_CLICK_TO_VIEW = <?php echo json_encode($projectClickToViewText ?? 'Click to view'); ?>;
         window.TELARIS_TAP_TO_VIEW = <?php echo json_encode($projectTapToViewText ?? 'Tap again to view'); ?>;
@@ -469,7 +470,9 @@ header("X-Content-Type-Options: nosniff");
                     material.opacity = 0.15 + (ease * 0.65);
 
                     if (progress >= 1 && warpState.onDone) {
-                        warpState.onDone();
+                        const cb = warpState.onDone;
+                        warpState.onDone = null;
+                        cb();
                     }
                 } else {
                     torus.rotation.x += 0.005;

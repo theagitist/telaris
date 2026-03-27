@@ -71,6 +71,7 @@ try {
                 'id' => (int)$row['id'],
                 'name' => (string)($row['name'] ?? ''),
                 'tagline' => (string)($row['tagline'] ?? ''),
+                'slug' => (string)($row['slug'] ?? ''),
                 'theme' => (string)($row['theme'] ?? 'cosmic'),
                 'import_source' => $row['import_source'] ?? null,
             ], $list);
