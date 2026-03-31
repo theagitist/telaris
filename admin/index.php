@@ -218,7 +218,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     throw new Exception('A constellation with this ' . implode(' and ', $errs) . ' already exists.');
                 }
 
-                $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech'];
+                $allowedThemes = ['cosmic', 'simple', 'abstract', 'rectangles', 'stripes', 'tech'];
                 $theme = trim($_POST['theme'] ?? 'cosmic');
                 if (!in_array($theme, $allowedThemes, true)) { $theme = 'cosmic'; }
                 db_create_constellation($name, $tagline, $slug !== '' ? $slug : null, $theme);
@@ -232,7 +232,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $name = trim($_POST['name'] ?? '');
                 $tagline = trim($_POST['tagline'] ?? '');
                 $slug = trim($_POST['slug'] ?? '');
-                $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech'];
+                $allowedThemes = ['cosmic', 'simple', 'abstract', 'rectangles', 'stripes', 'tech'];
                 $theme = trim($_POST['theme'] ?? 'cosmic');
                 if (!in_array($theme, $allowedThemes, true)) { $theme = 'cosmic'; }
                 if (empty($name)) {
@@ -2529,6 +2529,7 @@ $fieldMeta = [
                     <label for="create-constellation-theme" class="block mb-1.5 text-gray-800 font-medium text-sm">Visual Theme</label>
                     <select id="create-constellation-theme" name="theme" class="select select-bordered select-sm w-full bg-white">
                         <option value="cosmic">Cosmic (Stars, Planets, Rockets)</option>
+                        <option value="simple">Simple (Colored Spheres)</option>
                         <option value="abstract">Abstract (Geometric GIF Icons)</option>
                         <option value="rectangles">Rectangles (Custom Rectangle Icons)</option>
                         <option value="stripes">Stripes (Custom Stripe Icons)</option>
@@ -2653,13 +2654,14 @@ $fieldMeta = [
                     <label for="modal-constellation-theme" class="block mb-1.5 text-gray-800 font-medium text-sm">Visual Theme</label>
                     <select id="modal-constellation-theme" name="theme" class="select select-bordered select-sm w-full bg-white">
                         <option value="cosmic">Cosmic (Stars, Planets, Rockets)</option>
+                        <option value="simple">Simple (Colored Spheres)</option>
                         <option value="abstract">Abstract (Geometric GIF Icons)</option>
                         <option value="rectangles">Rectangles (Custom Rectangle Icons)</option>
                         <option value="stripes">Stripes (Custom Stripe Icons)</option>
                         <option value="tech">Tech (Circuit Board Icons)</option>
                     </select>
                 </div>
-                
+
                 <div class="modal-action">
                     <button type="submit" class="btn btn-neutral">Update Constellation</button>
                     <button type="button" class="btn" onclick="document.getElementById('constellation_modal').close()">Cancel</button>

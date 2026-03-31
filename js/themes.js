@@ -103,6 +103,28 @@ export const THEMES = {
             images: Array.from({ length: 6 }, (_, i) => `img/themes/stripes/icon_${String(i + 1).padStart(3, '0')}.png`)
         }
     },
+    simple: {
+        id: 'simple',
+        name: 'Simple',
+        background: {
+            starfield: false,
+            nebulas: false,
+            color: 0x000000
+        },
+        animations: {},
+        lighting: {
+            ambient: { color: 0xffffff, intensity: 0.3 },
+            points: [
+                { color: 0x4a90e2, x: 10, y: 10, z: 10 },
+                { color: 0xe24a90, x: -10, y: -10, z: 10 },
+                { color: 0x90e24a, x: 0, y: 10, z: -10 }
+            ]
+        },
+        nodes: {
+            type: 'geometry',
+            factories: ['sphere']
+        }
+    },
     tech: {
         id: 'tech',
         name: 'Tech',

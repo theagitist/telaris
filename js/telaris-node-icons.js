@@ -292,12 +292,20 @@ function createPortalNode(material, gm) {
     return group;
 }
 
+function createSphereNode(material, gm) {
+    const group = new THREE.Group();
+    const geo = gm.getSphere(0.26, 16);
+    group.add(new THREE.Mesh(geo, material));
+    return group;
+}
+
 const iconFactories = {
     'star': createStarNode,
     'moon': createMoonNode,
     'five-point-star': createFivePointStarNode,
     'asteroid': createAsteroidNode,
-    'sparkle': createSparkleNode
+    'sparkle': createSparkleNode,
+    'sphere': createSphereNode
 };
 
 export function createNodeIcon(material, index, gm, type = 'object', themeId = 'cosmic', iconUrl = null) {
