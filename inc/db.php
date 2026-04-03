@@ -120,7 +120,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'edit_button_text' => 'Edit', 'loading_text' => 'Loading',
             'back_button_text' => 'Back', 'system_online_text' => 'Online',
             'reload_system_text' => 'Reload', 'scan_system_text' => 'SEARCH...',
-            'clear_scan_text' => 'Clear Search', 'systems_label_text' => 'Nodes:',
+            'clear_scan_text' => 'Clear Search', 'systems_label_text' => 'Wormholes:',
             'hyperlinks_label_text' => 'Hyperlinks:', 'initialize_auth_text' => 'Login',
             'admin_label_text' => 'Admin', 'logout_label_text' => 'Logout',
             'click_to_view_text' => 'Click to view', 'tap_to_view_text' => 'Tap again to view',
@@ -136,7 +136,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'edit_button_text' => 'Editar', 'loading_text' => 'Cargando',
             'back_button_text' => 'Volver', 'system_online_text' => 'En línea',
             'reload_system_text' => 'Recargar', 'scan_system_text' => 'BUSCAR...',
-            'clear_scan_text' => 'Limpiar Búsqueda', 'systems_label_text' => 'Nodos:',
+            'clear_scan_text' => 'Limpiar Búsqueda', 'systems_label_text' => 'Agujeros de Gusano:',
             'hyperlinks_label_text' => 'Hipervínculos:', 'initialize_auth_text' => 'Iniciar sesión',
             'admin_label_text' => 'Admin', 'logout_label_text' => 'Cerrar sesión',
             'click_to_view_text' => 'Haz clic para ver', 'tap_to_view_text' => 'Toca de nuevo para ver',
@@ -152,7 +152,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'edit_button_text' => 'Editar', 'loading_text' => 'Carregando',
             'back_button_text' => 'Voltar', 'system_online_text' => 'Online',
             'reload_system_text' => 'Recarregar', 'scan_system_text' => 'BUSCAR...',
-            'clear_scan_text' => 'Limpar Busca', 'systems_label_text' => 'Nodos:',
+            'clear_scan_text' => 'Limpar Busca', 'systems_label_text' => 'Buracos de Minhoca:',
             'hyperlinks_label_text' => 'Hiperlinks:', 'initialize_auth_text' => 'Entrar',
             'admin_label_text' => 'Admin', 'logout_label_text' => 'Sair',
             'click_to_view_text' => 'Clique para ver', 'tap_to_view_text' => 'Toque novamente para ver',
@@ -331,6 +331,27 @@ function db_set_node_clustering_metadata(int $nodeId, ?string $mucuaName, ?strin
 function db_ensure_project_info_table(): void {
 }
 
+/** Migrate systems_label_text from old defaults (Nodes:/Nodos:) to new vocabulary (Wormholes: etc.). */
+function db_migrate_systems_label_text(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        $pdo = getDB();
+        $map = [
+            'en' => ['old' => 'Nodes:', 'new' => 'Wormholes:'],
+            'es' => ['old' => 'Nodos:', 'new' => 'Agujeros de Gusano:'],
+            'pt' => ['old' => 'Nodos:', 'new' => 'Buracos de Minhoca:'],
+        ];
+        $stmt = $pdo->prepare("UPDATE project_info SET systems_label_text = :new WHERE locale = :locale AND systems_label_text = :old");
+        foreach ($map as $locale => $vals) {
+            $stmt->execute([':new' => $vals['new'], ':locale' => $locale, ':old' => $vals['old']]);
+        }
+    } catch (PDOException $e) {
+        error_log('db_migrate_systems_label_text: ' . $e->getMessage());
+    }
+}
+
 /** Ensure new localization columns exist in project_info. */
 function db_ensure_project_info_columns(): void {
     static $checked = false;
@@ -498,6 +519,7 @@ function db_get_project_info_for_locale(string $locale): array {
     try {
         db_ensure_project_info_table();
         db_ensure_project_info_columns();
+        db_migrate_systems_label_text();
         $locale = strtolower($locale);
         if (!in_array($locale, PROJECT_INFO_LOCALES, true)) {
             $locale = 'en';

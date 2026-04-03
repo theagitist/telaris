@@ -69,7 +69,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.png" type="image/png">
-    <title>Edit Nodes - <?php echo htmlspecialchars($projectName); ?></title>
+    <title>Edit Wormholes - <?php echo htmlspecialchars($projectName); ?></title>
     <script src="../js/tailwind.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
 </head>
@@ -79,11 +79,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                    <h1 class="text-gray-800 text-3xl font-semibold">Edit Nodes</h1>
+                    <h1 class="text-gray-800 text-3xl font-semibold">Edit Wormholes</h1>
                     <p class="text-gray-600 mt-1">Welcome, <?php echo htmlspecialchars($userName); ?> (<?php echo $isAdmin ? 'Admin' : 'Editor'; ?>)</p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <label for="current-constellation" class="text-sm font-medium text-gray-700">Current Constellation:</label>
+                    <label for="current-constellation" class="text-sm font-medium text-gray-700">Current Galaxy:</label>
                     <div class="join">
                         <select id="current-constellation" 
                                 onchange="switchConstellation(this.value)"
@@ -94,7 +94,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 $currentConstellationParam = 'all';
                             }
                             ?>
-                            <option value="all"<?php echo $currentConstellationParam === 'all' ? ' selected' : ''; ?>><?php echo $isAdmin ? 'All constellations' : 'All my constellations'; ?></option>
+                            <option value="all"<?php echo $currentConstellationParam === 'all' ? ' selected' : ''; ?>><?php echo $isAdmin ? 'All galaxies' : 'All my galaxies'; ?></option>
                             <?php
                             $currentOptgroup = null;
                             $inOptgroup = false;
@@ -116,7 +116,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <button type="button" onclick="viewNetwork()" class="btn btn-sm btn-neutral join-item">
                             View
                         </button>
-                        <button type="button" onclick="copyCurrentConstellationUrl(this)" class="btn btn-sm btn-outline join-item" title="Copy constellation URL">
+                        <button type="button" onclick="copyCurrentConstellationUrl(this)" class="btn btn-sm btn-outline join-item" title="Copy galaxy URL">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                         </button>
                     </div>
@@ -148,7 +148,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <!-- Bulk Actions Bar -->
         <div id="bulk-actions-bar" class="hidden sticky top-4 z-[30] bg-neutral text-neutral-content p-4 rounded-lg shadow-xl mb-6 flex items-center justify-between transition-all">
             <div class="flex items-center gap-4">
-                <span class="font-bold"><span id="selected-count">0</span> nodes selected</span>
+                <span class="font-bold"><span id="selected-count">0</span> wormholes selected</span>
                 <div class="h-6 w-px bg-neutral-content/30"></div>
                 <button onclick="clearSelection()" class="btn btn-sm btn-ghost normal-case font-normal hover:bg-white/10">Clear Selection</button>
             </div>
@@ -161,14 +161,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         <!-- Nodes List -->
         <div id="read-only-banner" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 text-yellow-800 text-sm" style="display: none;">
-            This constellation was imported from Mocambos and is read-only. Use the Mocambos import tool to refresh its content.
+            This galaxy was imported from Mocambos and is read-only. Use the Mocambos import tool to refresh its content.
         </div>
         <div class="bg-white rounded-lg shadow-md mb-6">
             <div class="p-6 border-b border-gray-200">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <h2 class="text-gray-800 text-xl font-semibold">Nodes (<span id="tab-list-count">0</span>)</h2>
-                        <button type="button" onclick="openCreateNodeModal()" class="node-edit-action text-blue-600 hover:text-blue-800 font-medium text-base">New Node</button>
+                        <h2 class="text-gray-800 text-xl font-semibold">Wormholes (<span id="tab-list-count">0</span>)</h2>
+                        <button type="button" onclick="openCreateNodeModal()" class="node-edit-action text-blue-600 hover:text-blue-800 font-medium text-base">New Wormhole</button>
                     </div>
                     
                     <!-- Top Pagination Container -->
@@ -178,7 +178,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <label for="search-nodes" class="text-sm font-medium text-gray-700">Search:</label>
                         <input type="text" 
                                id="search-nodes" 
-                               placeholder="Search nodes..." 
+                               placeholder="Search wormholes..." 
                                oninput="debouncedSearch()"
                                class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     </div>
@@ -198,7 +198,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 Type<span id="sort-indicator-node_type"></span>
                             </div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('constellation_name')">
-                                Constellation<span id="sort-indicator-constellation_name"></span>
+                                Galaxy<span id="sort-indicator-constellation_name"></span>
                             </div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')">URL<span id="sort-indicator-url"></span></div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">
@@ -210,7 +210,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <div class="col-span-1 text-right">Actions</div>
                         </div>
                     </div>
-                    <p class="text-gray-500 p-4" id="loading-message">Loading nodes...</p>
+                    <p class="text-gray-500 p-4" id="loading-message">Loading wormholes...</p>
                 </div>
             </div>
 
@@ -375,10 +375,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 await Promise.all(promises);
 
                 if (successCount > 0) {
-                    showMessage(`Successfully moved ${successCount} nodes.`);
+                    showMessage(`Successfully moved ${successCount} wormholes.`);
                 }
                 if (errorCount > 0) {
-                    showMessage(`Failed to move ${errorCount} nodes.`, 'error');
+                    showMessage(`Failed to move ${errorCount} wormholes.`, 'error');
                 }
 
                 selectedNodeIds.clear();
@@ -423,7 +423,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     body: JSON.stringify({ duplicate_from: sourceId, constellation_id: constellationId })
                 });
                 if (response.ok) {
-                    showMessage('Node duplicated successfully.');
+                    showMessage('Wormhole duplicated successfully.');
                     document.getElementById('duplicate_node_modal').close();
                     loadNodes();
                 } else {
@@ -469,10 +469,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 await Promise.all(promises);
 
                 if (successCount > 0) {
-                    showMessage(`Successfully duplicated ${successCount} nodes.`);
+                    showMessage(`Successfully duplicated ${successCount} wormholes.`);
                 }
                 if (errorCount > 0) {
-                    showMessage(`Failed to duplicate ${errorCount} nodes.`, 'error');
+                    showMessage(`Failed to duplicate ${errorCount} wormholes.`, 'error');
                 }
 
                 selectedNodeIds.clear();
@@ -502,7 +502,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const count = selectedNodeIds.size;
             if (count === 0) return;
 
-            confirmAction(`Are you sure you want to delete ${count} selected nodes? This action cannot be undone.`, async () => {
+            confirmAction(`Are you sure you want to delete ${count} selected wormholes? This action cannot be undone.`, async () => {
                 const ids = Array.from(selectedNodeIds);
                 let successCount = 0;
                 let errorCount = 0;
@@ -527,10 +527,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     await Promise.all(promises);
 
                     if (successCount > 0) {
-                        showMessage(`Successfully deleted ${successCount} nodes.`);
+                        showMessage(`Successfully deleted ${successCount} wormholes.`);
                     }
                     if (errorCount > 0) {
-                        showMessage(`Failed to delete ${errorCount} nodes.`, 'error');
+                        showMessage(`Failed to delete ${errorCount} wormholes.`, 'error');
                     }
 
                     selectedNodeIds.clear();
@@ -572,7 +572,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 // Using alert or a more subtle way since we don't have the toast div here yet
                 showMessage('URL copied to clipboard');
                 setTimeout(() => {
-                    buttonEl.setAttribute('title', origTitle || 'Copy constellation URL');
+                    buttonEl.setAttribute('title', origTitle || 'Copy galaxy URL');
                 }, 1500);
             });
         }
@@ -653,7 +653,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         // Create new constellation via API and add to dropdowns
         async function createNewConstellation(context, inlineNodeId) {
-            const name = window.prompt('Name of the new constellation:');
+            const name = window.prompt('Name of the new galaxy:');
             if (name === null || name.trim() === '') return;
             try {
                 const response = await fetch('create_constellation.php', {
@@ -703,9 +703,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     createSelect.appendChild(opt);
                     createSelect.value = String(newId);
                 }
-                showMessage('Constellation "' + newName + '" created.');
+                showMessage('Galaxy "' + newName + '" created.');
             } catch (e) {
-                showMessage('Error creating constellation: ' + e.message, 'error');
+                showMessage('Error creating galaxy: ' + e.message, 'error');
             }
         }
 
@@ -758,7 +758,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             listDiv.innerHTML = `
                 <div class="flex flex-col items-center justify-center py-12 text-gray-500">
                     <span class="loading loading-spinner loading-lg text-neutral mb-4"></span>
-                    <p class="text-lg">Retrieving nodes...</p>
+                    <p class="text-lg">Retrieving wormholes...</p>
                 </div>
             `;
 
@@ -833,7 +833,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const errorMsg = error.message || 'Unknown error';
                 if (listDiv) {
                     listDiv.innerHTML = 
-                        `<p class="text-red-600 font-semibold">Error loading nodes</p>
+                        `<p class="text-red-600 font-semibold">Error loading wormholes</p>
                          <p class="text-red-600 text-sm mt-2">${escapeHtml(errorMsg)}</p>`;
                 }
             }
@@ -853,8 +853,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 listDiv.innerHTML = `
                     <div class="flex flex-col items-center justify-center py-12 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
                         <svg class="w-12 h-12 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
-                        <p class="text-lg font-medium">No nodes found.</p>
-                        <p class="text-sm">Try adjusting your search or add a new node to get started.</p>
+                        <p class="text-lg font-medium">No wormholes found.</p>
+                        <p class="text-sm">Try adjusting your search or add a new wormhole to get started.</p>
                     </div>
                 `;
                 return;
@@ -869,7 +869,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             </div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'name\')">Name<span id="sort-indicator-name"></span></div>
                             <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'node_type\')">Type<span id="sort-indicator-node_type"></span></div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'constellation_name\')">Constellation<span id="sort-indicator-constellation_name"></span></div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'constellation_name\')">Galaxy<span id="sort-indicator-constellation_name"></span></div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'keywords\')">Keywords<span id="sort-indicator-keywords"></span></div>
                             <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'is_accentuated\')" title="Accentuated Status">Acc<span id="sort-indicator-is_accentuated"></span></div>
                             <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'created_at\')">Created<span id="sort-indicator-created_at"></span></div>
@@ -917,7 +917,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <div class="col-span-2 min-w-0" onclick="editNode(${node.id}); event.stopPropagation();">
                             <div class="font-semibold text-gray-800 truncate" title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</div>
                             <div class="flex flex-wrap gap-1 mt-1">
-                                ${node.is_accentuated ? '<span class="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded border border-yellow-200 font-bold" title="Accentuated Node">ACC</span>' : ''}
+                                ${node.is_accentuated ? '<span class="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded border border-yellow-200 font-bold" title="Accentuated Wormhole">ACC</span>' : ''}
                                 ${node.url ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded" title="Has URL">URL</span>' : ''}
                                 ${node.description ? '<span class="text-[10px] bg-green-100 text-green-700 px-1 rounded" title="Has Description">DESC</span>' : ''}
                                 ${node.image_url ? '<span class="text-[10px] bg-purple-100 text-purple-700 px-1 rounded" title="Has Image">IMG</span>' : ''}
@@ -948,8 +948,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
                                 </label>
                                 <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-44">
-                                    <li><a onclick="event.stopPropagation(); viewNode(${node.id})" class="text-gray-700 text-xs">View Node</a></li>
-                                    <li><a onclick="event.stopPropagation(); viewConstellation(${node.constellation_id})" class="text-gray-700 text-xs">View Constellation</a></li>
+                                    <li><a onclick="event.stopPropagation(); viewNode(${node.id})" class="text-gray-700 text-xs">View Wormhole</a></li>
+                                    <li><a onclick="event.stopPropagation(); viewConstellation(${node.constellation_id})" class="text-gray-700 text-xs">View Galaxy</a></li>
                                     <li class="border-t border-gray-100 mt-1 pt-1"><a onclick="event.stopPropagation(); editNode(${node.id})" class="text-gray-700 text-xs">Edit</a></li>
                                     <li><a onclick="event.stopPropagation(); openDuplicateModal(${node.id})" class="text-gray-700 text-xs">Duplicate</a></li>
                                     <li class="node-edit-action"><a onclick="event.stopPropagation(); deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="text-red-600 text-xs">Delete</a></li>
@@ -973,7 +973,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     }
                 }
             } catch (error) {
-                listDiv.innerHTML = '<p class="text-red-600">Error displaying nodes: ' + escapeHtml(error.message) + '</p>';
+                listDiv.innerHTML = '<p class="text-red-600">Error displaying wormholes: ' + escapeHtml(error.message) + '</p>';
             }
         }
 
@@ -1330,7 +1330,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     if (!response.ok) throw new Error('Failed to fetch node');
                     node = await response.json();
                 } catch (e) {
-                    showMessage('Error loading node: ' + e.message, 'error');
+                    showMessage('Error loading wormhole: ' + e.message, 'error');
                     return;
                 }
             }
@@ -1458,7 +1458,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const nodeName = document.getElementById('edit-name').value.trim();
             
             if (!nodeName) {
-                showMessage('Node name is required', 'error');
+                showMessage('Wormhole name is required', 'error');
                 return;
             }
             
@@ -1561,7 +1561,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
                 if (xhr.status >= 200 && xhr.status < 300) {
                     document.getElementById(modalId).close();
-                    let successMsg = `Node ${context === 'edit' ? 'updated' : 'created'} successfully`;
+                    let successMsg = `Wormhole ${context === 'edit' ? 'updated' : 'created'} successfully`;
                     try {
                         const resp = JSON.parse(xhr.responseText);
                         if (resp.notice) successMsg += '. ' + resp.notice;
@@ -1569,7 +1569,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     showMessage(successMsg);
                     loadNodes();
                 } else {
-                    let errorMsg = `Failed to ${context === 'edit' ? 'update' : 'create'} node`;
+                    let errorMsg = `Failed to ${context === 'edit' ? 'update' : 'create'} wormhole`;
                     try {
                         const response = JSON.parse(xhr.responseText);
                         errorMsg = response.error || errorMsg;
@@ -1658,13 +1658,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     
                     if (!response.ok) {
                         const error = await response.json();
-                        throw new Error(error.error || 'Failed to delete node');
+                        throw new Error(error.error || 'Failed to delete wormhole');
                     }
                     
-                    showMessage('Node deleted successfully');
+                    showMessage('Wormhole deleted successfully');
                     loadNodes();
                 } catch (error) {
-                    showMessage('Error deleting node: ' + error.message, 'error');
+                    showMessage('Error deleting wormhole: ' + error.message, 'error');
                 }
             });
         }
@@ -1695,7 +1695,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             
             const nodeName = document.getElementById('node-name').value.trim();
             if (!nodeName) {
-                showMessage('Node name is required', 'error');
+                showMessage('Wormhole name is required', 'error');
                 return;
             }
 
@@ -1761,13 +1761,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 loadNodes().catch(error => {
                     const listDiv = document.getElementById('nodes-list');
                     if (listDiv) {
-                        listDiv.innerHTML = '<p class="text-red-600">Fatal error loading nodes: ' + escapeHtml(error.message) + '</p>';
+                        listDiv.innerHTML = '<p class="text-red-600">Fatal error loading wormholes: ' + escapeHtml(error.message) + '</p>';
                     }
                 });
             } catch (error) {
                 const listDiv = document.getElementById('nodes-list');
                 if (listDiv) {
-                    listDiv.innerHTML = '<p class="text-red-600">Error: Could not load nodes. ' + escapeHtml(error.message) + '</p>';
+                    listDiv.innerHTML = '<p class="text-red-600">Error: Could not load wormholes. ' + escapeHtml(error.message) + '</p>';
                 }
             }
         });
@@ -1952,7 +1952,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             loadNodes().catch(error => {
                 const listDiv = document.getElementById('nodes-list');
                 if (listDiv) {
-                    listDiv.innerHTML = `<p class="text-red-600">Fatal error loading nodes: ${escapeHtml(error.message)}</p>`;
+                    listDiv.innerHTML = `<p class="text-red-600">Fatal error loading wormholes: ${escapeHtml(error.message)}</p>`;
                 }
             });
             setupLiveValidation();
@@ -1962,32 +1962,32 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="create_node_modal" class="modal">
         <div class="modal-box max-w-4xl bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Add New Node</h3>
+                <h3 class="font-bold text-xl">Add New Wormhole</h3>
             </div>
             <form id="create-node-form" class="space-y-4 mt-4" onsubmit="saveNewNode(event)">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label for="node-name" class="block mb-1.5 text-gray-800 font-medium text-sm">Name *</label>
                         <input type="text" id="node-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span id="node-name-error" class="text-xs text-red-600 mt-1 hidden">This node name already exists in this constellation.</span>
-                        <span class="text-xs text-gray-500 mt-1 block">Primary title of the node shown in the network.</span>
+                        <span id="node-name-error" class="text-xs text-red-600 mt-1 hidden">This wormhole name already exists in this galaxy.</span>
+                        <span class="text-xs text-gray-500 mt-1 block">Primary title of the wormhole shown in the network.</span>
                     </div>
                     <div>
-                        <label for="node-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Constellation</label>
+                        <label for="node-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Galaxy</label>
                         <select id="node-constellation" name="constellation_id" class="select select-bordered select-sm w-full bg-white">
                             <?php foreach ($constellations as $c): ?>
                                 <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <span class="text-xs text-gray-500 mt-1 block">Which constellation this node belongs to.</span>
+                        <span class="text-xs text-gray-500 mt-1 block">Which galaxy this wormhole belongs to.</span>
                     </div>
                     <div>
-                        <label for="node-type" class="block mb-1.5 text-gray-800 font-medium text-sm">Node type</label>
+                        <label for="node-type" class="block mb-1.5 text-gray-800 font-medium text-sm">Wormhole type</label>
                         <select id="node-type" name="node_type" onchange="toggleTargetConstellation(this.value, 'create')" class="select select-bordered select-sm w-full bg-white">
                             <option value="object">Object</option>
                             <option value="portal">Portal</option>
                         </select>
-                        <span class="text-xs text-gray-500 mt-1 block">Object is a standard item; Portal links to another constellation.</span>
+                        <span class="text-xs text-gray-500 mt-1 block">Object is a standard item; Portal links to another galaxy.</span>
                     </div>
                     <div>
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
@@ -2003,41 +2003,41 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <div class="flex flex-col justify-center">
                         <label class="label cursor-pointer justify-start gap-4">
                             <input type="checkbox" id="node-accentuated" name="is_accentuated" class="toggle toggle-neutral">
-                            <span class="label-text font-medium text-gray-800">Accentuate Node</span>
+                            <span class="label-text font-medium text-gray-800">Accentuate Wormhole</span>
                         </label>
-                        <span class="text-xs text-gray-500 block ml-1">Make this node larger and more prominent in the network.</span>
+                        <span class="text-xs text-gray-500 block ml-1">Make this wormhole larger and more prominent in the network.</span>
                     </div>
                     <div class="flex flex-col justify-center">
                         <label class="label cursor-pointer justify-start gap-4">
                             <input type="checkbox" id="node-show-keywords" name="show_keywords" class="toggle toggle-neutral">
                             <span class="label-text font-medium text-gray-800">Show Keywords</span>
                         </label>
-                        <span class="text-xs text-gray-500 block ml-1">Display this node's keywords in its info window.</span>
+                        <span class="text-xs text-gray-500 block ml-1">Display this wormhole's keywords in its info window.</span>
                     </div>
                 </div>
                 <div id="create-target-constellation-wrap" class="hidden">
                     <div class="flex flex-wrap items-end gap-2 mb-2">
                         <div class="min-w-[200px] flex-1">
-                            <label for="node-target-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Target Constellation</label>
+                            <label for="node-target-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Target Galaxy</label>
                             <select id="node-target-constellation" name="target_constellation_id" class="select select-bordered select-sm w-full bg-white">
                                 <?php foreach ($constellations as $c): ?>
                                     <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <span class="text-xs text-gray-500 mt-1 block">The destination constellation this portal leads to.</span>
+                            <span class="text-xs text-gray-500 mt-1 block">The destination galaxy this portal leads to.</span>
                         </div>
-                        <button type="button" onclick="createNewConstellation('create')" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">Create New Constellation</button>
+                        <button type="button" onclick="createNewConstellation('create')" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">Create New Galaxy</button>
                     </div>
                 </div>
                 <div>
                     <label for="node-description" class="block mb-1.5 text-gray-800 font-medium text-sm">Description</label>
                     <textarea id="node-description" name="description" rows="3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
-                    <span class="text-xs text-gray-500 mt-1 block">Detailed text displayed when the node is selected.</span>
+                    <span class="text-xs text-gray-500 mt-1 block">Detailed text displayed when the wormhole is selected.</span>
                 </div>
                 <div>
                     <label for="node-url" class="block mb-1.5 text-gray-800 font-medium text-sm">URL</label>
                     <input type="url" id="node-url" name="url" placeholder="https://example.com" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">URL to open when the node is clicked (optional).</span>
+                    <span class="text-xs text-gray-500 mt-1 block">URL to open when the wormhole is clicked (optional).</span>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -2105,7 +2105,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 <div class="modal-action">
                     <button type="submit" id="create-submit-btn" class="btn btn-neutral">
                         <span class="loading loading-spinner hidden" id="create-submit-loader"></span>
-                        Add Node
+                        Add Wormhole
                     </button>
                     <button type="button" class="btn" onclick="document.getElementById('create_node_modal').close()">Cancel</button>
                 </div>
@@ -2117,7 +2117,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="edit_modal" class="modal">
         <div class="modal-box max-w-4xl bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-                <h3 class="font-bold text-xl">Edit Node</h3>
+                <h3 class="font-bold text-xl">Edit Wormhole</h3>
                 <span id="edit-node-constellation-badge" class="text-xs opacity-70 font-mono"></span>
             </div>
             <form id="edit-node-form" class="space-y-4 mt-4" onsubmit="saveNodeEdit(event)">
@@ -2126,10 +2126,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <div>
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Name *</label>
                         <input type="text" id="edit-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span id="edit-name-error" class="text-xs text-red-600 mt-1 hidden">This node name already exists in this constellation.</span>
+                        <span id="edit-name-error" class="text-xs text-red-600 mt-1 hidden">This wormhole name already exists in this galaxy.</span>
                     </div>
                     <div>
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Constellation</label>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Galaxy</label>
                         <select id="edit-constellation" name="constellation_id" class="select select-bordered select-sm w-full bg-white">
                             <?php foreach ($constellations as $c): ?>
                                 <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
@@ -2137,7 +2137,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </select>
                     </div>
                     <div>
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Node type</label>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Wormhole type</label>
                         <select id="edit-node-type" name="node_type" onchange="toggleTargetConstellation(this.value, 'modal')" class="select select-bordered select-sm w-full bg-white">
                             <option value="object">Object</option>
                             <option value="portal">Portal</option>
@@ -2157,25 +2157,25 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <div class="flex flex-col justify-center">
                         <label class="label cursor-pointer justify-start gap-4">
                             <input type="checkbox" id="edit-accentuated" name="is_accentuated" class="toggle toggle-neutral">
-                            <span class="label-text font-medium text-gray-800">Accentuate Node</span>
+                            <span class="label-text font-medium text-gray-800">Accentuate Wormhole</span>
                         </label>
-                        <span class="text-xs text-gray-500 block ml-1">Make this node larger and more prominent in the network.</span>
+                        <span class="text-xs text-gray-500 block ml-1">Make this wormhole larger and more prominent in the network.</span>
                     </div>
                     <div class="flex flex-col justify-center">
                         <label class="label cursor-pointer justify-start gap-4">
                             <input type="checkbox" id="edit-show-keywords" name="show_keywords" class="toggle toggle-neutral">
                             <span class="label-text font-medium text-gray-800">Show Keywords</span>
                         </label>
-                        <span class="text-xs text-gray-500 block ml-1">Display this node's keywords in its info window.</span>
+                        <span class="text-xs text-gray-500 block ml-1">Display this wormhole's keywords in its info window.</span>
                     </div>
                 </div>
                 <div id="edit-target-constellation-wrap-modal" class="hidden">
                     <div class="flex flex-wrap items-end gap-2 mb-2">
                         <div class="min-w-[200px] flex-1">
-                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Target Constellation</label>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Target Galaxy</label>
                             <select id="edit-target-constellation-modal" name="target_constellation_id" class="select select-bordered select-sm w-full bg-white"></select>
                         </div>
-                        <button type="button" onclick="createNewConstellation('modal')" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">Create New Constellation</button>
+                        <button type="button" onclick="createNewConstellation('modal')" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">Create New Galaxy</button>
                     </div>
                 </div>
                 <div>
@@ -2275,7 +2275,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 <div class="modal-action">
                     <button type="submit" id="edit-submit-btn" class="btn btn-neutral">
                         <span class="loading loading-spinner hidden" id="edit-submit-loader"></span>
-                        Update Node
+                        Update Wormhole
                     </button>
                     <button type="button" class="btn" onclick="document.getElementById('edit_modal').close()">Cancel</button>
                 </div>
@@ -2305,12 +2305,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="bulk_move_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Move Nodes</h3>
+                <h3 class="font-bold text-xl">Move Wormholes</h3>
             </div>
-            <p class="text-gray-600 mb-4 mt-4">Move <span id="bulk-move-count" class="font-bold">0</span> selected nodes to another constellation.</p>
+            <p class="text-gray-600 mb-4 mt-4">Move <span id="bulk-move-count" class="font-bold">0</span> selected wormholes to another galaxy.</p>
 
             <div class="mb-6">
-                <label for="bulk-move-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Constellation</label>
+                <label for="bulk-move-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Galaxy</label>
                 <select id="bulk-move-constellation" class="select select-bordered select-sm w-full bg-white">
                     <?php foreach ($constellations as $c): ?>
                         <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
@@ -2319,7 +2319,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </div>
 
             <div class="modal-action">
-                <button onclick="bulkMove()" class="btn btn-neutral">Move Nodes</button>
+                <button onclick="bulkMove()" class="btn btn-neutral">Move Wormholes</button>
                 <button type="button" class="btn" onclick="document.getElementById('bulk_move_modal').close()">Cancel</button>
             </div>
         </div>
@@ -2330,14 +2330,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="duplicate_node_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-                <h3 class="font-bold text-xl">Duplicate Node</h3>
+                <h3 class="font-bold text-xl">Duplicate Wormhole</h3>
                 <span id="duplicate-node-constellation-badge" class="text-xs opacity-70 font-mono"></span>
             </div>
             <input type="hidden" id="duplicate-source-id" value="">
             <p class="text-gray-600 mb-4 mt-4">Duplicate "<span id="duplicate-source-name" class="font-semibold"></span>" to:</p>
 
             <div class="mb-6">
-                <label for="duplicate-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Constellation</label>
+                <label for="duplicate-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Galaxy</label>
                 <select id="duplicate-constellation" class="select select-bordered select-sm w-full bg-white">
                     <?php foreach ($constellations as $c): ?>
                         <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
@@ -2357,12 +2357,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="bulk_duplicate_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Duplicate Nodes</h3>
+                <h3 class="font-bold text-xl">Duplicate Wormholes</h3>
             </div>
-            <p class="text-gray-600 mb-4 mt-4">Duplicate <span id="bulk-duplicate-count" class="font-bold">0</span> selected nodes to:</p>
+            <p class="text-gray-600 mb-4 mt-4">Duplicate <span id="bulk-duplicate-count" class="font-bold">0</span> selected wormholes to:</p>
 
             <div class="mb-6">
-                <label for="bulk-duplicate-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Constellation</label>
+                <label for="bulk-duplicate-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Galaxy</label>
                 <select id="bulk-duplicate-constellation" class="select select-bordered select-sm w-full bg-white">
                     <?php foreach ($constellations as $c): ?>
                         <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
@@ -2371,7 +2371,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </div>
 
             <div class="modal-action">
-                <button onclick="bulkDuplicate()" class="btn btn-neutral">Duplicate Nodes</button>
+                <button onclick="bulkDuplicate()" class="btn btn-neutral">Duplicate Wormholes</button>
                 <button type="button" class="btn" onclick="document.getElementById('bulk_duplicate_modal').close()">Cancel</button>
             </div>
         </div>

@@ -130,7 +130,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $createConstellation = !empty($_POST['create_constellation']);
                 $newConstellationName = trim((string)($_POST['new_constellation_name'] ?? ''));
                 if ($createConstellation && $newConstellationName === '') {
-                    throw new Exception('Constellation name is required when "Create new constellation" is checked.');
+                    throw new Exception('Galaxy name is required when "Create new galaxy" is checked.');
                 }
                 $hashedPassword = hashPassword($password);
                 $err = createUser(getDB(), $email, $hashedPassword, $firstname, $lastname, $type);
@@ -206,23 +206,23 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $tagline = trim($_POST['tagline'] ?? '');
                 $slug = trim($_POST['slug'] ?? '');
                 if (empty($name)) {
-                    throw new Exception('Constellation name is required');
+                    throw new Exception('Galaxy name is required');
                 }
-                
+
                 $finalSlug = ($slug !== '') ? $slug : db_slugify($name);
                 $exists = db_constellation_exists($name, $finalSlug);
                 if ($exists['name'] || $exists['slug']) {
                     $errs = [];
                     if ($exists['name']) $errs[] = 'name "' . htmlspecialchars($name) . '"';
                     if ($exists['slug']) $errs[] = 'slug "' . htmlspecialchars($finalSlug) . '"';
-                    throw new Exception('A constellation with this ' . implode(' and ', $errs) . ' already exists.');
+                    throw new Exception('A galaxy with this ' . implode(' and ', $errs) . ' already exists.');
                 }
 
                 $allowedThemes = ['cosmic', 'simple', 'abstract', 'rectangles', 'stripes', 'tech'];
                 $theme = trim($_POST['theme'] ?? 'cosmic');
                 if (!in_array($theme, $allowedThemes, true)) { $theme = 'cosmic'; }
                 db_create_constellation($name, $tagline, $slug !== '' ? $slug : null, $theme);
-                $message = 'Constellation created successfully.';
+                $message = 'Galaxy created successfully.';
                 $activeTab = 'constellations';
             })(),
             
@@ -236,7 +236,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $theme = trim($_POST['theme'] ?? 'cosmic');
                 if (!in_array($theme, $allowedThemes, true)) { $theme = 'cosmic'; }
                 if (empty($name)) {
-                    throw new Exception('Constellation name is required');
+                    throw new Exception('Galaxy name is required');
                 }
 
                 $finalSlug = ($slug !== '') ? $slug : db_slugify($name);
@@ -245,11 +245,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     $errs = [];
                     if ($exists['name']) $errs[] = 'name "' . htmlspecialchars($name) . '"';
                     if ($exists['slug']) $errs[] = 'slug "' . htmlspecialchars($finalSlug) . '"';
-                    throw new Exception('A constellation with this ' . implode(' and ', $errs) . ' already exists.');
+                    throw new Exception('A galaxy with this ' . implode(' and ', $errs) . ' already exists.');
                 }
 
                 db_update_constellation($id, $name, $tagline, $slug !== '' ? $slug : null, $theme);
-                $message = 'Constellation updated successfully.';
+                $message = 'Galaxy updated successfully.';
                 $activeTab = 'constellations';
             })(),
             
@@ -261,20 +261,20 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $slug = trim($_POST['slug'] ?? '');
                 
                 if (empty($name)) {
-                    throw new Exception('New constellation name is required');
+                    throw new Exception('New galaxy name is required');
                 }
-                
+
                 $finalSlug = ($slug !== '') ? $slug : db_slugify($name);
                 $exists = db_constellation_exists($name, $finalSlug);
                 if ($exists['name'] || $exists['slug']) {
                     $errs = [];
                     if ($exists['name']) $errs[] = 'name "' . htmlspecialchars($name) . '"';
                     if ($exists['slug']) $errs[] = 'slug "' . htmlspecialchars($finalSlug) . '"';
-                    throw new Exception('A constellation with this ' . implode(' and ', $errs) . ' already exists.');
+                    throw new Exception('A galaxy with this ' . implode(' and ', $errs) . ' already exists.');
                 }
 
                 db_duplicate_constellation($sourceId, $name, $tagline, $slug !== '' ? $slug : null);
-                $message = 'Constellation duplicated successfully.';
+                $message = 'Galaxy duplicated successfully.';
                 $activeTab = 'constellations';
             })(),
             
@@ -282,7 +282,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 global $message, $error, $activeTab;
                 $id = (int)($_POST['id'] ?? -1);
                 db_delete_constellation($id);
-                $message = 'Constellation deleted successfully.';
+                $message = 'Galaxy deleted successfully.';
                 $activeTab = 'constellations';
             })(),
             
@@ -443,18 +443,18 @@ $fieldMeta = [
     'alert_message' => ['label' => 'Alert message', 'desc' => 'Message when a link cannot be embedded.', 'type' => 'textarea'],
     'edit_button_text' => ['label' => 'Edit button label', 'desc' => 'Label for the Edit link shown to editors on the main view.', 'type' => 'text'],
     'loading_text' => ['label' => 'Loading text', 'desc' => 'Text shown in the loading overlay (e.g. "Loading").', 'type' => 'text'],
-    'back_button_text' => ['label' => 'Back button text', 'desc' => 'Text on the back button when navigating between constellations.', 'type' => 'text'],
+    'back_button_text' => ['label' => 'Back button text', 'desc' => 'Text on the back button when navigating between galaxies.', 'type' => 'text'],
     'system_online_text' => ['label' => 'System Online text', 'desc' => 'Status text shown in the HUD (e.g. "System: Online").', 'type' => 'text'],
     'reload_system_text' => ['label' => 'Reload System text', 'desc' => 'Tooltip for the reload action.', 'type' => 'text'],
     'scan_system_text' => ['label' => 'Scan System placeholder', 'desc' => 'Placeholder text for the search input.', 'type' => 'text'],
     'clear_scan_text' => ['label' => 'Clear Scan tooltip', 'desc' => 'Tooltip for the clear search button.', 'type' => 'text'],
-    'systems_label_text' => ['label' => 'Systems label', 'desc' => 'Label for the nodes count in the HUD.', 'type' => 'text'],
+    'systems_label_text' => ['label' => 'Systems label', 'desc' => 'Label for the wormholes count in the HUD.', 'type' => 'text'],
     'hyperlinks_label_text' => ['label' => 'Hyperlinks label', 'desc' => 'Label for the connections count in the HUD.', 'type' => 'text'],
     'initialize_auth_text' => ['label' => 'Login label', 'desc' => 'Label for the login link (e.g. "Initialize Auth").', 'type' => 'text'],
     'admin_label_text' => ['label' => 'Admin label', 'desc' => 'Label for the admin link.', 'type' => 'text'],
     'logout_label_text' => ['label' => 'Logout label', 'desc' => 'Label for the logout link.', 'type' => 'text'],
-    'click_to_view_text' => ['label' => 'Click to view hint', 'desc' => 'Interaction hint shown in node tooltips for mouse users.', 'type' => 'text'],
-    'tap_to_view_text' => ['label' => 'Tap to view hint', 'desc' => 'Interaction hint shown in node tooltips for touch users.', 'type' => 'text'],
+    'click_to_view_text' => ['label' => 'Click to view hint', 'desc' => 'Interaction hint shown in wormhole tooltips for mouse users.', 'type' => 'text'],
+    'tap_to_view_text' => ['label' => 'Tap to view hint', 'desc' => 'Interaction hint shown in wormhole tooltips for touch users.', 'type' => 'text'],
     'open_portal_text' => ['label' => 'Open portal button text', 'desc' => 'Text on the button that opens a portal when it has a description.', 'type' => 'text'],
 ];
 ?>
@@ -527,7 +527,7 @@ $fieldMeta = [
                 <button onclick="showTab('constellations')" 
                         id="tab-constellations"
                         class="tab tab-lg <?php echo $activeTab === 'constellations' ? 'tab-active' : ''; ?>">
-                    Constellations
+                    Galaxies
                 </button>
                 <button onclick="showTab('users')" 
                         id="tab-users"
@@ -800,8 +800,8 @@ $fieldMeta = [
                 <div>
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
-                            <h2 class="text-gray-800 text-base font-semibold">Constellations (<span id="constellations-count">...</span>)</h2>
-                            <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Constellation</button>
+                            <h2 class="text-gray-800 text-base font-semibold">Galaxies (<span id="constellations-count">...</span>)</h2>
+                            <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Galaxy</button>
                             <button type="button" onclick="openMocambosImportModal()" class="text-purple-600 hover:text-purple-800 font-medium text-base">Import from Mocambos</button>
                         </div>
 
@@ -812,7 +812,7 @@ $fieldMeta = [
                             <label for="search-constellations" class="text-sm font-medium text-gray-700">Search:</label>
                             <input type="text" 
                                    id="search-constellations" 
-                                   placeholder="Search constellations..." 
+                                   placeholder="Search galaxies..." 
                                    oninput="debouncedConstSearch()"
                                    class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
@@ -827,7 +827,7 @@ $fieldMeta = [
                             }
                         }
                     ?>
-                    <p class="text-sm text-gray-600 mb-4">Each constellation is a separate set of nodes and keywords. The current default constellation, <strong><?php echo $defaultName; ?></strong>, cannot be deleted.<br>You can change the default constellation in the <button onclick="showTab(\'settings\')" class="text-blue-600 hover:underline">Global Settings</button> tab.</p>
+                    <p class="text-sm text-gray-600 mb-4">Each galaxy is a separate set of wormholes and keywords. The current default galaxy, <strong><?php echo $defaultName; ?></strong>, cannot be deleted.<br>You can change the default galaxy in the <button onclick="showTab(\'settings\')" class="text-blue-600 hover:underline">Global Settings</button> tab.</p>
                     <div id="copy-url-toast" class="hidden fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded shadow-lg text-sm" role="status" aria-live="polite">URL copied to clipboard.</div>
                     <div id="constellations-list-container"></div>
                 </div>
@@ -847,7 +847,7 @@ $fieldMeta = [
                     <input type="hidden" name="settings_lang" id="settings_lang" value="<?php echo htmlspecialchars($_GET['lang'] ?? 'en'); ?>">
                     
                     <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                        <label for="default_constellation_id" class="block mb-1.5 text-gray-800 font-medium text-sm">Default Constellation</label>
+                        <label for="default_constellation_id" class="block mb-1.5 text-gray-800 font-medium text-sm">Default Galaxy</label>
                         <select id="default_constellation_id" name="default_constellation_id" class="select select-bordered select-sm w-full bg-white">
                             <?php
                             $currentOptgroup = null;
@@ -867,7 +867,7 @@ $fieldMeta = [
                             if ($inOptgroup) echo '</optgroup>';
                             ?>
                         </select>
-                        <span class="text-xs text-gray-500 mt-1 block">Choose which constellation is shown at the root of the website. The chosen constellation will also have its name and tagline synced with the "App name" and "Description" fields below.</span>
+                        <span class="text-xs text-gray-500 mt-1 block">Choose which galaxy is shown at the root of the website. The chosen galaxy will also have its name and tagline synced with the "App name" and "Description" fields below.</span>
                     </div>
 
                     <div class="border border-gray-200 rounded-lg bg-white overflow-hidden">
@@ -1126,7 +1126,7 @@ $fieldMeta = [
 
             if (reimportNames.length > 0) {
                 const confirmed = confirm(
-                    'The following constellations will be refreshed, replacing all current content including any edits:\n\n' +
+                    'The following galaxies will be refreshed, replacing all current content including any edits:\n\n' +
                     reimportNames.join('\n') +
                     '\n\nContinue?'
                 );
@@ -1451,7 +1451,7 @@ $fieldMeta = [
                 if (buttonEl) {
                     const origTitle = buttonEl.getAttribute('title');
                     buttonEl.setAttribute('title', 'Copied!');
-                    setTimeout(function() { buttonEl.setAttribute('title', origTitle || 'Copy constellation URL'); }, 1500);
+                    setTimeout(function() { buttonEl.setAttribute('title', origTitle || 'Copy galaxy URL'); }, 1500);
                 }
             });
         }
@@ -1638,7 +1638,7 @@ $fieldMeta = [
         function refreshImportedConstellation(id, name) {
             const source = constImportSources[id];
             if (!source || !source.api_base || !source.galaxia_slug) {
-                showMessage('Missing import source info for this constellation.', 'error');
+                showMessage('Missing import source info for this galaxy.', 'error');
                 return;
             }
 
@@ -1802,10 +1802,10 @@ $fieldMeta = [
                         if (data.referencing_portals && data.referencing_portals.length > 0) {
                             let html = `<div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 text-xs">`;
                             html += `<p class="font-bold mb-2 uppercase tracking-wide">⚠️ Deletion Impact:</p>`;
-                            html += `<p class="mb-2">The following portal nodes in other constellations point to this network and will also be deleted:</p>`;
+                            html += `<p class="mb-2">The following portals in other galaxies point to this network and will also be deleted:</p>`;
                             html += `<ul class="list-disc list-inside space-y-1">`;
                             data.referencing_portals.forEach(p => {
-                                html += `<li><strong>${p.name}</strong> (in constellation: ${p.constellation_name})</li>`;
+                                html += `<li><strong>${p.name}</strong> (in galaxy: ${p.constellation_name})</li>`;
                             });
                             html += `</ul></div>`;
                             impactWrap.innerHTML = html;
@@ -1962,7 +1962,7 @@ $fieldMeta = [
                 if (buttonEl) {
                     const origTitle = buttonEl.getAttribute('title');
                     buttonEl.setAttribute('title', 'Copied!');
-                    setTimeout(function() { buttonEl.setAttribute('title', origTitle || 'Copy constellation URL'); }, 1500);
+                    setTimeout(function() { buttonEl.setAttribute('title', origTitle || 'Copy galaxy URL'); }, 1500);
                 }
             });
         }
@@ -2246,7 +2246,7 @@ $fieldMeta = [
                 if (countEl) countEl.textContent = total;
 
                 if (constellations.length === 0) {
-                    container.innerHTML = '<p class="text-gray-600 py-4">No constellations found.</p>';
+                    container.innerHTML = '<p class="text-gray-600 py-4">No galaxies found.</p>';
                     updateConstPagination();
                     return;
                 }
@@ -2268,7 +2268,7 @@ $fieldMeta = [
                                     <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('tagline')">Tagline<span id="sort-indicator-const-tagline"></span></span>
                                 </th>
                                 <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('node_count')">Nodes<span id="sort-indicator-const-node_count"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('node_count')">Wormholes<span id="sort-indicator-const-node_count"></span></span>
                                 </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
                                     <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('created_at')">Created<span id="sort-indicator-const-created_at"></span></span>
@@ -2295,7 +2295,7 @@ $fieldMeta = [
                     const updatedAt = c.updated_at ? new Date(c.updated_at) : null;
                     const fmtDate = (d) => d ? `${d.getFullYear().toString().slice(-2)}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}` : '—';
 
-                    const delMsg = JSON.stringify(`Are you sure you want to delete the constellation "${c.name}"? This will permanently remove ALL nodes and keywords inside it.`);
+                    const delMsg = JSON.stringify(`Are you sure you want to delete the galaxy "${c.name}"? This will permanently remove ALL wormholes and keywords inside it.`);
                     const cNameJson = JSON.stringify(c.name);
 
                     html += `<tr class="constellation-row border-b border-gray-300${hoverClass}"${bgStyle}>
@@ -2339,7 +2339,7 @@ $fieldMeta = [
                 updateConstellationSortIndicators();
                 formatLocalDatetimes();
             } catch (e) {
-                container.innerHTML = '<p class="text-red-600">Error loading constellations: ' + escapeHtmlAdmin(e.message) + '</p>';
+                container.innerHTML = '<p class="text-red-600">Error loading galaxies: ' + escapeHtmlAdmin(e.message) + '</p>';
             }
         }
 
@@ -2390,25 +2390,25 @@ $fieldMeta = [
                         <option value="2">Admin</option>
                     </select>
                     <span class="text-xs text-gray-500 mt-1 block">
-                        Editor: Can edit nodes in assigned constellations only | Admin: Full access to all constellations.
+                        Editor: Can edit wormholes in assigned galaxies only | Admin: Full access to all galaxies.
                     </span>
                 </div>
                 
                 <div class="mb-4 p-3 border border-gray-200 rounded bg-white">
                     <label class="flex items-center gap-2 cursor-pointer mb-2">
                         <input type="checkbox" id="create_constellation_cb" name="create_constellation" value="1" class="rounded border-gray-300" checked onchange="toggleCreateNewConstellationName()">
-                        <span class="text-gray-800 font-medium">Create a new constellation for this user</span>
+                        <span class="text-gray-800 font-medium">Create a new galaxy for this user</span>
                     </label>
-                    <p class="text-xs text-gray-500 mb-2">A new constellation is created with the name below and the user is granted access to it (Editors only).</p>
+                    <p class="text-xs text-gray-500 mb-2">A new galaxy is created with the name below and the user is granted access to it (Editors only).</p>
                     <div id="create-new-constellation-name-wrap">
-                        <label for="create_new_constellation_name" class="block mb-1 text-gray-700 text-sm">Constellation name *</label>
+                        <label for="create_new_constellation_name" class="block mb-1 text-gray-700 text-sm">Galaxy name *</label>
                         <input type="text" id="create_new_constellation_name" name="new_constellation_name" placeholder="Defaults to email above" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span class="text-xs text-gray-500 mt-1 block">Name for the automatically created constellation.</span>
+                        <span class="text-xs text-gray-500 mt-1 block">Name for the automatically created galaxy.</span>
                     </div>
                 </div>
                 
                 <div id="create-user-constellations-section" class="mb-4">
-                    <label class="block mb-1.5 text-gray-800 font-medium">Constellation access (Editors only)</label>
+                    <label class="block mb-1.5 text-gray-800 font-medium">Galaxy access (Editors only)</label>
                     <div class="border border-gray-200 rounded p-3 bg-white max-h-48 overflow-y-auto">
                         <?php
                         $prevGroup = false;
@@ -2430,7 +2430,7 @@ $fieldMeta = [
                         if ($prevGroup !== false && $prevGroup !== null) echo '</div>';
                         ?>
                     </div>
-                    <span class="text-xs text-gray-500 mt-1 block">Editors can only see and edit nodes in the constellations checked above. Admins see all constellations.</span>
+                    <span class="text-xs text-gray-500 mt-1 block">Editors can only see and edit wormholes in the galaxies checked above. Admins see all galaxies.</span>
                 </div>
                 
                 <div class="modal-action">
@@ -2467,7 +2467,7 @@ $fieldMeta = [
             <!-- Step 3: Galaxia selection + import -->
             <div id="mocambos-list" class="hidden">
                 <p class="text-sm text-gray-600 mb-1">Connected to: <strong id="mocambos-connected-url" class="font-mono text-xs"></strong></p>
-                <p class="text-sm text-gray-600 mb-3">Select galaxias to import. Each will become a new constellation. Already-imported ones will be refreshed.</p>
+                <p class="text-sm text-gray-600 mb-3">Select galaxias to import. Each will become a new galaxy. Already-imported ones will be refreshed.</p>
                 <div id="mocambos-galaxias" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded p-3 mb-4"></div>
                 <div id="mocambos-import-progress" class="hidden">
                     <div class="flex items-center gap-2 mb-2">
@@ -2480,9 +2480,9 @@ $fieldMeta = [
             </div>
             <!-- Refresh confirmation step -->
             <div id="refresh-confirm-step" class="hidden">
-                <p class="text-gray-700 mb-2">This will sync nodes with the remote Mocambos source (incremental update).</p>
-                <p class="text-gray-700 mb-4">To confirm, type the constellation name <strong id="refresh-confirm-name" class="text-gray-900"></strong> below:</p>
-                <input type="text" id="refresh-confirm-input" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500 mb-4" placeholder="Type constellation name to confirm" autocomplete="off">
+                <p class="text-gray-700 mb-2">This will sync wormholes with the remote Mocambos source (incremental update).</p>
+                <p class="text-gray-700 mb-4">To confirm, type the galaxy name <strong id="refresh-confirm-name" class="text-gray-900"></strong> below:</p>
+                <input type="text" id="refresh-confirm-input" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500 mb-4" placeholder="Type galaxy name to confirm" autocomplete="off">
                 <div class="flex justify-end gap-2">
                     <button type="button" id="refresh-confirm-btn" class="btn bg-purple-600 hover:bg-purple-700 text-white btn-sm" disabled>Refresh</button>
                     <button type="button" class="btn btn-sm" onclick="document.getElementById('mocambos_import_modal').close()">Cancel</button>
@@ -2500,7 +2500,7 @@ $fieldMeta = [
     <dialog id="create_constellation_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Create New Constellation</h3>
+                <h3 class="font-bold text-xl">Create New Galaxy</h3>
             </div>
             <form method="POST" action="" class="mt-4">
                 <input type="hidden" name="action" value="create_constellation">
@@ -2509,7 +2509,7 @@ $fieldMeta = [
                     <label for="create-constellation-name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
                     <input type="text" id="create-constellation-name" name="name" required placeholder="e.g. Main network, Archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     <span id="create-constellation-name-error" class="text-xs text-red-600 mt-1 hidden">This name is already in use.</span>
-                    <span class="text-xs text-gray-500 mt-1 block">Unique name for the new node network.</span>
+                    <span class="text-xs text-gray-500 mt-1 block">Unique name for the new wormhole network.</span>
                 </div>
 
                 <div class="mb-4">
@@ -2522,7 +2522,7 @@ $fieldMeta = [
                 <div class="mb-4">
                     <label for="create-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
                     <input type="text" id="create-constellation-tagline" name="tagline" placeholder="e.g. Weaving memory" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">Shown in the main view when this constellation is open.</span>
+                    <span class="text-xs text-gray-500 mt-1 block">Shown in the main view when this galaxy is open.</span>
                 </div>
 
                 <div class="mb-4">
@@ -2539,7 +2539,7 @@ $fieldMeta = [
                 </div>
                 
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-neutral">Create Constellation</button>
+                    <button type="submit" class="btn btn-neutral">Create Galaxy</button>
                     <button type="button" class="btn" onclick="document.getElementById('create_constellation_modal').close()">Cancel</button>
                 </div>
             </form>
@@ -2589,7 +2589,7 @@ $fieldMeta = [
                 </div>
                 
                 <div id="modal-user-constellations-section" class="mb-4 hidden">
-                    <label class="block mb-1.5 text-gray-800 font-medium">Constellation access (Editors only)</label>
+                    <label class="block mb-1.5 text-gray-800 font-medium">Galaxy access (Editors only)</label>
                     <div class="border border-gray-200 rounded p-3 bg-white max-h-48 overflow-y-auto">
                         <?php
                         $prevGroup2 = false;
@@ -2625,7 +2625,7 @@ $fieldMeta = [
     <dialog id="constellation_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-                <h3 class="font-bold text-xl">Edit Constellation</h3>
+                <h3 class="font-bold text-xl">Edit Galaxy</h3>
                 <span id="modal-constellation-id-badge" class="text-xs opacity-70 font-mono"></span>
             </div>
             <form method="POST" action="" class="mt-4">
@@ -2663,7 +2663,7 @@ $fieldMeta = [
                 </div>
 
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-neutral">Update Constellation</button>
+                    <button type="submit" class="btn btn-neutral">Update Galaxy</button>
                     <button type="button" class="btn" onclick="document.getElementById('constellation_modal').close()">Cancel</button>
                 </div>
             </form>
@@ -2675,7 +2675,7 @@ $fieldMeta = [
     <dialog id="duplicate_constellation_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-                <h3 class="font-bold text-xl">Duplicate Constellation</h3>
+                <h3 class="font-bold text-xl">Duplicate Galaxy</h3>
                 <span id="duplicate-constellation-id-badge" class="text-xs opacity-70 font-mono"></span>
             </div>
             <p class="text-sm text-gray-600 mb-4 mt-4">Duplicating: <strong id="duplicate-constellation-source-name"></strong></p>
@@ -2720,7 +2720,7 @@ $fieldMeta = [
             <div id="delete-impact-wrap" class="mb-6 hidden"></div>
 
             <div id="delete-name-confirm-wrap" class="mb-6 hidden">
-                <label for="delete-confirm-name-input" class="block mb-2 text-sm font-medium text-gray-700">Please type the name of the constellation to confirm:</label>
+                <label for="delete-confirm-name-input" class="block mb-2 text-sm font-medium text-gray-700">Please type the name of the galaxy to confirm:</label>
                 <input type="text" 
                        id="delete-confirm-name-input" 
                        oninput="checkDeleteConfirmName(this)"

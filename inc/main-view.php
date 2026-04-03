@@ -159,7 +159,7 @@ header("X-Content-Type-Options: nosniff");
     </button>
 
     <div id="canvas-container" class="relative" style="position: relative; width: 100vw; height: 100vh; min-height: 100vh;">
-        <button type="button" id="portal-back-button" aria-label="<?php echo htmlspecialchars($projectBackButtonText ?? 'Back'); ?> to previous constellation"
+        <button type="button" id="portal-back-button" aria-label="<?php echo htmlspecialchars($projectBackButtonText ?? 'Back'); ?> to previous galaxy"
                 class="absolute top-5 right-5 z-[80] cursor-pointer"
                 style="display: none; padding: 0.5rem 0.75rem; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: #00ffcc; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 2px; backdrop-filter: blur(4px); transition: all 0.2s;"
         >

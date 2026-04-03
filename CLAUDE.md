@@ -8,6 +8,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Current version: **6.2.0** (tracked in `VERSION` file).
 
+## Vocabulary Mapping (Code → UI)
+
+The codebase uses internal names that differ from what users see in the UI:
+
+| Code / DB / API | User-Facing (EN) | User-Facing (ES) | User-Facing (PT) |
+|---|---|---|---|
+| `constellation` | Galaxy | Galaxia | Galáxia |
+| `node` | Wormhole | Agujero de Gusano | Buraco de Minhoca |
+| `portal` | Portal | Portal | Portal |
+
+All DB tables, API endpoints, PHP/JS variable names, and URL parameters keep the original internal names (`constellation`, `node`, `portal`). Only UI-facing labels, titles, messages, and tooltips use the new vocabulary.
+
 ## Tech Stack
 
 - **Backend**: PHP 8.3+ with PDO (strict types throughout), MySQL 8+, Nginx
