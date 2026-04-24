@@ -10,10 +10,16 @@ require_once __DIR__ . '/../../inc/cron.php';
 header('Content-Type: application/json');
 
 try {
+    $schedule = snapshot_get_schedule();
+    // Self-heal: if the scheduler is meant to be on but the crontab line is
+    // missing (fresh deploy, manual removal, etc.), reinstall it silently.
+    if (!empty($schedule['enabled']) && !cron_is_installed()) {
+        try { cron_install(); } catch (Throwable $e) { /* reported via cron status */ }
+    }
     echo json_encode([
         'ok' => true,
         'snapshots' => snapshot_list(),
-        'schedule' => snapshot_get_schedule(),
+        'schedule' => $schedule,
         'snapshots_dir' => backup_snapshots_dir(),
         'cron' => cron_status_summary(),
     ]);

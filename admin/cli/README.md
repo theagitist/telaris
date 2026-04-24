@@ -165,7 +165,7 @@ Cron target. When the scheduler is enabled, creates a daily snapshot at or after
 php admin/cli/snapshot_run_scheduled.php
 ```
 
-**Cron installation is managed by the admin UI** (Snapshots tab). The Install scheduler button writes a line into the PHP user's (www-data) crontab that runs this script every 15 minutes and pipes output to `logs/snapshot_cron.log`. If you prefer to manage cron manually, use an equivalent line and the UI will still show last-run and log output.
+**Cron installation is transparent** — toggling "Enable daily snapshots" in the admin Snapshots tab automatically installs (or removes) a line in the PHP user's (www-data) crontab that runs this script every 15 minutes and pipes output to `logs/snapshot_cron.log`. Running this script manually from the CLI is also safe: it just prints status and exits.
 
 ## Creating New CLI Scripts
 

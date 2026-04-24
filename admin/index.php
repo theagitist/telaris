@@ -1058,9 +1058,9 @@ $fieldMeta = [
                 <section class="mb-8 border border-gray-300 rounded p-4">
                     <h2 class="text-lg font-semibold mb-3">Snapshot scheduler</h2>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                        <label class="text-sm flex items-center gap-2 md:col-span-1">
-                            <input type="checkbox" id="schedule-enabled" class="checkbox checkbox-sm">
-                            <span>Enable daily snapshots</span>
+                        <label class="text-sm flex items-center gap-3 md:col-span-1 cursor-pointer select-none">
+                            <input type="checkbox" id="schedule-enabled" class="toggle toggle-primary toggle-sm">
+                            <span class="font-medium">Enable daily snapshots</span>
                         </label>
                         <label class="text-sm">Hour (UTC)
                             <input type="number" id="schedule-hour" min="0" max="23" value="3" class="input input-bordered input-sm w-full">
@@ -1070,39 +1070,29 @@ $fieldMeta = [
                         </label>
                     </div>
                     <div class="mt-3 flex flex-wrap gap-3 items-center">
-                        <button type="button" onclick="scheduleSave()" class="btn btn-neutral btn-sm">Save schedule</button>
-                        <span id="schedule-last-run" class="text-xs text-gray-500"></span>
-                    </div>
-                </section>
-
-                <!-- Cron scheduler -->
-                <section class="mb-8 border border-gray-300 rounded p-4">
-                    <h2 class="text-lg font-semibold mb-3">Cron scheduler</h2>
-                    <div class="flex flex-wrap gap-4 text-sm mb-3">
-                        <div>
-                            <span class="text-gray-500">Cron service:</span>
-                            <span id="cron-service-badge" class="ml-1 px-2 py-0.5 rounded text-xs bg-gray-200">loading...</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-500">Scheduler installed:</span>
-                            <span id="cron-installed-badge" class="ml-1 px-2 py-0.5 rounded text-xs bg-gray-200">loading...</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-500">Last run:</span>
-                            <span id="cron-last-run" class="ml-1">n/a</span>
-                        </div>
-                    </div>
-                    <div class="flex flex-wrap gap-2 mb-3">
-                        <button type="button" id="cron-install-btn" onclick="cronInstall()" class="btn btn-primary btn-sm">Install scheduler</button>
-                        <button type="button" id="cron-uninstall-btn" onclick="cronUninstall()" class="btn btn-outline btn-sm">Uninstall scheduler</button>
+                        <button type="button" onclick="scheduleSave()" class="btn btn-neutral btn-sm">Save</button>
                         <button type="button" onclick="snapshotsLoad()" class="btn btn-ghost btn-sm">Refresh status</button>
                     </div>
-                    <div class="text-xs text-gray-600 mb-1">Crontab line managed by the app:</div>
-                    <pre id="cron-line" class="bg-gray-100 p-2 rounded mt-1 overflow-x-auto text-xs"></pre>
-                    <div class="text-xs text-gray-600 mt-3 mb-1">
-                        Recent log <span id="cron-log-meta" class="text-gray-400"></span>
+
+                    <div class="mt-4 pt-3 border-t border-gray-200">
+                        <div class="flex flex-wrap gap-4 text-sm">
+                            <div>
+                                <span class="text-gray-500">Status:</span>
+                                <span id="scheduler-status-badge" class="ml-1 px-2 py-0.5 rounded text-xs bg-gray-200">loading...</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Last snapshot:</span>
+                                <span id="scheduler-last-run" class="ml-1">never</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Last checked:</span>
+                                <span id="scheduler-last-check" class="ml-1">never</span>
+                            </div>
+                        </div>
+                        <div id="scheduler-status-detail" class="text-xs text-amber-700 mt-2 hidden"></div>
+                        <div class="text-xs text-gray-600 mt-3 mb-1">Recent activity</div>
+                        <pre id="scheduler-log" class="bg-gray-900 text-green-200 p-2 rounded text-xs overflow-x-auto max-h-64 whitespace-pre-wrap">(no activity yet)</pre>
                     </div>
-                    <pre id="cron-log" class="bg-gray-900 text-green-200 p-2 rounded text-xs overflow-x-auto max-h-64 whitespace-pre-wrap">(no log yet)</pre>
                 </section>
 
                 <!-- List -->
@@ -2928,89 +2918,54 @@ $fieldMeta = [
                 const r = await fetch('snapshots/list.php');
                 const data = await r.json();
                 if (!r.ok || !data.ok) throw new Error(data.error || 'Failed to load snapshots');
-                snapshotsRenderSchedule(data.schedule);
-                snapshotsRenderCron(data.cron);
+                snapshotsRenderScheduler(data.schedule, data.cron);
                 snapshotsRenderTable(data.snapshots || []);
             } catch (e) {
                 wrap.innerHTML = '<p class="text-red-600">' + escapeHtmlAdmin(e.message) + '</p>';
             }
         }
 
-        function snapshotsRenderSchedule(s) {
+        function snapshotsRenderScheduler(s, c) {
             if (!s) return;
             document.getElementById('schedule-enabled').checked = !!s.enabled;
             document.getElementById('schedule-hour').value = (s.hour ?? 3);
             document.getElementById('schedule-keep-days').value = (s.keep_days ?? 7);
-            const lr = s.last_run_at;
-            document.getElementById('schedule-last-run').textContent = lr ? ('Last scheduled run: ' + lr + ' UTC') : 'Never run yet';
-            document.getElementById('cron-last-run').textContent = lr ? (lr + ' UTC') : 'never';
-        }
 
-        function snapshotsRenderCron(c) {
-            if (!c) return;
-            const svcBadge = document.getElementById('cron-service-badge');
-            if (c.service_active) {
-                svcBadge.textContent = c.service_message || 'active';
-                svcBadge.className = 'ml-1 px-2 py-0.5 rounded text-xs bg-green-100 text-green-800';
-            } else {
-                svcBadge.textContent = c.service_message || 'inactive';
-                svcBadge.className = 'ml-1 px-2 py-0.5 rounded text-xs bg-red-100 text-red-800';
-            }
-            const instBadge = document.getElementById('cron-installed-badge');
-            if (c.installed) {
-                instBadge.textContent = 'installed';
-                instBadge.className = 'ml-1 px-2 py-0.5 rounded text-xs bg-green-100 text-green-800';
-                document.getElementById('cron-install-btn').classList.add('hidden');
-                document.getElementById('cron-uninstall-btn').classList.remove('hidden');
-            } else {
-                instBadge.textContent = 'not installed';
-                instBadge.className = 'ml-1 px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800';
-                document.getElementById('cron-install-btn').classList.remove('hidden');
-                document.getElementById('cron-uninstall-btn').classList.add('hidden');
-            }
-            document.getElementById('cron-line').textContent = c.line || '';
-            const meta = document.getElementById('cron-log-meta');
-            if (c.log_exists) {
-                const kb = ((c.log_size || 0) / 1024).toFixed(1);
-                meta.textContent = '(' + c.log_path + ', ' + kb + ' KB, modified ' + (c.log_mtime || 'unknown') + ')';
-            } else {
-                meta.textContent = '(no log file yet; cron has not run)';
-            }
-            const logEl = document.getElementById('cron-log');
-            logEl.textContent = (c.recent_log && c.recent_log.length) ? c.recent_log : '(no log yet)';
-        }
+            document.getElementById('scheduler-last-run').textContent = s.last_run_at ? (s.last_run_at + ' UTC') : 'never';
+            document.getElementById('scheduler-last-check').textContent = (c && c.log_mtime) ? c.log_mtime : 'never';
 
-        async function cronInstall() {
-            try {
-                const r = await fetch('snapshots/cron.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
-                    body: JSON.stringify({ csrf_token: CSRF_TOKEN, action: 'install' }),
-                });
-                const data = await r.json();
-                if (!r.ok || !data.ok) throw new Error(data.error || 'Install failed');
-                showMessage('Scheduler installed in crontab.', 'success');
-                snapshotsRenderCron(data.cron);
-            } catch (e) {
-                showMessage('Install failed: ' + escapeHtmlAdmin(e.message), 'error');
+            const badge = document.getElementById('scheduler-status-badge');
+            const detail = document.getElementById('scheduler-status-detail');
+            let label, cls, msg = '';
+            if (!s.enabled) {
+                label = 'Disabled';
+                cls = 'bg-gray-200 text-gray-700';
+            } else if (c && c.service_active && c.installed) {
+                label = 'Active';
+                cls = 'bg-green-100 text-green-800';
+            } else {
+                label = 'Needs attention';
+                cls = 'bg-amber-100 text-amber-800';
+                if (c && !c.service_active) {
+                    msg = "The system's cron service is not running (" + (c.service_message || 'inactive') + "). Scheduled snapshots will not be taken until cron is started.";
+                } else if (c && !c.installed) {
+                    msg = 'Unable to register the scheduler with cron. Try saving again.';
+                } else {
+                    msg = 'Scheduler status unknown.';
+                }
             }
-        }
+            badge.textContent = label;
+            badge.className = 'ml-1 px-2 py-0.5 rounded text-xs ' + cls;
+            if (msg) {
+                detail.textContent = msg;
+                detail.classList.remove('hidden');
+            } else {
+                detail.classList.add('hidden');
+            }
 
-        async function cronUninstall() {
-            if (!confirm('Remove the snapshot scheduler from the crontab? Scheduled snapshots will stop until you reinstall.')) return;
-            try {
-                const r = await fetch('snapshots/cron.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
-                    body: JSON.stringify({ csrf_token: CSRF_TOKEN, action: 'uninstall' }),
-                });
-                const data = await r.json();
-                if (!r.ok || !data.ok) throw new Error(data.error || 'Uninstall failed');
-                showMessage('Scheduler removed from crontab.', 'success');
-                snapshotsRenderCron(data.cron);
-            } catch (e) {
-                showMessage('Uninstall failed: ' + escapeHtmlAdmin(e.message), 'error');
-            }
+            const logEl = document.getElementById('scheduler-log');
+            const logTxt = (c && c.recent_log && c.recent_log.length) ? c.recent_log : '';
+            logEl.textContent = logTxt || '(no activity yet)';
         }
 
         function snapshotsRenderTable(rows) {
@@ -3142,8 +3097,12 @@ $fieldMeta = [
                 });
                 const data = await r.json();
                 if (!r.ok || !data.ok) throw new Error(data.error || 'Save failed');
-                showMessage('Schedule saved.', 'success');
-                snapshotsRenderSchedule(data.schedule);
+                if (data.warning) {
+                    showMessage('Saved, but scheduler could not register with cron: ' + escapeHtmlAdmin(data.warning), 'error');
+                } else {
+                    showMessage('Schedule saved.', 'success');
+                }
+                snapshotsRenderScheduler(data.schedule, data.cron);
             } catch (e) {
                 showMessage('Save schedule failed: ' + escapeHtmlAdmin(e.message), 'error');
             }
