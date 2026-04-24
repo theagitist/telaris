@@ -1050,7 +1050,11 @@ $fieldMeta = [
                     <h2 class="text-lg font-semibold mb-3">Create snapshot now</h2>
                     <div class="flex flex-wrap items-center gap-3">
                         <input type="text" id="snapshot-note" placeholder="Optional note (e.g. before migration)" class="input input-bordered input-sm flex-1 min-w-[240px]">
-                        <button type="button" onclick="snapshotCreate()" class="btn btn-neutral btn-sm">Create snapshot</button>
+                        <button type="button" id="snapshot-create-btn" onclick="snapshotCreate()" class="btn btn-neutral btn-sm">Create snapshot</button>
+                    </div>
+                    <div id="snapshot-create-progress" class="mt-3 hidden">
+                        <progress class="progress progress-neutral w-full"></progress>
+                        <p id="snapshot-create-progress-label" class="text-xs text-gray-600 mt-1">Creating snapshot. This may take a minute for large instances. Please do not close this tab.</p>
                     </div>
                 </section>
 
@@ -3013,6 +3017,18 @@ $fieldMeta = [
 
         async function snapshotCreate() {
             const note = document.getElementById('snapshot-note').value;
+            const btn = document.getElementById('snapshot-create-btn');
+            const progress = document.getElementById('snapshot-create-progress');
+            const label = document.getElementById('snapshot-create-progress-label');
+            const originalLabel = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Creating...';
+            progress.classList.remove('hidden');
+            const t0 = Date.now();
+            const tick = setInterval(() => {
+                const s = Math.floor((Date.now() - t0) / 1000);
+                label.textContent = 'Creating snapshot. Elapsed: ' + s + 's. This may take a minute for large instances. Please do not close this tab.';
+            }, 1000);
             try {
                 const r = await fetch('snapshots/create.php', {
                     method: 'POST',
@@ -3021,11 +3037,17 @@ $fieldMeta = [
                 });
                 const data = await r.json();
                 if (!r.ok || !data.ok) throw new Error(data.error || 'Create failed');
-                showMessage('Snapshot created.', 'success');
+                showMessage('Snapshot created in ' + Math.floor((Date.now() - t0) / 1000) + 's.', 'success');
                 document.getElementById('snapshot-note').value = '';
                 snapshotsLoad();
             } catch (e) {
                 showMessage('Create snapshot failed: ' + escapeHtmlAdmin(e.message), 'error');
+            } finally {
+                clearInterval(tick);
+                btn.disabled = false;
+                btn.innerHTML = originalLabel;
+                progress.classList.add('hidden');
+                label.textContent = 'Creating snapshot. This may take a minute for large instances. Please do not close this tab.';
             }
         }
 
