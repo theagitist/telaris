@@ -267,27 +267,37 @@ function db_ensure_snapshots_tables(): void {
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS snapshot_schedule (
                 id TINYINT NOT NULL PRIMARY KEY DEFAULT 1,
-                frequency ENUM('off','daily','weekly') NOT NULL DEFAULT 'off',
-                hour TINYINT NULL,
-                day_of_week TINYINT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                hour TINYINT NOT NULL DEFAULT 3,
                 keep_days INT NOT NULL DEFAULT 7,
                 last_run_at TIMESTAMP NULL DEFAULT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
         // Seed the singleton schedule row.
-        $pdo->exec("INSERT IGNORE INTO snapshot_schedule (id, frequency) VALUES (1, 'off')");
+        $pdo->exec("INSERT IGNORE INTO snapshot_schedule (id) VALUES (1)");
 
-        // Migrate older installs: drop 'hourly' frequency, replace keep_last (count) with keep_days (age-based, default 7).
+        // Migrate older installs to the simplified schema (enabled / hour / keep_days).
         $cols = $pdo->query("SHOW COLUMNS FROM snapshot_schedule")->fetchAll(PDO::FETCH_COLUMN, 0);
         if (in_array('keep_last', $cols, true) && !in_array('keep_days', $cols, true)) {
-            $pdo->exec("ALTER TABLE snapshot_schedule ADD COLUMN keep_days INT NOT NULL DEFAULT 7 AFTER day_of_week");
+            $pdo->exec("ALTER TABLE snapshot_schedule ADD COLUMN keep_days INT NOT NULL DEFAULT 7");
             $pdo->exec("ALTER TABLE snapshot_schedule DROP COLUMN keep_last");
         }
-        $freqCol = $pdo->query("SHOW COLUMNS FROM snapshot_schedule LIKE 'frequency'")->fetch(PDO::FETCH_ASSOC);
-        if ($freqCol && is_string($freqCol['Type'] ?? null) && strpos($freqCol['Type'], "'hourly'") !== false) {
-            $pdo->exec("UPDATE snapshot_schedule SET frequency = 'daily' WHERE frequency = 'hourly'");
-            $pdo->exec("ALTER TABLE snapshot_schedule MODIFY COLUMN frequency ENUM('off','daily','weekly') NOT NULL DEFAULT 'off'");
+        if (in_array('frequency', $cols, true) && !in_array('enabled', $cols, true)) {
+            $pdo->exec("ALTER TABLE snapshot_schedule ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER id");
+            $pdo->exec("UPDATE snapshot_schedule SET enabled = (frequency <> 'off')");
+        }
+        if (in_array('frequency', $cols, true)) {
+            $pdo->exec("ALTER TABLE snapshot_schedule DROP COLUMN frequency");
+        }
+        if (in_array('day_of_week', $cols, true)) {
+            $pdo->exec("ALTER TABLE snapshot_schedule DROP COLUMN day_of_week");
+        }
+        // 'hour' was nullable in older schemas; make it NOT NULL DEFAULT 3.
+        $hourCol = $pdo->query("SHOW COLUMNS FROM snapshot_schedule LIKE 'hour'")->fetch(PDO::FETCH_ASSOC);
+        if ($hourCol && (($hourCol['Null'] ?? 'YES') === 'YES')) {
+            $pdo->exec("UPDATE snapshot_schedule SET hour = 3 WHERE hour IS NULL");
+            $pdo->exec("ALTER TABLE snapshot_schedule MODIFY COLUMN hour TINYINT NOT NULL DEFAULT 3");
         }
     } catch (PDOException $e) {
         error_log('db_ensure_snapshots_tables: ' . $e->getMessage());

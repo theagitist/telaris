@@ -177,31 +177,24 @@ function snapshot_restore(int $id, bool $confirmNoAdmin = false): array {
 function snapshot_get_schedule(): array {
     db_ensure_snapshots_tables();
     $pdo = getDB();
-    $row = $pdo->query("SELECT id, frequency, hour, day_of_week, keep_days, last_run_at, updated_at FROM snapshot_schedule WHERE id = 1 LIMIT 1")->fetch();
+    $row = $pdo->query("SELECT id, enabled, hour, keep_days, last_run_at, updated_at FROM snapshot_schedule WHERE id = 1 LIMIT 1")->fetch();
     if (!$row) {
-        // Defensive seed
-        $pdo->exec("INSERT IGNORE INTO snapshot_schedule (id, frequency) VALUES (1, 'off')");
-        $row = $pdo->query("SELECT id, frequency, hour, day_of_week, keep_days, last_run_at, updated_at FROM snapshot_schedule WHERE id = 1 LIMIT 1")->fetch();
+        $pdo->exec("INSERT IGNORE INTO snapshot_schedule (id) VALUES (1)");
+        $row = $pdo->query("SELECT id, enabled, hour, keep_days, last_run_at, updated_at FROM snapshot_schedule WHERE id = 1 LIMIT 1")->fetch();
     }
+    $row['enabled'] = (bool)$row['enabled'];
     return $row;
 }
 
-function snapshot_set_schedule(string $frequency, ?int $hour, ?int $dayOfWeek, int $keepDays): void {
+function snapshot_set_schedule(bool $enabled, int $hour, int $keepDays): void {
     db_ensure_snapshots_tables();
-    $valid = ['off', 'daily', 'weekly'];
-    if (!in_array($frequency, $valid, true)) {
-        throw new InvalidArgumentException('Invalid frequency.');
-    }
-    if ($hour !== null && ($hour < 0 || $hour > 23)) {
+    if ($hour < 0 || $hour > 23) {
         throw new InvalidArgumentException('Invalid hour (0-23).');
-    }
-    if ($dayOfWeek !== null && ($dayOfWeek < 0 || $dayOfWeek > 6)) {
-        throw new InvalidArgumentException('Invalid day of week (0=Sunday, 6=Saturday).');
     }
     if ($keepDays < 1) $keepDays = 1;
     $pdo = getDB();
-    $pdo->prepare("UPDATE snapshot_schedule SET frequency = :f, hour = :h, day_of_week = :d, keep_days = :k WHERE id = 1")
-        ->execute([':f' => $frequency, ':h' => $hour, ':d' => $dayOfWeek, ':k' => $keepDays]);
+    $pdo->prepare("UPDATE snapshot_schedule SET enabled = :e, hour = :h, keep_days = :k WHERE id = 1")
+        ->execute([':e' => $enabled ? 1 : 0, ':h' => $hour, ':k' => $keepDays]);
 }
 
 /**
@@ -237,33 +230,15 @@ function snapshot_trim_scheduled(int $keepDays): int {
  */
 function snapshot_run_if_due(): ?int {
     $sch = snapshot_get_schedule();
-    if ($sch['frequency'] === 'off') return null;
+    if (!$sch['enabled']) return null;
 
     $nowTs = time();
     $lastTs = $sch['last_run_at'] !== null ? strtotime($sch['last_run_at'] . ' UTC') : 0;
-    $isDue = false;
-
-    switch ($sch['frequency']) {
-        case 'daily': {
-            // Due if at-or-past today's scheduled hour AND last_run wasn't already today (UTC)
-            $hour = $sch['hour'] ?? 3;
-            $todayUtc = gmdate('Y-m-d', $nowTs);
-            $scheduledTs = strtotime($todayUtc . ' ' . sprintf('%02d:00:00', $hour) . ' UTC');
-            $lastDay = $lastTs > 0 ? gmdate('Y-m-d', $lastTs) : '';
-            $isDue = ($nowTs >= $scheduledTs) && ($lastDay !== $todayUtc);
-            break;
-        }
-        case 'weekly': {
-            $dow = $sch['day_of_week'] ?? 0;
-            $hour = $sch['hour'] ?? 3;
-            $todayUtcDow = (int)gmdate('w', $nowTs); // 0=Sun
-            $todayUtc = gmdate('Y-m-d', $nowTs);
-            $scheduledTs = strtotime($todayUtc . ' ' . sprintf('%02d:00:00', $hour) . ' UTC');
-            $lastDay = $lastTs > 0 ? gmdate('Y-m-d', $lastTs) : '';
-            $isDue = ($todayUtcDow === $dow) && ($nowTs >= $scheduledTs) && ($lastDay !== $todayUtc);
-            break;
-        }
-    }
+    $hour = (int)($sch['hour'] ?? 3);
+    $todayUtc = gmdate('Y-m-d', $nowTs);
+    $scheduledTs = strtotime($todayUtc . ' ' . sprintf('%02d:00:00', $hour) . ' UTC');
+    $lastDay = $lastTs > 0 ? gmdate('Y-m-d', $lastTs) : '';
+    $isDue = ($nowTs >= $scheduledTs) && ($lastDay !== $todayUtc);
 
     if (!$isDue) return null;
 

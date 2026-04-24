@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../utils/auth.php';
 requireAdminLogin();
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../inc/snapshots.php';
+require_once __DIR__ . '/../../inc/cron.php';
 
 header('Content-Type: application/json');
 
@@ -14,7 +15,7 @@ try {
         'snapshots' => snapshot_list(),
         'schedule' => snapshot_get_schedule(),
         'snapshots_dir' => backup_snapshots_dir(),
-        'cron_command' => 'php ' . dirname(__DIR__, 2) . '/admin/cli/snapshot_run_scheduled.php',
+        'cron' => cron_status_summary(),
     ]);
 } catch (Throwable $e) {
     http_response_code(500);

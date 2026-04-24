@@ -173,11 +173,10 @@ Tracks local on-disk full-system snapshots. Excluded from backup dumps (instance
 - `note` VARCHAR(500) NULL - Optional human-readable note
 
 ### snapshot_schedule
-Single-row table holding the auto-snapshot schedule settings.
+Single-row table holding the snapshot scheduler settings.
 - `id` TINYINT NOT NULL PRIMARY KEY DEFAULT 1 (always 1)
-- `frequency` ENUM('off','daily','weekly') - How often to run
-- `hour` TINYINT NULL - Hour of day (0-23) for daily/weekly
-- `day_of_week` TINYINT NULL - Day of week (0=Sunday) for weekly
+- `enabled` BOOLEAN NOT NULL DEFAULT FALSE - Master on/off for the daily scheduler
+- `hour` TINYINT NOT NULL DEFAULT 3 - Hour of day (0-23, UTC) the daily snapshot should run
 - `keep_days` INT NOT NULL DEFAULT 7 - Age-based retention: scheduled snapshots older than this many days are deleted after each scheduled run. Manual snapshots are kept forever.
 - `last_run_at` TIMESTAMP NULL - Most recent scheduled run
 
@@ -296,7 +295,7 @@ tests/
 - **Bulk Keyword Loading**: Optimized database access with batch queries to eliminate N+1 performance issues.
 - **Constellation Refresh**: Imported constellations can be refreshed directly from the admin dropdown with in-modal confirmation.
 - **Backup & Restore**: Admins can download a portable `.telaris-backup` file (gzipped JSON, optional embedded media) of selected galaxies and/or all users, then re-import on the same or a different instance. Two-phase upload wizard inspects the file before any changes are written, with per-galaxy overwrite-or-rename conflict modes and bracket-prefix bulk selection (`[TE]`, `[FT]`, etc.). Live upload progress and server-parse status reduce the perceived "frozen" wait on large files.
-- **Snapshots**: Local on-disk full-system backups stored in `SNAPSHOTS_DIR`. The Snapshots admin tab supports manual creation, deletion, download, and restore (with `RESTORE` confirmation phrase). Restoring wipes the system back to the snapshot's state and deletes any snapshots created after that point (linear-timeline semantics). Auto-snapshot schedule (off / daily / weekly) with age-based retention (default: keep 7 days of scheduled snapshots; manual snapshots kept forever); configured in the UI, run by `admin/cli/snapshot_run_scheduled.php` from cron.
+- **Snapshots**: Local on-disk full-system backups stored in `SNAPSHOTS_DIR`. The Snapshots admin tab supports manual creation, deletion, download, and restore (with `RESTORE` confirmation phrase). Restoring wipes the system back to the snapshot's state and deletes any snapshots created after that point (linear-timeline semantics). The snapshot scheduler is a simple daily on/off at a chosen UTC hour, with age-based retention (default: keep 7 days of scheduled snapshots; manual snapshots kept forever). The admin UI installs, uninstalls, and monitors the crontab entry for the PHP user, shows cron service status and last-run timestamp, and displays recent scheduler log output.
 - User authentication and authorization with secure password hashing (bcrypt).
 - API key authentication for API endpoints.
 
@@ -304,7 +303,7 @@ tests/
 
 ### Version 6.5.0
 - **Backup & Restore**: Portable `.telaris-backup` file format (gzipped JSON, format version 1) for exporting and importing galaxies and/or users across instances. Two-phase web upload wizard inspects the file before any changes are written. Per-galaxy overwrite-or-rename conflict modes, bracket-prefix bulk selection (`[TE]`, `[FT]`, etc.), and live upload/server-parse progress. CLI entry points: `admin/cli/backup_export.php` and `admin/cli/backup_import.php`.
-- **Snapshots**: Local on-disk full-system backups stored in `SNAPSHOTS_DIR`. Admin tab supports manual creation, deletion, download, and restore (with `RESTORE` confirmation phrase). Restoring wipes the system back to the snapshot's state and removes any snapshots created after that point (linear-timeline semantics). Auto-snapshot schedule (off / daily / weekly) with age-based retention (default: keep 7 days of scheduled snapshots; manual snapshots kept forever), run by `admin/cli/snapshot_run_scheduled.php` from cron.
+- **Snapshots**: Local on-disk full-system backups stored in `SNAPSHOTS_DIR`. Admin tab supports manual creation, deletion, download, and restore (with `RESTORE` confirmation phrase). Restoring wipes the system back to the snapshot's state and removes any snapshots created after that point (linear-timeline semantics). Simple daily scheduler (on/off at a chosen UTC hour) with age-based retention (default: keep 7 days of scheduled snapshots; manual snapshots kept forever). Admin UI manages the crontab entry directly and displays cron service status, last run, and scheduler logs.
 - **Schema additions**: `snapshots` and `snapshot_schedule` tables (instance-local, excluded from backup dumps). New `SNAPSHOTS_DIR` config constant.
 - **UI vocabulary**: Renamed user-facing terms — Constellations are now Galaxies, Nodes are now Wormholes. Code, DB, and API keep the internal names.
 - **Simple theme**: New theme rendering nodes as plain colored spheres on a black background.

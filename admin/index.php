@@ -524,25 +524,15 @@ $fieldMeta = [
         <!-- Tabs -->
         <div class="mb-6">
             <div class="tabs tabs-lifted">
-                <button onclick="showTab('constellations')" 
+                <button onclick="showTab('constellations')"
                         id="tab-constellations"
                         class="tab tab-lg <?php echo $activeTab === 'constellations' ? 'tab-active' : ''; ?>">
                     Galaxies
                 </button>
-                <button onclick="showTab('users')" 
+                <button onclick="showTab('users')"
                         id="tab-users"
                         class="tab tab-lg <?php echo $activeTab === 'users' ? 'tab-active' : ''; ?>">
                     Users
-                </button>
-                <button onclick="showTab('api-keys')" 
-                        id="tab-api-keys"
-                        class="tab tab-lg <?php echo $activeTab === 'api-keys' ? 'tab-active' : ''; ?>">
-                    API Keys
-                </button>
-                <button onclick="showTab('settings')"
-                        id="tab-settings"
-                        class="tab tab-lg <?php echo $activeTab === 'settings' ? 'tab-active' : ''; ?>">
-                    Global Settings
                 </button>
                 <button onclick="showTab('backup')"
                         id="tab-backup"
@@ -553,6 +543,16 @@ $fieldMeta = [
                         id="tab-snapshots"
                         class="tab tab-lg <?php echo $activeTab === 'snapshots' ? 'tab-active' : ''; ?>">
                     Snapshots
+                </button>
+                <button onclick="showTab('settings')"
+                        id="tab-settings"
+                        class="tab tab-lg <?php echo $activeTab === 'settings' ? 'tab-active' : ''; ?>">
+                    Global Settings
+                </button>
+                <button onclick="showTab('api-keys')"
+                        id="tab-api-keys"
+                        class="tab tab-lg <?php echo $activeTab === 'api-keys' ? 'tab-active' : ''; ?>">
+                    API Keys
                 </button>
                 <button onclick="showTab('php-info')"
                         id="tab-php-info"
@@ -1056,28 +1056,14 @@ $fieldMeta = [
 
                 <!-- Schedule -->
                 <section class="mb-8 border border-gray-300 rounded p-4">
-                    <h2 class="text-lg font-semibold mb-3">Auto-snapshot schedule</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                        <label class="text-sm">Frequency
-                            <select id="schedule-frequency" class="select select-bordered select-sm w-full">
-                                <option value="off">Off</option>
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                            </select>
+                    <h2 class="text-lg font-semibold mb-3">Snapshot scheduler</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                        <label class="text-sm flex items-center gap-2 md:col-span-1">
+                            <input type="checkbox" id="schedule-enabled" class="checkbox checkbox-sm">
+                            <span>Enable daily snapshots</span>
                         </label>
                         <label class="text-sm">Hour (UTC)
                             <input type="number" id="schedule-hour" min="0" max="23" value="3" class="input input-bordered input-sm w-full">
-                        </label>
-                        <label class="text-sm">Day (weekly)
-                            <select id="schedule-dow" class="select select-bordered select-sm w-full">
-                                <option value="0">Sunday</option>
-                                <option value="1">Monday</option>
-                                <option value="2">Tuesday</option>
-                                <option value="3">Wednesday</option>
-                                <option value="4">Thursday</option>
-                                <option value="5">Friday</option>
-                                <option value="6">Saturday</option>
-                            </select>
                         </label>
                         <label class="text-sm">Keep days (auto)
                             <input type="number" id="schedule-keep-days" min="1" value="7" class="input input-bordered input-sm w-full">
@@ -1087,10 +1073,36 @@ $fieldMeta = [
                         <button type="button" onclick="scheduleSave()" class="btn btn-neutral btn-sm">Save schedule</button>
                         <span id="schedule-last-run" class="text-xs text-gray-500"></span>
                     </div>
-                    <div class="mt-3 text-xs text-gray-600">
-                        Add this line to the system's crontab to run the scheduler every 5 minutes:
-                        <pre id="schedule-cron-line" class="bg-gray-100 p-2 rounded mt-1 overflow-x-auto"></pre>
+                </section>
+
+                <!-- Cron scheduler -->
+                <section class="mb-8 border border-gray-300 rounded p-4">
+                    <h2 class="text-lg font-semibold mb-3">Cron scheduler</h2>
+                    <div class="flex flex-wrap gap-4 text-sm mb-3">
+                        <div>
+                            <span class="text-gray-500">Cron service:</span>
+                            <span id="cron-service-badge" class="ml-1 px-2 py-0.5 rounded text-xs bg-gray-200">loading...</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">Scheduler installed:</span>
+                            <span id="cron-installed-badge" class="ml-1 px-2 py-0.5 rounded text-xs bg-gray-200">loading...</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">Last run:</span>
+                            <span id="cron-last-run" class="ml-1">n/a</span>
+                        </div>
                     </div>
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        <button type="button" id="cron-install-btn" onclick="cronInstall()" class="btn btn-primary btn-sm">Install scheduler</button>
+                        <button type="button" id="cron-uninstall-btn" onclick="cronUninstall()" class="btn btn-outline btn-sm">Uninstall scheduler</button>
+                        <button type="button" onclick="snapshotsLoad()" class="btn btn-ghost btn-sm">Refresh status</button>
+                    </div>
+                    <div class="text-xs text-gray-600 mb-1">Crontab line managed by the app:</div>
+                    <pre id="cron-line" class="bg-gray-100 p-2 rounded mt-1 overflow-x-auto text-xs"></pre>
+                    <div class="text-xs text-gray-600 mt-3 mb-1">
+                        Recent log <span id="cron-log-meta" class="text-gray-400"></span>
+                    </div>
+                    <pre id="cron-log" class="bg-gray-900 text-green-200 p-2 rounded text-xs overflow-x-auto max-h-64 whitespace-pre-wrap">(no log yet)</pre>
                 </section>
 
                 <!-- List -->
@@ -2910,8 +2922,6 @@ $fieldMeta = [
         // Snapshots tab
         // ====================================================================
 
-        let snapshotsCronCommand = '';
-
         async function snapshotsLoad() {
             const wrap = document.getElementById('snapshots-table-wrap');
             try {
@@ -2919,8 +2929,7 @@ $fieldMeta = [
                 const data = await r.json();
                 if (!r.ok || !data.ok) throw new Error(data.error || 'Failed to load snapshots');
                 snapshotsRenderSchedule(data.schedule);
-                snapshotsCronCommand = data.cron_command || '';
-                snapshotsRenderCronLine();
+                snapshotsRenderCron(data.cron);
                 snapshotsRenderTable(data.snapshots || []);
             } catch (e) {
                 wrap.innerHTML = '<p class="text-red-600">' + escapeHtmlAdmin(e.message) + '</p>';
@@ -2929,37 +2938,80 @@ $fieldMeta = [
 
         function snapshotsRenderSchedule(s) {
             if (!s) return;
-            document.getElementById('schedule-frequency').value = s.frequency || 'off';
+            document.getElementById('schedule-enabled').checked = !!s.enabled;
             document.getElementById('schedule-hour').value = (s.hour ?? 3);
-            document.getElementById('schedule-dow').value = (s.day_of_week ?? 0);
             document.getElementById('schedule-keep-days').value = (s.keep_days ?? 7);
             const lr = s.last_run_at;
             document.getElementById('schedule-last-run').textContent = lr ? ('Last scheduled run: ' + lr + ' UTC') : 'Never run yet';
+            document.getElementById('cron-last-run').textContent = lr ? (lr + ' UTC') : 'never';
         }
 
-        function snapshotsRenderCronLine() {
-            const freq = document.getElementById('schedule-frequency').value;
-            const hour = parseInt(document.getElementById('schedule-hour').value, 10) || 3;
-            const dow = parseInt(document.getElementById('schedule-dow').value, 10) || 0;
-            const cmd = snapshotsCronCommand;
-            let cron = '';
-            if (freq === 'off') {
-                cron = '# (schedule is off. No cron line needed)';
-            } else if (freq === 'daily') {
-                cron = `5 ${hour} * * * ${cmd}`;
-            } else if (freq === 'weekly') {
-                cron = `5 ${hour} * * ${dow} ${cmd}`;
+        function snapshotsRenderCron(c) {
+            if (!c) return;
+            const svcBadge = document.getElementById('cron-service-badge');
+            if (c.service_active) {
+                svcBadge.textContent = c.service_message || 'active';
+                svcBadge.className = 'ml-1 px-2 py-0.5 rounded text-xs bg-green-100 text-green-800';
+            } else {
+                svcBadge.textContent = c.service_message || 'inactive';
+                svcBadge.className = 'ml-1 px-2 py-0.5 rounded text-xs bg-red-100 text-red-800';
             }
-            // Recommended: run every 5 min so the runner can catch missed slots and run when due.
-            cron += '\n# Or run the scheduler every 5 minutes to be resilient to outages:\n*/5 * * * * ' + cmd;
-            document.getElementById('schedule-cron-line').textContent = cron;
+            const instBadge = document.getElementById('cron-installed-badge');
+            if (c.installed) {
+                instBadge.textContent = 'installed';
+                instBadge.className = 'ml-1 px-2 py-0.5 rounded text-xs bg-green-100 text-green-800';
+                document.getElementById('cron-install-btn').classList.add('hidden');
+                document.getElementById('cron-uninstall-btn').classList.remove('hidden');
+            } else {
+                instBadge.textContent = 'not installed';
+                instBadge.className = 'ml-1 px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800';
+                document.getElementById('cron-install-btn').classList.remove('hidden');
+                document.getElementById('cron-uninstall-btn').classList.add('hidden');
+            }
+            document.getElementById('cron-line').textContent = c.line || '';
+            const meta = document.getElementById('cron-log-meta');
+            if (c.log_exists) {
+                const kb = ((c.log_size || 0) / 1024).toFixed(1);
+                meta.textContent = '(' + c.log_path + ', ' + kb + ' KB, modified ' + (c.log_mtime || 'unknown') + ')';
+            } else {
+                meta.textContent = '(no log file yet; cron has not run)';
+            }
+            const logEl = document.getElementById('cron-log');
+            logEl.textContent = (c.recent_log && c.recent_log.length) ? c.recent_log : '(no log yet)';
         }
 
-        ['schedule-frequency', 'schedule-hour', 'schedule-dow'].forEach(id => {
-            document.addEventListener('change', (e) => {
-                if (e.target.id === id) snapshotsRenderCronLine();
-            });
-        });
+        async function cronInstall() {
+            try {
+                const r = await fetch('snapshots/cron.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                    body: JSON.stringify({ csrf_token: CSRF_TOKEN, action: 'install' }),
+                });
+                const data = await r.json();
+                if (!r.ok || !data.ok) throw new Error(data.error || 'Install failed');
+                showMessage('Scheduler installed in crontab.', 'success');
+                snapshotsRenderCron(data.cron);
+            } catch (e) {
+                showMessage('Install failed: ' + escapeHtmlAdmin(e.message), 'error');
+            }
+        }
+
+        async function cronUninstall() {
+            if (!confirm('Remove the snapshot scheduler from the crontab? Scheduled snapshots will stop until you reinstall.')) return;
+            try {
+                const r = await fetch('snapshots/cron.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                    body: JSON.stringify({ csrf_token: CSRF_TOKEN, action: 'uninstall' }),
+                });
+                const data = await r.json();
+                if (!r.ok || !data.ok) throw new Error(data.error || 'Uninstall failed');
+                showMessage('Scheduler removed from crontab.', 'success');
+                snapshotsRenderCron(data.cron);
+            } catch (e) {
+                showMessage('Uninstall failed: ' + escapeHtmlAdmin(e.message), 'error');
+            }
+        }
 
         function snapshotsRenderTable(rows) {
             const wrap = document.getElementById('snapshots-table-wrap');
@@ -3078,9 +3130,8 @@ $fieldMeta = [
         async function scheduleSave() {
             const payload = {
                 csrf_token: CSRF_TOKEN,
-                frequency: document.getElementById('schedule-frequency').value,
+                enabled: document.getElementById('schedule-enabled').checked,
                 hour: document.getElementById('schedule-hour').value,
-                day_of_week: document.getElementById('schedule-dow').value,
                 keep_days: document.getElementById('schedule-keep-days').value,
             };
             try {
@@ -3093,7 +3144,6 @@ $fieldMeta = [
                 if (!r.ok || !data.ok) throw new Error(data.error || 'Save failed');
                 showMessage('Schedule saved.', 'success');
                 snapshotsRenderSchedule(data.schedule);
-                snapshotsRenderCronLine();
             } catch (e) {
                 showMessage('Save schedule failed: ' + escapeHtmlAdmin(e.message), 'error');
             }

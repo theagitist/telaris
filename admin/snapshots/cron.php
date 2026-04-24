@@ -1,10 +1,15 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * Install or uninstall the snapshot scheduler crontab entry for the PHP user.
+ * Payload: { action: 'install' | 'uninstall', csrf_token }
+ */
+
 require_once __DIR__ . '/../../utils/auth.php';
 requireAdminLogin();
 require_once __DIR__ . '/../../config.php';
-require_once __DIR__ . '/../../inc/snapshots.php';
+require_once __DIR__ . '/../../inc/cron.php';
 
 header('Content-Type: application/json');
 
@@ -25,13 +30,17 @@ if (empty($_SESSION['csrf_token']) || !hash_equals((string)$_SESSION['csrf_token
     exit;
 }
 
-$enabled = !empty($payload['enabled']);
-$hour = isset($payload['hour']) && $payload['hour'] !== '' ? (int)$payload['hour'] : 3;
-$keepDays = (int)($payload['keep_days'] ?? 7);
+$action = (string)($payload['action'] ?? '');
 
 try {
-    snapshot_set_schedule($enabled, $hour, $keepDays);
-    echo json_encode(['ok' => true, 'schedule' => snapshot_get_schedule()]);
+    if ($action === 'install') {
+        cron_install();
+    } elseif ($action === 'uninstall') {
+        cron_uninstall();
+    } else {
+        throw new InvalidArgumentException('action must be "install" or "uninstall".');
+    }
+    echo json_encode(['ok' => true, 'cron' => cron_status_summary()]);
 } catch (Throwable $e) {
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => $e->getMessage()]);

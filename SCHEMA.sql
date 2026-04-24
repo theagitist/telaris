@@ -165,9 +165,8 @@ CREATE TABLE IF NOT EXISTS snapshots (
 -- Excluded from backup dumps (instance-local state).
 CREATE TABLE IF NOT EXISTS snapshot_schedule (
     id TINYINT NOT NULL PRIMARY KEY DEFAULT 1,
-    frequency ENUM('off','daily','weekly') NOT NULL DEFAULT 'off',
-    hour TINYINT NULL,
-    day_of_week TINYINT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    hour TINYINT NOT NULL DEFAULT 3,
     keep_days INT NOT NULL DEFAULT 7,
     last_run_at TIMESTAMP NULL DEFAULT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

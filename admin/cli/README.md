@@ -158,19 +158,14 @@ php admin/cli/snapshot_restore.php --id=5 --allow-no-admin
 
 ### snapshot_run_scheduled.php
 
-Cron target. Checks the `snapshot_schedule` row and creates a snapshot if one is due (daily / weekly), then deletes scheduled snapshots older than `keep_days` (default 7). Manual snapshots are kept forever. Quiet by default.
+Cron target. When the scheduler is enabled, creates a daily snapshot at or after the configured UTC hour (once per UTC day), then deletes scheduled snapshots older than `keep_days` (default 7). Manual snapshots are kept forever. Every invocation prints a single timestamped status line so cron liveness is visible in the admin log panel.
 
 **Usage:**
 ```bash
 php admin/cli/snapshot_run_scheduled.php
 ```
 
-**Recommended crontab line** (run every 5 minutes; the script decides when to act):
-```
-*/5 * * * * php /var/www/starmaps.polivoxia.ca/admin/cli/snapshot_run_scheduled.php
-```
-
-The schedule is configured in the admin Snapshots tab; the cron line above stays valid as you change frequency.
+**Cron installation is managed by the admin UI** (Snapshots tab). The Install scheduler button writes a line into the PHP user's (www-data) crontab that runs this script every 15 minutes and pipes output to `logs/snapshot_cron.log`. If you prefer to manage cron manually, use an equivalent line and the UI will still show last-run and log output.
 
 ## Creating New CLI Scripts
 
