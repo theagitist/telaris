@@ -1050,7 +1050,7 @@ $fieldMeta = [
                     <h2 class="text-lg font-semibold mb-3">Create snapshot now</h2>
                     <div class="flex flex-wrap items-center gap-3">
                         <input type="text" id="snapshot-note" placeholder="Optional note (e.g. before migration)" class="input input-bordered input-sm flex-1 min-w-[240px]">
-                        <button type="button" onclick="snapshotCreate()" class="btn btn-primary btn-sm">Create snapshot</button>
+                        <button type="button" onclick="snapshotCreate()" class="btn btn-neutral btn-sm">Create snapshot</button>
                     </div>
                 </section>
 
