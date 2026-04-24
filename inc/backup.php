@@ -33,7 +33,10 @@ function backup_snapshots_dir(): string {
         $dir = sys_get_temp_dir() . '/telaris-snapshots';
     }
     if (!is_dir($dir)) {
-        @mkdir($dir, 0755, true);
+        // 2775 = group-writable + setgid, so scheduled snapshots written by the
+        // PHP/www-data user are readable by an admin shell user in the same
+        // group, and new files inherit the directory's group.
+        @mkdir($dir, 02775, true);
     }
     return rtrim($dir, '/');
 }
