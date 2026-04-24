@@ -9,5 +9,6 @@ define('DB_USER', '');
 define('DB_PASS', '');
 define('UPLOAD_DIR', __DIR__ . '/uploads'); // In production, use an absolute path outside the app directory
 define('LOG_DIR', __DIR__ . '/logs');
+define('SNAPSHOTS_DIR', __DIR__ . '/snapshots'); // Where local system snapshots are stored. Use an absolute path outside the app directory in production.
 
 require_once __DIR__ . '/inc/db.php';

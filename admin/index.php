@@ -539,12 +539,22 @@ $fieldMeta = [
                         class="tab tab-lg <?php echo $activeTab === 'api-keys' ? 'tab-active' : ''; ?>">
                     API Keys
                 </button>
-                <button onclick="showTab('settings')" 
+                <button onclick="showTab('settings')"
                         id="tab-settings"
                         class="tab tab-lg <?php echo $activeTab === 'settings' ? 'tab-active' : ''; ?>">
                     Global Settings
                 </button>
-                <button onclick="showTab('php-info')" 
+                <button onclick="showTab('backup')"
+                        id="tab-backup"
+                        class="tab tab-lg <?php echo $activeTab === 'backup' ? 'tab-active' : ''; ?>">
+                    Backup
+                </button>
+                <button onclick="showTab('snapshots')"
+                        id="tab-snapshots"
+                        class="tab tab-lg <?php echo $activeTab === 'snapshots' ? 'tab-active' : ''; ?>">
+                    Snapshots
+                </button>
+                <button onclick="showTab('php-info')"
                         id="tab-php-info"
                         class="tab tab-lg <?php echo $activeTab === 'php-info' ? 'tab-active' : ''; ?>">
                     PHP Information
@@ -905,6 +915,194 @@ $fieldMeta = [
                 </form>
             </div>
 
+            <!-- Backup Tab -->
+            <div id="content-backup" class="p-6 <?php echo $activeTab !== 'backup' ? 'hidden' : ''; ?>">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+                    <!-- Export -->
+                    <section>
+                        <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold">Download a backup</h2>
+                        <p class="text-sm text-gray-600 mb-4">Create a portable backup file containing galaxies and/or users. The default produces a full backup with embedded media.</p>
+
+                        <form id="backup-export-form" method="POST" action="backup/export.php" class="space-y-4">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
+
+                            <div class="border border-gray-300 rounded p-4">
+                                <label class="flex items-center gap-2 mb-3">
+                                    <input type="checkbox" name="include_galaxies" value="1" checked id="export-include-galaxies" class="checkbox checkbox-sm">
+                                    <span class="font-semibold">Galaxies</span>
+                                </label>
+                                <div id="export-galaxies-options" class="ml-6 space-y-2">
+                                    <label class="flex items-center gap-2"><input type="radio" name="galaxy_scope" value="all" checked class="radio radio-sm"> <span>All galaxies</span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="galaxy_scope" value="selected" class="radio radio-sm"> <span>Selected galaxies only</span></label>
+                                    <div id="export-galaxy-picker" class="hidden mt-3 border border-gray-200 rounded p-3 bg-gray-50">
+                                        <div id="export-prefix-chips" class="flex flex-wrap gap-1 mb-3"></div>
+                                        <div id="export-galaxy-list" class="max-h-64 overflow-y-auto bg-white border border-gray-200 rounded">
+                                            <p class="text-xs text-gray-500 p-3">Loading galaxies...</p>
+                                        </div>
+                                        <div class="flex justify-between mt-2 text-xs">
+                                            <button type="button" onclick="exportGalaxiesSelectAll(true)" class="text-blue-600 hover:underline">Select all</button>
+                                            <button type="button" onclick="exportGalaxiesSelectAll(false)" class="text-blue-600 hover:underline">Clear</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="border border-gray-300 rounded p-4">
+                                <label class="flex items-center gap-2">
+                                    <input type="checkbox" name="include_users" value="1" checked class="checkbox checkbox-sm">
+                                    <span class="font-semibold">Users (always all)</span>
+                                </label>
+                                <p class="text-xs text-gray-500 ml-6">User passwords are exported as hashes. They never appear in plaintext.</p>
+                            </div>
+
+                            <div class="border border-gray-300 rounded p-4">
+                                <div class="font-semibold mb-2">Media files</div>
+                                <div class="space-y-1 text-sm">
+                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="embedded" checked class="radio radio-sm"> <span>Embedded — self-contained backup (recommended)</span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="refs" class="radio radio-sm"> <span>References only — smaller file, only restorable on the same server</span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="none" class="radio radio-sm"> <span>None — strip all media</span></label>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Download backup</button>
+                        </form>
+                    </section>
+
+                    <!-- Import -->
+                    <section>
+                        <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold">Restore from a backup</h2>
+                        <p class="text-sm text-gray-600 mb-4">Upload a <code>.telaris-backup</code> file. You will see a summary before anything is changed.</p>
+
+                        <div class="space-y-4">
+                            <div class="border border-gray-300 rounded p-4">
+                                <input type="file" id="backup-import-file" accept=".telaris-backup,application/gzip,application/octet-stream" class="file-input file-input-bordered file-input-sm w-full" onchange="backupOnFilePicked()">
+                                <div id="backup-import-file-info" class="hidden mt-2 text-xs text-gray-600"></div>
+                                <button type="button" id="backup-import-inspect-btn" onclick="backupInspect()" class="btn btn-neutral btn-sm mt-3">Inspect file</button>
+                                <div id="backup-import-status" class="hidden mt-3 text-sm">
+                                    <div id="backup-import-status-text" class="text-gray-700"></div>
+                                    <div id="backup-import-progress-wrap" class="hidden mt-1 w-full bg-gray-200 rounded h-2 overflow-hidden">
+                                        <div id="backup-import-progress-bar" class="bg-blue-500 h-2 transition-all duration-200" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="backup-import-summary" class="hidden border border-blue-300 bg-blue-50 rounded p-4 text-sm">
+                                <!-- Filled by JS -->
+                            </div>
+
+                            <div id="backup-import-options" class="hidden border border-gray-300 rounded p-4 space-y-4">
+                                <div>
+                                    <div class="font-semibold mb-2">Galaxies in this file</div>
+                                    <div id="import-prefix-chips" class="flex flex-wrap gap-1 mb-2"></div>
+                                    <div id="import-galaxy-list" class="max-h-64 overflow-y-auto bg-white border border-gray-200 rounded"></div>
+                                    <div class="flex justify-between mt-2 text-xs">
+                                        <button type="button" onclick="importGalaxiesSelectAll(true)" class="text-blue-600 hover:underline">Select all</button>
+                                        <button type="button" onclick="importGalaxiesSelectAll(false)" class="text-blue-600 hover:underline">Clear</button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="font-semibold mb-2">For each selected galaxy</div>
+                                    <div class="space-y-1 text-sm">
+                                        <label class="flex items-center gap-2"><input type="radio" name="import_conflict" value="overwrite" checked class="radio radio-sm"> <span>Overwrite if a galaxy with the same slug exists</span></label>
+                                        <label class="flex items-center gap-2"><input type="radio" name="import_conflict" value="rename" class="radio radio-sm"> <span>Create as new (rename on conflict, suffix:</span>
+                                            <input type="text" id="import-rename-suffix" value=" (restored)" class="input input-bordered input-xs ml-1" style="width: 140px;">
+                                            <span>)</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="border-t pt-3">
+                                    <div class="font-semibold mb-2">Users in this file</div>
+                                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="import-restore-users" checked class="checkbox checkbox-sm"> <span>Restore users</span></label>
+                                    <div class="ml-6 mt-2 space-y-1 text-sm">
+                                        <label class="flex items-center gap-2"><input type="radio" name="import_users_mode" value="skip" checked class="radio radio-sm"> <span>Skip existing users (match by email)</span></label>
+                                        <label class="flex items-center gap-2"><input type="radio" name="import_users_mode" value="replace" class="radio radio-sm"> <span>Update existing users by email</span></label>
+                                        <label class="flex items-center gap-2 ml-6"><input type="checkbox" id="import-users-replace-pw" class="checkbox checkbox-sm"> <span>Also overwrite password hashes</span></label>
+                                    </div>
+                                </div>
+
+                                <div class="border-t pt-3">
+                                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="import-restore-media" checked class="checkbox checkbox-sm"> <span>Restore media files</span></label>
+                                </div>
+
+                                <div class="border-t pt-3">
+                                    <button type="button" onclick="backupCommit()" class="btn btn-warning">Restore</button>
+                                </div>
+                            </div>
+
+                            <div id="backup-import-result" class="hidden border border-green-300 bg-green-50 rounded p-4 text-sm">
+                                <!-- Filled by JS -->
+                            </div>
+                        </div>
+                    </section>
+
+                </div>
+            </div>
+
+            <!-- Snapshots Tab -->
+            <div id="content-snapshots" class="p-6 <?php echo $activeTab !== 'snapshots' ? 'hidden' : ''; ?>">
+                <p class="text-sm text-gray-600 mb-4">Snapshots are local, on-disk full backups of the entire system. Restoring a snapshot wipes everything and replaces it with the snapshot's state. Any snapshots created after the restored one are deleted.</p>
+
+                <!-- Create snapshot -->
+                <section class="mb-8 border border-gray-300 rounded p-4">
+                    <h2 class="text-lg font-semibold mb-3">Create snapshot now</h2>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <input type="text" id="snapshot-note" placeholder="Optional note (e.g. before migration)" class="input input-bordered input-sm flex-1 min-w-[240px]">
+                        <button type="button" onclick="snapshotCreate()" class="btn btn-primary btn-sm">Create snapshot</button>
+                    </div>
+                </section>
+
+                <!-- Schedule -->
+                <section class="mb-8 border border-gray-300 rounded p-4">
+                    <h2 class="text-lg font-semibold mb-3">Auto-snapshot schedule</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                        <label class="text-sm">Frequency
+                            <select id="schedule-frequency" class="select select-bordered select-sm w-full">
+                                <option value="off">Off</option>
+                                <option value="hourly">Hourly</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                            </select>
+                        </label>
+                        <label class="text-sm">Hour (UTC)
+                            <input type="number" id="schedule-hour" min="0" max="23" value="3" class="input input-bordered input-sm w-full">
+                        </label>
+                        <label class="text-sm">Day (weekly)
+                            <select id="schedule-dow" class="select select-bordered select-sm w-full">
+                                <option value="0">Sunday</option>
+                                <option value="1">Monday</option>
+                                <option value="2">Tuesday</option>
+                                <option value="3">Wednesday</option>
+                                <option value="4">Thursday</option>
+                                <option value="5">Friday</option>
+                                <option value="6">Saturday</option>
+                            </select>
+                        </label>
+                        <label class="text-sm">Keep last N (auto)
+                            <input type="number" id="schedule-keep-last" min="1" value="10" class="input input-bordered input-sm w-full">
+                        </label>
+                    </div>
+                    <div class="mt-3 flex flex-wrap gap-3 items-center">
+                        <button type="button" onclick="scheduleSave()" class="btn btn-neutral btn-sm">Save schedule</button>
+                        <span id="schedule-last-run" class="text-xs text-gray-500"></span>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-600">
+                        Add this line to the system's crontab to run the scheduler every 5 minutes:
+                        <pre id="schedule-cron-line" class="bg-gray-100 p-2 rounded mt-1 overflow-x-auto"></pre>
+                    </div>
+                </section>
+
+                <!-- List -->
+                <section>
+                    <h2 class="text-lg font-semibold mb-3">Available snapshots</h2>
+                    <div id="snapshots-table-wrap">
+                        <p class="text-sm text-gray-500">Loading...</p>
+                    </div>
+                </section>
+            </div>
+
             <!-- PHP Information Tab -->
             <div id="content-php-info" class="p-6 <?php echo $activeTab !== 'php-info' ? 'hidden' : ''; ?>">
                 <!-- PHP Configuration -->
@@ -949,6 +1147,7 @@ $fieldMeta = [
     
     <script>
         const API_KEY = <?php echo json_encode(getDefaultApiKey()); ?>;
+        const CSRF_TOKEN = <?php echo json_encode($csrfToken); ?>;
         const API_URL = '../api/validate.php';
         const MOCAMBOS_API = '../api/mocambos.php';
         let mocambosApiBase = '';
@@ -1865,10 +2064,14 @@ $fieldMeta = [
             if (contentConstellations) contentConstellations.classList.add('hidden');
             const contentSettings = document.getElementById('content-settings');
             if (contentSettings) contentSettings.classList.add('hidden');
+            const contentBackup = document.getElementById('content-backup');
+            if (contentBackup) contentBackup.classList.add('hidden');
+            const contentSnapshots = document.getElementById('content-snapshots');
+            if (contentSnapshots) contentSnapshots.classList.add('hidden');
             document.getElementById('content-php-info').classList.add('hidden');
-            
+
             // Remove active styling from all tabs
-            const tabs = ['api-keys', 'users', 'constellations', 'settings', 'php-info'];
+            const tabs = ['api-keys', 'users', 'constellations', 'settings', 'backup', 'snapshots', 'php-info'];
             tabs.forEach(tab => {
                 const tabElement = document.getElementById('tab-' + tab);
                 if (tabElement) {
@@ -1884,6 +2087,11 @@ $fieldMeta = [
                 const urlParams = new URLSearchParams(window.location.search);
                 const lang = urlParams.get('lang');
                 if (lang && ['en', 'es', 'pt'].includes(lang)) showSettingsLang(lang);
+            }
+
+            // Lazy-load Snapshots tab on first open
+            if (tabName === 'snapshots' && typeof snapshotsLoad === 'function') {
+                snapshotsLoad();
             }
             
             // Add active styling to selected tab
@@ -2346,6 +2554,552 @@ $fieldMeta = [
         function applyUserSearch() {
             paginationState.users.currentPage = 1;
             applyPagination('users');
+        }
+
+        // ====================================================================
+        // Backup tab
+        // ====================================================================
+
+        let backupGalaxiesCache = null;
+        let backupImportTempId = null;
+        let backupImportSummary = null;
+
+        async function backupLoadGalaxiesForExport() {
+            if (backupGalaxiesCache) return backupGalaxiesCache;
+            try {
+                // Paginate through the constellations API (per_page is capped at 100 server-side)
+                const all = [];
+                let page = 1;
+                while (true) {
+                    const r = await fetch(CONST_API + '?page=' + page + '&per_page=100', { headers: { 'X-API-Key': API_KEY } });
+                    if (!r.ok) throw new Error('Failed to load galaxies');
+                    const data = await r.json();
+                    const rows = data.constellations || [];
+                    rows.forEach(c => all.push({
+                        id: c.id, name: c.name, slug: c.slug, node_count: c.node_count || 0,
+                    }));
+                    const total = data.total || 0;
+                    if (all.length >= total || rows.length === 0) break;
+                    page++;
+                    if (page > 200) break; // hard safety cap
+                }
+                backupGalaxiesCache = all;
+                return backupGalaxiesCache;
+            } catch (e) {
+                showMessage('Failed to load galaxies: ' + escapeHtmlAdmin(e.message), 'error');
+                return [];
+            }
+        }
+
+        function backupGetPrefix(name) {
+            const m = (name || '').match(/^\s*\[([^\]]{1,16})\]/);
+            return m ? m[1] : null;
+        }
+
+        function backupRenderPrefixChips(galaxies, container, onChipClick) {
+            if (!container) return;
+            const counts = new Map();
+            let noPrefix = 0;
+            galaxies.forEach(g => {
+                const p = backupGetPrefix(g.name);
+                if (p === null) noPrefix++;
+                else counts.set(p, (counts.get(p) || 0) + 1);
+            });
+            const chips = [];
+            Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0])).forEach(([p, n]) => {
+                chips.push(`<button type="button" data-prefix="${escapeHtmlAdmin(p)}" class="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 rounded">[${escapeHtmlAdmin(p)}] (${n})</button>`);
+            });
+            if (noPrefix > 0) {
+                chips.push(`<button type="button" data-prefix="" class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded">No prefix (${noPrefix})</button>`);
+            }
+            container.innerHTML = chips.join('');
+            container.querySelectorAll('button[data-prefix]').forEach(btn => {
+                btn.addEventListener('click', () => onChipClick(btn.getAttribute('data-prefix')));
+            });
+        }
+
+        async function backupRenderExportGalaxyList() {
+            const galaxies = await backupLoadGalaxiesForExport();
+            const list = document.getElementById('export-galaxy-list');
+            if (!list) return;
+            if (galaxies.length === 0) {
+                list.innerHTML = '<p class="text-xs text-gray-500 p-3">No galaxies found.</p>';
+                return;
+            }
+            list.innerHTML = galaxies.map(g => `
+                <label class="flex items-center gap-2 p-2 border-b border-gray-100 hover:bg-gray-50 cursor-pointer">
+                    <input type="checkbox" name="galaxy_ids[]" value="${g.id}" data-name="${escapeHtmlAdmin(g.name)}" class="checkbox checkbox-sm">
+                    <span class="flex-1 text-sm">${escapeHtmlAdmin(g.name)}</span>
+                    <span class="text-xs text-gray-500">${g.node_count} wormholes</span>
+                </label>
+            `).join('');
+            backupRenderPrefixChips(galaxies, document.getElementById('export-prefix-chips'), (prefix) => {
+                const matching = Array.from(list.querySelectorAll('input[type="checkbox"]')).filter(cb => {
+                    const p = backupGetPrefix(cb.getAttribute('data-name') || '');
+                    return prefix === '' ? p === null : p === prefix;
+                });
+                const allChecked = matching.length > 0 && matching.every(cb => cb.checked);
+                matching.forEach(cb => { cb.checked = !allChecked; });
+            });
+        }
+
+        function exportGalaxiesSelectAll(state) {
+            document.querySelectorAll('#export-galaxy-list input[type="checkbox"]').forEach(cb => cb.checked = state);
+        }
+
+        document.addEventListener('change', (e) => {
+            if (e.target.matches('input[name="galaxy_scope"]')) {
+                const picker = document.getElementById('export-galaxy-picker');
+                if (picker) picker.classList.toggle('hidden', e.target.value !== 'selected');
+                if (e.target.value === 'selected') backupRenderExportGalaxyList();
+            }
+            if (e.target.id === 'export-include-galaxies') {
+                document.getElementById('export-galaxies-options')?.classList.toggle('opacity-50', !e.target.checked);
+                document.querySelectorAll('#export-galaxies-options input').forEach(el => el.disabled = !e.target.checked);
+            }
+        });
+
+        function backupFormatBytes(b) {
+            if (b > 1073741824) return (b / 1073741824).toFixed(2) + ' GB';
+            if (b > 1048576) return (b / 1048576).toFixed(1) + ' MB';
+            if (b > 1024) return (b / 1024).toFixed(1) + ' KB';
+            return b + ' B';
+        }
+
+        function backupOnFilePicked() {
+            const fileEl = document.getElementById('backup-import-file');
+            const info = document.getElementById('backup-import-file-info');
+            if (!fileEl.files || fileEl.files.length === 0) {
+                info.classList.add('hidden');
+                return;
+            }
+            const f = fileEl.files[0];
+            info.textContent = `Selected: ${f.name} (${backupFormatBytes(f.size)})`;
+            info.classList.remove('hidden');
+            // Hide any previous results
+            document.getElementById('backup-import-summary').classList.add('hidden');
+            document.getElementById('backup-import-options').classList.add('hidden');
+            document.getElementById('backup-import-result').classList.add('hidden');
+            document.getElementById('backup-import-status').classList.add('hidden');
+        }
+
+        function backupSetStatus(text, opts) {
+            opts = opts || {};
+            const wrap = document.getElementById('backup-import-status');
+            const txt = document.getElementById('backup-import-status-text');
+            const progWrap = document.getElementById('backup-import-progress-wrap');
+            const bar = document.getElementById('backup-import-progress-bar');
+            wrap.classList.remove('hidden');
+            txt.innerHTML = text;
+            if (typeof opts.progress === 'number') {
+                progWrap.classList.remove('hidden');
+                bar.style.width = Math.max(0, Math.min(100, opts.progress)) + '%';
+                bar.classList.remove('bg-red-500', 'bg-green-500');
+                bar.classList.add(opts.progress >= 100 ? 'bg-blue-500' : 'bg-blue-500');
+            } else {
+                progWrap.classList.add('hidden');
+            }
+            if (opts.error) {
+                txt.classList.add('text-red-700');
+                txt.classList.remove('text-gray-700');
+            } else {
+                txt.classList.add('text-gray-700');
+                txt.classList.remove('text-red-700');
+            }
+        }
+
+        async function backupInspect() {
+            const fileEl = document.getElementById('backup-import-file');
+            if (!fileEl.files || fileEl.files.length === 0) {
+                showMessage('Choose a backup file first.', 'error');
+                return;
+            }
+            const file = fileEl.files[0];
+            const fd = new FormData();
+            fd.append('csrf_token', CSRF_TOKEN);
+            fd.append('backup_file', file);
+            const btn = document.getElementById('backup-import-inspect-btn');
+            btn.disabled = true;
+            btn.textContent = 'Inspecting...';
+            backupSetStatus(`Preparing upload of <strong>${escapeHtmlAdmin(file.name)}</strong> (${backupFormatBytes(file.size)})...`, { progress: 0 });
+
+            const t0 = Date.now();
+            try {
+                const data = await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', 'backup/import.php?phase=inspect');
+                    let parseTimer = null;
+                    let dots = 0;
+                    xhr.upload.onprogress = (e) => {
+                        if (!e.lengthComputable) return;
+                        const pct = (e.loaded / e.total) * 100;
+                        const speed = (e.loaded / Math.max(1, (Date.now() - t0) / 1000));
+                        if (pct < 100) {
+                            backupSetStatus(
+                                `Uploading: ${pct.toFixed(0)}% &middot; ${backupFormatBytes(e.loaded)} / ${backupFormatBytes(e.total)} &middot; ${backupFormatBytes(speed)}/s`,
+                                { progress: pct }
+                            );
+                        }
+                    };
+                    xhr.upload.onload = () => {
+                        backupSetStatus(
+                            `Upload complete (${backupFormatBytes(file.size)}). Server is now parsing the backup, decoding gzip, and validating media checksums. For large files this can take 10-30 seconds.`,
+                            { progress: 100 }
+                        );
+                        // Animate dots so the user sees the page is alive
+                        parseTimer = setInterval(() => {
+                            dots = (dots + 1) % 4;
+                            const el = document.getElementById('backup-import-status-text');
+                            if (el && el.dataset.parsing === '1') {
+                                el.querySelector('.parse-dots').textContent = '.'.repeat(dots);
+                            }
+                        }, 400);
+                        const txt = document.getElementById('backup-import-status-text');
+                        txt.dataset.parsing = '1';
+                        txt.innerHTML += ' <span class="parse-dots text-blue-600 font-bold"></span>';
+                    };
+                    xhr.onload = () => {
+                        if (parseTimer) clearInterval(parseTimer);
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            try { resolve(JSON.parse(xhr.responseText)); }
+                            catch (e) { reject(new Error('Invalid JSON in server response')); }
+                        } else {
+                            try {
+                                const err = JSON.parse(xhr.responseText);
+                                reject(new Error(err.error || ('HTTP ' + xhr.status)));
+                            } catch (e) {
+                                reject(new Error('HTTP ' + xhr.status + ': ' + (xhr.responseText.slice(0, 200) || 'unknown error')));
+                            }
+                        }
+                    };
+                    xhr.onerror = () => { if (parseTimer) clearInterval(parseTimer); reject(new Error('Network error during upload (check file size limits)')); };
+                    xhr.ontimeout = () => { if (parseTimer) clearInterval(parseTimer); reject(new Error('Request timed out')); };
+                    xhr.send(fd);
+                });
+                if (!data.ok) throw new Error(data.error || 'Inspection failed');
+                backupImportTempId = data.temp_id;
+                backupImportSummary = data.summary;
+                backupRenderImportSummary(data.summary);
+                backupRenderImportGalaxyList(data.summary.galaxies || []);
+                document.getElementById('backup-import-summary').classList.remove('hidden');
+                document.getElementById('backup-import-options').classList.remove('hidden');
+                document.getElementById('backup-import-result').classList.add('hidden');
+                const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+                backupSetStatus(`Done in ${elapsed}s. Review the summary below, choose your options, then Restore.`, {});
+            } catch (e) {
+                backupSetStatus('Failed: ' + escapeHtmlAdmin(e.message), { error: true });
+                showMessage('Inspect failed: ' + escapeHtmlAdmin(e.message), 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Inspect file';
+            }
+        }
+
+        function backupRenderImportSummary(s) {
+            const el = document.getElementById('backup-import-summary');
+            const mb = (s.media_bytes || 0) / 1048576;
+            const adminWarn = !s.has_admin_user && s.user_count > 0 ? ' <span class="text-red-700 font-semibold">(no admin user!)</span>' : '';
+            el.innerHTML = `
+                <div class="font-semibold mb-1">Backup file summary</div>
+                <div>Format v${s.format_version} · App ${escapeHtmlAdmin(s.app_version)} · Created ${escapeHtmlAdmin(s.created_at)}</div>
+                <div>Galaxies: ${s.galaxy_count} · Wormholes: ${s.node_count} · Keywords: ${s.keyword_count}</div>
+                <div>Users: ${s.user_count}${adminWarn} · Media: ${s.media_blob_count} files (${mb.toFixed(1)} MB)</div>
+            `;
+        }
+
+        function backupRenderImportGalaxyList(galaxies) {
+            const list = document.getElementById('import-galaxy-list');
+            if (!list) return;
+            if (galaxies.length === 0) {
+                list.innerHTML = '<p class="text-xs text-gray-500 p-3">No galaxies in this backup.</p>';
+                document.getElementById('import-prefix-chips').innerHTML = '';
+                return;
+            }
+            list.innerHTML = galaxies.map(g => `
+                <label class="flex items-center gap-2 p-2 border-b border-gray-100 hover:bg-gray-50 cursor-pointer">
+                    <input type="checkbox" data-ref="${escapeHtmlAdmin(g.ref)}" data-name="${escapeHtmlAdmin(g.name)}" checked class="checkbox checkbox-sm import-galaxy-cb">
+                    <span class="flex-1 text-sm">${escapeHtmlAdmin(g.name)}${g.is_default ? ' <span class="text-xs text-purple-600">(default)</span>' : ''}</span>
+                    <span class="text-xs text-gray-500">${g.node_count} wormholes</span>
+                </label>
+            `).join('');
+            backupRenderPrefixChips(galaxies, document.getElementById('import-prefix-chips'), (prefix) => {
+                const matching = Array.from(list.querySelectorAll('input.import-galaxy-cb')).filter(cb => {
+                    const p = backupGetPrefix(cb.getAttribute('data-name') || '');
+                    return prefix === '' ? p === null : p === prefix;
+                });
+                const allChecked = matching.length > 0 && matching.every(cb => cb.checked);
+                matching.forEach(cb => { cb.checked = !allChecked; });
+            });
+        }
+
+        function importGalaxiesSelectAll(state) {
+            document.querySelectorAll('#import-galaxy-list input.import-galaxy-cb').forEach(cb => cb.checked = state);
+        }
+
+        async function backupCommit() {
+            if (!backupImportTempId) {
+                showMessage('Inspect a file first.', 'error');
+                return;
+            }
+            const conflict = document.querySelector('input[name="import_conflict"]:checked')?.value || 'overwrite';
+            const renameSuffix = document.getElementById('import-rename-suffix')?.value || ' (restored)';
+            const restoreUsers = document.getElementById('import-restore-users')?.checked ?? true;
+            const usersMode = document.querySelector('input[name="import_users_mode"]:checked')?.value || 'skip';
+            const usersReplacePw = document.getElementById('import-users-replace-pw')?.checked ?? false;
+            const restoreMedia = document.getElementById('import-restore-media')?.checked ?? true;
+
+            const galaxiesOpts = {};
+            let selectedCount = 0;
+            document.querySelectorAll('#import-galaxy-list input.import-galaxy-cb').forEach(cb => {
+                const ref = cb.getAttribute('data-ref');
+                if (!ref) return;
+                if (cb.checked) {
+                    galaxiesOpts[ref] = { include: true, conflict, rename_suffix: renameSuffix };
+                    selectedCount++;
+                }
+            });
+
+            const userCount = (backupImportSummary?.user_count || 0);
+            if (selectedCount === 0 && (!restoreUsers || userCount === 0)) {
+                showMessage('Nothing selected to restore.', 'error');
+                return;
+            }
+            const proceed = confirm(`Restore ${selectedCount} galaxy/galaxies` + (restoreUsers ? ` and up to ${userCount} user(s)` : '') + ` into this system?\n\nConflict mode: ${conflict.toUpperCase()}\n\nThis cannot be undone.`);
+            if (!proceed) return;
+
+            const payload = {
+                csrf_token: CSRF_TOKEN,
+                temp_id: backupImportTempId,
+                confirm: true,
+                mode: 'granular',
+                restore_users: restoreUsers,
+                restore_media: restoreMedia,
+                users_replace_existing: usersMode === 'replace',
+                users_replace_password: usersMode === 'replace' && usersReplacePw,
+                rename_suffix_default: renameSuffix,
+                galaxies: galaxiesOpts,
+            };
+            try {
+                const r = await fetch('backup/import.php?phase=commit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                    body: JSON.stringify(payload),
+                });
+                const data = await r.json();
+                if (!r.ok || !data.ok) throw new Error(data.error || 'Restore failed');
+                const rep = data.report;
+                const failedHtml = (rep.galaxies_failed && rep.galaxies_failed.length)
+                    ? '<div class="mt-2 text-red-700">Failures:<ul class="list-disc ml-6">' + rep.galaxies_failed.map(f => `<li>${escapeHtmlAdmin(f.name || f.ref)}: ${escapeHtmlAdmin(f.error)}</li>`).join('') + '</ul></div>'
+                    : '';
+                const el = document.getElementById('backup-import-result');
+                el.innerHTML = `
+                    <div class="font-semibold mb-1">Restore complete</div>
+                    <div>Galaxies: created ${rep.galaxies_created}, overwritten ${rep.galaxies_overwritten}, renamed ${rep.galaxies_renamed}, skipped ${rep.galaxies_skipped}</div>
+                    <div>Users: created ${rep.users_created}, updated ${rep.users_updated}, skipped ${rep.users_skipped}</div>
+                    <div>Media files: written ${rep.media_files_written}, skipped ${rep.media_files_skipped}</div>
+                    ${failedHtml}
+                `;
+                el.classList.remove('hidden');
+                backupImportTempId = null;
+                showMessage('Restore complete.', 'success');
+            } catch (e) {
+                showMessage('Restore failed: ' + escapeHtmlAdmin(e.message), 'error');
+            }
+        }
+
+        // ====================================================================
+        // Snapshots tab
+        // ====================================================================
+
+        let snapshotsCronCommand = '';
+
+        async function snapshotsLoad() {
+            const wrap = document.getElementById('snapshots-table-wrap');
+            try {
+                const r = await fetch('snapshots/list.php');
+                const data = await r.json();
+                if (!r.ok || !data.ok) throw new Error(data.error || 'Failed to load snapshots');
+                snapshotsRenderSchedule(data.schedule);
+                snapshotsCronCommand = data.cron_command || '';
+                snapshotsRenderCronLine();
+                snapshotsRenderTable(data.snapshots || []);
+            } catch (e) {
+                wrap.innerHTML = '<p class="text-red-600">' + escapeHtmlAdmin(e.message) + '</p>';
+            }
+        }
+
+        function snapshotsRenderSchedule(s) {
+            if (!s) return;
+            document.getElementById('schedule-frequency').value = s.frequency || 'off';
+            document.getElementById('schedule-hour').value = (s.hour ?? 3);
+            document.getElementById('schedule-dow').value = (s.day_of_week ?? 0);
+            document.getElementById('schedule-keep-last').value = (s.keep_last ?? 10);
+            const lr = s.last_run_at;
+            document.getElementById('schedule-last-run').textContent = lr ? ('Last scheduled run: ' + lr + ' UTC') : 'Never run yet';
+        }
+
+        function snapshotsRenderCronLine() {
+            const freq = document.getElementById('schedule-frequency').value;
+            const hour = parseInt(document.getElementById('schedule-hour').value, 10) || 3;
+            const dow = parseInt(document.getElementById('schedule-dow').value, 10) || 0;
+            const cmd = snapshotsCronCommand;
+            let cron = '';
+            if (freq === 'off') {
+                cron = '# (schedule is off — no cron line needed)';
+            } else if (freq === 'hourly') {
+                cron = `0 * * * * ${cmd}`;
+            } else if (freq === 'daily') {
+                cron = `5 ${hour} * * * ${cmd}`;
+            } else if (freq === 'weekly') {
+                cron = `5 ${hour} * * ${dow} ${cmd}`;
+            }
+            // Recommended: run every 5 min so the runner can catch missed slots and run when due.
+            cron += '\n# Or run the scheduler every 5 minutes to be resilient to outages:\n*/5 * * * * ' + cmd;
+            document.getElementById('schedule-cron-line').textContent = cron;
+        }
+
+        ['schedule-frequency', 'schedule-hour', 'schedule-dow'].forEach(id => {
+            document.addEventListener('change', (e) => {
+                if (e.target.id === id) snapshotsRenderCronLine();
+            });
+        });
+
+        function snapshotsRenderTable(rows) {
+            const wrap = document.getElementById('snapshots-table-wrap');
+            if (!rows.length) {
+                wrap.innerHTML = '<p class="text-sm text-gray-500">No snapshots yet. Create one above.</p>';
+                return;
+            }
+            const fmtBytes = (b) => {
+                if (b > 1073741824) return (b / 1073741824).toFixed(2) + ' GB';
+                if (b > 1048576) return (b / 1048576).toFixed(1) + ' MB';
+                if (b > 1024) return (b / 1024).toFixed(1) + ' KB';
+                return b + ' B';
+            };
+            let html = `<div class="border border-gray-300 rounded overflow-x-auto">
+                <table class="w-full border-collapse text-sm">
+                    <thead><tr class="border-b-2 border-gray-400 bg-gray-100">
+                        <th class="text-left p-2">Created (UTC)</th>
+                        <th class="text-left p-2">Size</th>
+                        <th class="text-left p-2">Type</th>
+                        <th class="text-left p-2">Creator</th>
+                        <th class="text-left p-2">Note</th>
+                        <th class="text-right p-2">Actions</th>
+                    </tr></thead><tbody>`;
+            rows.forEach(r => {
+                const missing = !r.file_exists ? ' <span class="text-red-700 text-xs">(file missing)</span>' : '';
+                html += `<tr class="border-b border-gray-200 hover:bg-gray-50">
+                    <td class="p-2 whitespace-nowrap">${escapeHtmlAdmin(r.created_at)}${missing}</td>
+                    <td class="p-2 whitespace-nowrap">${fmtBytes(parseInt(r.size_bytes, 10) || 0)}</td>
+                    <td class="p-2"><span class="text-xs px-2 py-0.5 rounded ${r.trigger_type === 'manual' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}">${escapeHtmlAdmin(r.trigger_type)}</span></td>
+                    <td class="p-2">${escapeHtmlAdmin(r.creator_email || (r.trigger_type === 'scheduled' ? 'system' : '—'))}</td>
+                    <td class="p-2">${escapeHtmlAdmin(r.note || '')}</td>
+                    <td class="p-2 text-right whitespace-nowrap">
+                        <button type="button" onclick="snapshotRestoreClick(${r.id}, '${escapeHtmlAdmin(r.created_at)}')" class="text-orange-600 hover:underline text-xs mr-2">Restore</button>
+                        <a href="snapshots/download.php?id=${r.id}" class="text-blue-600 hover:underline text-xs mr-2">Download</a>
+                        <button type="button" onclick="snapshotDeleteClick(${r.id})" class="text-red-600 hover:underline text-xs">Delete</button>
+                    </td>
+                </tr>`;
+            });
+            html += '</tbody></table></div>';
+            wrap.innerHTML = html;
+        }
+
+        async function snapshotCreate() {
+            const note = document.getElementById('snapshot-note').value;
+            try {
+                const r = await fetch('snapshots/create.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                    body: JSON.stringify({ csrf_token: CSRF_TOKEN, note }),
+                });
+                const data = await r.json();
+                if (!r.ok || !data.ok) throw new Error(data.error || 'Create failed');
+                showMessage('Snapshot created.', 'success');
+                document.getElementById('snapshot-note').value = '';
+                snapshotsLoad();
+            } catch (e) {
+                showMessage('Create snapshot failed: ' + escapeHtmlAdmin(e.message), 'error');
+            }
+        }
+
+        async function snapshotDeleteClick(id) {
+            if (!confirm('Delete this snapshot? The file will be permanently removed from disk.')) return;
+            try {
+                const r = await fetch('snapshots/delete.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                    body: JSON.stringify({ csrf_token: CSRF_TOKEN, id }),
+                });
+                const data = await r.json();
+                if (!r.ok || !data.ok) throw new Error(data.error || 'Delete failed');
+                showMessage('Snapshot deleted.', 'success');
+                snapshotsLoad();
+            } catch (e) {
+                showMessage('Delete failed: ' + escapeHtmlAdmin(e.message), 'error');
+            }
+        }
+
+        async function snapshotRestoreClick(id, createdAt) {
+            const phrase = prompt(`RESTORE will WIPE the entire system and replace it with the snapshot from ${createdAt}.\n\nAll snapshots created after that point will also be deleted.\n\nType RESTORE to confirm:`);
+            if (phrase !== 'RESTORE') {
+                if (phrase !== null) showMessage('Confirmation phrase did not match. Restore cancelled.', 'error');
+                return;
+            }
+            let confirmNoAdmin = false;
+            try {
+                const r = await fetch('snapshots/restore.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                    body: JSON.stringify({ csrf_token: CSRF_TOKEN, id, confirm_text: 'RESTORE', confirm_no_admin: confirmNoAdmin }),
+                });
+                const data = await r.json();
+                if (!r.ok || !data.ok) {
+                    if (data.error && data.error.indexOf('no admin user') !== -1) {
+                        if (!confirm('WARNING: this snapshot has no admin user. Restoring will lock everyone out of the admin console. Proceed anyway?')) return;
+                        // Retry with override
+                        const r2 = await fetch('snapshots/restore.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                            body: JSON.stringify({ csrf_token: CSRF_TOKEN, id, confirm_text: 'RESTORE', confirm_no_admin: true }),
+                        });
+                        const data2 = await r2.json();
+                        if (!r2.ok || !data2.ok) throw new Error(data2.error || 'Restore failed');
+                        showMessage('Restore complete. You may be logged out.', 'success');
+                        return;
+                    }
+                    throw new Error(data.error || 'Restore failed');
+                }
+                const rep = data.report;
+                showMessage(`Restore complete. Created ${rep.galaxies_created} galaxies, ${rep.users_created} users. ${rep.snapshots_deleted_after_restore} later snapshot(s) deleted. You may be logged out.`, 'success');
+                snapshotsLoad();
+            } catch (e) {
+                showMessage('Restore failed: ' + escapeHtmlAdmin(e.message), 'error');
+            }
+        }
+
+        async function scheduleSave() {
+            const payload = {
+                csrf_token: CSRF_TOKEN,
+                frequency: document.getElementById('schedule-frequency').value,
+                hour: document.getElementById('schedule-hour').value,
+                day_of_week: document.getElementById('schedule-dow').value,
+                keep_last: document.getElementById('schedule-keep-last').value,
+            };
+            try {
+                const r = await fetch('snapshots/schedule.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                    body: JSON.stringify(payload),
+                });
+                const data = await r.json();
+                if (!r.ok || !data.ok) throw new Error(data.error || 'Save failed');
+                showMessage('Schedule saved.', 'success');
+                snapshotsRenderSchedule(data.schedule);
+                snapshotsRenderCronLine();
+            } catch (e) {
+                showMessage('Save schedule failed: ' + escapeHtmlAdmin(e.message), 'error');
+            }
         }
     </script>
     <!-- Create User Modal -->

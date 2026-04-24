@@ -62,6 +62,116 @@ php admin/cli/hard_reset.php --force
 
 **Warning:** This is a destructive operation that cannot be undone! This will completely reset the installation back to an unconfigured state.
 
+### backup_export.php
+
+Build a portable `.telaris-backup` file (gzipped JSON) containing galaxies and/or users.
+
+**Usage:**
+```bash
+# Full backup with embedded media
+php admin/cli/backup_export.php --output=/path/to/backup.telaris-backup
+
+# Specific galaxies, no users, references only
+php admin/cli/backup_export.php --output=part.telaris-backup --galaxies=1,5,7 --no-users --media=refs
+
+# Users only, no media
+php admin/cli/backup_export.php --output=users.telaris-backup --no-galaxies --media=none
+```
+
+**Options:**
+- `--output=FILE` — required, must not already exist
+- `--galaxies=all` (default) or `--galaxies=1,5,7`
+- `--no-galaxies`, `--no-users` — exclude either category
+- `--media=embedded` (default) | `refs` | `none`
+- `--quiet` — print only errors
+
+### backup_import.php
+
+Restore from a `.telaris-backup` file. Inspects first, then prompts for confirmation.
+
+**Usage:**
+```bash
+# Inspect only (no changes made)
+php admin/cli/backup_import.php --input=backup.telaris-backup --inspect-only
+
+# Restore, overwriting galaxies whose slug already exists (default mode)
+php admin/cli/backup_import.php --input=backup.telaris-backup
+
+# Restore as new galaxies with a custom suffix
+php admin/cli/backup_import.php --input=backup.telaris-backup --mode=rename --rename-suffix=" (v2)"
+
+# Non-interactive (skip prompt)
+php admin/cli/backup_import.php --input=backup.telaris-backup --force
+```
+
+**Options:**
+- `--input=FILE` — required
+- `--mode=overwrite` (default) | `rename`
+- `--rename-suffix=" (restored)"` — used in rename mode and on slug collisions
+- `--skip-users` — don't restore users
+- `--replace-users` — update existing users by email instead of skipping
+- `--replace-passwords` — also overwrite password hashes (only with `--replace-users`)
+- `--no-media` — skip writing media files
+- `--inspect-only` — print summary and exit
+- `--force` — skip the y/N prompt
+- `--quiet` — minimal output
+
+### snapshot_create.php
+
+Create a local on-disk snapshot of the entire system (full backup, embedded media). Stored in `SNAPSHOTS_DIR` and tracked in the `snapshots` DB table.
+
+**Usage:**
+```bash
+php admin/cli/snapshot_create.php
+php admin/cli/snapshot_create.php --note="before migration"
+```
+
+### snapshot_list.php
+
+List all snapshots on disk with id, timestamp, size, type (manual/scheduled), and note.
+
+**Usage:**
+```bash
+php admin/cli/snapshot_list.php
+```
+
+### snapshot_restore.php
+
+Restore a snapshot. **Wipes the entire system** and replaces it with the snapshot's state. All snapshots created after the restored one are also deleted (linear-timeline semantics).
+
+**Usage:**
+```bash
+# By snapshot id (see snapshot_list.php)
+php admin/cli/snapshot_restore.php --id=5
+
+# By file path (no later-snapshot deletion)
+php admin/cli/snapshot_restore.php --file=/path/to/file.telaris-backup
+
+# Skip the RESTORE confirmation prompt
+php admin/cli/snapshot_restore.php --id=5 --force
+
+# Permit a snapshot that contains no admin user (would lock everyone out)
+php admin/cli/snapshot_restore.php --id=5 --allow-no-admin
+```
+
+**Warning:** Destructive. Requires typing `RESTORE` to confirm unless `--force` is set.
+
+### snapshot_run_scheduled.php
+
+Cron target. Checks the `snapshot_schedule` row and creates a snapshot if one is due (hourly / daily / weekly), then trims old scheduled snapshots beyond `keep_last`. Quiet by default.
+
+**Usage:**
+```bash
+php admin/cli/snapshot_run_scheduled.php
+```
+
+**Recommended crontab line** (run every 5 minutes; the script decides when to act):
+```
+*/5 * * * * php /var/www/starmaps.polivoxia.ca/admin/cli/snapshot_run_scheduled.php
+```
+
+The schedule is configured in the admin Snapshots tab; the cron line above stays valid as you change frequency.
+
 ## Creating New CLI Scripts
 
 When creating new CLI scripts:

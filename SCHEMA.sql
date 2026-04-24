@@ -145,3 +145,30 @@ CREATE TABLE IF NOT EXISTS api_keys (
     INDEX idx_api_key (api_key),
     INDEX idx_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table for local snapshots (full system backups stored on disk).
+-- Excluded from backup dumps (instance-local state).
+CREATE TABLE IF NOT EXISTS snapshots (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    filename VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    size_bytes BIGINT NOT NULL DEFAULT 0,
+    created_by VARCHAR(255) NULL,
+    trigger_type ENUM('manual','scheduled') NOT NULL DEFAULT 'manual',
+    note VARCHAR(500) NULL,
+    UNIQUE KEY unique_filename (filename),
+    INDEX idx_created_at (created_at),
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Schedule for automatic snapshots (single row, id=1).
+-- Excluded from backup dumps (instance-local state).
+CREATE TABLE IF NOT EXISTS snapshot_schedule (
+    id TINYINT NOT NULL PRIMARY KEY DEFAULT 1,
+    frequency ENUM('off','hourly','daily','weekly') NOT NULL DEFAULT 'off',
+    hour TINYINT NULL,
+    day_of_week TINYINT NULL,
+    keep_last INT NOT NULL DEFAULT 10,
+    last_run_at TIMESTAMP NULL DEFAULT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

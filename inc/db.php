@@ -243,6 +243,45 @@ function db_ensure_nodes_clustering_columns(): void {
     }
 }
 
+/** Ensure snapshots and snapshot_schedule tables exist. */
+function db_ensure_snapshots_tables(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS snapshots (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                filename VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                size_bytes BIGINT NOT NULL DEFAULT 0,
+                created_by VARCHAR(255) NULL,
+                trigger_type ENUM('manual','scheduled') NOT NULL DEFAULT 'manual',
+                note VARCHAR(500) NULL,
+                UNIQUE KEY unique_filename (filename),
+                INDEX idx_created_at (created_at),
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS snapshot_schedule (
+                id TINYINT NOT NULL PRIMARY KEY DEFAULT 1,
+                frequency ENUM('off','hourly','daily','weekly') NOT NULL DEFAULT 'off',
+                hour TINYINT NULL,
+                day_of_week TINYINT NULL,
+                keep_last INT NOT NULL DEFAULT 10,
+                last_run_at TIMESTAMP NULL DEFAULT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        // Seed the singleton schedule row.
+        $pdo->exec("INSERT IGNORE INTO snapshot_schedule (id, frequency) VALUES (1, 'off')");
+    } catch (PDOException $e) {
+        error_log('db_ensure_snapshots_tables: ' . $e->getMessage());
+    }
+}
+
 /** Ensure nodes.import_slug column exists. */
 function db_ensure_nodes_import_slug_column(): void {
     static $checked = false;
@@ -2135,6 +2174,389 @@ function getAllTables(PDO $pdo): array {
         return [];
     }
 }
+
+// ---------------------------------------------------------------------------
+// Backup / Snapshot helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Recursively delete a directory and all its contents.
+ * Safe-bounded: only deletes if the resolved path is inside $allowedRoot.
+ */
+function db_rrmdir(string $path, string $allowedRoot): void {
+    $real = realpath($path);
+    $allowedReal = realpath($allowedRoot);
+    if ($real === false || $allowedReal === false) {
+        return;
+    }
+    if (strpos($real, rtrim($allowedReal, '/') . '/') !== 0 && $real !== $allowedReal) {
+        return; // refuse to touch anything outside the allowed root
+    }
+    if (!is_dir($real)) {
+        if (is_file($real)) {
+            @unlink($real);
+        }
+        return;
+    }
+    $items = @scandir($real);
+    if ($items === false) return;
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $sub = $real . '/' . $item;
+        if (is_dir($sub) && !is_link($sub)) {
+            db_rrmdir($sub, $allowedReal);
+        } else {
+            @unlink($sub);
+        }
+    }
+    @rmdir($real);
+}
+
+/**
+ * Pull the rich representation of one galaxy for a backup dump.
+ * Returns null if the galaxy doesn't exist.
+ *
+ * Output keys: constellation row + 'nodes' (raw rows with 'keyword_ids' resolved
+ * to keyword names) + 'keywords' (full rows) + 'editor_emails' + 'is_default'.
+ */
+function db_get_galaxy_for_dump(int $id): ?array {
+    db_ensure_constellations_import_source_column();
+    db_ensure_nodes_import_slug_column();
+    db_ensure_nodes_clustering_columns();
+    db_ensure_nodes_image_attribution_column();
+    db_ensure_nodes_icon_url_column();
+    db_ensure_nodes_show_keywords_column();
+    $pdo = getDB();
+
+    $stmt = $pdo->prepare("SELECT id, name, tagline, slug, theme, import_source FROM constellations WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $id]);
+    $row = $stmt->fetch();
+    if (!$row) return null;
+
+    // Keywords for this galaxy
+    $kwStmt = $pdo->prepare("SELECT id, keyword FROM keywords WHERE constellation_id = :id ORDER BY id");
+    $kwStmt->execute([':id' => $id]);
+    $keywords = $kwStmt->fetchAll();
+
+    // Nodes for this galaxy. Pull all relevant columns.
+    $nodeStmt = $pdo->prepare("
+        SELECT id, name, description, url, image_url, image_attribution, icon_url,
+               embed_code, audio_url, audio_autoplay, audio_loop,
+               video_url, video_autoplay, animation,
+               node_type, target_constellation_id, is_accentuated, show_keywords,
+               mucua_name, media_type, source_created_at, import_slug, created_by
+        FROM nodes WHERE constellation_id = :id ORDER BY id
+    ");
+    $nodeStmt->execute([':id' => $id]);
+    $nodes = $nodeStmt->fetchAll();
+
+    // Bulk: keyword names per node + target constellation slug per node
+    $nodeIds = array_map(fn($n) => (int)$n['id'], $nodes);
+    $keywordsByNode = $nodeIds === [] ? [] : db_get_keywords_for_nodes_bulk($nodeIds);
+
+    // Build target_constellation_slug map for portal nodes
+    $targetCids = [];
+    foreach ($nodes as $n) {
+        if ($n['target_constellation_id'] !== null && $n['target_constellation_id'] !== '') {
+            $targetCids[(int)$n['target_constellation_id']] = true;
+        }
+    }
+    $targetSlugMap = [];
+    if ($targetCids !== []) {
+        $ids = array_keys($targetCids);
+        $place = implode(',', array_map('intval', $ids));
+        $r = $pdo->query("SELECT id, slug FROM constellations WHERE id IN ($place)")->fetchAll();
+        foreach ($r as $rr) {
+            $targetSlugMap[(int)$rr['id']] = $rr['slug'] ?? null;
+        }
+    }
+
+    // created_by user IDs → emails (for portability)
+    $createdByIds = [];
+    foreach ($nodes as $n) {
+        if ($n['created_by'] !== null && $n['created_by'] !== '') {
+            $createdByIds[$n['created_by']] = true;
+        }
+    }
+    $createdByEmailMap = [];
+    if ($createdByIds !== []) {
+        $place = implode(',', array_fill(0, count($createdByIds), '?'));
+        $stmt2 = $pdo->prepare("SELECT id, email FROM users WHERE id IN ($place)");
+        $stmt2->execute(array_keys($createdByIds));
+        foreach ($stmt2->fetchAll() as $rr) {
+            $createdByEmailMap[$rr['id']] = $rr['email'];
+        }
+    }
+
+    // Attach per-node enrichment
+    foreach ($nodes as &$n) {
+        $nid = (int)$n['id'];
+        $n['keyword_names'] = $keywordsByNode[$nid] ?? [];
+        $tcid = $n['target_constellation_id'] !== null && $n['target_constellation_id'] !== '' ? (int)$n['target_constellation_id'] : null;
+        $n['target_constellation_slug'] = $tcid !== null ? ($targetSlugMap[$tcid] ?? null) : null;
+        $n['created_by_email'] = $n['created_by'] !== null && $n['created_by'] !== ''
+            ? ($createdByEmailMap[$n['created_by']] ?? null)
+            : null;
+    }
+    unset($n);
+
+    // Editors (user_constellations) for this galaxy → emails
+    $eStmt = $pdo->prepare("
+        SELECT u.email FROM user_constellations uc
+        INNER JOIN users u ON u.id = uc.user_id
+        WHERE uc.constellation_id = :id
+    ");
+    $eStmt->execute([':id' => $id]);
+    $editorEmails = array_map(fn($r) => $r['email'], $eStmt->fetchAll());
+
+    return [
+        'id' => (int)$row['id'],
+        'name' => $row['name'],
+        'tagline' => $row['tagline'],
+        'slug' => $row['slug'],
+        'theme' => $row['theme'],
+        'import_source' => $row['import_source'],
+        'is_default' => ((int)$row['id'] === db_get_default_constellation_id()),
+        'keywords' => $keywords,
+        'nodes' => $nodes,
+        'editor_emails' => $editorEmails,
+    ];
+}
+
+/**
+ * Pull all users for a backup dump, including password hashes and assigned galaxy slugs.
+ */
+function db_get_users_for_dump(): array {
+    $pdo = getDB();
+    $rows = $pdo->query("
+        SELECT id, email, password, firstname, lastname, type, date_created, date_last_login
+        FROM users ORDER BY date_created
+    ")->fetchAll();
+
+    // Bulk-load editor constellation slugs per user
+    $linkRows = $pdo->query("
+        SELECT uc.user_id, c.slug
+        FROM user_constellations uc
+        INNER JOIN constellations c ON c.id = uc.constellation_id
+        WHERE c.slug IS NOT NULL AND c.slug != ''
+    ")->fetchAll();
+    $byUser = [];
+    foreach ($linkRows as $r) {
+        $byUser[$r['user_id']][] = $r['slug'];
+    }
+
+    foreach ($rows as &$u) {
+        $u['editor_galaxy_slugs'] = $byUser[$u['id']] ?? [];
+    }
+    unset($u);
+    return $rows;
+}
+
+/**
+ * Update project_info.default_constellation_id for all locales.
+ */
+function db_set_default_constellation_id(int $id): void {
+    $pdo = getDB();
+    $pdo->prepare("UPDATE project_info SET default_constellation_id = :id")->execute([':id' => $id]);
+}
+
+/**
+ * Insert a user with an explicit id and password hash (used during restore to preserve identity).
+ * date_created is preserved if provided.
+ */
+function db_user_create_raw(string $id, string $email, string $passwordHash, string $firstname, string $lastname, int $type, ?string $dateCreated = null): void {
+    $pdo = getDB();
+    if ($dateCreated !== null && $dateCreated !== '') {
+        $stmt = $pdo->prepare("
+            INSERT INTO users (id, email, password, firstname, lastname, type, date_created)
+            VALUES (:id, :email, :password, :firstname, :lastname, :type, :date_created)
+        ");
+        $stmt->execute([
+            ':id' => $id, ':email' => $email, ':password' => $passwordHash,
+            ':firstname' => $firstname, ':lastname' => $lastname, ':type' => $type,
+            ':date_created' => $dateCreated,
+        ]);
+    } else {
+        db_insert_user($id, $email, $passwordHash, $firstname, $lastname, $type);
+    }
+}
+
+/**
+ * Create a node for a restore: takes a full payload array. URLs are pre-resolved strings;
+ * keywords are linked separately by the caller. target_constellation_id may be null
+ * here and updated later in a second pass once all galaxies exist.
+ */
+function db_create_node_for_restore(int $constellationId, array $node): int {
+    db_ensure_nodes_image_attribution_column();
+    db_ensure_nodes_icon_url_column();
+    db_ensure_nodes_clustering_columns();
+    db_ensure_nodes_import_slug_column();
+    db_ensure_nodes_show_keywords_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        INSERT INTO nodes (
+            constellation_id, name, description, url,
+            image_url, image_attribution, icon_url, embed_code,
+            audio_url, audio_autoplay, audio_loop,
+            video_url, video_autoplay, animation,
+            node_type, target_constellation_id, is_accentuated, show_keywords,
+            mucua_name, media_type, source_created_at, import_slug, created_by
+        ) VALUES (
+            :constellation_id, :name, :description, :url,
+            :image_url, :image_attribution, :icon_url, :embed_code,
+            :audio_url, :audio_autoplay, :audio_loop,
+            :video_url, :video_autoplay, :animation,
+            :node_type, :target_constellation_id, :is_accentuated, :show_keywords,
+            :mucua_name, :media_type, :source_created_at, :import_slug, :created_by
+        )
+    ");
+    $stmt->execute([
+        ':constellation_id' => $constellationId,
+        ':name' => (string)($node['name'] ?? ''),
+        ':description' => $node['description'] ?? null,
+        ':url' => $node['url'] ?? null,
+        ':image_url' => $node['image_url'] ?? null,
+        ':image_attribution' => $node['image_attribution'] ?? null,
+        ':icon_url' => $node['icon_url'] ?? null,
+        ':embed_code' => $node['embed_code'] ?? null,
+        ':audio_url' => $node['audio_url'] ?? null,
+        ':audio_autoplay' => !empty($node['audio_autoplay']) ? 1 : 0,
+        ':audio_loop' => !empty($node['audio_loop']) ? 1 : 0,
+        ':video_url' => $node['video_url'] ?? null,
+        ':video_autoplay' => !empty($node['video_autoplay']) ? 1 : 0,
+        ':animation' => is_string($node['animation'] ?? null) ? $node['animation'] : json_encode($node['animation'] ?? new \stdClass()),
+        ':node_type' => (string)($node['node_type'] ?? 'object'),
+        ':target_constellation_id' => isset($node['target_constellation_id']) && $node['target_constellation_id'] !== null && $node['target_constellation_id'] !== '' ? (int)$node['target_constellation_id'] : null,
+        ':is_accentuated' => !empty($node['is_accentuated']) ? 1 : 0,
+        ':show_keywords' => !empty($node['show_keywords']) ? 1 : 0,
+        ':mucua_name' => $node['mucua_name'] ?? null,
+        ':media_type' => $node['media_type'] ?? null,
+        ':source_created_at' => $node['source_created_at'] ?? null,
+        ':import_slug' => $node['import_slug'] ?? null,
+        ':created_by' => $node['created_by'] ?? null,
+    ]);
+    return (int)$pdo->lastInsertId();
+}
+
+/**
+ * Set the target_constellation_id for a node (used in second pass after all galaxies are created).
+ */
+function db_set_node_target_constellation(int $nodeId, ?int $targetCid): void {
+    $pdo = getDB();
+    $pdo->prepare("UPDATE nodes SET target_constellation_id = :tcid WHERE id = :id")
+        ->execute([':tcid' => $targetCid, ':id' => $nodeId]);
+}
+
+/**
+ * Set the created_by user_id for a node (used during restore once users exist).
+ */
+function db_set_node_created_by(int $nodeId, ?string $userId): void {
+    $pdo = getDB();
+    $pdo->prepare("UPDATE nodes SET created_by = :uid WHERE id = :id")
+        ->execute([':uid' => $userId, ':id' => $nodeId]);
+}
+
+/**
+ * Find a constellation id by slug, returning null if missing.
+ */
+function db_get_constellation_id_by_slug(string $slug): ?int {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT id FROM constellations WHERE slug = :slug LIMIT 1");
+    $stmt->execute([':slug' => $slug]);
+    $row = $stmt->fetch();
+    return $row ? (int)$row['id'] : null;
+}
+
+/**
+ * Delete a galaxy and everything inside it: nodes, keywords, node_keywords,
+ * user_constellations rows, portal references from other galaxies, and the
+ * uploads/{id}/ directory on disk. Optionally allows deleting the default galaxy.
+ */
+function db_delete_galaxy_deep(int $id, bool $allowDefault = false): void {
+    if (!$allowDefault && $id === db_get_default_constellation_id()) {
+        throw new InvalidArgumentException('The default galaxy cannot be deleted.');
+    }
+    $pdo = getDB();
+    $pdo->beginTransaction();
+    try {
+        // Null out portal references in OTHER galaxies that target this one
+        $pdo->prepare("UPDATE nodes SET target_constellation_id = NULL WHERE target_constellation_id = :id AND constellation_id != :id2")
+            ->execute([':id' => $id, ':id2' => $id]);
+
+        // Delete node_keywords for this galaxy's nodes (FK cascade will also handle this, but be explicit)
+        $pdo->prepare("DELETE nk FROM node_keywords nk INNER JOIN nodes n ON n.id = nk.node_id WHERE n.constellation_id = :id")
+            ->execute([':id' => $id]);
+
+        // Delete this galaxy's nodes
+        $pdo->prepare("DELETE FROM nodes WHERE constellation_id = :id")->execute([':id' => $id]);
+
+        // Delete keywords
+        $pdo->prepare("DELETE FROM keywords WHERE constellation_id = :id")->execute([':id' => $id]);
+
+        // Delete user_constellations rows (FK ON DELETE CASCADE will also handle this)
+        $pdo->prepare("DELETE FROM user_constellations WHERE constellation_id = :id")->execute([':id' => $id]);
+
+        // Delete the constellation itself
+        $pdo->prepare("DELETE FROM constellations WHERE id = :id")->execute([':id' => $id]);
+
+        $pdo->commit();
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+
+    // Wipe the uploads directory for this galaxy. Bounded to UPLOAD_DIR.
+    if (defined('UPLOAD_DIR')) {
+        $dir = rtrim(UPLOAD_DIR, '/') . '/' . $id;
+        db_rrmdir($dir, UPLOAD_DIR);
+    }
+}
+
+/**
+ * Wipe ALL user-data tables for a snapshot restore. Preserves api_keys,
+ * project_info, snapshots, snapshot_schedule. Also wipes UPLOAD_DIR contents
+ * (per-galaxy subdirectories).
+ */
+function db_wipe_all_data(): void {
+    $pdo = getDB();
+    try {
+        $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
+        $pdo->exec("DELETE FROM node_keywords");
+        $pdo->exec("DELETE FROM nodes");
+        $pdo->exec("DELETE FROM keywords");
+        $pdo->exec("DELETE FROM user_constellations");
+        $pdo->exec("DELETE FROM constellations");
+        $pdo->exec("DELETE FROM users");
+        // Reset auto-increment so restored IDs start fresh
+        $pdo->exec("ALTER TABLE constellations AUTO_INCREMENT = 1");
+        $pdo->exec("ALTER TABLE nodes AUTO_INCREMENT = 1");
+        $pdo->exec("ALTER TABLE keywords AUTO_INCREMENT = 1");
+        $pdo->exec("ALTER TABLE node_keywords AUTO_INCREMENT = 1");
+    } finally {
+        $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+    }
+
+    // Wipe the per-galaxy uploads subdirectories. We do this by iterating
+    // direct children of UPLOAD_DIR rather than nuking the dir itself,
+    // so we don't touch any flat-stored files (e.g. duplicated nodes).
+    if (defined('UPLOAD_DIR') && is_dir(UPLOAD_DIR)) {
+        $items = @scandir(UPLOAD_DIR);
+        if ($items !== false) {
+            foreach ($items as $item) {
+                if ($item === '.' || $item === '..') continue;
+                $full = rtrim(UPLOAD_DIR, '/') . '/' . $item;
+                // Only descend into numeric directories (galaxy IDs)
+                if (is_dir($full) && ctype_digit($item)) {
+                    db_rrmdir($full, UPLOAD_DIR);
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CLI / maintenance (continued)
+// ---------------------------------------------------------------------------
 
 /**
  * @return array{dropped: list<string>, errors: list<string>}

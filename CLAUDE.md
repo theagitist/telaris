@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Telaris** — a 3D interactive node network visualization application. The PHP/MySQL backend serves data through a REST API; the frontend renders a Three.js 3D scene with nodes, connections, and themes directly in the browser.
 
-Current version: **6.2.0** (tracked in `VERSION` file).
+Current version: **6.5.0** (tracked in `VERSION` file).
 
 ## Vocabulary Mapping (Code → UI)
 
@@ -55,6 +55,16 @@ php admin/cli/refresh_constellation.php
 php admin/cli/refresh_constellation.php --id=N [--no-media] [--limit=N] [--full]
 #   --list        List all constellations with import status
 #   --full        Full re-import (skip incremental diff, delete all nodes first)
+
+# Backup: portable .telaris-backup file (gzipped JSON)
+php admin/cli/backup_export.php --output=FILE [--galaxies=all|1,5,7] [--no-galaxies] [--no-users] [--media=embedded|refs|none] [--quiet]
+php admin/cli/backup_import.php --input=FILE [--mode=overwrite|rename] [--rename-suffix=" (restored)"] [--skip-users] [--replace-users [--replace-passwords]] [--no-media] [--inspect-only] [--force] [--quiet]
+
+# Snapshots: full system backups stored on disk in SNAPSHOTS_DIR (or fallback <UPLOAD_DIR>/../snapshots)
+php admin/cli/snapshot_create.php [--note="..."]
+php admin/cli/snapshot_list.php
+php admin/cli/snapshot_restore.php (--id=N | --file=PATH) [--force] [--allow-no-admin]
+php admin/cli/snapshot_run_scheduled.php   # cron target; checks the schedule and runs if due
 ```
 
 Unit tests use PHPUnit: `vendor/bin/phpunit --testsuite unit`. No linters or build steps.
@@ -154,6 +164,18 @@ Each cluster appears as a special 3D node. Clicking drills in; back button and b
 - `inc/mocambos-download.php` — shared media download function
 
 **Incremental refresh:** Re-imports compute a diff by matching nodes on `import_slug`. Only additions, modifications, and deletions are applied. Use `--full` flag (CLI) or `full_refresh: true` (API) to force a full re-import.
+
+### Backup & Snapshots
+
+**Engine:** `inc/backup.php` builds, inspects, and restores `.telaris-backup` files (gzipped JSON envelope, format version 1). Cross-references inside the dump use `ref` strings (gal-N, kw-N, node-N, media-N), slugs, and emails so restores are independent of auto-increment IDs on the target instance. `inc/snapshots.php` is a thin layer that stores backups on disk and tracks them in the `snapshots` table.
+
+**What's included:** galaxies (constellations + nodes + keywords + node-keyword links + per-galaxy editor assignments) and users (with hashed passwords + assigned galaxy slugs). Media is `embedded` (base64), `refs` (URLs only), or `none`.
+
+**What's excluded** (instance-local): `api_keys`, `project_info`, `snapshots`, `snapshot_schedule`.
+
+**Restore modes:** `granular` (per-galaxy: overwrite-in-place by slug match, or rename-with-suffix on conflict) and `wipe_all` (snapshot path: deletes everything except instance-local tables, recreates from the dump, repoints `default_constellation_id`). Snapshot restore also deletes any snapshots with `created_at` newer than the restored one (linear-timeline semantics).
+
+**Storage:** snapshot files live in `SNAPSHOTS_DIR` (defined in `config_default.php`, defaults to `<UPLOAD_DIR>/../snapshots` if undefined). Admin endpoints under `admin/backup/` and `admin/snapshots/` are session-auth gated; CSRF token validated on every mutation.
 
 **Imported constellations** are read-only in the editor.
 
