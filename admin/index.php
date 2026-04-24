@@ -1060,7 +1060,7 @@ $fieldMeta = [
                         <h2 class="text-lg font-semibold">Snapshot scheduler</h2>
                         <label class="text-sm flex items-center gap-3 cursor-pointer select-none">
                             <span class="font-medium">Enable daily snapshots</span>
-                            <input type="checkbox" id="schedule-enabled" class="toggle toggle-primary toggle-sm">
+                            <input type="checkbox" id="schedule-enabled" class="toggle toggle-neutral toggle-sm">
                         </label>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
