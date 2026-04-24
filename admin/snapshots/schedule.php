@@ -28,10 +28,10 @@ if (empty($_SESSION['csrf_token']) || !hash_equals((string)$_SESSION['csrf_token
 $frequency = (string)($payload['frequency'] ?? 'off');
 $hour = isset($payload['hour']) && $payload['hour'] !== '' && $payload['hour'] !== null ? (int)$payload['hour'] : null;
 $dow = isset($payload['day_of_week']) && $payload['day_of_week'] !== '' && $payload['day_of_week'] !== null ? (int)$payload['day_of_week'] : null;
-$keepLast = (int)($payload['keep_last'] ?? 10);
+$keepDays = (int)($payload['keep_days'] ?? 7);
 
 try {
-    snapshot_set_schedule($frequency, $hour, $dow, $keepLast);
+    snapshot_set_schedule($frequency, $hour, $dow, $keepDays);
     echo json_encode(['ok' => true, 'schedule' => snapshot_get_schedule()]);
 } catch (Throwable $e) {
     http_response_code(400);

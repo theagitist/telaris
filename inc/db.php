@@ -267,16 +267,28 @@ function db_ensure_snapshots_tables(): void {
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS snapshot_schedule (
                 id TINYINT NOT NULL PRIMARY KEY DEFAULT 1,
-                frequency ENUM('off','hourly','daily','weekly') NOT NULL DEFAULT 'off',
+                frequency ENUM('off','daily','weekly') NOT NULL DEFAULT 'off',
                 hour TINYINT NULL,
                 day_of_week TINYINT NULL,
-                keep_last INT NOT NULL DEFAULT 10,
+                keep_days INT NOT NULL DEFAULT 7,
                 last_run_at TIMESTAMP NULL DEFAULT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
         // Seed the singleton schedule row.
         $pdo->exec("INSERT IGNORE INTO snapshot_schedule (id, frequency) VALUES (1, 'off')");
+
+        // Migrate older installs: drop 'hourly' frequency, replace keep_last (count) with keep_days (age-based, default 7).
+        $cols = $pdo->query("SHOW COLUMNS FROM snapshot_schedule")->fetchAll(PDO::FETCH_COLUMN, 0);
+        if (in_array('keep_last', $cols, true) && !in_array('keep_days', $cols, true)) {
+            $pdo->exec("ALTER TABLE snapshot_schedule ADD COLUMN keep_days INT NOT NULL DEFAULT 7 AFTER day_of_week");
+            $pdo->exec("ALTER TABLE snapshot_schedule DROP COLUMN keep_last");
+        }
+        $freqCol = $pdo->query("SHOW COLUMNS FROM snapshot_schedule LIKE 'frequency'")->fetch(PDO::FETCH_ASSOC);
+        if ($freqCol && is_string($freqCol['Type'] ?? null) && strpos($freqCol['Type'], "'hourly'") !== false) {
+            $pdo->exec("UPDATE snapshot_schedule SET frequency = 'daily' WHERE frequency = 'hourly'");
+            $pdo->exec("ALTER TABLE snapshot_schedule MODIFY COLUMN frequency ENUM('off','daily','weekly') NOT NULL DEFAULT 'off'");
+        }
     } catch (PDOException $e) {
         error_log('db_ensure_snapshots_tables: ' . $e->getMessage());
     }

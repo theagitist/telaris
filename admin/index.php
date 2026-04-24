@@ -1061,7 +1061,6 @@ $fieldMeta = [
                         <label class="text-sm">Frequency
                             <select id="schedule-frequency" class="select select-bordered select-sm w-full">
                                 <option value="off">Off</option>
-                                <option value="hourly">Hourly</option>
                                 <option value="daily">Daily</option>
                                 <option value="weekly">Weekly</option>
                             </select>
@@ -1080,8 +1079,8 @@ $fieldMeta = [
                                 <option value="6">Saturday</option>
                             </select>
                         </label>
-                        <label class="text-sm">Keep last N (auto)
-                            <input type="number" id="schedule-keep-last" min="1" value="10" class="input input-bordered input-sm w-full">
+                        <label class="text-sm">Keep days (auto)
+                            <input type="number" id="schedule-keep-days" min="1" value="7" class="input input-bordered input-sm w-full">
                         </label>
                     </div>
                     <div class="mt-3 flex flex-wrap gap-3 items-center">
@@ -2933,7 +2932,7 @@ $fieldMeta = [
             document.getElementById('schedule-frequency').value = s.frequency || 'off';
             document.getElementById('schedule-hour').value = (s.hour ?? 3);
             document.getElementById('schedule-dow').value = (s.day_of_week ?? 0);
-            document.getElementById('schedule-keep-last').value = (s.keep_last ?? 10);
+            document.getElementById('schedule-keep-days').value = (s.keep_days ?? 7);
             const lr = s.last_run_at;
             document.getElementById('schedule-last-run').textContent = lr ? ('Last scheduled run: ' + lr + ' UTC') : 'Never run yet';
         }
@@ -2945,9 +2944,7 @@ $fieldMeta = [
             const cmd = snapshotsCronCommand;
             let cron = '';
             if (freq === 'off') {
-                cron = '# (schedule is off — no cron line needed)';
-            } else if (freq === 'hourly') {
-                cron = `0 * * * * ${cmd}`;
+                cron = '# (schedule is off. No cron line needed)';
             } else if (freq === 'daily') {
                 cron = `5 ${hour} * * * ${cmd}`;
             } else if (freq === 'weekly') {
@@ -3084,7 +3081,7 @@ $fieldMeta = [
                 frequency: document.getElementById('schedule-frequency').value,
                 hour: document.getElementById('schedule-hour').value,
                 day_of_week: document.getElementById('schedule-dow').value,
-                keep_last: document.getElementById('schedule-keep-last').value,
+                keep_days: document.getElementById('schedule-keep-days').value,
             };
             try {
                 const r = await fetch('snapshots/schedule.php', {

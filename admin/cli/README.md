@@ -158,7 +158,7 @@ php admin/cli/snapshot_restore.php --id=5 --allow-no-admin
 
 ### snapshot_run_scheduled.php
 
-Cron target. Checks the `snapshot_schedule` row and creates a snapshot if one is due (hourly / daily / weekly), then trims old scheduled snapshots beyond `keep_last`. Quiet by default.
+Cron target. Checks the `snapshot_schedule` row and creates a snapshot if one is due (daily / weekly), then deletes scheduled snapshots older than `keep_days` (default 7). Manual snapshots are kept forever. Quiet by default.
 
 **Usage:**
 ```bash

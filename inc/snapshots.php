@@ -177,18 +177,18 @@ function snapshot_restore(int $id, bool $confirmNoAdmin = false): array {
 function snapshot_get_schedule(): array {
     db_ensure_snapshots_tables();
     $pdo = getDB();
-    $row = $pdo->query("SELECT id, frequency, hour, day_of_week, keep_last, last_run_at, updated_at FROM snapshot_schedule WHERE id = 1 LIMIT 1")->fetch();
+    $row = $pdo->query("SELECT id, frequency, hour, day_of_week, keep_days, last_run_at, updated_at FROM snapshot_schedule WHERE id = 1 LIMIT 1")->fetch();
     if (!$row) {
         // Defensive seed
         $pdo->exec("INSERT IGNORE INTO snapshot_schedule (id, frequency) VALUES (1, 'off')");
-        $row = $pdo->query("SELECT id, frequency, hour, day_of_week, keep_last, last_run_at, updated_at FROM snapshot_schedule WHERE id = 1 LIMIT 1")->fetch();
+        $row = $pdo->query("SELECT id, frequency, hour, day_of_week, keep_days, last_run_at, updated_at FROM snapshot_schedule WHERE id = 1 LIMIT 1")->fetch();
     }
     return $row;
 }
 
-function snapshot_set_schedule(string $frequency, ?int $hour, ?int $dayOfWeek, int $keepLast): void {
+function snapshot_set_schedule(string $frequency, ?int $hour, ?int $dayOfWeek, int $keepDays): void {
     db_ensure_snapshots_tables();
-    $valid = ['off', 'hourly', 'daily', 'weekly'];
+    $valid = ['off', 'daily', 'weekly'];
     if (!in_array($frequency, $valid, true)) {
         throw new InvalidArgumentException('Invalid frequency.');
     }
@@ -198,36 +198,37 @@ function snapshot_set_schedule(string $frequency, ?int $hour, ?int $dayOfWeek, i
     if ($dayOfWeek !== null && ($dayOfWeek < 0 || $dayOfWeek > 6)) {
         throw new InvalidArgumentException('Invalid day of week (0=Sunday, 6=Saturday).');
     }
-    if ($keepLast < 1) $keepLast = 1;
+    if ($keepDays < 1) $keepDays = 1;
     $pdo = getDB();
-    $pdo->prepare("UPDATE snapshot_schedule SET frequency = :f, hour = :h, day_of_week = :d, keep_last = :k WHERE id = 1")
-        ->execute([':f' => $frequency, ':h' => $hour, ':d' => $dayOfWeek, ':k' => $keepLast]);
+    $pdo->prepare("UPDATE snapshot_schedule SET frequency = :f, hour = :h, day_of_week = :d, keep_days = :k WHERE id = 1")
+        ->execute([':f' => $frequency, ':h' => $hour, ':d' => $dayOfWeek, ':k' => $keepDays]);
 }
 
 /**
- * Trim 'scheduled' snapshots beyond keep_last (oldest first). Manual snapshots are kept forever.
+ * Delete 'scheduled' snapshots older than $keepDays days. Manual snapshots are kept forever.
  * Returns count deleted.
  */
-function snapshot_trim_scheduled(int $keepLast): int {
+function snapshot_trim_scheduled(int $keepDays): int {
     db_ensure_snapshots_tables();
+    if ($keepDays < 1) $keepDays = 1;
     $pdo = getDB();
     $stmt = $pdo->prepare("
         SELECT id, filename FROM snapshots
         WHERE trigger_type = 'scheduled'
-        ORDER BY created_at DESC, id DESC
+          AND created_at < (NOW() - INTERVAL :d DAY)
     ");
+    $stmt->bindValue(':d', $keepDays, PDO::PARAM_INT);
     $stmt->execute();
     $rows = $stmt->fetchAll();
-    if (count($rows) <= $keepLast) return 0;
-    $excess = array_slice($rows, $keepLast);
-    foreach ($excess as $r) {
+    if ($rows === []) return 0;
+    foreach ($rows as $r) {
         $p = snapshot_full_path($r['filename']);
         if (file_exists($p)) @unlink($p);
     }
-    $ids = array_map(fn($r) => (int)$r['id'], $excess);
+    $ids = array_map(fn($r) => (int)$r['id'], $rows);
     $place = implode(',', array_fill(0, count($ids), '?'));
     $pdo->prepare("DELETE FROM snapshots WHERE id IN ($place)")->execute($ids);
-    return count($excess);
+    return count($rows);
 }
 
 /**
@@ -243,9 +244,6 @@ function snapshot_run_if_due(): ?int {
     $isDue = false;
 
     switch ($sch['frequency']) {
-        case 'hourly':
-            $isDue = ($nowTs - $lastTs) >= 3600;
-            break;
         case 'daily': {
             // Due if at-or-past today's scheduled hour AND last_run wasn't already today (UTC)
             $hour = $sch['hour'] ?? 3;
@@ -270,7 +268,7 @@ function snapshot_run_if_due(): ?int {
     if (!$isDue) return null;
 
     $newId = snapshot_create(null, 'scheduled', null);
-    snapshot_trim_scheduled((int)$sch['keep_last']);
+    snapshot_trim_scheduled((int)$sch['keep_days']);
 
     $pdo = getDB();
     $pdo->exec("UPDATE snapshot_schedule SET last_run_at = CURRENT_TIMESTAMP WHERE id = 1");
