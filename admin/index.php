@@ -1056,12 +1056,14 @@ $fieldMeta = [
 
                 <!-- Schedule -->
                 <section class="mb-8 border border-gray-300 rounded p-4">
-                    <h2 class="text-lg font-semibold mb-3">Snapshot scheduler</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                        <label class="text-sm flex items-center gap-3 md:col-span-1 cursor-pointer select-none">
-                            <input type="checkbox" id="schedule-enabled" class="toggle toggle-primary toggle-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <h2 class="text-lg font-semibold">Snapshot scheduler</h2>
+                        <label class="text-sm flex items-center gap-3 cursor-pointer select-none">
                             <span class="font-medium">Enable daily snapshots</span>
+                            <input type="checkbox" id="schedule-enabled" class="toggle toggle-primary toggle-sm">
                         </label>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
                         <label class="text-sm">Hour (UTC)
                             <input type="number" id="schedule-hour" min="0" max="23" value="3" class="input input-bordered input-sm w-full">
                         </label>
@@ -1069,7 +1071,7 @@ $fieldMeta = [
                             <input type="number" id="schedule-keep-days" min="1" value="7" class="input input-bordered input-sm w-full">
                         </label>
                     </div>
-                    <div class="mt-3 flex flex-wrap gap-3 items-center">
+                    <div class="mt-3 flex flex-wrap gap-2 items-center">
                         <button type="button" onclick="scheduleSave()" class="btn btn-neutral btn-sm">Save</button>
                         <button type="button" onclick="snapshotsLoad()" class="btn btn-ghost btn-sm">Refresh status</button>
                     </div>
