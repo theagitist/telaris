@@ -236,9 +236,11 @@ tests/
       MocambosSyncTest.php                 # Incremental diff detection for imports
       MediaOptimizeTest.php                # Image/audio/video optimization, frame extraction
       FormatNodesBulkTest.php              # Node API output format, field presence
+      CronStripBlockTest.php               # cron_strip_block() preserves unrelated lines
     Integration/
       MigrationAutoIncrementTest.php       # AUTO_INCREMENT + FK migration
       MigrationApiKeysActiveTest.php       # is_active column migration
+      BackupRoundTripTest.php              # Export -> file -> import preserves galaxies/keywords/links
   js/
     themes.test.js                         # THEMES structure, getTheme() fallback
     network-manager.test.js                # Focus state, opacity, visibility
