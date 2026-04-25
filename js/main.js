@@ -4,11 +4,11 @@
  * Back button pops and loads the previous constellation when stack length > 1.
  *
  * Raycaster (onMouseMove cursor + onClick/onMouseDown navigation) lives in
- * TelarisNetwork in js/telaris-network.js; it uses intersectObjects(..., true)
+ * TelarisNetwork in js/telaris-3d.js; it uses intersectObjects(..., true)
  * and bubble-up userData lookup so portal Torus wires are hit correctly.
  */
 
-import { TelarisNetwork } from './telaris-network.js';
+import { TelarisNetwork } from './telaris-3d.js';
 import { TourController } from './auto-tour.js';
 
 /** Constellation ID history for portal Back navigation. Set in initTelaris from URL or 0. */

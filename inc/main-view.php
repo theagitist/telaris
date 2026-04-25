@@ -439,7 +439,7 @@ header("X-Content-Type-Options: nosniff");
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "./telaris-network.js": "./js/telaris-network.js?v=<?php echo $appVersion; ?>",
+                "./telaris-3d.js": "./js/telaris-3d.js?v=<?php echo $appVersion; ?>",
                 "./network-manager.js": "./js/network-manager.js?v=<?php echo $appVersion; ?>",
                 "./geometry-manager.js": "./js/geometry-manager.js?v=<?php echo $appVersion; ?>",
                 "./api.js": "./js/api.js?v=<?php echo $appVersion; ?>",
