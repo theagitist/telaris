@@ -6,6 +6,8 @@
  * Configured per galaxy via window.TELARIS_TOUR_CONFIG. Disabled on phones.
  */
 
+console.log('[tour] tour.js module loaded');
+
 const MOBILE_MIN_WIDTH = 768;
 
 function delay(ms) {
