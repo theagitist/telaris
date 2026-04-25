@@ -13,6 +13,24 @@ header("X-Content-Type-Options: nosniff");
 
 require_once __DIR__ . '/../config.php';
 
+$appVersion = trim(@file_get_contents(__DIR__ . '/../VERSION') ?: '0.0.0');
+
+$galaxyEditMessage = null;
+$galaxyEditError = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_constellation') {
+    require_once __DIR__ . '/../inc/galaxy-update.php';
+    $result = handle_galaxy_update_post(
+        $_POST,
+        $_SESSION['admin_user_id'] ?? null,
+        isAdminLoggedIn()
+    );
+    if ($result['ok']) {
+        $galaxyEditMessage = $result['message'];
+    } else {
+        $galaxyEditError = $result['message'];
+    }
+}
+
 $pdo = getDB();
 
 // Get default API key for API calls (using function from config.php)
@@ -115,6 +133,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </select>
                         <button type="button" onclick="viewNetwork()" class="btn btn-sm btn-neutral join-item">
                             View
+                        </button>
+                        <button type="button" id="galaxy-settings-btn" onclick="openCurrentGalaxySettings()" class="btn btn-sm btn-outline join-item" title="Galaxy settings" style="display:none;">
+                            Settings
                         </button>
                         <button type="button" onclick="copyCurrentConstellationUrl(this)" class="btn btn-sm btn-outline join-item" title="Copy galaxy URL">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
@@ -2447,5 +2468,61 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
+
+    <?php require __DIR__ . '/../inc/partials/galaxy-edit-modal.php'; ?>
+
+    <script>
+        window.GALAXY_EDIT_API_URL = '../api/constellations.php';
+        window.GALAXY_EDIT_API_KEY = <?php echo json_encode($apiKey); ?>;
+        window.escapeHtmlAdmin = window.escapeHtmlAdmin || function (str) {
+            return String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        };
+
+        // Editors and admins both reach the same modal via this handler.
+        // The select holds the current galaxy id; we look up its row via the
+        // already-loaded constellation list.
+        const TELARIS_GALAXIES = <?php echo json_encode(array_map(fn($c) => [
+            'id' => (int)$c['id'],
+            'name' => (string)($c['name'] ?? ''),
+            'tagline' => (string)($c['tagline'] ?? ''),
+            'slug' => (string)($c['slug'] ?? ''),
+            'theme' => (string)($c['theme'] ?? 'cosmic'),
+        ], $constellations)); ?>;
+
+        function openCurrentGalaxySettings() {
+            const sel = document.getElementById('current-constellation');
+            const id = parseInt(sel?.value, 10);
+            if (!id || isNaN(id)) return;
+            const galaxy = TELARIS_GALAXIES.find(g => g.id === id);
+            if (!galaxy) return;
+            window.editConstellation(galaxy);
+        }
+
+        function refreshGalaxySettingsButton() {
+            const sel = document.getElementById('current-constellation');
+            const btn = document.getElementById('galaxy-settings-btn');
+            if (!sel || !btn) return;
+            const v = sel.value;
+            btn.style.display = (v && v !== 'all') ? '' : 'none';
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            const sel = document.getElementById('current-constellation');
+            if (sel) sel.addEventListener('change', refreshGalaxySettingsButton);
+            refreshGalaxySettingsButton();
+        });
+
+        <?php if ($galaxyEditMessage): ?>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof showMessage === 'function') showMessage(<?php echo json_encode($galaxyEditMessage); ?>, 'success');
+            else alert(<?php echo json_encode($galaxyEditMessage); ?>);
+        });
+        <?php elseif ($galaxyEditError): ?>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof showMessage === 'function') showMessage(<?php echo json_encode($galaxyEditError); ?>, 'error');
+            else alert(<?php echo json_encode($galaxyEditError); ?>);
+        });
+        <?php endif; ?>
+    </script>
+    <script src="../js/galaxy-edit-modal.js?v=<?php echo $appVersion; ?>"></script>
 </body>
 </html>
