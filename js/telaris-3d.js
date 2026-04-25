@@ -3093,22 +3093,28 @@ class TelarisNetwork {
                 }
             }
 
+            // Tour-spotlight context: lifted out of the material loop so it can
+            // also dim sprite/non-emissive materials via opacity.
+            const isTourSpotlight = (this._tourSpotlightNode === n);
+            const tourActive = !!this._tourSpotlightNode;
+            const tourDimNonSpotlight = (tourActive && !isTourSpotlight) ? 0.3 : 1.0;
+
             // Optimization: iterate cached materials directly
             d.cachedMaterials.forEach(m => {
-                m.opacity = opacity * glitchOpacityMult;
+                m.opacity = opacity * glitchOpacityMult * tourDimNonSpotlight;
                 m.transparent = true;
                 m.visible = true;
-                
+
                 // Only update color for non-sprite materials (standard geometry nodes)
                 if (d.colorR !== undefined && !m.isSpriteMaterial) {
                     if (m.color) m.color.setRGB((d.colorR / 255) * brightness, (d.colorG / 255) * brightness, (d.colorB / 255) * brightness);
                     if (m.emissive && m.color) m.emissive.copy(m.color);
-                    
+
                     if (m.emissiveIntensity !== undefined) {
                         if (m._baseEmissiveIntensity === undefined) {
                             m._baseEmissiveIntensity = m.emissiveIntensity || 0.5;
                         }
-                        
+
                         // Disable twinkle and hover effects during transition for stability
                         if (isTransitioning) {
                             m.emissiveIntensity = m._baseEmissiveIntensity * brightness;
@@ -3117,7 +3123,6 @@ class TelarisNetwork {
                             const twinkleAmp = d.is_accentuated ? 0.8 : 0.5;
                             const twinkle = 1.0 + Math.sin(time * twinkleFreq + d.phase) * twinkleAmp;
 
-                            const isTourSpotlight = (this._tourSpotlightNode === n);
                             // Don't dim when this is the tour spotlight — we want it bright.
                             const hoverDim = (isActive && !isTourSpotlight) ? 0.15 : 1.0;
                             let flareBoost = 1.0;
@@ -3128,7 +3133,7 @@ class TelarisNetwork {
                             // Accentuated nodes get a smaller emissive boost now
                             const accentBoost = d.is_accentuated ? 1.4 : 1.0;
                             const tourBoost = isTourSpotlight ? (6.0 + Math.sin(time * 3.5) * 3.5) : 1.0;
-                            m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost * tourBoost;
+                            m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost * tourBoost * tourDimNonSpotlight;
                         }
                     }
                 } else if (m.isSpriteMaterial) {
@@ -3548,6 +3553,7 @@ class TelarisNetwork {
             this.updateNodes(dt);
             this.updateConnections(dt);
             this.updateTourHalo();
+            this.updateTourLabel();
         }
         
         this.updateMainTooltip();
@@ -3919,6 +3925,67 @@ class TelarisNetwork {
         halo.material.opacity = 0.55 + pulse * 0.4;
         const size = 7 + pulse * 2.5;
         halo.scale.set(size, size, 1);
+    }
+
+    /** DOM-anchored name label that follows the spotlight node during the camera pan. */
+    _initTourLabel() {
+        const el = document.createElement('div');
+        el.id = 'tour-spotlight-label';
+        el.style.cssText = [
+            'position:fixed', 'z-index:255', 'pointer-events:none',
+            'transform:translate(-50%, -100%)',
+            'background:rgba(0,0,0,0.65)',
+            'color:#fff',
+            'padding:6px 14px',
+            'border-radius:6px',
+            'font-size:14px',
+            'font-weight:600',
+            'letter-spacing:0.02em',
+            'border:1px solid rgba(255,255,255,0.25)',
+            'box-shadow:0 4px 16px rgba(0,0,0,0.5)',
+            'transition:opacity 250ms ease-out',
+            'opacity:0',
+            'white-space:nowrap',
+            'max-width:60vw',
+            'overflow:hidden',
+            'text-overflow:ellipsis',
+        ].join(';');
+        document.body.appendChild(el);
+        this._tourLabelEl = el;
+    }
+
+    /**
+     * Project the spotlight node to screen space and place the name label
+     * just above it. Hidden when the rich-media card is open (the card
+     * already shows the name) or when the node is behind the camera.
+     */
+    updateTourLabel() {
+        if (!this._tourSpotlightNode) {
+            if (this._tourLabelEl) this._tourLabelEl.style.opacity = '0';
+            return;
+        }
+        const rmOverlay = document.getElementById('rich-media-overlay');
+        const cardVisible = rmOverlay && !rmOverlay.classList.contains('hidden');
+        if (cardVisible) {
+            if (this._tourLabelEl) this._tourLabelEl.style.opacity = '0';
+            return;
+        }
+        if (!this._tourLabelEl) this._initTourLabel();
+        const label = this._tourLabelEl;
+        const node = this._tourSpotlightNode;
+        node.getWorldPosition(this._scratchVec);
+        this._scratchVec.project(this.camera);
+        if (this._scratchVec.z > 1) {
+            label.style.opacity = '0';
+            return;
+        }
+        const x = (this._scratchVec.x + 1) * 0.5 * window.innerWidth;
+        const y = (1 - this._scratchVec.y) * 0.5 * window.innerHeight;
+        const name = node.userData?.name || '';
+        if (label.textContent !== name) label.textContent = name;
+        label.style.left = x + 'px';
+        label.style.top = (y - 36) + 'px';
+        label.style.opacity = '1';
     }
 
     tourFocusOnNode(node, durationMs = 1400) {
