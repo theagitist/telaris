@@ -75,7 +75,12 @@ export class TourController {
         } else if (mode === 'idle') {
             this.startIdleWatch();
         } else if (mode === 'immediate') {
-            this.start();
+            // Brief grace period so the visitor can take in the scene before the
+            // camera starts panning. Don't start if they've already kicked the tour
+            // off some other way in the meantime.
+            setTimeout(() => {
+                if (!this.active && !this.cancelled) this.start();
+            }, 3000);
         }
     }
 
@@ -312,41 +317,62 @@ export class TourController {
         const data = node?.userData || {};
         const audio = data.audio_url ? document.getElementById('rm-audio') : null;
         const video = data.video_url ? document.getElementById('rm-video') : null;
+        const media = video || audio;
 
-        if (video) {
-            this.attachedVideo = true;
-            const onEnded = () => {
-                video.removeEventListener('ended', onEnded);
-                this.attachedVideo = null;
-                if (this.active && !this.paused) this.advance(1);
-            };
-            video.addEventListener('ended', onEnded);
-            video.play().catch(() => {});
+        if (!media) {
+            this.scheduleDwellAdvance();
             return;
         }
 
-        if (audio) {
-            this.attachedAudio = true;
-            const onEnded = () => {
-                audio.removeEventListener('ended', onEnded);
-                this.attachedAudio = null;
-                if (this.active && !this.paused) this.advance(1);
-            };
-            audio.addEventListener('ended', onEnded);
-            audio.play().catch(() => {});
-            return;
-        }
+        if (media === video) this.attachedVideo = true;
+        else this.attachedAudio = true;
 
-        this.scheduleDwellAdvance();
+        const onEnded = () => {
+            media.removeEventListener('ended', onEnded);
+            this.attachedAudio = null;
+            this.attachedVideo = null;
+            this.clearDwellTimer();
+            if (this.active && !this.paused) this.advance(1);
+        };
+        media.addEventListener('ended', onEnded);
+
+        // Try to play. If autoplay is blocked, the dwell bar acts as the visible
+        // countdown. If it plays, the dwell bar is the visible failsafe — its
+        // duration is sized so 'ended' normally fires first.
+        media.play().catch(() => {});
+
+        const armDwell = () => {
+            const baseDwell = Math.max(1, this.config.tour_default_dwell || 8);
+            const seconds = (isFinite(media.duration) && media.duration > 0)
+                ? Math.max(baseDwell, media.duration + 3)
+                : baseDwell;
+            this.scheduleDwellAdvance(seconds * 1000);
+        };
+        if (media.readyState >= 1) {
+            armDwell();
+        } else {
+            // Until metadata loads we don't know the duration; arm with the
+            // default dwell so a totally-blocked or stalled load can't lock the tour.
+            this.scheduleDwellAdvance();
+            media.addEventListener('loadedmetadata', armDwell, { once: true });
+        }
     }
 
-    scheduleDwellAdvance() {
-        const dwell = Math.max(1, this.config.tour_default_dwell || 8);
+    scheduleDwellAdvance(durationMs) {
+        if (durationMs == null) {
+            durationMs = Math.max(1, this.config.tour_default_dwell || 8) * 1000;
+        }
+        // Cancel any prior timer/bar before re-arming so we don't stack callbacks.
+        if (this.dwellTimerId) {
+            clearTimeout(this.dwellTimerId);
+            this.dwellTimerId = null;
+        }
+        this.cancelDwellBar();
         this.dwellTimerId = setTimeout(() => {
             this.dwellTimerId = null;
             if (this.active && !this.paused) this.advance(1);
-        }, dwell * 1000);
-        this.startDwellBar(dwell * 1000);
+        }, durationMs);
+        this.startDwellBar(durationMs);
     }
 
     clearDwellTimer() {
