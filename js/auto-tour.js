@@ -336,25 +336,47 @@ export class TourController {
         };
         media.addEventListener('ended', onEnded);
 
-        // Try to play. If autoplay is blocked, the dwell bar acts as the visible
-        // countdown. If it plays, the dwell bar is the visible failsafe — its
-        // duration is sized so 'ended' normally fires first.
-        media.play().catch(() => {});
+        const baseDwell = Math.max(1, this.config.tour_default_dwell || 8);
 
-        const armDwell = () => {
-            const baseDwell = Math.max(1, this.config.tour_default_dwell || 8);
-            const seconds = (isFinite(media.duration) && media.duration > 0)
-                ? Math.max(baseDwell, media.duration + 3)
-                : baseDwell;
-            this.scheduleDwellAdvance(seconds * 1000);
+        // Always start a visible default-dwell countdown. This covers the
+        // autoplay-blocked case immediately and guarantees forward progress
+        // before metadata loads. If play succeeds, we replace it with a
+        // hidden failsafe matched to the media's real duration.
+        this.scheduleDwellAdvance(baseDwell * 1000);
+
+        const onPlaySuccess = () => {
+            // Hide the visible bar; replace with a hidden failsafe that lasts
+            // the full media length + 3s, so 'ended' normally fires first.
+            this.cancelDwellBar();
+            if (this.dwellTimerId) {
+                clearTimeout(this.dwellTimerId);
+                this.dwellTimerId = null;
+            }
+            const armFailsafe = () => {
+                const seconds = (isFinite(media.duration) && media.duration > 0)
+                    ? media.duration + 3
+                    : baseDwell * 4;
+                this.dwellTimerId = setTimeout(() => {
+                    this.dwellTimerId = null;
+                    if (this.active && !this.paused) this.advance(1);
+                }, seconds * 1000);
+            };
+            if (media.readyState >= 1) {
+                armFailsafe();
+            } else {
+                media.addEventListener('loadedmetadata', armFailsafe, { once: true });
+            }
         };
-        if (media.readyState >= 1) {
-            armDwell();
+
+        const playPromise = media.play();
+        if (playPromise && typeof playPromise.then === 'function') {
+            playPromise.then(onPlaySuccess).catch(() => {
+                // Autoplay blocked. Leave the visible default-dwell bar alone —
+                // tour advances when it empties.
+            });
         } else {
-            // Until metadata loads we don't know the duration; arm with the
-            // default dwell so a totally-blocked or stalled load can't lock the tour.
-            this.scheduleDwellAdvance();
-            media.addEventListener('loadedmetadata', armDwell, { once: true });
+            // Older browsers without a returned promise: assume play succeeded.
+            onPlaySuccess();
         }
     }
 
