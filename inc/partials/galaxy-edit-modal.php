@@ -56,6 +56,28 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
             </div>
 
             <div class="mb-4 border-t border-gray-200 pt-4">
+                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Bulk wormhole actions</label>
+                <p class="text-xs text-gray-500 mb-2">Apply to every wormhole in this galaxy at once. Per-wormhole toggles still override afterward.</p>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-neutral btn-outline" data-bulk-flag="use_image_as_node" data-bulk-value="1">
+                        Use images as icons (all wormholes)
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline" data-bulk-flag="use_image_as_node" data-bulk-value="0">
+                        Revert all to theme icons
+                    </button>
+                </div>
+                <p id="modal-bulk-feedback" class="text-xs mt-2 text-gray-600"></p>
+            </div>
+
+            <div class="mb-4 border-t border-gray-200 pt-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="modal-keyword-chips-enabled" name="keyword_chips_enabled" value="1" class="toggle toggle-neutral toggle-sm">
+                    <span class="text-gray-800 font-medium">Keyword chips</span>
+                </label>
+                <p class="text-xs text-gray-500 mt-1">Show the most-used keywords as filter chips at the top of the galaxy. Click a chip to dim wormholes that don't match.</p>
+            </div>
+
+            <div class="mb-4 border-t border-gray-200 pt-4">
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" id="modal-tour-enabled" name="tour_enabled" value="1" class="toggle toggle-neutral toggle-sm">
                     <span class="text-gray-800 font-medium">Auto-tour</span>

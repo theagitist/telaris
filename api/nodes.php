@@ -223,6 +223,29 @@ try {
                     }
                 }
             }
+            // Bulk-set use_image_as_node for every node in a galaxy.
+            if (($data['action'] ?? '') === 'bulk_use_image_as_node') {
+                $constellationId = (int)($data['constellation_id'] ?? 0);
+                if ($constellationId <= 0) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'constellation_id required'], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                $userId = $_SESSION['admin_user_id'] ?? null;
+                if (!isAdminLoggedIn()) {
+                    $allowed = $userId ? db_get_user_constellation_ids($userId) : [];
+                    if (!in_array($constellationId, $allowed, true)) {
+                        http_response_code(403);
+                        echo json_encode(['error' => 'No access to this galaxy'], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                }
+                $value = !empty($data['value']);
+                $affected = db_bulk_set_nodes_use_image_as_node($constellationId, $value);
+                echo json_encode(['success' => true, 'updated' => $affected, 'value' => $value], JSON_THROW_ON_ERROR);
+                return;
+            }
+
             // Handle node duplication
             if (isset($data['duplicate_from'])) {
                 $sourceId = (int)$data['duplicate_from'];

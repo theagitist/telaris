@@ -188,6 +188,9 @@ header("X-Content-Type-Options: nosniff");
         <svg id="tooltip-line-svg" style="opacity: 0;" aria-hidden="true"><polyline id="tooltip-line" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>
         <div id="node-tooltip" class="px-3 py-2 rounded text-base pointer-events-none z-[200]" style="opacity: 0; visibility: hidden;"></div>
 
+        <!-- Keyword chips strip (top-center). Populated by js/keyword-chips.js. -->
+        <div id="keyword-chips-strip" class="hidden fixed top-3 left-1/2 -translate-x-1/2 z-[210] flex flex-wrap gap-2 justify-center max-w-[80vw] px-3 py-2 rounded-full bg-black/55 backdrop-blur-md border border-white/15"></div>
+
         <!-- Auto-tour HUD: Play button (manual start) and during-tour player overlay -->
         <button id="tour-play-btn" class="hidden fixed bottom-6 right-6 z-[260] bg-black/70 hover:bg-black/90 border border-white/30 hover:border-[#00ffcc] text-white text-xs uppercase tracking-wider px-4 py-2 rounded transition-all" type="button" aria-label="Start tour">
             <span class="inline-flex items-center gap-2">
@@ -389,6 +392,7 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_MISSION_ACTIVE_TEXT = <?php echo json_encode($projectMissionActiveText ?? 'Mission Active'); ?>;
         window.TELARIS_GO_TEXT = <?php echo json_encode($projectGoText ?? 'GO'); ?>;
         window.TELARIS_TOUR_CONFIG = <?php echo json_encode($tourConfig ?? null); ?>;
+        window.TELARIS_KEYWORD_CHIPS_ENABLED = <?php echo !empty($keywordChipsEnabled) ? 'true' : 'false'; ?>;
     </script>
     <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
     (function() {
@@ -464,7 +468,8 @@ header("X-Content-Type-Options: nosniff");
                 "./telaris-node-icons.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-node-icons.js')); ?>",
                 "./themes.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'themes.js')); ?>",
                 "./telaris-soundscape.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-soundscape.js')); ?>",
-                "./auto-tour.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'auto-tour.js')); ?>"
+                "./auto-tour.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'auto-tour.js')); ?>",
+                "./keyword-chips.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'keyword-chips.js')); ?>"
             }
         }
     </script>

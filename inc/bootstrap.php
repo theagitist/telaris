@@ -241,8 +241,10 @@ if ($tourConfig === null) {
         'tour_default_dwell' => 8,
         'tour_loop' => true,
         'tour_keyword_ids' => [],
+        'keyword_chips_enabled' => false,
     ];
 }
+$keywordChipsEnabled = !empty($tourConfig['keyword_chips_enabled']);
 
 // Frontend matches keywords by string (node.userData.keywords is an array of strings),
 // so resolve the configured keyword IDs to names within this constellation.

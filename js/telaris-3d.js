@@ -3103,9 +3103,22 @@ class TelarisNetwork {
             const tourActive = !!this._tourSpotlightNode;
             const tourDimNonSpotlight = (tourActive && !isTourSpotlight) ? 0.3 : 1.0;
 
+            // Keyword-chip filter: when at least one chip is active, dim nodes
+            // whose keywords don't intersect the active set.
+            const activeKeywords = this.activeKeywords;
+            let keywordChipDim = 1.0;
+            if (activeKeywords && activeKeywords.size > 0) {
+                const kws = d.keywords || [];
+                let matches = false;
+                for (let kI = 0; kI < kws.length; kI++) {
+                    if (activeKeywords.has(kws[kI])) { matches = true; break; }
+                }
+                if (!matches) keywordChipDim = 0.15;
+            }
+
             // Optimization: iterate cached materials directly
             d.cachedMaterials.forEach(m => {
-                m.opacity = opacity * glitchOpacityMult * tourDimNonSpotlight;
+                m.opacity = opacity * glitchOpacityMult * tourDimNonSpotlight * keywordChipDim;
                 m.transparent = true;
                 m.visible = true;
 
@@ -3137,7 +3150,7 @@ class TelarisNetwork {
                             // Accentuated nodes get a smaller emissive boost now
                             const accentBoost = d.is_accentuated ? 1.4 : 1.0;
                             const tourBoost = isTourSpotlight ? (6.0 + Math.sin(time * 3.5) * 3.5) : 1.0;
-                            m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost * tourBoost * tourDimNonSpotlight;
+                            m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost * tourBoost * tourDimNonSpotlight * keywordChipDim;
                         }
                     }
                 } else if (m.isSpriteMaterial) {

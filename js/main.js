@@ -10,6 +10,7 @@
 
 import { TelarisNetwork } from './telaris-3d.js';
 import { TourController } from './auto-tour.js';
+import { KeywordChipsController } from './keyword-chips.js';
 
 /** Constellation ID history for portal Back navigation. Set in initTelaris from URL or 0. */
 let navigationStack;
@@ -28,6 +29,12 @@ function initTelaris() {
         window.telarisApp = app;
 
         startTourWhenReady(app);
+
+        if (window.TELARIS_KEYWORD_CHIPS_ENABLED) {
+            const chips = new KeywordChipsController(app);
+            chips.init();
+            window.telarisKeywordChips = chips;
+        }
     } catch (error) {
         console.error('Error initializing TelarisNetwork:', error);
         console.error('Error stack:', error.stack);

@@ -232,6 +232,11 @@ function db_ensure_constellations_tour_columns(): void {
                     ADD COLUMN tour_loop BOOLEAN NOT NULL DEFAULT TRUE AFTER tour_default_dwell
             ");
         }
+        // keyword_chips_enabled was added later; check separately so older instances pick it up.
+        $row2 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'keyword_chips_enabled'")->fetch();
+        if (!$row2) {
+            $pdo->exec("ALTER TABLE constellations ADD COLUMN keyword_chips_enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER tour_loop");
+        }
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS constellation_tour_keywords (
                 constellation_id INT NOT NULL,
@@ -1433,7 +1438,7 @@ function db_get_constellation_tour_config(int $id): ?array {
     $pdo = getDB();
     $stmt = $pdo->prepare("
         SELECT tour_enabled, tour_start_mode, tour_idle_seconds, tour_node_selection,
-               tour_random_count, tour_default_dwell, tour_loop
+               tour_random_count, tour_default_dwell, tour_loop, keyword_chips_enabled
         FROM constellations WHERE id = :id LIMIT 1
     ");
     $stmt->execute([':id' => $id]);
@@ -1450,6 +1455,7 @@ function db_get_constellation_tour_config(int $id): ?array {
         'tour_default_dwell' => (int)$row['tour_default_dwell'],
         'tour_loop' => (bool)$row['tour_loop'],
         'tour_keyword_ids' => db_get_tour_keyword_ids($id),
+        'keyword_chips_enabled' => (bool)$row['keyword_chips_enabled'],
     ];
 }
 
@@ -1483,7 +1489,8 @@ function db_set_constellation_tour_config(int $id, array $config): void {
             tour_node_selection = :tour_node_selection,
             tour_random_count = :tour_random_count,
             tour_default_dwell = :tour_default_dwell,
-            tour_loop = :tour_loop
+            tour_loop = :tour_loop,
+            keyword_chips_enabled = :keyword_chips_enabled
         WHERE id = :id
     ")->execute([
         ':tour_enabled' => !empty($config['tour_enabled']) ? 1 : 0,
@@ -1493,6 +1500,7 @@ function db_set_constellation_tour_config(int $id, array $config): void {
         ':tour_random_count' => $randomCount,
         ':tour_default_dwell' => $defaultDwell,
         ':tour_loop' => !empty($config['tour_loop']) ? 1 : 0,
+        ':keyword_chips_enabled' => !empty($config['keyword_chips_enabled']) ? 1 : 0,
         ':id' => $id,
     ]);
 }
@@ -2207,6 +2215,18 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
             ':use_image_as_node' => $useImageAsNode ? 1 : 0
         ]);
     }
+}
+
+/**
+ * Bulk-set the use_image_as_node flag on every node in a constellation.
+ * Returns the number of rows affected.
+ */
+function db_bulk_set_nodes_use_image_as_node(int $constellationId, bool $value): int {
+    db_ensure_nodes_use_image_as_node_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE nodes SET use_image_as_node = :v WHERE constellation_id = :cid");
+    $stmt->execute([':v' => $value ? 1 : 0, ':cid' => $constellationId]);
+    return $stmt->rowCount();
 }
 
 function db_delete_node(int $id): void {

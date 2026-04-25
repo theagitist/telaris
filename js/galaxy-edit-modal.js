@@ -33,12 +33,15 @@
         document.getElementById('modal-constellation-theme').value = c.theme || 'cosmic';
         const badge = document.getElementById('modal-constellation-id-badge');
         if (badge) badge.textContent = '#' + c.id;
+        const feedback = document.getElementById('modal-bulk-feedback');
+        if (feedback) { feedback.textContent = ''; feedback.style.color = ''; }
         await loadTourConfigIntoModal(c.id);
         document.getElementById('constellation_modal').showModal();
     }
 
     async function loadTourConfigIntoModal(constellationId) {
         const enabled = document.getElementById('modal-tour-enabled');
+        const chipsEnabled = document.getElementById('modal-keyword-chips-enabled');
         const idleSeconds = document.getElementById('modal-tour-idle-seconds');
         const randomCount = document.getElementById('modal-tour-random-count');
         const defaultDwell = document.getElementById('modal-tour-default-dwell');
@@ -46,6 +49,7 @@
         const keywordsBox = document.getElementById('modal-tour-keywords');
 
         enabled.checked = false;
+        if (chipsEnabled) chipsEnabled.checked = false;
         idleSeconds.value = 30;
         randomCount.value = 10;
         defaultDwell.value = 8;
@@ -63,6 +67,7 @@
             const cfg = await r.json();
 
             enabled.checked = !!cfg.tour_enabled;
+            if (chipsEnabled) chipsEnabled.checked = !!cfg.keyword_chips_enabled;
             idleSeconds.value = cfg.tour_idle_seconds ?? 30;
             randomCount.value = cfg.tour_random_count ?? 10;
             defaultDwell.value = cfg.tour_default_dwell ?? 8;
@@ -110,12 +115,41 @@
         audioWarn.classList.toggle('hidden', !(hasAudio && startMode === 'immediate'));
     }
 
+    async function applyBulkFlag(flag, value, button) {
+        const id = parseInt(document.getElementById('modal-constellation-id')?.value, 10);
+        const feedback = document.getElementById('modal-bulk-feedback');
+        if (!id || isNaN(id)) return;
+        const label = value ? 'use images as icons' : 'revert all to theme icons';
+        if (!window.confirm(`Apply "${label}" to every wormhole in this galaxy?`)) return;
+        if (button) { button.disabled = true; }
+        if (feedback) { feedback.textContent = 'Working…'; feedback.style.color = ''; }
+        try {
+            const r = await fetch(`${getApiUrl().replace(/constellations\.php$/, 'nodes.php')}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': getApiKey() },
+                body: JSON.stringify({ action: 'bulk_use_image_as_node', constellation_id: id, value: value }),
+            });
+            const json = await r.json();
+            if (!r.ok) throw new Error(json?.error || 'Update failed');
+            if (feedback) feedback.textContent = `Updated ${json.updated} wormhole${json.updated === 1 ? '' : 's'}. Reload the visitor view to see the change.`;
+        } catch (e) {
+            if (feedback) { feedback.textContent = 'Failed: ' + e.message; feedback.style.color = '#b91c1c'; }
+        } finally {
+            if (button) { button.disabled = false; }
+        }
+    }
+
     function bind() {
         const enabled = document.getElementById('modal-tour-enabled');
         if (!enabled) return; // partial not on this page
         enabled.addEventListener('change', updateTourFieldVisibility);
         document.querySelectorAll('.tour-start-mode').forEach(r => r.addEventListener('change', updateTourFieldVisibility));
         document.querySelectorAll('.tour-node-selection').forEach(r => r.addEventListener('change', updateTourFieldVisibility));
+        document.querySelectorAll('button[data-bulk-flag]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                applyBulkFlag(btn.dataset.bulkFlag, btn.dataset.bulkValue === '1', btn);
+            });
+        });
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', bind);

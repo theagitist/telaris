@@ -72,6 +72,7 @@ function handle_galaxy_update_post(array $post, ?string $userId, bool $isAdmin):
         'tour_random_count' => (int)($post['tour_random_count'] ?? 10),
         'tour_default_dwell' => (int)($post['tour_default_dwell'] ?? 8),
         'tour_loop' => !empty($post['tour_loop']),
+        'keyword_chips_enabled' => !empty($post['keyword_chips_enabled']),
     ]);
     $tourKeywordIds = array_map('intval', array_filter((array)($post['tour_keyword_ids'] ?? [])));
     db_set_tour_keyword_ids($id, $tourKeywordIds);
