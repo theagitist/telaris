@@ -1372,6 +1372,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             document.getElementById('edit-video-autoplay').checked = !!node.video_autoplay;
             document.getElementById('edit-accentuated').checked = !!node.is_accentuated;
             document.getElementById('edit-show-keywords').checked = !!node.show_keywords;
+            const editUseImage = document.getElementById('edit-use-image-as-node');
+            if (editUseImage) editUseImage.checked = !!node.use_image_as_node;
 
             // Handle keywords
             keywordState['modal'] = [...(node.keywords || [])];
@@ -1501,6 +1503,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('embed_code', document.getElementById('edit-embed-code').value.trim());
             formData.append('is_accentuated', document.getElementById('edit-accentuated').checked ? 1 : 0);
             formData.append('show_keywords', document.getElementById('edit-show-keywords').checked ? 1 : 0);
+            formData.append('use_image_as_node', document.getElementById('edit-use-image-as-node').checked ? 1 : 0);
             formData.append('constellation_id', document.getElementById('edit-constellation').value);
             
             const nodeType = document.getElementById('edit-node-type').value;
@@ -1743,6 +1746,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('embed_code', document.getElementById('node-embed-code').value.trim());
             formData.append('is_accentuated', document.getElementById('node-accentuated').checked ? 1 : 0);
             formData.append('show_keywords', document.getElementById('node-show-keywords').checked ? 1 : 0);
+            const newUseImage = document.getElementById('node-use-image-as-node');
+            formData.append('use_image_as_node', (newUseImage && newUseImage.checked) ? 1 : 0);
             formData.append('constellation_id', isNaN(constellationId) ? 0 : constellationId);
             formData.append('node_type', nodeType);
             
@@ -2035,6 +2040,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </label>
                         <span class="text-xs text-gray-500 block ml-1">Display this wormhole's keywords in its info window.</span>
                     </div>
+                    <div class="flex flex-col justify-center">
+                        <label class="label cursor-pointer justify-start gap-4">
+                            <input type="checkbox" id="node-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral">
+                            <span class="label-text font-medium text-gray-800">Use image as wormhole</span>
+                        </label>
+                        <span class="text-xs text-gray-500 block ml-1">Render the wormhole's image in 3D instead of the theme's icon. No effect if no image is set.</span>
+                    </div>
                 </div>
                 <div id="create-target-constellation-wrap" class="hidden">
                     <div class="flex flex-wrap items-end gap-2 mb-2">
@@ -2188,6 +2200,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <span class="label-text font-medium text-gray-800">Show Keywords</span>
                         </label>
                         <span class="text-xs text-gray-500 block ml-1">Display this wormhole's keywords in its info window.</span>
+                    </div>
+                    <div class="flex flex-col justify-center">
+                        <label class="label cursor-pointer justify-start gap-4">
+                            <input type="checkbox" id="edit-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral">
+                            <span class="label-text font-medium text-gray-800">Use image as wormhole</span>
+                        </label>
+                        <span class="text-xs text-gray-500 block ml-1">Render the wormhole's image in 3D instead of the theme's icon. No effect if no image is set.</span>
                     </div>
                 </div>
                 <div id="edit-target-constellation-wrap-modal" class="hidden">

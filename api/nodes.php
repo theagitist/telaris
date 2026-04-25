@@ -322,6 +322,7 @@ try {
             $videoAutoplay = isset($data['video_autoplay']) ? (bool)$data['video_autoplay'] : true;
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
             $showKeywords = isset($data['show_keywords']) ? (bool)$data['show_keywords'] : false;
+            $useImageAsNode = isset($data['use_image_as_node']) ? (bool)$data['use_image_as_node'] : false;
             $iconUrl = (isset($data['icon_url']) && !empty(trim((string)$data['icon_url']))) ? trim((string)$data['icon_url']) : null;
             $imageAttribution = (isset($data['image_attribution']) && !empty(trim((string)$data['image_attribution']))) ? trim((string)$data['image_attribution']) : null;
 
@@ -336,7 +337,7 @@ try {
                 $videoUrl = null;
             }
 
-            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution);
+            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode);
             if ($nodeId === 0) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to create node: Could not retrieve node ID'], JSON_THROW_ON_ERROR);
@@ -472,7 +473,7 @@ try {
             }
 
             if ($uploadedFiles) {
-                db_update_node($nodeId, $name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution);
+                db_update_node($nodeId, $name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode);
             }
 
             if (isset($data['keywords'])) {
@@ -543,6 +544,7 @@ try {
             $videoAutoplay = isset($data['video_autoplay']) ? (bool)$data['video_autoplay'] : true;
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
             $showKeywords = isset($data['show_keywords']) ? (bool)$data['show_keywords'] : false;
+            $useImageAsNode = isset($data['use_image_as_node']) ? (bool)$data['use_image_as_node'] : false;
             $iconUrl = (isset($data['icon_url']) && !empty(trim((string)$data['icon_url']))) ? trim((string)$data['icon_url']) : null;
             $imageAttribution = (isset($data['image_attribution']) && !empty(trim((string)$data['image_attribution']))) ? trim((string)$data['image_attribution']) : null;
 
@@ -688,7 +690,7 @@ try {
                 }
             }
 
-            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution);
+            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode);
             if (isset($data['keywords'])) {
                 $keywords = is_array($data['keywords']) ? $data['keywords'] : explode(',', (string)$data['keywords']);
                 db_save_node_keywords((int)$id, $keywords);

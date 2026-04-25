@@ -2649,6 +2649,7 @@ class TelarisNetwork {
                     target_constellation_slug: data.target_constellation_slug || null,
                     is_accentuated: !!data.is_accentuated,
                     show_keywords: !!data.show_keywords,
+                    use_image_as_node: !!data.use_image_as_node,
                     cluster_key: data.cluster_key || null,
                     cluster_count: data.cluster_count || null,
                     icon_url: data.icon_url || null,
@@ -2675,7 +2676,10 @@ class TelarisNetwork {
                     color, emissive: color, emissiveIntensity: node.is_accentuated ? 1.5 : 0.5,
                     metalness: 0.3, roughness: 0.7, transparent: true, opacity: initialOpacity
                 });
-                const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type, this.currentTheme.id, node.icon_url);
+                // If the editor opted in, use the node's main image as the 3D icon.
+                // Falls back to icon_url, then to the theme's default icon.
+                const iconSourceUrl = (node.use_image_as_node && data.image_url) ? data.image_url : node.icon_url;
+                const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type, this.currentTheme.id, iconSourceUrl);
                 mesh.visible = !isTransitioningIn;
                 mesh.position.copy(pos);
                 mesh.renderOrder = 100; // Force nodes to stay in front of lines
