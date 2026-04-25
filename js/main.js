@@ -36,7 +36,6 @@ function initTelaris() {
 
 function startTourWhenReady(app) {
     const cfg = window.TELARIS_TOUR_CONFIG;
-    console.log('[tour] startTourWhenReady — cfg present:', !!cfg, 'enabled:', cfg && cfg.tour_enabled);
     if (!cfg || !cfg.tour_enabled) return;
 
     let attempts = 0;
@@ -44,7 +43,6 @@ function startTourWhenReady(app) {
     const tick = () => {
         attempts++;
         if (Array.isArray(app.nodes) && app.nodes.length > 0) {
-            console.log('[tour] nodes ready after', attempts, 'tries —', app.nodes.length, 'nodes');
             const tour = new TourController(app, cfg);
             tour.init();
             window.telarisTour = tour;
@@ -52,8 +50,6 @@ function startTourWhenReady(app) {
         }
         if (attempts < maxAttempts) {
             setTimeout(tick, 100);
-        } else {
-            console.warn('[tour] gave up waiting for nodes after', attempts, 'tries — app.nodes:', app.nodes);
         }
     };
     setTimeout(tick, 100);

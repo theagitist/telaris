@@ -3116,9 +3116,10 @@ class TelarisNetwork {
                             const twinkleFreq = d.is_accentuated ? 3.0 : 2.5;
                             const twinkleAmp = d.is_accentuated ? 0.8 : 0.5;
                             const twinkle = 1.0 + Math.sin(time * twinkleFreq + d.phase) * twinkleAmp;
-                            
-                            // Dim the node when it is active (tooltip is shown) to improve readability
-                            const hoverDim = isActive ? 0.15 : 1.0;
+
+                            const isTourSpotlight = (this._tourSpotlightNode === n);
+                            // Don't dim when this is the tour spotlight — we want it bright.
+                            const hoverDim = (isActive && !isTourSpotlight) ? 0.15 : 1.0;
                             let flareBoost = 1.0;
                             if (d.solarFlare > 0) {
                                 flareBoost = 8.0 * (d.solarFlare / 15);
@@ -3126,7 +3127,8 @@ class TelarisNetwork {
                             }
                             // Accentuated nodes get a smaller emissive boost now
                             const accentBoost = d.is_accentuated ? 1.4 : 1.0;
-                            m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost;
+                            const tourBoost = isTourSpotlight ? (3.0 + Math.sin(time * 5.0) * 1.5) : 1.0;
+                            m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost * tourBoost;
                         }
                     }
                 } else if (m.isSpriteMaterial) {
@@ -3157,7 +3159,11 @@ class TelarisNetwork {
             const pulseAmp = d.is_accentuated ? 0.15 : 0.08;
             const baseS = d.is_accentuated ? 2.8 : 1.8;
             const scaleMult = isTransitioning ? 1.0 : glitchScaleMult;
-            const s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * scaleMult;
+            // Tour spotlight: faster, larger pulse on top of the normal one.
+            const tourSpotlightMult = (this._tourSpotlightNode === n)
+                ? (1.45 + Math.sin(time * 4.0) * 0.18)
+                : 1.0;
+            const s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * scaleMult * tourSpotlightMult;
             n.scale.set(s, s, s);
 
             // Optimization: iterate cached moons directly
@@ -3861,7 +3867,7 @@ class TelarisNetwork {
      * Preserves the current orbit offset so the framing feels continuous.
      * Returns a Promise that resolves when the animation finishes.
      */
-    tourFocusOnNode(node, durationMs = 900) {
+    tourFocusOnNode(node, durationMs = 1400) {
         return new Promise((resolve) => {
             if (!node || !this.camera || !this.controls) {
                 resolve();
@@ -3876,6 +3882,22 @@ class TelarisNetwork {
             const camEnd = targetWorld.clone().add(offset);
             const tgtEnd = targetWorld.clone();
 
+            // Quadratic Bezier control point: offset perpendicular to the straight path
+            // so the camera arcs instead of dollying in a straight line. Random sign +
+            // small vertical wobble keeps consecutive stops from arcing identically.
+            const direction = camEnd.clone().sub(camStart);
+            const distance = direction.length();
+            const swingDir = distance > 0.001
+                ? direction.clone().normalize().cross(new THREE.Vector3(0, 1, 0))
+                : new THREE.Vector3(1, 0, 0);
+            if (swingDir.lengthSq() < 0.001) swingDir.set(1, 0, 0);
+            swingDir.normalize();
+            if (Math.random() < 0.5) swingDir.negate();
+            const verticalSign = Math.random() < 0.5 ? 1 : -1;
+            const camControl = camStart.clone().lerp(camEnd, 0.5)
+                .add(swingDir.multiplyScalar(distance * 0.4))
+                .add(new THREE.Vector3(0, distance * 0.18 * verticalSign, 0));
+
             const wasEnabled = this.controls.enabled;
             this.controls.enabled = false;
             this._tourTweening = true;
@@ -3884,9 +3906,16 @@ class TelarisNetwork {
             const tick = () => {
                 const raw = Math.min(1, (performance.now() - startTime) / durationMs);
                 const eased = raw < 0.5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
-                this.camera.position.lerpVectors(camStart, camEnd, eased);
+
+                const u = 1 - eased;
+                this.camera.position
+                    .copy(camStart).multiplyScalar(u * u)
+                    .add(camControl.clone().multiplyScalar(2 * u * eased))
+                    .add(camEnd.clone().multiplyScalar(eased * eased));
+
                 this.controls.target.lerpVectors(tgtStart, tgtEnd, eased);
                 this.camera.lookAt(this.controls.target);
+
                 if (raw < 1) {
                     requestAnimationFrame(tick);
                 } else {

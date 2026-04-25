@@ -6,9 +6,15 @@
  * Configured per galaxy via window.TELARIS_TOUR_CONFIG. Disabled on phones.
  */
 
-console.log('[tour] tour.js module loaded');
-
 const MOBILE_MIN_WIDTH = 768;
+
+// Same palette as the keyword chips in telaris-3d.js, so the dwell bar reads
+// as on-brand without coupling to the per-node accent color.
+const DWELL_BAR_COLORS = [
+    '#fca5a5', '#fdba74', '#fcd34d', '#fde047', '#bef264', '#86efac',
+    '#6ee7b7', '#5eead4', '#67e8f9', '#7dd3fc', '#93c5fd', '#a5b4fc',
+    '#c4b5fd', '#d8b4fe', '#f0abfc', '#f9a8d4', '#fda4af',
+];
 
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -60,13 +66,6 @@ export class TourController {
     init() {
         if (!this.config || !this.config.tour_enabled) return;
         if (window.innerWidth < MOBILE_MIN_WIDTH) return;
-
-        console.log('[tour] TourController init — version 6.6.3', {
-            startMode: this.config.tour_start_mode,
-            selection: this.config.tour_node_selection,
-            hasFocusMethod: typeof this.app?.tourFocusOnNode === 'function',
-            hasDwellBar: !!document.getElementById('tour-dwell-bar-track'),
-        });
 
         this.bindControls();
 
@@ -165,7 +164,6 @@ export class TourController {
         this.cancelled = false;
         this.hidePlayButton();
         this.showHud();
-        console.log('[tour] starting tour, queue length', queue.length);
         document.addEventListener('keydown', this.boundOnKeydown);
         const closeBtn = document.getElementById('rm-close-btn');
         const overlay = document.getElementById('rich-media-overlay');
@@ -180,6 +178,7 @@ export class TourController {
         this.clearDwellTimer();
         this.detachMediaListeners();
         this.hideHud();
+        if (this.app) this.app._tourSpotlightNode = null;
         document.removeEventListener('keydown', this.boundOnKeydown);
         const closeBtn = document.getElementById('rm-close-btn');
         const overlay = document.getElementById('rich-media-overlay');
@@ -271,6 +270,9 @@ export class TourController {
 
         this.updateProgress();
 
+        // Tag the next node for the spotlight pulse so users can see which one
+        // the camera is heading to before the card opens.
+        if (this.app) this.app._tourSpotlightNode = node;
         if (this.app?.networkManager?.setFocusedNode) {
             this.app.networkManager.setFocusedNode(node);
         }
@@ -285,11 +287,8 @@ export class TourController {
         }
 
         if (this.app?.tourFocusOnNode) {
-            console.log('[tour] camera pan to node', node?.userData?.id, node?.userData?.name);
-            await this.app.tourFocusOnNode(node, 900);
+            await this.app.tourFocusOnNode(node, 1400);
             if (this.cancelled || !this.active) return;
-        } else {
-            console.warn('[tour] tourFocusOnNode missing on app — likely stale telaris-network.js cached');
         }
 
         if (this.app?.showRichMediaWindow) {
@@ -357,6 +356,8 @@ export class TourController {
         const bar = document.getElementById('tour-dwell-bar');
         if (!track || !bar) return;
         track.classList.remove('hidden');
+        const color = DWELL_BAR_COLORS[Math.floor(Math.random() * DWELL_BAR_COLORS.length)];
+        bar.style.backgroundColor = color;
         bar.style.transform = 'scaleX(1)';
         if (this.dwellAnimation) {
             this.dwellAnimation.cancel();
