@@ -2040,13 +2040,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </label>
                         <span class="text-xs text-gray-500 block ml-1">Display this wormhole's keywords in its info window.</span>
                     </div>
-                    <div class="flex flex-col justify-center">
-                        <label class="label cursor-pointer justify-start gap-4">
-                            <input type="checkbox" id="node-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral">
-                            <span class="label-text font-medium text-gray-800">Use image as wormhole</span>
-                        </label>
-                        <span class="text-xs text-gray-500 block ml-1">Render the wormhole's image in 3D instead of the theme's icon. No effect if no image is set.</span>
-                    </div>
                 </div>
                 <div id="create-target-constellation-wrap" class="hidden">
                     <div class="flex flex-wrap items-end gap-2 mb-2">
@@ -2074,7 +2067,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label for="node-image-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Image URL / File</label>
+                        <div class="flex items-center justify-between mb-1.5 gap-2">
+                            <label for="node-image-url" class="text-gray-800 font-medium text-sm">Image URL / File</label>
+                            <label class="label cursor-pointer justify-end gap-2 py-0">
+                                <span class="label-text text-xs text-gray-700">Use as wormhole icon</span>
+                                <input type="checkbox" id="node-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral toggle-sm">
+                            </label>
+                        </div>
                         <input type="text" id="node-image-url" name="image_url" placeholder="https://example.com/image.jpg" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                         <input type="file" id="node-image-file" name="image_file" accept="image/*,video/*" class="text-xs">
                         <span class="text-xs text-gray-500 mt-1 block">Upload an image or provide a link to be displayed.</span>
@@ -2201,13 +2200,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </label>
                         <span class="text-xs text-gray-500 block ml-1">Display this wormhole's keywords in its info window.</span>
                     </div>
-                    <div class="flex flex-col justify-center">
-                        <label class="label cursor-pointer justify-start gap-4">
-                            <input type="checkbox" id="edit-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral">
-                            <span class="label-text font-medium text-gray-800">Use image as wormhole</span>
-                        </label>
-                        <span class="text-xs text-gray-500 block ml-1">Render the wormhole's image in 3D instead of the theme's icon. No effect if no image is set.</span>
-                    </div>
                 </div>
                 <div id="edit-target-constellation-wrap-modal" class="hidden">
                     <div class="flex flex-wrap items-end gap-2 mb-2">
@@ -2241,7 +2233,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <span class="text-xs text-gray-500 mt-1 block">Custom icon displayed in the 3D scene (overrides theme icon).</span>
                     </div>
                     <div id="edit-image-container">
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Image URL / File</label>
+                        <div class="flex items-center justify-between mb-1.5 gap-2">
+                            <label for="edit-image-url" class="text-gray-800 font-medium text-sm">Image URL / File</label>
+                            <label class="label cursor-pointer justify-end gap-2 py-0">
+                                <span class="label-text text-xs text-gray-700">Use as wormhole icon</span>
+                                <input type="checkbox" id="edit-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral toggle-sm">
+                            </label>
+                        </div>
                         <div id="edit-image-file-wrap">
                             <input type="text" id="edit-image-url" name="image_url" placeholder="https://example.com/image.jpg" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                             <input type="file" id="edit-image-file" name="image_file" accept="image/*,video/*" class="text-xs">
