@@ -2612,6 +2612,7 @@ $fieldMeta = [
                             ${escapeHtmlAdmin(c.name)}
                             ${c.is_default ? '<span class="ml-2 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">Default</span>' : ''}
                             ${c.import_source ? '<span class="ml-2 text-xs bg-purple-400 text-white px-1.5 py-0.5 rounded">Imported</span>' : ''}
+                            ${c.tour_enabled ? '<span class="ml-2 inline-flex items-center text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded" title="Auto-tour enabled"><svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>' : ''}
                         </td>
                         <td class="py-2 px-2 font-mono text-xs text-blue-600 cursor-pointer" onclick="${clickEdit}">${escapeHtmlAdmin(slug)}</td>
                         <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="${clickEdit}" title="${escapeHtmlAdmin(c.tagline)}">${escapeHtmlAdmin(c.tagline)}</td>

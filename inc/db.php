@@ -1038,6 +1038,7 @@ function db_get_constellations_paginated(
     ?string $filter = null
 ): array {
     db_ensure_constellations_import_source_column();
+    db_ensure_constellations_tour_columns();
     $pdo = getDB();
 
     $where = [];
@@ -1074,7 +1075,7 @@ function db_get_constellations_paginated(
     }
 
     $offset = ($page - 1) * $perPage;
-    $dataStmt = $pdo->prepare("SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.import_source, c.created_at, c.updated_at, (SELECT COUNT(*) FROM nodes n WHERE n.constellation_id = c.id) AS node_count FROM constellations c {$whereClause} {$orderClause} LIMIT :limit OFFSET :offset");
+    $dataStmt = $pdo->prepare("SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.import_source, c.tour_enabled, c.created_at, c.updated_at, (SELECT COUNT(*) FROM nodes n WHERE n.constellation_id = c.id) AS node_count FROM constellations c {$whereClause} {$orderClause} LIMIT :limit OFFSET :offset");
     foreach ($params as $k => $v) {
         $dataStmt->bindValue($k, $v);
     }
