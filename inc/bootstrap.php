@@ -242,9 +242,20 @@ if ($tourConfig === null) {
         'tour_loop' => true,
         'tour_keyword_ids' => [],
         'keyword_chips_enabled' => false,
+        'idle_spotlight_enabled' => false,
+        'idle_spotlight_selection' => 'all',
+        'idle_spotlight_idle_seconds' => 30,
+        'related_nodes_enabled' => false,
     ];
 }
 $keywordChipsEnabled = !empty($tourConfig['keyword_chips_enabled']);
+$relatedNodesEnabled = !empty($tourConfig['related_nodes_enabled']);
+$idleSpotlightConfig = [
+    'enabled' => !empty($tourConfig['idle_spotlight_enabled']),
+    'selection' => (string)($tourConfig['idle_spotlight_selection'] ?? 'all'),
+    'idle_seconds' => (int)($tourConfig['idle_spotlight_idle_seconds'] ?? 30),
+    'default_dwell' => (int)($tourConfig['tour_default_dwell'] ?? 8),
+];
 
 // Frontend matches keywords by string (node.userData.keywords is an array of strings),
 // so resolve the configured keyword IDs to names within this constellation.

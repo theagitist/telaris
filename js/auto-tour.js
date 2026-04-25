@@ -277,20 +277,22 @@ export class TourController {
 
         this.updateProgress();
 
-        // Tag the next node for the spotlight pulse so users can see which one
-        // the camera is heading to before the card opens.
-        if (this.app) this.app._tourSpotlightNode = node;
-        if (this.app?.networkManager?.setFocusedNode) {
-            this.app.networkManager.setFocusedNode(node);
-        }
-
-        // Close the previous card so the camera animation is visible.
+        // Close the previous card first so the camera animation is visible.
+        // closeRichMediaWindow clears _tourSpotlightNode, so we set the new
+        // spotlight AFTER the close.
         const overlay = document.getElementById('rich-media-overlay');
         const cardOpen = overlay && !overlay.classList.contains('hidden');
         if (cardOpen && this.app?.closeRichMediaWindow) {
             this.app.closeRichMediaWindow();
             await delay(500);
             if (this.cancelled || !this.active) return;
+        }
+
+        // Tag the next node for the spotlight pulse so users can see which one
+        // the camera is heading to before the card opens.
+        if (this.app) this.app._tourSpotlightNode = node;
+        if (this.app?.networkManager?.setFocusedNode) {
+            this.app.networkManager.setFocusedNode(node);
         }
 
         if (this.app?.tourFocusOnNode) {

@@ -79,6 +79,42 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
 
             <div class="mb-4 border-t border-gray-200 pt-4">
                 <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="modal-related-nodes-enabled" name="related_nodes_enabled" value="1" class="toggle toggle-neutral toggle-sm">
+                    <span class="text-gray-800 font-medium">Related wormholes</span>
+                </label>
+                <p class="text-xs text-gray-500 mt-1">When a wormhole's info card is open, dim unrelated wormholes in the scene and show up to 5 related ones (sharing keywords) as click-to-jump chips at the bottom of the card. Random sample each time.</p>
+            </div>
+
+            <div class="mb-4 border-t border-gray-200 pt-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="modal-idle-spotlight-enabled" name="idle_spotlight_enabled" value="1" class="toggle toggle-neutral toggle-sm">
+                    <span class="text-gray-800 font-medium">Idle spotlight</span>
+                </label>
+                <p class="text-xs text-gray-500 mt-1">When the visitor is idle, fly the camera to one random wormhole and open its info card. Closes when media ends or after the dwell timer.</p>
+
+                <div id="modal-idle-spotlight-section" class="mt-4 pl-6 border-l-2 border-gray-200 space-y-4 hidden">
+                    <div>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Pick from</label>
+                        <div class="space-y-1">
+                            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="radio" name="idle_spotlight_selection" value="all" class="radio radio-neutral radio-sm idle-spotlight-selection">
+                                <span>All wormholes</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="radio" name="idle_spotlight_selection" value="accentuated" class="radio radio-neutral radio-sm idle-spotlight-selection">
+                                <span>Only accentuated wormholes</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="modal-idle-spotlight-idle-seconds" class="block mb-1.5 text-gray-800 font-medium text-sm">Trigger after (seconds idle)</label>
+                        <input type="number" id="modal-idle-spotlight-idle-seconds" name="idle_spotlight_idle_seconds" min="1" value="30" class="input input-bordered input-sm w-32 bg-white">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-4 border-t border-gray-200 pt-4">
+                <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" id="modal-tour-enabled" name="tour_enabled" value="1" class="toggle toggle-neutral toggle-sm">
                     <span class="text-gray-800 font-medium">Auto-tour</span>
                 </label>

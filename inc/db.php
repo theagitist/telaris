@@ -237,6 +237,21 @@ function db_ensure_constellations_tour_columns(): void {
         if (!$row2) {
             $pdo->exec("ALTER TABLE constellations ADD COLUMN keyword_chips_enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER tour_loop");
         }
+        // idle_spotlight_* added later; check separately.
+        $row3 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'idle_spotlight_enabled'")->fetch();
+        if (!$row3) {
+            $pdo->exec("
+                ALTER TABLE constellations
+                    ADD COLUMN idle_spotlight_enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER keyword_chips_enabled,
+                    ADD COLUMN idle_spotlight_selection ENUM('all','accentuated') NOT NULL DEFAULT 'all' AFTER idle_spotlight_enabled,
+                    ADD COLUMN idle_spotlight_idle_seconds INT UNSIGNED NOT NULL DEFAULT 30 AFTER idle_spotlight_selection
+            ");
+        }
+        // related_nodes_enabled added later; check separately.
+        $row4 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'related_nodes_enabled'")->fetch();
+        if (!$row4) {
+            $pdo->exec("ALTER TABLE constellations ADD COLUMN related_nodes_enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER idle_spotlight_idle_seconds");
+        }
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS constellation_tour_keywords (
                 constellation_id INT NOT NULL,
@@ -1438,7 +1453,9 @@ function db_get_constellation_tour_config(int $id): ?array {
     $pdo = getDB();
     $stmt = $pdo->prepare("
         SELECT tour_enabled, tour_start_mode, tour_idle_seconds, tour_node_selection,
-               tour_random_count, tour_default_dwell, tour_loop, keyword_chips_enabled
+               tour_random_count, tour_default_dwell, tour_loop, keyword_chips_enabled,
+               idle_spotlight_enabled, idle_spotlight_selection, idle_spotlight_idle_seconds,
+               related_nodes_enabled
         FROM constellations WHERE id = :id LIMIT 1
     ");
     $stmt->execute([':id' => $id]);
@@ -1456,6 +1473,10 @@ function db_get_constellation_tour_config(int $id): ?array {
         'tour_loop' => (bool)$row['tour_loop'],
         'tour_keyword_ids' => db_get_tour_keyword_ids($id),
         'keyword_chips_enabled' => (bool)$row['keyword_chips_enabled'],
+        'idle_spotlight_enabled' => (bool)$row['idle_spotlight_enabled'],
+        'idle_spotlight_selection' => (string)$row['idle_spotlight_selection'],
+        'idle_spotlight_idle_seconds' => (int)$row['idle_spotlight_idle_seconds'],
+        'related_nodes_enabled' => (bool)$row['related_nodes_enabled'],
     ];
 }
 
@@ -1480,6 +1501,12 @@ function db_set_constellation_tour_config(int $id, array $config): void {
     $randomCount = max(1, (int)($config['tour_random_count'] ?? 10));
     $defaultDwell = max(1, (int)($config['tour_default_dwell'] ?? 8));
 
+    $idleSpotlightSelection = (string)($config['idle_spotlight_selection'] ?? 'all');
+    if (!in_array($idleSpotlightSelection, ['all', 'accentuated'], true)) {
+        $idleSpotlightSelection = 'all';
+    }
+    $idleSpotlightIdleSeconds = max(1, (int)($config['idle_spotlight_idle_seconds'] ?? 30));
+
     $pdo = getDB();
     $pdo->prepare("
         UPDATE constellations SET
@@ -1490,7 +1517,11 @@ function db_set_constellation_tour_config(int $id, array $config): void {
             tour_random_count = :tour_random_count,
             tour_default_dwell = :tour_default_dwell,
             tour_loop = :tour_loop,
-            keyword_chips_enabled = :keyword_chips_enabled
+            keyword_chips_enabled = :keyword_chips_enabled,
+            idle_spotlight_enabled = :idle_spotlight_enabled,
+            idle_spotlight_selection = :idle_spotlight_selection,
+            idle_spotlight_idle_seconds = :idle_spotlight_idle_seconds,
+            related_nodes_enabled = :related_nodes_enabled
         WHERE id = :id
     ")->execute([
         ':tour_enabled' => !empty($config['tour_enabled']) ? 1 : 0,
@@ -1501,6 +1532,10 @@ function db_set_constellation_tour_config(int $id, array $config): void {
         ':tour_default_dwell' => $defaultDwell,
         ':tour_loop' => !empty($config['tour_loop']) ? 1 : 0,
         ':keyword_chips_enabled' => !empty($config['keyword_chips_enabled']) ? 1 : 0,
+        ':idle_spotlight_enabled' => !empty($config['idle_spotlight_enabled']) ? 1 : 0,
+        ':idle_spotlight_selection' => $idleSpotlightSelection,
+        ':idle_spotlight_idle_seconds' => $idleSpotlightIdleSeconds,
+        ':related_nodes_enabled' => !empty($config['related_nodes_enabled']) ? 1 : 0,
         ':id' => $id,
     ]);
 }

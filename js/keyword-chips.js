@@ -7,18 +7,13 @@
  * Enabled per galaxy via window.TELARIS_KEYWORD_CHIPS_ENABLED.
  */
 
-const TOP_N = 12;
+// Cap on chips emitted into the DOM. The strip CSS clips to ~2 lines so any
+// extras stay invisible — we still randomize the order on each load so a
+// different sample shows up.
+const MAX_CHIPS = 40;
 
-// Same palette as keyword chips inside the rich-media card, so the strip
-// reads as on-brand without coupling to per-node accent colors.
-const CHIP_BG = [
-    'rgba(254,202,202,0.25)', 'rgba(254,215,170,0.25)', 'rgba(253,230,138,0.25)',
-    'rgba(254,240,138,0.25)', 'rgba(217,249,157,0.25)', 'rgba(187,247,208,0.25)',
-    'rgba(167,243,208,0.25)', 'rgba(153,246,228,0.25)', 'rgba(165,243,252,0.25)',
-    'rgba(186,230,253,0.25)', 'rgba(191,219,254,0.25)', 'rgba(199,210,254,0.25)',
-    'rgba(221,214,254,0.25)', 'rgba(233,213,255,0.25)', 'rgba(245,208,254,0.25)',
-    'rgba(251,207,232,0.25)', 'rgba(254,205,211,0.25)',
-];
+// Pastel palette (same set used in the card's keyword chips and the related
+// row), so the strip reads as on-brand without coupling to per-node colors.
 const CHIP_FG = [
     '#fca5a5', '#fdba74', '#fcd34d', '#fde047', '#bef264', '#86efac',
     '#6ee7b7', '#5eead4', '#67e8f9', '#7dd3fc', '#93c5fd', '#a5b4fc',
@@ -31,6 +26,15 @@ function colorIndexFor(keyword) {
         hash = keyword.charCodeAt(i) + ((hash << 5) - hash);
     }
     return Math.abs(hash) % CHIP_FG.length;
+}
+
+function shuffle(arr) {
+    const out = arr.slice();
+    for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
 }
 
 export class KeywordChipsController {
@@ -75,15 +79,14 @@ export class KeywordChipsController {
                 counts.set(k, (counts.get(k) || 0) + 1);
             }
         }
-        const entries = Array.from(counts.entries())
-            .filter(([, c]) => c >= 1)
-            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-            .slice(0, TOP_N);
-
-        if (entries.length === 0) {
+        if (counts.size === 0) {
             this.strip.classList.add('hidden');
             return;
         }
+
+        // Fully randomize order — the CSS clip to ~2 lines decides what stays
+        // visible, so a different subset surfaces each load.
+        const entries = shuffle(Array.from(counts.entries())).slice(0, MAX_CHIPS);
 
         this.strip.innerHTML = '';
         for (const [keyword, count] of entries) {
@@ -92,21 +95,32 @@ export class KeywordChipsController {
             chip.type = 'button';
             chip.className = 'keyword-chip';
             chip.dataset.keyword = keyword;
+            const fg = CHIP_FG[idx];
             chip.style.cssText = [
-                'background:' + CHIP_BG[idx],
-                'color:' + CHIP_FG[idx],
-                'border:1px solid ' + CHIP_FG[idx] + '40',
-                'padding:4px 12px',
-                'border-radius:9999px',
-                'font-size:0.8rem',
+                'background:transparent',
+                'border:none',
+                'padding:0',
+                'color:' + fg,
+                'font-size:0.85rem',
+                'line-height:1.4',
                 'font-weight:500',
                 'cursor:pointer',
-                'transition:all 150ms',
-                'opacity:0.85',
+                'transition:opacity 150ms, text-shadow 150ms',
+                'opacity:0.55',
                 'white-space:nowrap',
+                'flex-shrink:0',
+                'text-shadow:none',
             ].join(';');
             chip.textContent = `#${keyword}`;
             chip.title = `${count} wormhole${count === 1 ? '' : 's'}`;
+            chip.addEventListener('mouseenter', () => {
+                chip.style.opacity = '0.95';
+                chip.style.textShadow = `0 0 6px ${fg}, 0 0 14px ${fg}88`;
+            });
+            chip.addEventListener('mouseleave', () => {
+                chip.style.textShadow = 'none';
+                this.refreshChipStyles();
+            });
             chip.addEventListener('click', () => this.toggle(keyword, chip));
             this.strip.appendChild(chip);
         }
@@ -131,9 +145,13 @@ export class KeywordChipsController {
         const active = this.app.activeKeywords || new Set();
         this.strip.querySelectorAll('.keyword-chip').forEach(chip => {
             const isActive = active.has(chip.dataset.keyword);
-            chip.style.opacity = (active.size === 0 || isActive) ? '1' : '0.45';
-            chip.style.outline = isActive ? '2px solid currentColor' : 'none';
-            chip.style.outlineOffset = isActive ? '2px' : '0';
+            // Default (no active filter) is dim; active stays bright; siblings dim further when something is active.
+            let opacity = 0.55;
+            if (active.size > 0) opacity = isActive ? 0.95 : 0.25;
+            chip.style.opacity = String(opacity);
+            chip.style.fontWeight = isActive ? '700' : '500';
+            const color = chip.style.color;
+            chip.style.textShadow = isActive ? `0 0 6px ${color}, 0 0 14px ${color}88` : 'none';
         });
     }
 }

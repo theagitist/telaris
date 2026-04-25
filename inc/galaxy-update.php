@@ -73,6 +73,10 @@ function handle_galaxy_update_post(array $post, ?string $userId, bool $isAdmin):
         'tour_default_dwell' => (int)($post['tour_default_dwell'] ?? 8),
         'tour_loop' => !empty($post['tour_loop']),
         'keyword_chips_enabled' => !empty($post['keyword_chips_enabled']),
+        'idle_spotlight_enabled' => !empty($post['idle_spotlight_enabled']),
+        'idle_spotlight_selection' => (string)($post['idle_spotlight_selection'] ?? 'all'),
+        'idle_spotlight_idle_seconds' => (int)($post['idle_spotlight_idle_seconds'] ?? 30),
+        'related_nodes_enabled' => !empty($post['related_nodes_enabled']),
     ]);
     $tourKeywordIds = array_map('intval', array_filter((array)($post['tour_keyword_ids'] ?? [])));
     db_set_tour_keyword_ids($id, $tourKeywordIds);

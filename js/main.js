@@ -11,6 +11,7 @@
 import { TelarisNetwork } from './telaris-3d.js';
 import { TourController } from './auto-tour.js';
 import { KeywordChipsController } from './keyword-chips.js';
+import { IdleSpotlightController } from './idle-spotlight.js';
 
 /** Constellation ID history for portal Back navigation. Set in initTelaris from URL or 0. */
 let navigationStack;
@@ -35,10 +36,31 @@ function initTelaris() {
             chips.init();
             window.telarisKeywordChips = chips;
         }
+
+        const idleCfg = window.TELARIS_IDLE_SPOTLIGHT_CONFIG;
+        if (idleCfg && idleCfg.enabled) {
+            startIdleSpotlightWhenReady(app, idleCfg);
+        }
     } catch (error) {
         console.error('Error initializing TelarisNetwork:', error);
         console.error('Error stack:', error.stack);
     }
+}
+
+function startIdleSpotlightWhenReady(app, cfg) {
+    let attempts = 0;
+    const maxAttempts = 100;
+    const tick = () => {
+        attempts++;
+        if (Array.isArray(app.nodes) && app.nodes.length > 0) {
+            const ctrl = new IdleSpotlightController(app, cfg);
+            ctrl.init();
+            window.telarisIdleSpotlight = ctrl;
+            return;
+        }
+        if (attempts < maxAttempts) setTimeout(tick, 100);
+    };
+    setTimeout(tick, 100);
 }
 
 function startTourWhenReady(app) {

@@ -42,6 +42,8 @@
     async function loadTourConfigIntoModal(constellationId) {
         const enabled = document.getElementById('modal-tour-enabled');
         const chipsEnabled = document.getElementById('modal-keyword-chips-enabled');
+        const idleSpotlightEnabled = document.getElementById('modal-idle-spotlight-enabled');
+        const idleSpotlightSeconds = document.getElementById('modal-idle-spotlight-idle-seconds');
         const idleSeconds = document.getElementById('modal-tour-idle-seconds');
         const randomCount = document.getElementById('modal-tour-random-count');
         const defaultDwell = document.getElementById('modal-tour-default-dwell');
@@ -50,6 +52,10 @@
 
         enabled.checked = false;
         if (chipsEnabled) chipsEnabled.checked = false;
+        const relatedEnabled = document.getElementById('modal-related-nodes-enabled');
+        if (relatedEnabled) relatedEnabled.checked = false;
+        if (idleSpotlightEnabled) idleSpotlightEnabled.checked = false;
+        if (idleSpotlightSeconds) idleSpotlightSeconds.value = 30;
         idleSeconds.value = 30;
         randomCount.value = 10;
         defaultDwell.value = 8;
@@ -57,6 +63,7 @@
         keywordsBox.innerHTML = '<span class="text-xs text-gray-400">Loading…</span>';
         document.querySelectorAll('input[name="tour_start_mode"]').forEach(r => r.checked = (r.value === 'manual'));
         document.querySelectorAll('input[name="tour_node_selection"]').forEach(r => r.checked = (r.value === 'all'));
+        document.querySelectorAll('input[name="idle_spotlight_selection"]').forEach(r => r.checked = (r.value === 'all'));
         updateTourFieldVisibility();
 
         try {
@@ -68,12 +75,17 @@
 
             enabled.checked = !!cfg.tour_enabled;
             if (chipsEnabled) chipsEnabled.checked = !!cfg.keyword_chips_enabled;
+            if (relatedEnabled) relatedEnabled.checked = !!cfg.related_nodes_enabled;
+            if (idleSpotlightEnabled) idleSpotlightEnabled.checked = !!cfg.idle_spotlight_enabled;
+            if (idleSpotlightSeconds) idleSpotlightSeconds.value = cfg.idle_spotlight_idle_seconds ?? 30;
             idleSeconds.value = cfg.tour_idle_seconds ?? 30;
             randomCount.value = cfg.tour_random_count ?? 10;
             defaultDwell.value = cfg.tour_default_dwell ?? 8;
             loop.checked = !!cfg.tour_loop;
             document.querySelectorAll('input[name="tour_start_mode"]').forEach(r => r.checked = (r.value === cfg.tour_start_mode));
             document.querySelectorAll('input[name="tour_node_selection"]').forEach(r => r.checked = (r.value === cfg.tour_node_selection));
+            const idleSel = cfg.idle_spotlight_selection || 'all';
+            document.querySelectorAll('input[name="idle_spotlight_selection"]').forEach(r => r.checked = (r.value === idleSel));
 
             const selectedKwIds = new Set((cfg.tour_keyword_ids || []).map(Number));
             if (!cfg.available_keywords || cfg.available_keywords.length === 0) {
@@ -98,21 +110,28 @@
 
     function updateTourFieldVisibility() {
         const enabledEl = document.getElementById('modal-tour-enabled');
-        if (!enabledEl) return;
-        const enabled = enabledEl.checked;
-        document.getElementById('modal-tour-section').classList.toggle('hidden', !enabled);
-        if (!enabled) return;
+        if (enabledEl) {
+            const enabled = enabledEl.checked;
+            document.getElementById('modal-tour-section').classList.toggle('hidden', !enabled);
+            if (enabled) {
+                const startMode = document.querySelector('input[name="tour_start_mode"]:checked')?.value || 'manual';
+                document.getElementById('modal-tour-idle-row').classList.toggle('hidden', startMode !== 'idle');
 
-        const startMode = document.querySelector('input[name="tour_start_mode"]:checked')?.value || 'manual';
-        document.getElementById('modal-tour-idle-row').classList.toggle('hidden', startMode !== 'idle');
+                const selection = document.querySelector('input[name="tour_node_selection"]:checked')?.value || 'all';
+                document.getElementById('modal-tour-random-row').classList.toggle('hidden', selection !== 'random_n');
+                document.getElementById('modal-tour-tagged-row').classList.toggle('hidden', selection !== 'tagged');
 
-        const selection = document.querySelector('input[name="tour_node_selection"]:checked')?.value || 'all';
-        document.getElementById('modal-tour-random-row').classList.toggle('hidden', selection !== 'random_n');
-        document.getElementById('modal-tour-tagged-row').classList.toggle('hidden', selection !== 'tagged');
+                const audioWarn = document.getElementById('modal-tour-immediate-warning');
+                const hasAudio = audioWarn.dataset.hasAudio === '1';
+                audioWarn.classList.toggle('hidden', !(hasAudio && startMode === 'immediate'));
+            }
+        }
 
-        const audioWarn = document.getElementById('modal-tour-immediate-warning');
-        const hasAudio = audioWarn.dataset.hasAudio === '1';
-        audioWarn.classList.toggle('hidden', !(hasAudio && startMode === 'immediate'));
+        const idleSpotEnabled = document.getElementById('modal-idle-spotlight-enabled');
+        if (idleSpotEnabled) {
+            const idleSection = document.getElementById('modal-idle-spotlight-section');
+            if (idleSection) idleSection.classList.toggle('hidden', !idleSpotEnabled.checked);
+        }
     }
 
     async function applyBulkFlag(flag, value, button) {
@@ -145,6 +164,8 @@
         enabled.addEventListener('change', updateTourFieldVisibility);
         document.querySelectorAll('.tour-start-mode').forEach(r => r.addEventListener('change', updateTourFieldVisibility));
         document.querySelectorAll('.tour-node-selection').forEach(r => r.addEventListener('change', updateTourFieldVisibility));
+        const idleSpotEnabled = document.getElementById('modal-idle-spotlight-enabled');
+        if (idleSpotEnabled) idleSpotEnabled.addEventListener('change', updateTourFieldVisibility);
         document.querySelectorAll('button[data-bulk-flag]').forEach(btn => {
             btn.addEventListener('click', () => {
                 applyBulkFlag(btn.dataset.bulkFlag, btn.dataset.bulkValue === '1', btn);

@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS constellations (
     tour_default_dwell INT UNSIGNED NOT NULL DEFAULT 8,
     tour_loop BOOLEAN NOT NULL DEFAULT TRUE,
     keyword_chips_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    idle_spotlight_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    idle_spotlight_selection ENUM('all','accentuated') NOT NULL DEFAULT 'all',
+    idle_spotlight_idle_seconds INT UNSIGNED NOT NULL DEFAULT 30,
+    related_nodes_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

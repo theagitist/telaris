@@ -325,6 +325,9 @@ class TelarisNetwork {
             }
         }
 
+        // Related wormholes (per-galaxy opt-in via TELARIS_RELATED_NODES_ENABLED).
+        this._renderRelatedNodes(node);
+
         // URL / Action Button
         if (urlWrap && urlButton) {
             if (d.node_type === 'portal' && d.target_constellation_id != null) {
@@ -388,8 +391,120 @@ class TelarisNetwork {
         });
     }
 
+/**
+     * Pick a random sample (up to 5) of nodes that share at least one keyword
+     * with the current one. Render as click-to-jump chips inside the card and
+     * stash the set on `_relatedNodeSet` so updateNodes can dim non-members.
+     */
+    _renderRelatedNodes(currentNode) {
+        const wrap = document.getElementById('rm-related-wrap');
+        const list = document.getElementById('rm-related');
+        if (!wrap || !list) return;
+        if (!window.TELARIS_RELATED_NODES_ENABLED) {
+            wrap.classList.add('hidden');
+            this._relatedNodeSet = null;
+            return;
+        }
+        const d = currentNode?.userData;
+        const ownKws = (d?.keywords || []).map(s => String(s).toLowerCase());
+        if (ownKws.length === 0 || !Array.isArray(this.nodes)) {
+            wrap.classList.add('hidden');
+            this._relatedNodeSet = null;
+            return;
+        }
+        const ownSet = new Set(ownKws);
+        const candidates = [];
+        for (const n of this.nodes) {
+            if (n === currentNode) continue;
+            if (!n.userData || n.userData.id == null) continue;
+            if (n.userData.node_type === 'cluster') continue;
+            const kws = (n.userData.keywords || []).map(s => String(s).toLowerCase());
+            let shared = 0;
+            for (const k of kws) { if (ownSet.has(k)) shared++; }
+            if (shared > 0) candidates.push({ node: n, shared });
+        }
+        if (candidates.length === 0) {
+            wrap.classList.add('hidden');
+            this._relatedNodeSet = null;
+            return;
+        }
+
+        // Spatial dim: every candidate stays bright; the rest are dimmed.
+        const allRelated = new Set(candidates.map(c => c.node));
+        allRelated.add(currentNode);
+        this._relatedNodeSet = allRelated;
+
+        // Sort by shared-count desc, then shuffle within each tier so repeats
+        // surface different chips. Cap to 5.
+        candidates.sort((a, b) => b.shared - a.shared);
+        for (let i = candidates.length - 1; i > 0; i--) {
+            if (candidates[i].shared !== candidates[i - 1].shared) continue;
+            // Within a same-shared tier, randomize neighbors.
+            if (Math.random() < 0.5) {
+                const tmp = candidates[i]; candidates[i] = candidates[i - 1]; candidates[i - 1] = tmp;
+            }
+        }
+        const sample = candidates.slice(0, 5);
+
+        // Pastel palette: same set used by keyword chips in this card, so it
+        // reads as on-brand. Color is hashed off the node name so the same
+        // wormhole always picks the same chip color.
+        const pastelText = [
+            '#fca5a5', '#fdba74', '#fcd34d', '#fde047', '#bef264', '#86efac',
+            '#6ee7b7', '#5eead4', '#67e8f9', '#7dd3fc', '#93c5fd', '#a5b4fc',
+            '#c4b5fd', '#d8b4fe', '#f0abfc', '#f9a8d4', '#fda4af',
+        ];
+        const colorFor = (str) => {
+            let h = 0;
+            for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
+            return pastelText[Math.abs(h) % pastelText.length];
+        };
+
+        list.innerHTML = '';
+        for (const { node: n } of sample) {
+            const name = n.userData?.name || 'Untitled';
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.textContent = name;
+            chip.title = 'Open ' + name;
+            const color = colorFor(name);
+            chip.style.cssText = [
+                'background:transparent',
+                'border:none',
+                'padding:0',
+                'color:' + color,
+                'font-size:0.78rem',
+                'font-weight:500',
+                'cursor:pointer',
+                'transition:opacity 150ms',
+                'opacity:0.85',
+                'white-space:nowrap',
+                'max-width:180px',
+                'overflow:hidden',
+                'text-overflow:ellipsis',
+                'flex-shrink:0',
+            ].join(';');
+            chip.addEventListener('mouseenter', () => { chip.style.opacity = '1'; chip.style.textDecoration = 'underline'; });
+            chip.addEventListener('mouseleave', () => { chip.style.opacity = '0.85'; chip.style.textDecoration = 'none'; });
+            chip.addEventListener('click', async () => {
+                // Same beat as the auto-tour: close current card, fly camera with
+                // the spotlight halo + dim, then open the target's card.
+                this.closeRichMediaWindow();
+                await new Promise(r => setTimeout(r, 500));
+                this._tourSpotlightNode = n;
+                if (this.networkManager?.setFocusedNode) this.networkManager.setFocusedNode(n);
+                if (this.tourFocusOnNode) await this.tourFocusOnNode(n, 1400);
+                this.showRichMediaWindow(n);
+            });
+            list.appendChild(chip);
+        }
+        wrap.classList.remove('hidden');
+    }
+
     closeRichMediaWindow() {
         this.playGlitch();
+        this._relatedNodeSet = null;
+        this._tourSpotlightNode = null;
         const overlay = document.getElementById('rich-media-overlay');
         const win = document.getElementById('rich-media-window');
         if (!overlay || !win) return;
@@ -3098,10 +3213,12 @@ class TelarisNetwork {
             }
 
             // Tour-spotlight context: lifted out of the material loop so it can
-            // also dim sprite/non-emissive materials via opacity.
+            // also dim sprite/non-emissive materials via opacity. Strength
+            // (0..1) eases in over ~600ms so the dim doesn't snap on.
             const isTourSpotlight = (this._tourSpotlightNode === n);
             const tourActive = !!this._tourSpotlightNode;
-            const tourDimNonSpotlight = (tourActive && !isTourSpotlight) ? 0.3 : 1.0;
+            const spotStrength = this._tourSpotlightStrength || 0;
+            const tourDimNonSpotlight = (tourActive && !isTourSpotlight) ? (1.0 - spotStrength * 0.7) : 1.0;
 
             // Keyword-chip filter: when at least one chip is active, dim nodes
             // whose keywords don't intersect the active set.
@@ -3116,9 +3233,17 @@ class TelarisNetwork {
                 if (!matches) keywordChipDim = 0.15;
             }
 
+            // Related-nodes dim: when an info card is open and the galaxy enables
+            // the related-wormholes feature, dim everything except the current
+            // node + its related set.
+            let relatedDim = 1.0;
+            if (this._relatedNodeSet && this._relatedNodeSet.size > 0 && !this._relatedNodeSet.has(n)) {
+                relatedDim = 0.15;
+            }
+
             // Optimization: iterate cached materials directly
             d.cachedMaterials.forEach(m => {
-                m.opacity = opacity * glitchOpacityMult * tourDimNonSpotlight * keywordChipDim;
+                m.opacity = opacity * glitchOpacityMult * tourDimNonSpotlight * keywordChipDim * relatedDim;
                 m.transparent = true;
                 m.visible = true;
 
@@ -3149,8 +3274,9 @@ class TelarisNetwork {
                             }
                             // Accentuated nodes get a smaller emissive boost now
                             const accentBoost = d.is_accentuated ? 1.4 : 1.0;
-                            const tourBoost = isTourSpotlight ? (6.0 + Math.sin(time * 3.5) * 3.5) : 1.0;
-                            m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost * tourBoost * tourDimNonSpotlight * keywordChipDim;
+                            const tourBoostFull = 6.0 + Math.sin(time * 3.5) * 3.5;
+                            const tourBoost = isTourSpotlight ? (1.0 + spotStrength * (tourBoostFull - 1.0)) : 1.0;
+                            m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost * tourBoost * tourDimNonSpotlight * keywordChipDim * relatedDim;
                         }
                     }
                 } else if (m.isSpriteMaterial) {
@@ -3182,9 +3308,12 @@ class TelarisNetwork {
             const baseS = d.is_accentuated ? 2.8 : 1.8;
             const scaleMult = isTransitioning ? 1.0 : glitchScaleMult;
             // Tour spotlight: large, slow pulse so the eye catches it during the camera pan.
-            const tourSpotlightMult = (this._tourSpotlightNode === n)
-                ? (1.9 + Math.sin(time * 2.5) * 0.35)
-                : 1.0;
+            // Eases in via spotStrength so the size jump isn't a snap.
+            let tourSpotlightMult = 1.0;
+            if (this._tourSpotlightNode === n) {
+                const fullMult = 1.9 + Math.sin(time * 2.5) * 0.35;
+                tourSpotlightMult = 1.0 + spotStrength * (fullMult - 1.0);
+            }
             const s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * scaleMult * tourSpotlightMult;
             n.scale.set(s, s, s);
 
@@ -3567,6 +3696,7 @@ class TelarisNetwork {
                 this.controls.update();
             }
             this.updateHoverState();
+            this.updateTourSpotlightStrength();
             this.updateNodes(dt);
             this.updateConnections(dt);
             this.updateTourHalo();
@@ -3892,6 +4022,29 @@ class TelarisNetwork {
      * Returns a Promise that resolves when the animation finishes.
      */
 /**
+     * Detect spotlight-target changes and ease the strength 0→1 over ~600ms.
+     * Other consumers read this._tourSpotlightStrength to lerp their effects
+     * (scale boost, emissive boost, halo opacity, label opacity, dim of
+     * non-spotlight nodes). When the spotlight clears, strength drops to 0
+     * immediately — symmetry with the card disappearing.
+     */
+    updateTourSpotlightStrength() {
+        const FADE_MS = 600;
+        if (this._lastSpotlightNode !== this._tourSpotlightNode) {
+            this._lastSpotlightNode = this._tourSpotlightNode;
+            this._tourSpotlightChangedAt = performance.now();
+        }
+        if (!this._tourSpotlightNode) {
+            this._tourSpotlightStrength = 0;
+            return;
+        }
+        const elapsed = performance.now() - (this._tourSpotlightChangedAt || 0);
+        const t = Math.min(1, Math.max(0, elapsed / FADE_MS));
+        // smoothstep
+        this._tourSpotlightStrength = t * t * (3 - 2 * t);
+    }
+
+    /**
      * Create the additive halo sprite once. Lives in the scene and is moved
      * onto the spotlight node each frame; hidden when no spotlight is set.
      */
@@ -3939,9 +4092,12 @@ class TelarisNetwork {
         halo.visible = true;
         const t = performance.now() * 0.001;
         const pulse = 0.5 + Math.sin(t * 3.0) * 0.5;
-        halo.material.opacity = 0.55 + pulse * 0.4;
-        const size = 7 + pulse * 2.5;
-        halo.scale.set(size, size, 1);
+        const strength = this._tourSpotlightStrength || 0;
+        halo.material.opacity = (0.55 + pulse * 0.4) * strength;
+        // Scale eases from a small starting size to the full pulsing size.
+        const fullSize = 7 + pulse * 2.5;
+        const startSize = 2.5;
+        halo.scale.setScalar(startSize + strength * (fullSize - startSize));
     }
 
     /** DOM-anchored name label that follows the spotlight node during the camera pan. */
@@ -4002,7 +4158,7 @@ class TelarisNetwork {
         if (label.textContent !== name) label.textContent = name;
         label.style.left = x + 'px';
         label.style.top = (y - 36) + 'px';
-        label.style.opacity = '1';
+        label.style.opacity = String(this._tourSpotlightStrength || 0);
     }
 
     tourFocusOnNode(node, durationMs = 1400) {

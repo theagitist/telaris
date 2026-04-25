@@ -188,8 +188,8 @@ header("X-Content-Type-Options: nosniff");
         <svg id="tooltip-line-svg" style="opacity: 0;" aria-hidden="true"><polyline id="tooltip-line" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>
         <div id="node-tooltip" class="px-3 py-2 rounded text-base pointer-events-none z-[200]" style="opacity: 0; visibility: hidden;"></div>
 
-        <!-- Keyword chips strip (top-center). Populated by js/keyword-chips.js. -->
-        <div id="keyword-chips-strip" class="hidden fixed top-3 left-1/2 -translate-x-1/2 z-[210] flex flex-wrap gap-2 justify-center max-w-[80vw] px-3 py-2 rounded-full bg-black/55 backdrop-blur-md border border-white/15"></div>
+        <!-- Keyword chips strip (bottom-center). Populated by js/keyword-chips.js. -->
+        <div id="keyword-chips-strip" class="hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-[210] flex flex-wrap gap-x-3 gap-y-0 justify-center max-w-[80vw] overflow-hidden" style="font-size: 0.85rem; line-height: 1.4; max-height: 2.4rem;"></div>
 
         <!-- Auto-tour HUD: Play button (manual start) and during-tour player overlay -->
         <button id="tour-play-btn" class="hidden fixed bottom-6 right-6 z-[260] bg-black/70 hover:bg-black/90 border border-white/30 hover:border-[#00ffcc] text-white text-xs uppercase tracking-wider px-4 py-2 rounded transition-all" type="button" aria-label="Start tour">
@@ -288,6 +288,12 @@ header("X-Content-Type-Options: nosniff");
                                     style="border-color: var(--node-accent-muted); color: var(--node-accent);">
                                 <?php echo htmlspecialchars($projectLaunchButtonText ?? 'LAUNCH'); ?>...
                             </button>
+                        </div>
+
+                        <!-- Related nodes (single thin row, populated by telaris-3d when galaxy enables it) -->
+                        <div id="rm-related-wrap" class="hidden pt-2">
+                            <div class="text-[10px] uppercase tracking-wider text-white/40 mb-1">Related</div>
+                            <div id="rm-related" class="flex flex-nowrap items-center gap-3 overflow-x-auto" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent;"></div>
                         </div>
                     </div>
                 </div>
@@ -393,6 +399,8 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_GO_TEXT = <?php echo json_encode($projectGoText ?? 'GO'); ?>;
         window.TELARIS_TOUR_CONFIG = <?php echo json_encode($tourConfig ?? null); ?>;
         window.TELARIS_KEYWORD_CHIPS_ENABLED = <?php echo !empty($keywordChipsEnabled) ? 'true' : 'false'; ?>;
+        window.TELARIS_IDLE_SPOTLIGHT_CONFIG = <?php echo json_encode($idleSpotlightConfig ?? null); ?>;
+        window.TELARIS_RELATED_NODES_ENABLED = <?php echo !empty($relatedNodesEnabled) ? 'true' : 'false'; ?>;
     </script>
     <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
     (function() {
@@ -469,7 +477,8 @@ header("X-Content-Type-Options: nosniff");
                 "./themes.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'themes.js')); ?>",
                 "./telaris-soundscape.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-soundscape.js')); ?>",
                 "./auto-tour.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'auto-tour.js')); ?>",
-                "./keyword-chips.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'keyword-chips.js')); ?>"
+                "./keyword-chips.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'keyword-chips.js')); ?>",
+                "./idle-spotlight.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'idle-spotlight.js')); ?>"
             }
         }
     </script>
