@@ -38,6 +38,25 @@ try {
                 return;
             }
 
+            if (isset($_GET['action']) && $_GET['action'] === 'tour_config' && isset($_GET['id'])) {
+                $id = (int)$_GET['id'];
+                $config = db_get_constellation_tour_config($id);
+                if ($config === null) {
+                    http_response_code(404);
+                    echo json_encode(['error' => 'Galaxy not found'], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                $keywords = db_get_keywords_for_constellation($id);
+                echo json_encode($config + [
+                    'available_keywords' => array_map(fn(array $k) => [
+                        'id' => (int)$k['id'],
+                        'keyword' => (string)$k['keyword'],
+                    ], $keywords),
+                    'has_audio_nodes' => db_constellation_has_audio_nodes($id),
+                ], JSON_THROW_ON_ERROR);
+                return;
+            }
+
             // Server-side paginated mode (for admin)
             if (isset($_GET['page'])) {
                 $page = max(1, (int)$_GET['page']);

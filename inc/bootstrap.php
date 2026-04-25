@@ -166,3 +166,31 @@ if (preg_match('/^[0-9]+$/', $path)) {
     }
 }
 
+$tourConfig = db_get_constellation_tour_config((int) $constellationId);
+if ($tourConfig === null) {
+    $tourConfig = [
+        'tour_enabled' => false,
+        'tour_start_mode' => 'manual',
+        'tour_idle_seconds' => 30,
+        'tour_node_selection' => 'all',
+        'tour_random_count' => 10,
+        'tour_default_dwell' => 8,
+        'tour_loop' => true,
+        'tour_keyword_ids' => [],
+    ];
+}
+
+// Frontend matches keywords by string (node.userData.keywords is an array of strings),
+// so resolve the configured keyword IDs to names within this constellation.
+$tourKeywordNames = [];
+if (!empty($tourConfig['tour_keyword_ids']) && $tourConfig['tour_node_selection'] === 'tagged') {
+    $availableKeywords = db_get_keywords_for_constellation((int) $constellationId);
+    $idSet = array_flip($tourConfig['tour_keyword_ids']);
+    foreach ($availableKeywords as $kw) {
+        if (isset($idSet[$kw['id']])) {
+            $tourKeywordNames[] = $kw['keyword'];
+        }
+    }
+}
+$tourConfig['tour_keyword_names'] = $tourKeywordNames;
+

@@ -9,6 +9,7 @@
  */
 
 import { TelarisNetwork } from './telaris-network.js';
+import { TourController } from './tour.js';
 
 /** Constellation ID history for portal Back navigation. Set in initTelaris from URL or 0. */
 let navigationStack;
@@ -25,10 +26,33 @@ function initTelaris() {
         const app = new TelarisNetwork();
         app.navigationStack = navigationStack;
         window.telarisApp = app;
+
+        startTourWhenReady(app);
     } catch (error) {
         console.error('Error initializing TelarisNetwork:', error);
         console.error('Error stack:', error.stack);
     }
+}
+
+function startTourWhenReady(app) {
+    const cfg = window.TELARIS_TOUR_CONFIG;
+    if (!cfg || !cfg.tour_enabled) return;
+
+    let attempts = 0;
+    const maxAttempts = 100;
+    const tick = () => {
+        attempts++;
+        if (Array.isArray(app.nodes) && app.nodes.length > 0) {
+            const tour = new TourController(app, cfg);
+            tour.init();
+            window.telarisTour = tour;
+            return;
+        }
+        if (attempts < maxAttempts) {
+            setTimeout(tick, 100);
+        }
+    };
+    setTimeout(tick, 100);
 }
 
 if (document.readyState === 'loading') {

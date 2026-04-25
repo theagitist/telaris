@@ -26,8 +26,26 @@ CREATE TABLE IF NOT EXISTS constellations (
     slug VARCHAR(255) NULL UNIQUE,
     theme VARCHAR(50) NOT NULL DEFAULT 'cosmic', -- cosmic, abstract, rectangles, stripes
     import_source VARCHAR(500) NULL DEFAULT NULL,
+    tour_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    tour_start_mode ENUM('immediate','idle','manual') NOT NULL DEFAULT 'manual',
+    tour_idle_seconds INT UNSIGNED NOT NULL DEFAULT 30,
+    tour_node_selection ENUM('all','accentuated','random_n','tagged') NOT NULL DEFAULT 'all',
+    tour_random_count INT UNSIGNED NOT NULL DEFAULT 10,
+    tour_default_dwell INT UNSIGNED NOT NULL DEFAULT 8,
+    tour_loop BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Junction: galaxies that tour by tag pick visitable nodes from these keywords (OR logic).
+CREATE TABLE IF NOT EXISTS constellation_tour_keywords (
+    constellation_id INT NOT NULL,
+    keyword_id INT NOT NULL,
+    PRIMARY KEY (constellation_id, keyword_id),
+    FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE,
+    FOREIGN KEY (keyword_id) REFERENCES keywords(id) ON DELETE CASCADE,
+    INDEX idx_constellation_id (constellation_id),
+    INDEX idx_keyword_id (keyword_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- In SCHEMA.sql, locate the nodes table and update it:

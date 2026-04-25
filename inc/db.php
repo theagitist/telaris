@@ -196,6 +196,42 @@ function db_ensure_constellations_import_source_column(): void {
     }
 }
 
+/** Ensure constellations.tour_* columns and constellation_tour_keywords junction table exist. */
+function db_ensure_constellations_tour_columns(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'tour_enabled'")->fetch();
+        if (!$row) {
+            $pdo->exec("
+                ALTER TABLE constellations
+                    ADD COLUMN tour_enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER import_source,
+                    ADD COLUMN tour_start_mode ENUM('immediate','idle','manual') NOT NULL DEFAULT 'manual' AFTER tour_enabled,
+                    ADD COLUMN tour_idle_seconds INT UNSIGNED NOT NULL DEFAULT 30 AFTER tour_start_mode,
+                    ADD COLUMN tour_node_selection ENUM('all','accentuated','random_n','tagged') NOT NULL DEFAULT 'all' AFTER tour_idle_seconds,
+                    ADD COLUMN tour_random_count INT UNSIGNED NOT NULL DEFAULT 10 AFTER tour_node_selection,
+                    ADD COLUMN tour_default_dwell INT UNSIGNED NOT NULL DEFAULT 8 AFTER tour_random_count,
+                    ADD COLUMN tour_loop BOOLEAN NOT NULL DEFAULT TRUE AFTER tour_default_dwell
+            ");
+        }
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS constellation_tour_keywords (
+                constellation_id INT NOT NULL,
+                keyword_id INT NOT NULL,
+                PRIMARY KEY (constellation_id, keyword_id),
+                FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE,
+                FOREIGN KEY (keyword_id) REFERENCES keywords(id) ON DELETE CASCADE,
+                INDEX idx_constellation_id (constellation_id),
+                INDEX idx_keyword_id (keyword_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_constellations_tour_columns: ' . $e->getMessage());
+    }
+}
+
 /** Ensure nodes.image_attribution column exists. */
 function db_ensure_nodes_image_attribution_column(): void {
     static $checked = false;
@@ -1363,6 +1399,161 @@ function db_update_constellation(int $id, string $name, string $tagline = '', ?s
 }
 
 /**
+ * Read the auto-tour config for a constellation.
+ * @return array{
+ *   tour_enabled: bool,
+ *   tour_start_mode: string,
+ *   tour_idle_seconds: int,
+ *   tour_node_selection: string,
+ *   tour_random_count: int,
+ *   tour_default_dwell: int,
+ *   tour_loop: bool,
+ *   tour_keyword_ids: list<int>
+ * }|null
+ */
+function db_get_constellation_tour_config(int $id): ?array {
+    db_ensure_constellations_tour_columns();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT tour_enabled, tour_start_mode, tour_idle_seconds, tour_node_selection,
+               tour_random_count, tour_default_dwell, tour_loop
+        FROM constellations WHERE id = :id LIMIT 1
+    ");
+    $stmt->execute([':id' => $id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+    return [
+        'tour_enabled' => (bool)$row['tour_enabled'],
+        'tour_start_mode' => (string)$row['tour_start_mode'],
+        'tour_idle_seconds' => (int)$row['tour_idle_seconds'],
+        'tour_node_selection' => (string)$row['tour_node_selection'],
+        'tour_random_count' => (int)$row['tour_random_count'],
+        'tour_default_dwell' => (int)$row['tour_default_dwell'],
+        'tour_loop' => (bool)$row['tour_loop'],
+        'tour_keyword_ids' => db_get_tour_keyword_ids($id),
+    ];
+}
+
+/**
+ * Persist tour config for a constellation. Validates enums; clamps numerics.
+ */
+function db_set_constellation_tour_config(int $id, array $config): void {
+    db_ensure_constellations_tour_columns();
+    $validStartModes = ['immediate', 'idle', 'manual'];
+    $validSelections = ['all', 'accentuated', 'random_n', 'tagged'];
+
+    $startMode = (string)($config['tour_start_mode'] ?? 'manual');
+    if (!in_array($startMode, $validStartModes, true)) {
+        $startMode = 'manual';
+    }
+    $selection = (string)($config['tour_node_selection'] ?? 'all');
+    if (!in_array($selection, $validSelections, true)) {
+        $selection = 'all';
+    }
+
+    $idleSeconds = max(1, (int)($config['tour_idle_seconds'] ?? 30));
+    $randomCount = max(1, (int)($config['tour_random_count'] ?? 10));
+    $defaultDwell = max(1, (int)($config['tour_default_dwell'] ?? 8));
+
+    $pdo = getDB();
+    $pdo->prepare("
+        UPDATE constellations SET
+            tour_enabled = :tour_enabled,
+            tour_start_mode = :tour_start_mode,
+            tour_idle_seconds = :tour_idle_seconds,
+            tour_node_selection = :tour_node_selection,
+            tour_random_count = :tour_random_count,
+            tour_default_dwell = :tour_default_dwell,
+            tour_loop = :tour_loop
+        WHERE id = :id
+    ")->execute([
+        ':tour_enabled' => !empty($config['tour_enabled']) ? 1 : 0,
+        ':tour_start_mode' => $startMode,
+        ':tour_idle_seconds' => $idleSeconds,
+        ':tour_node_selection' => $selection,
+        ':tour_random_count' => $randomCount,
+        ':tour_default_dwell' => $defaultDwell,
+        ':tour_loop' => !empty($config['tour_loop']) ? 1 : 0,
+        ':id' => $id,
+    ]);
+}
+
+/**
+ * @return list<int>
+ */
+function db_get_tour_keyword_ids(int $constellationId): array {
+    db_ensure_constellations_tour_columns();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT keyword_id FROM constellation_tour_keywords WHERE constellation_id = :cid ORDER BY keyword_id");
+    $stmt->execute([':cid' => $constellationId]);
+    $out = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $out[] = (int)$row['keyword_id'];
+    }
+    return $out;
+}
+
+/**
+ * Replace the set of tour keyword IDs for a constellation. Only IDs that belong to
+ * this constellation are persisted; foreign IDs are silently dropped.
+ */
+function db_set_tour_keyword_ids(int $constellationId, array $keywordIds): void {
+    db_ensure_constellations_tour_columns();
+    $pdo = getDB();
+
+    $cleanIds = [];
+    foreach ($keywordIds as $kid) {
+        $kid = (int)$kid;
+        if ($kid > 0) {
+            $cleanIds[$kid] = true;
+        }
+    }
+
+    if ($cleanIds !== []) {
+        $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
+        $check = $pdo->prepare("SELECT id FROM keywords WHERE constellation_id = ? AND id IN ($placeholders)");
+        $check->execute(array_merge([$constellationId], array_keys($cleanIds)));
+        $allowed = array_map('intval', $check->fetchAll(PDO::FETCH_COLUMN));
+    } else {
+        $allowed = [];
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("DELETE FROM constellation_tour_keywords WHERE constellation_id = :cid")
+            ->execute([':cid' => $constellationId]);
+        if ($allowed !== []) {
+            $insert = $pdo->prepare("INSERT INTO constellation_tour_keywords (constellation_id, keyword_id) VALUES (:cid, :kid)");
+            foreach ($allowed as $kid) {
+                $insert->execute([':cid' => $constellationId, ':kid' => $kid]);
+            }
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
+/**
+ * Used by the admin form to warn about autoplay-blocked audio when start_mode = immediate.
+ */
+function db_constellation_has_audio_nodes(int $constellationId): bool {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT 1 FROM nodes
+        WHERE constellation_id = :cid AND audio_url IS NOT NULL AND audio_url != ''
+        LIMIT 1
+    ");
+    $stmt->execute([':cid' => $constellationId]);
+    return (bool)$stmt->fetchColumn();
+}
+
+/**
  * Find all portal nodes that point to a specific constellation.
  * @return list<array{id: int, name: string, constellation_id: int, constellation_name: string}>
  */
@@ -2054,6 +2245,29 @@ function db_delete_node_file(int $id, string $type): void {
  * @param int|null $nodeId If set, return keywords for that node; otherwise all keywords with usage_count (default constellation).
  * @return list<array<string, mixed>>
  */
+/**
+ * List keywords for a specific constellation, with usage counts.
+ * @return list<array{id: int, keyword: string, usage_count: int}>
+ */
+function db_get_keywords_for_constellation(int $constellationId): array {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT k.id, k.keyword, COUNT(nk.node_id) AS usage_count
+        FROM keywords k
+        LEFT JOIN node_keywords nk ON k.id = nk.keyword_id
+        WHERE k.constellation_id = :constellation_id
+        GROUP BY k.id, k.keyword
+        ORDER BY k.keyword
+    ");
+    $stmt->execute([':constellation_id' => $constellationId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    return array_map(fn(array $r) => [
+        'id' => (int)$r['id'],
+        'keyword' => (string)$r['keyword'],
+        'usage_count' => (int)$r['usage_count'],
+    ], $rows);
+}
+
 function db_get_keywords(?int $nodeId = null): array {
     $pdo = getDB();
     if ($nodeId !== null) {
@@ -2243,6 +2457,7 @@ function db_rrmdir(string $path, string $allowedRoot): void {
  */
 function db_get_galaxy_for_dump(int $id): ?array {
     db_ensure_constellations_import_source_column();
+    db_ensure_constellations_tour_columns();
     db_ensure_nodes_import_slug_column();
     db_ensure_nodes_clustering_columns();
     db_ensure_nodes_image_attribution_column();
@@ -2250,7 +2465,12 @@ function db_get_galaxy_for_dump(int $id): ?array {
     db_ensure_nodes_show_keywords_column();
     $pdo = getDB();
 
-    $stmt = $pdo->prepare("SELECT id, name, tagline, slug, theme, import_source FROM constellations WHERE id = :id LIMIT 1");
+    $stmt = $pdo->prepare("
+        SELECT id, name, tagline, slug, theme, import_source,
+               tour_enabled, tour_start_mode, tour_idle_seconds,
+               tour_node_selection, tour_random_count, tour_default_dwell, tour_loop
+        FROM constellations WHERE id = :id LIMIT 1
+    ");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch();
     if (!$row) return null;
@@ -2342,6 +2562,16 @@ function db_get_galaxy_for_dump(int $id): ?array {
         'keywords' => $keywords,
         'nodes' => $nodes,
         'editor_emails' => $editorEmails,
+        'tour' => [
+            'enabled' => (bool)$row['tour_enabled'],
+            'start_mode' => (string)$row['tour_start_mode'],
+            'idle_seconds' => (int)$row['tour_idle_seconds'],
+            'node_selection' => (string)$row['tour_node_selection'],
+            'random_count' => (int)$row['tour_random_count'],
+            'default_dwell' => (int)$row['tour_default_dwell'],
+            'loop' => (bool)$row['tour_loop'],
+            'keyword_ids' => db_get_tour_keyword_ids((int)$row['id']),
+        ],
     ];
 }
 

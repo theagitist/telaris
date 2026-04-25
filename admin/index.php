@@ -249,6 +249,19 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 }
 
                 db_update_constellation($id, $name, $tagline, $slug !== '' ? $slug : null, $theme);
+
+                db_set_constellation_tour_config($id, [
+                    'tour_enabled' => !empty($_POST['tour_enabled']),
+                    'tour_start_mode' => (string)($_POST['tour_start_mode'] ?? 'manual'),
+                    'tour_idle_seconds' => (int)($_POST['tour_idle_seconds'] ?? 30),
+                    'tour_node_selection' => (string)($_POST['tour_node_selection'] ?? 'all'),
+                    'tour_random_count' => (int)($_POST['tour_random_count'] ?? 10),
+                    'tour_default_dwell' => (int)($_POST['tour_default_dwell'] ?? 8),
+                    'tour_loop' => !empty($_POST['tour_loop']),
+                ]);
+                $tourKeywordIds = array_map('intval', array_filter((array)($_POST['tour_keyword_ids'] ?? [])));
+                db_set_tour_keyword_ids($id, $tourKeywordIds);
+
                 $message = 'Galaxy updated successfully.';
                 $activeTab = 'constellations';
             })(),
@@ -1821,15 +1834,95 @@ $fieldMeta = [
             document.getElementById('user_modal').showModal();
         }
 
-        function editConstellation(c) {
+        async function editConstellation(c) {
             document.getElementById('modal-constellation-id').value = c.id;
             document.getElementById('modal-constellation-name').value = c.name;
             document.getElementById('modal-constellation-slug').value = c.slug || '';
             document.getElementById('modal-constellation-tagline').value = c.tagline;
             document.getElementById('modal-constellation-theme').value = c.theme || 'cosmic';
             document.getElementById('modal-constellation-id-badge').textContent = '#' + c.id;
+            await loadTourConfigIntoModal(c.id);
             document.getElementById('constellation_modal').showModal();
         }
+
+        async function loadTourConfigIntoModal(constellationId) {
+            const enabled = document.getElementById('modal-tour-enabled');
+            const section = document.getElementById('modal-tour-section');
+            const idleSeconds = document.getElementById('modal-tour-idle-seconds');
+            const randomCount = document.getElementById('modal-tour-random-count');
+            const defaultDwell = document.getElementById('modal-tour-default-dwell');
+            const loop = document.getElementById('modal-tour-loop');
+            const keywordsBox = document.getElementById('modal-tour-keywords');
+
+            enabled.checked = false;
+            idleSeconds.value = 30;
+            randomCount.value = 10;
+            defaultDwell.value = 8;
+            loop.checked = true;
+            keywordsBox.innerHTML = '<span class="text-xs text-gray-400">Loading…</span>';
+            document.querySelectorAll('input[name="tour_start_mode"]').forEach(r => r.checked = (r.value === 'manual'));
+            document.querySelectorAll('input[name="tour_node_selection"]').forEach(r => r.checked = (r.value === 'all'));
+            updateTourFieldVisibility();
+
+            try {
+                const r = await fetch(`${CONST_API}?action=tour_config&id=${constellationId}`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                if (!r.ok) throw new Error('Failed to load tour config');
+                const cfg = await r.json();
+
+                enabled.checked = !!cfg.tour_enabled;
+                idleSeconds.value = cfg.tour_idle_seconds ?? 30;
+                randomCount.value = cfg.tour_random_count ?? 10;
+                defaultDwell.value = cfg.tour_default_dwell ?? 8;
+                loop.checked = !!cfg.tour_loop;
+                document.querySelectorAll('input[name="tour_start_mode"]').forEach(r => r.checked = (r.value === cfg.tour_start_mode));
+                document.querySelectorAll('input[name="tour_node_selection"]').forEach(r => r.checked = (r.value === cfg.tour_node_selection));
+
+                const selectedKwIds = new Set((cfg.tour_keyword_ids || []).map(Number));
+                if (!cfg.available_keywords || cfg.available_keywords.length === 0) {
+                    keywordsBox.innerHTML = '<span class="text-xs text-gray-500">No keywords yet for this galaxy.</span>';
+                } else {
+                    keywordsBox.innerHTML = cfg.available_keywords.map(kw => {
+                        const checked = selectedKwIds.has(kw.id) ? 'checked' : '';
+                        return `<label class="flex items-center gap-2 py-0.5 cursor-pointer">
+                            <input type="checkbox" name="tour_keyword_ids[]" value="${kw.id}" ${checked} class="checkbox checkbox-neutral checkbox-xs">
+                            <span class="text-gray-800">${escapeHtmlAdmin(kw.keyword)}</span>
+                        </label>`;
+                    }).join('');
+                }
+
+                document.getElementById('modal-tour-immediate-warning').dataset.hasAudio = cfg.has_audio_nodes ? '1' : '0';
+            } catch (e) {
+                keywordsBox.innerHTML = '<span class="text-xs text-red-600">Failed to load.</span>';
+                document.getElementById('modal-tour-immediate-warning').dataset.hasAudio = '0';
+            }
+            updateTourFieldVisibility();
+        }
+
+        function updateTourFieldVisibility() {
+            const enabled = document.getElementById('modal-tour-enabled').checked;
+            document.getElementById('modal-tour-section').classList.toggle('hidden', !enabled);
+            if (!enabled) return;
+
+            const startMode = document.querySelector('input[name="tour_start_mode"]:checked')?.value || 'manual';
+            document.getElementById('modal-tour-idle-row').classList.toggle('hidden', startMode !== 'idle');
+
+            const selection = document.querySelector('input[name="tour_node_selection"]:checked')?.value || 'all';
+            document.getElementById('modal-tour-random-row').classList.toggle('hidden', selection !== 'random_n');
+            document.getElementById('modal-tour-tagged-row').classList.toggle('hidden', selection !== 'tagged');
+
+            const audioWarn = document.getElementById('modal-tour-immediate-warning');
+            const hasAudio = audioWarn.dataset.hasAudio === '1';
+            audioWarn.classList.toggle('hidden', !(hasAudio && startMode === 'immediate'));
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const enabled = document.getElementById('modal-tour-enabled');
+            if (enabled) enabled.addEventListener('change', updateTourFieldVisibility);
+            document.querySelectorAll('.tour-start-mode').forEach(r => r.addEventListener('change', updateTourFieldVisibility));
+            document.querySelectorAll('.tour-node-selection').forEach(r => r.addEventListener('change', updateTourFieldVisibility));
+        });
 
         function duplicateConstellation(c) {
             document.getElementById('duplicate-source-id').value = c.id;
@@ -3444,6 +3537,87 @@ $fieldMeta = [
                         <option value="stripes">Stripes (Custom Stripe Icons)</option>
                         <option value="tech">Tech (Circuit Board Icons)</option>
                     </select>
+                </div>
+
+                <div class="mb-4 border-t border-gray-200 pt-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="modal-tour-enabled" name="tour_enabled" value="1" class="toggle toggle-neutral toggle-sm">
+                        <span class="text-gray-800 font-medium">Auto-tour</span>
+                    </label>
+                    <p class="text-xs text-gray-500 mt-1">Automatically navigate visitors through nodes, opening each card and playing media. Desktop and iPad only.</p>
+
+                    <div id="modal-tour-section" class="mt-4 pl-6 border-l-2 border-gray-200 space-y-4 hidden">
+
+                        <div>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Start Mode</label>
+                            <div class="space-y-1">
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_start_mode" value="manual" class="radio radio-neutral radio-sm tour-start-mode">
+                                    <span>Manual — visitor clicks a Play button to start</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_start_mode" value="idle" class="radio radio-neutral radio-sm tour-start-mode">
+                                    <span>Idle — start after visitor is inactive for a while</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_start_mode" value="immediate" class="radio radio-neutral radio-sm tour-start-mode">
+                                    <span>Immediate — start as soon as the galaxy loads</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="modal-tour-idle-row" class="hidden">
+                            <label for="modal-tour-idle-seconds" class="block mb-1.5 text-gray-800 font-medium text-sm">Idle threshold (seconds)</label>
+                            <input type="number" id="modal-tour-idle-seconds" name="tour_idle_seconds" min="1" value="30" class="input input-bordered input-sm w-32 bg-white">
+                        </div>
+
+                        <div id="modal-tour-immediate-warning" class="hidden alert alert-warning text-sm py-2">
+                            <span>This galaxy contains audio nodes. Browsers block autoplay-with-sound until the visitor interacts with the page, so the first audio in an immediate-start tour may stay silent or stall.</span>
+                        </div>
+
+                        <div>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Which nodes to tour</label>
+                            <div class="space-y-1">
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_node_selection" value="all" class="radio radio-neutral radio-sm tour-node-selection">
+                                    <span>All nodes (random order each run)</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_node_selection" value="accentuated" class="radio radio-neutral radio-sm tour-node-selection">
+                                    <span>Only accentuated nodes</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_node_selection" value="random_n" class="radio radio-neutral radio-sm tour-node-selection">
+                                    <span>A random sample of N nodes</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_node_selection" value="tagged" class="radio radio-neutral radio-sm tour-node-selection">
+                                    <span>Nodes tagged with one of these keywords</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="modal-tour-random-row" class="hidden">
+                            <label for="modal-tour-random-count" class="block mb-1.5 text-gray-800 font-medium text-sm">How many nodes per tour</label>
+                            <input type="number" id="modal-tour-random-count" name="tour_random_count" min="1" value="10" class="input input-bordered input-sm w-32 bg-white">
+                        </div>
+
+                        <div id="modal-tour-tagged-row" class="hidden">
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords (any match)</label>
+                            <div id="modal-tour-keywords" class="border border-gray-300 rounded p-2 max-h-40 overflow-y-auto bg-white text-sm"></div>
+                            <span class="text-xs text-gray-500 mt-1 block">Visitors will see nodes matching any of the selected keywords.</span>
+                        </div>
+
+                        <div>
+                            <label for="modal-tour-default-dwell" class="block mb-1.5 text-gray-800 font-medium text-sm">Pause on nodes without media (seconds)</label>
+                            <input type="number" id="modal-tour-default-dwell" name="tour_default_dwell" min="1" value="8" class="input input-bordered input-sm w-32 bg-white">
+                        </div>
+
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="modal-tour-loop" name="tour_loop" value="1" class="toggle toggle-neutral toggle-sm">
+                            <span class="text-gray-800 font-medium text-sm">Loop the tour when it finishes</span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="modal-action">

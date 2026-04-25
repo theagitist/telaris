@@ -170,6 +170,34 @@ header("X-Content-Type-Options: nosniff");
         <svg id="tooltip-line-svg" style="opacity: 0;" aria-hidden="true"><polyline id="tooltip-line" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>
         <div id="node-tooltip" class="px-3 py-2 rounded text-base pointer-events-none z-[200]" style="opacity: 0; visibility: hidden;"></div>
 
+        <!-- Auto-tour HUD: Play button (manual start) and during-tour player overlay -->
+        <button id="tour-play-btn" class="hidden fixed bottom-6 right-6 z-[260] bg-black/70 hover:bg-black/90 border border-white/30 hover:border-[#00ffcc] text-white text-xs uppercase tracking-wider px-4 py-2 rounded transition-all" type="button" aria-label="Start tour">
+            <span class="inline-flex items-center gap-2">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                <span id="tour-play-btn-label">Tour</span>
+            </span>
+        </button>
+
+        <div id="tour-hud" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[260] bg-black/80 border border-white/30 rounded-lg px-4 py-2 text-white text-xs uppercase tracking-wider flex items-center gap-3" role="status" aria-live="polite">
+            <span id="tour-hud-progress" class="font-mono text-[#00ffcc]">1 / 1</span>
+            <div class="w-32 h-1 bg-white/10 rounded overflow-hidden">
+                <div id="tour-hud-progress-bar" class="h-full bg-[#00ffcc] transition-all" style="width: 0%"></div>
+            </div>
+            <button id="tour-hud-prev" class="hover:text-[#00ffcc] transition-colors" type="button" aria-label="Previous">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+            </button>
+            <button id="tour-hud-pause" class="hover:text-[#00ffcc] transition-colors" type="button" aria-label="Pause">
+                <svg id="tour-hud-pause-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+                <svg id="tour-hud-resume-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true" class="hidden"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button id="tour-hud-next" class="hover:text-[#00ffcc] transition-colors" type="button" aria-label="Next">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M16 6h2v12h-2zm-9.5 0L15 12l-8.5 6z"/></svg>
+            </button>
+            <button id="tour-hud-exit" class="hover:text-red-400 transition-colors" type="button" aria-label="Exit tour">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+
         <!-- Rich Media Window Overlay -->
         <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md hidden transition-opacity duration-500 opacity-0">
             <div id="rich-media-window" class="bg-[#0a0a0c]/90 border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative text-white transition-all duration-500 ease-out transform scale-50 opacity-0"
@@ -337,6 +365,7 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_LAUNCHING_TEXT = <?php echo json_encode($projectLaunchingText ?? 'Launching'); ?>;
         window.TELARIS_MISSION_ACTIVE_TEXT = <?php echo json_encode($projectMissionActiveText ?? 'Mission Active'); ?>;
         window.TELARIS_GO_TEXT = <?php echo json_encode($projectGoText ?? 'GO'); ?>;
+        window.TELARIS_TOUR_CONFIG = <?php echo json_encode($tourConfig ?? null); ?>;
     </script>
     <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
     (function() {
@@ -411,7 +440,8 @@ header("X-Content-Type-Options: nosniff");
                 "./api.js": "./js/api.js?v=<?php echo $appVersion; ?>",
                 "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=<?php echo $appVersion; ?>",
                 "./themes.js": "./js/themes.js?v=<?php echo $appVersion; ?>",
-                "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=<?php echo $appVersion; ?>"
+                "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=<?php echo $appVersion; ?>",
+                "./tour.js": "./js/tour.js?v=<?php echo $appVersion; ?>"
             }
         }
     </script>

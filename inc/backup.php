@@ -177,6 +177,26 @@ function backup_build_dump(array $opts): array {
                 $nodesOut[] = $nodeOut;
             }
 
+            $tourOut = null;
+            if (isset($g['tour']) && is_array($g['tour'])) {
+                $tourKwRefs = [];
+                foreach (($g['tour']['keyword_ids'] ?? []) as $kid) {
+                    if (isset($kwRefs[(int)$kid])) {
+                        $tourKwRefs[] = $kwRefs[(int)$kid];
+                    }
+                }
+                $tourOut = [
+                    'enabled' => (bool)$g['tour']['enabled'],
+                    'start_mode' => (string)$g['tour']['start_mode'],
+                    'idle_seconds' => (int)$g['tour']['idle_seconds'],
+                    'node_selection' => (string)$g['tour']['node_selection'],
+                    'random_count' => (int)$g['tour']['random_count'],
+                    'default_dwell' => (int)$g['tour']['default_dwell'],
+                    'loop' => (bool)$g['tour']['loop'],
+                    'keyword_refs' => $tourKwRefs,
+                ];
+            }
+
             $galaxies[] = [
                 'ref' => $galRef,
                 'name' => $g['name'],
@@ -188,6 +208,7 @@ function backup_build_dump(array $opts): array {
                 'keywords' => $kwOut,
                 'nodes' => $nodesOut,
                 'editor_emails' => $g['editor_emails'],
+                'tour' => $tourOut,
             ];
         }
     }
@@ -619,6 +640,26 @@ function backup_restore_one_galaxy(array $g, array $dump, array $opts): array {
     foreach ($g['keywords'] ?? [] as $kw) {
         $kid = db_create_keyword((string)$kw['keyword'], $targetId);
         $kwRefToId[(string)$kw['ref']] = $kid;
+    }
+
+    // Apply tour config (after keywords so tour keyword refs can resolve)
+    if (isset($g['tour']) && is_array($g['tour'])) {
+        db_set_constellation_tour_config($targetId, [
+            'tour_enabled' => !empty($g['tour']['enabled']),
+            'tour_start_mode' => (string)($g['tour']['start_mode'] ?? 'manual'),
+            'tour_idle_seconds' => (int)($g['tour']['idle_seconds'] ?? 30),
+            'tour_node_selection' => (string)($g['tour']['node_selection'] ?? 'all'),
+            'tour_random_count' => (int)($g['tour']['random_count'] ?? 10),
+            'tour_default_dwell' => (int)($g['tour']['default_dwell'] ?? 8),
+            'tour_loop' => !empty($g['tour']['loop']),
+        ]);
+        $tourKeywordIds = [];
+        foreach (($g['tour']['keyword_refs'] ?? []) as $ref) {
+            if (isset($kwRefToId[(string)$ref])) {
+                $tourKeywordIds[] = $kwRefToId[(string)$ref];
+            }
+        }
+        db_set_tour_keyword_ids($targetId, $tourKeywordIds);
     }
 
     // Insert nodes
