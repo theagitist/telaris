@@ -3547,6 +3547,7 @@ class TelarisNetwork {
             this.updateHoverState();
             this.updateNodes(dt);
             this.updateConnections(dt);
+            this.updateTourHalo();
         }
         
         this.updateMainTooltip();
@@ -3867,6 +3868,59 @@ class TelarisNetwork {
      * Preserves the current orbit offset so the framing feels continuous.
      * Returns a Promise that resolves when the animation finishes.
      */
+/**
+     * Create the additive halo sprite once. Lives in the scene and is moved
+     * onto the spotlight node each frame; hidden when no spotlight is set.
+     */
+    _initTourHalo() {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
+        grad.addColorStop(0.0, 'rgba(255, 255, 220, 1.0)');
+        grad.addColorStop(0.25, 'rgba(255, 220, 150, 0.55)');
+        grad.addColorStop(0.6, 'rgba(255, 170, 100, 0.18)');
+        grad.addColorStop(1.0, 'rgba(255, 140, 80, 0.0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 128, 128);
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        this._tourHaloSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: tex,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            opacity: 0,
+        }));
+        this._tourHaloSprite.scale.set(8, 8, 1);
+        this._tourHaloSprite.renderOrder = 100;
+        this._tourHaloSprite.raycast = () => {};
+        this._tourHaloSprite.visible = false;
+        this.scene.add(this._tourHaloSprite);
+    }
+
+    /**
+     * Position + opacity-pulse the tour halo each frame. Cheap; does nothing
+     * when no node is in spotlight. Call from animate(), after updateNodes.
+     */
+    updateTourHalo() {
+        if (!this._tourSpotlightNode) {
+            if (this._tourHaloSprite) this._tourHaloSprite.visible = false;
+            return;
+        }
+        if (!this._tourHaloSprite) this._initTourHalo();
+        const halo = this._tourHaloSprite;
+        const node = this._tourSpotlightNode;
+        node.getWorldPosition(this._scratchVec);
+        halo.position.copy(this._scratchVec);
+        halo.visible = true;
+        const t = performance.now() * 0.001;
+        const pulse = 0.5 + Math.sin(t * 3.0) * 0.5;
+        halo.material.opacity = 0.55 + pulse * 0.4;
+        const size = 7 + pulse * 2.5;
+        halo.scale.set(size, size, 1);
+    }
+
     tourFocusOnNode(node, durationMs = 1400) {
         return new Promise((resolve) => {
             if (!node || !this.camera || !this.controls) {

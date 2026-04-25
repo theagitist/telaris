@@ -283,12 +283,6 @@ export class TourController {
         if (this.app?.networkManager?.setFocusedNode) {
             this.app.networkManager.setFocusedNode(node);
         }
-        console.log('[tour] spotlight node:', {
-            id: node?.userData?.id,
-            name: node?.userData?.name,
-            isInAppNodes: this.app?.nodes?.includes(node),
-            spotlightSet: this.app?._tourSpotlightNode === node,
-        });
 
         // Close the previous card so the camera animation is visible.
         const overlay = document.getElementById('rich-media-overlay');
