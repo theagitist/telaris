@@ -575,16 +575,33 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Open the current constellation in the network view
         function viewNetwork() {
             const constellationId = document.getElementById('current-constellation').value;
-            const targetId = constellationId === 'all' ? '0' : constellationId;
-            const url = targetId === '0' ? '../index.php' : `../index.php?constellation_id=${targetId}`;
+            if (!constellationId || constellationId === 'all') {
+                window.open('../index.php', '_blank');
+                return;
+            }
+            const galaxy = (typeof TELARIS_GALAXIES !== 'undefined')
+                ? TELARIS_GALAXIES.find(g => g.id === parseInt(constellationId, 10))
+                : null;
+            const url = (galaxy && galaxy.slug)
+                ? '../' + encodeURIComponent(galaxy.slug)
+                : '../index.php?constellation_id=' + constellationId;
             window.open(url, '_blank');
         }
 
         // Copy the absolute URL of the current constellation to clipboard
         function copyCurrentConstellationUrl(buttonEl) {
             const constellationId = document.getElementById('current-constellation').value;
-            const targetId = constellationId === 'all' ? '0' : constellationId;
-            const relativeUrl = targetId === '0' ? '../index.php' : `../index.php?constellation_id=${targetId}`;
+            let relativeUrl;
+            if (!constellationId || constellationId === 'all') {
+                relativeUrl = '../index.php';
+            } else {
+                const galaxy = (typeof TELARIS_GALAXIES !== 'undefined')
+                    ? TELARIS_GALAXIES.find(g => g.id === parseInt(constellationId, 10))
+                    : null;
+                relativeUrl = (galaxy && galaxy.slug)
+                    ? '../' + encodeURIComponent(galaxy.slug)
+                    : '../index.php?constellation_id=' + constellationId;
+            }
             const absoluteUrl = new URL(relativeUrl, window.location.origin + window.location.pathname).href;
             
             navigator.clipboard.writeText(absoluteUrl).then(() => {
