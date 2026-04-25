@@ -3870,6 +3870,9 @@ class TelarisNetwork {
             const camEnd = targetWorld.clone().add(offset);
             const tgtEnd = targetWorld.clone();
 
+            const wasEnabled = this.controls.enabled;
+            this.controls.enabled = false;
+
             const startTime = performance.now();
             const tick = () => {
                 const raw = Math.min(1, (performance.now() - startTime) / durationMs);
@@ -3880,6 +3883,7 @@ class TelarisNetwork {
                 if (raw < 1) {
                     requestAnimationFrame(tick);
                 } else {
+                    this.controls.enabled = wasEnabled;
                     resolve();
                 }
             };
