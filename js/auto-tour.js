@@ -198,12 +198,14 @@ export class TourController {
     }
 
     onCardCloseIntent(e) {
-        // The user is closing the card themselves (close-btn or backdrop click).
-        // Let the existing close handler do its thing; just exit the tour without
-        // triggering closeRichMediaWindow ourselves.
+        // The user closed the card themselves (close-X or backdrop click).
+        // Treat this as "I'm done with this card, move on" — same effect as the
+        // dwell timer running out. Use the HUD exit button to actually quit.
         const overlay = document.getElementById('rich-media-overlay');
         if (e.currentTarget === overlay && e.target !== overlay) return;
-        this.exit({ closeCard: false });
+        this.clearDwellTimer();
+        this.detachMediaListeners();
+        if (this.active && !this.paused) this.advance(1);
     }
 
     togglePause() {
@@ -319,8 +321,11 @@ export class TourController {
         const video = data.video_url ? document.getElementById('rm-video') : null;
         const media = video || audio;
 
+        const baseDwell = Math.max(1, this.config.tour_default_dwell || 8);
+        const visibleDwellSec = this.computeDwellSeconds(node, baseDwell);
+
         if (!media) {
-            this.scheduleDwellAdvance();
+            this.scheduleDwellAdvance(visibleDwellSec * 1000);
             return;
         }
 
@@ -336,13 +341,11 @@ export class TourController {
         };
         media.addEventListener('ended', onEnded);
 
-        const baseDwell = Math.max(1, this.config.tour_default_dwell || 8);
-
-        // Always start a visible default-dwell countdown. This covers the
+        // Always start a visible reading-time countdown. This covers the
         // autoplay-blocked case immediately and guarantees forward progress
         // before metadata loads. If play succeeds, we replace it with a
         // hidden failsafe matched to the media's real duration.
-        this.scheduleDwellAdvance(baseDwell * 1000);
+        this.scheduleDwellAdvance(visibleDwellSec * 1000);
 
         const onPlaySuccess = () => {
             // Hide the visible bar; replace with a hidden failsafe that lasts
@@ -378,6 +381,22 @@ export class TourController {
             // Older browsers without a returned promise: assume play succeeded.
             onPlaySuccess();
         }
+    }
+
+/**
+     * How long to keep the dwell bar up for this node. If the card has
+     * descriptive text, scale by an estimated reading time (180 wpm + 2s
+     * to settle in). Otherwise fall back to the configured default.
+     */
+    computeDwellSeconds(node, baseDwell) {
+        const text = node?.userData?.description || '';
+        if (!text) return baseDwell;
+        const stripped = String(text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (!stripped) return baseDwell;
+        const words = stripped.split(/\s+/).length;
+        const wpm = 180;
+        const seconds = (words / wpm) * 60;
+        return Math.max(baseDwell, seconds + 2);
     }
 
     scheduleDwellAdvance(durationMs) {
