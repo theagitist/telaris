@@ -214,6 +214,18 @@ The search bar queries all nodes in the constellation (not just visible ones) vi
 
 Uploaded files are stored at `UPLOAD_DIR` (defined in `config.php`, external to the app directory). Nginx serves them via an alias at `/uploads/`. Nodes can have an image, video, audio, and/or embed code.
 
+### Auto-tour
+
+Optional per-galaxy feature that auto-navigates visitors through nodes, opening each rich-media card and playing video or audio in full before advancing. Disabled by default; turned on per galaxy in the admin "Discovery" section of the galaxy edit form.
+
+Settings live on the `constellations` table (`tour_enabled`, `tour_start_mode`, `tour_idle_seconds`, `tour_node_selection`, `tour_random_count`, `tour_default_dwell`, `tour_loop`) plus a `constellation_tour_keywords` junction for `node_selection = tagged`. New columns auto-migrate via `db_ensure_constellations_tour_columns()`.
+
+Three start modes: `manual` (visitor clicks Play), `idle` (after N seconds of inactivity), `immediate` (on page load). Four node selections: `all`, `accentuated` (uses existing `is_accentuated` flag), `random_n`, or `tagged` (OR-matched against the galaxy's keywords). Mobile (viewport < 768px) is excluded for v1.
+
+Frontend lives in `js/tour.js` (`TourController`), instantiated by `js/main.js` after nodes are loaded. The card itself is the existing `showRichMediaWindow`; tour just drives selection, sequencing, and pause/exit. Config is injected into `window.TELARIS_TOUR_CONFIG` by `inc/bootstrap.php` + `inc/main-view.php`.
+
+Tour config and keyword selections are included in backup/restore via `inc/backup.php`.
+
 ### Localization
 
 Supported locales: `en`, `es`, `pt`. Detected from `?lang=` query param or `Accept-Language` header. A language switcher in the HUD allows users to switch. All UI strings come from the `project_info` table (30 localized keys). New columns are auto-migrated via `db_ensure_project_info_columns()`.

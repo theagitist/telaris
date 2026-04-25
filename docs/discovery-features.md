@@ -138,9 +138,30 @@ Plus junction table `constellation_tour_keywords` for `node_selection = tagged`.
 ### Step 1 — Schema
 
 - `SCHEMA.sql`: extend the `constellations` table with the seven new columns above; add the `constellation_tour_keywords` junction table (FKs cascade on delete).
-- Provide an `ALTER TABLE` block in this doc for the editor to run on the live DB (project policy: no runtime migrations).
+- Run the ALTER block below on the live DB (project policy: no runtime migrations).
 
-**Verify:** running the ALTER block on a copy of prod boots cleanly; `setup.php` on a fresh DB still works.
+```sql
+ALTER TABLE constellations
+    ADD COLUMN tour_enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER import_source,
+    ADD COLUMN tour_start_mode ENUM('immediate','idle','manual') NOT NULL DEFAULT 'manual' AFTER tour_enabled,
+    ADD COLUMN tour_idle_seconds INT UNSIGNED NOT NULL DEFAULT 30 AFTER tour_start_mode,
+    ADD COLUMN tour_node_selection ENUM('all','accentuated','random_n','tagged') NOT NULL DEFAULT 'all' AFTER tour_idle_seconds,
+    ADD COLUMN tour_random_count INT UNSIGNED NOT NULL DEFAULT 10 AFTER tour_node_selection,
+    ADD COLUMN tour_default_dwell INT UNSIGNED NOT NULL DEFAULT 8 AFTER tour_random_count,
+    ADD COLUMN tour_loop BOOLEAN NOT NULL DEFAULT TRUE AFTER tour_default_dwell;
+
+CREATE TABLE IF NOT EXISTS constellation_tour_keywords (
+    constellation_id INT NOT NULL,
+    keyword_id INT NOT NULL,
+    PRIMARY KEY (constellation_id, keyword_id),
+    FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE,
+    FOREIGN KEY (keyword_id) REFERENCES keywords(id) ON DELETE CASCADE,
+    INDEX idx_constellation_id (constellation_id),
+    INDEX idx_keyword_id (keyword_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+**Verify:** running the ALTER block boots cleanly; `setup.php` on a fresh DB still works (since SCHEMA.sql is the canonical source).
 
 ### Step 2 — Backend data layer (`inc/db.php`)
 
