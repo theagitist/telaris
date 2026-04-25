@@ -446,7 +446,7 @@ header("X-Content-Type-Options: nosniff");
                 "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=<?php echo $appVersion; ?>",
                 "./themes.js": "./js/themes.js?v=<?php echo $appVersion; ?>",
                 "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=<?php echo $appVersion; ?>",
-                "./tour.js": "./js/tour.js?v=<?php echo $appVersion; ?>"
+                "./auto-tour.js": "./js/auto-tour.js?v=<?php echo $appVersion; ?>"
             }
         }
     </script>

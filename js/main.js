@@ -9,7 +9,7 @@
  */
 
 import { TelarisNetwork } from './telaris-network.js';
-import { TourController } from './tour.js';
+import { TourController } from './auto-tour.js';
 
 /** Constellation ID history for portal Back navigation. Set in initTelaris from URL or 0. */
 let navigationStack;
