@@ -3501,7 +3501,7 @@ $fieldMeta = [
 
     <!-- Constellation Edit Modal -->
     <dialog id="constellation_modal" class="modal">
-        <div class="modal-box bg-white !pt-0">
+        <div class="modal-box bg-white !pt-0 max-w-3xl">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
                 <h3 class="font-bold text-xl">Edit Galaxy</h3>
                 <span id="modal-constellation-id-badge" class="text-xs opacity-70 font-mono"></span>
