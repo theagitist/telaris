@@ -59,6 +59,13 @@ export class TourController {
         if (!this.config || !this.config.tour_enabled) return;
         if (window.innerWidth < MOBILE_MIN_WIDTH) return;
 
+        console.log('[tour] TourController init — version 6.6.3', {
+            startMode: this.config.tour_start_mode,
+            selection: this.config.tour_node_selection,
+            hasFocusMethod: typeof this.app?.tourFocusOnNode === 'function',
+            hasDwellBar: !!document.getElementById('tour-dwell-bar-track'),
+        });
+
         this.bindControls();
 
         const mode = this.config.tour_start_mode || 'manual';
@@ -156,6 +163,7 @@ export class TourController {
         this.cancelled = false;
         this.hidePlayButton();
         this.showHud();
+        console.log('[tour] starting tour, queue length', queue.length);
         document.addEventListener('keydown', this.boundOnKeydown);
         const closeBtn = document.getElementById('rm-close-btn');
         const overlay = document.getElementById('rich-media-overlay');
@@ -275,8 +283,11 @@ export class TourController {
         }
 
         if (this.app?.tourFocusOnNode) {
+            console.log('[tour] camera pan to node', node?.userData?.id, node?.userData?.name);
             await this.app.tourFocusOnNode(node, 900);
             if (this.cancelled || !this.active) return;
+        } else {
+            console.warn('[tour] tourFocusOnNode missing on app — likely stale telaris-network.js cached');
         }
 
         if (this.app?.showRichMediaWindow) {
