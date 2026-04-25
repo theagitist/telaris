@@ -202,6 +202,11 @@ header("X-Content-Type-Options: nosniff");
         <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md hidden transition-opacity duration-500 opacity-0">
             <div id="rich-media-window" class="bg-[#0a0a0c]/90 border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative text-white transition-all duration-500 ease-out transform scale-50 opacity-0"
                  style="box-shadow: 0 0 50px -10px rgba(0, 255, 204, 0.3);">
+                <!-- Tour dwell countdown bar (no playable media). Shrinks from both sides at once. -->
+                <div id="tour-dwell-bar-track" class="hidden absolute bottom-0 left-0 right-0 h-1 bg-white/5 overflow-hidden" aria-hidden="true">
+                    <div id="tour-dwell-bar" class="h-full bg-[#00ffcc] origin-center" style="transform: scaleX(1)"></div>
+                </div>
+
                 <!-- Close Button -->
                 <button id="rm-close-btn" class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-10">
                     <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">

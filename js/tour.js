@@ -34,6 +34,7 @@ export class TourController {
         this.active = false;
         this.paused = false;
         this.dwellTimerId = null;
+        this.dwellAnimation = null;
         this.attachedAudio = null;
         this.attachedVideo = null;
         this.idleTimerId = null;
@@ -193,26 +194,39 @@ export class TourController {
 
     togglePause() {
         if (!this.active) return;
+        const audio = document.getElementById('rm-audio');
+        const video = document.getElementById('rm-video');
         if (this.paused) {
             this.paused = false;
             this.pauseIcon?.classList.remove('hidden');
             this.resumeIcon?.classList.add('hidden');
-            const audio = document.getElementById('rm-audio');
-            const video = document.getElementById('rm-video');
             if (this.attachedAudio && audio) audio.play().catch(() => {});
             if (this.attachedVideo && video) video.play().catch(() => {});
-            if (!this.attachedAudio && !this.attachedVideo) {
-                this.scheduleDwellAdvance();
+            this.resumeDwellBar();
+            if (this._dwellRemainingMs != null) {
+                const remaining = this._dwellRemainingMs;
+                this._dwellRemainingMs = null;
+                this.dwellTimerId = setTimeout(() => {
+                    this.dwellTimerId = null;
+                    if (this.active && !this.paused) this.advance(1);
+                }, remaining);
             }
         } else {
             this.paused = true;
             this.pauseIcon?.classList.add('hidden');
             this.resumeIcon?.classList.remove('hidden');
-            const audio = document.getElementById('rm-audio');
-            const video = document.getElementById('rm-video');
             if (this.attachedAudio && audio) audio.pause();
             if (this.attachedVideo && video) video.pause();
-            this.clearDwellTimer();
+            if (this.dwellTimerId) {
+                if (this.dwellAnimation) {
+                    const total = this.dwellAnimation.effect.getTiming().duration;
+                    const elapsed = Number(this.dwellAnimation.currentTime || 0);
+                    this._dwellRemainingMs = Math.max(0, total - elapsed);
+                }
+                this.pauseDwellBar();
+                clearTimeout(this.dwellTimerId);
+                this.dwellTimerId = null;
+            }
         }
     }
 
@@ -314,12 +328,52 @@ export class TourController {
             this.dwellTimerId = null;
             if (this.active && !this.paused) this.advance(1);
         }, dwell * 1000);
+        this.startDwellBar(dwell * 1000);
     }
 
     clearDwellTimer() {
         if (this.dwellTimerId) {
             clearTimeout(this.dwellTimerId);
             this.dwellTimerId = null;
+        }
+        this.cancelDwellBar();
+    }
+
+    startDwellBar(durationMs) {
+        const track = document.getElementById('tour-dwell-bar-track');
+        const bar = document.getElementById('tour-dwell-bar');
+        if (!track || !bar) return;
+        track.classList.remove('hidden');
+        bar.style.transform = 'scaleX(1)';
+        if (this.dwellAnimation) {
+            this.dwellAnimation.cancel();
+            this.dwellAnimation = null;
+        }
+        if (typeof bar.animate !== 'function') return;
+        this.dwellAnimation = bar.animate(
+            [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
+            { duration: durationMs, easing: 'linear', fill: 'forwards' }
+        );
+    }
+
+    cancelDwellBar() {
+        if (this.dwellAnimation) {
+            this.dwellAnimation.cancel();
+            this.dwellAnimation = null;
+        }
+        const track = document.getElementById('tour-dwell-bar-track');
+        if (track) track.classList.add('hidden');
+    }
+
+    pauseDwellBar() {
+        if (this.dwellAnimation && this.dwellAnimation.playState === 'running') {
+            this.dwellAnimation.pause();
+        }
+    }
+
+    resumeDwellBar() {
+        if (this.dwellAnimation && this.dwellAnimation.playState === 'paused') {
+            this.dwellAnimation.play();
         }
     }
 

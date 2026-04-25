@@ -3527,11 +3527,17 @@ class TelarisNetwork {
 
         const isFadingIn = this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null && this._portalFadeInMultiplier < 1;
         if (!isZooming) {
-            this.controls.autoRotate = !isFadingIn && (now - this.lastInteractionAt) > this.idleRotateDelayMs;
+            if (this._tourTweening) {
+                this.controls.autoRotate = false;
+            } else {
+                this.controls.autoRotate = !isFadingIn && (now - this.lastInteractionAt) > this.idleRotateDelayMs;
+            }
             if (!isFadingIn) {
                 this.applyForces(dt, 0.05);
             }
-            this.controls.update();
+            if (!this._tourTweening) {
+                this.controls.update();
+            }
             this.updateHoverState();
             this.updateNodes(dt);
             this.updateConnections(dt);
@@ -3872,6 +3878,7 @@ class TelarisNetwork {
 
             const wasEnabled = this.controls.enabled;
             this.controls.enabled = false;
+            this._tourTweening = true;
 
             const startTime = performance.now();
             const tick = () => {
@@ -3883,6 +3890,7 @@ class TelarisNetwork {
                 if (raw < 1) {
                     requestAnimationFrame(tick);
                 } else {
+                    this._tourTweening = false;
                     this.controls.enabled = wasEnabled;
                     resolve();
                 }
