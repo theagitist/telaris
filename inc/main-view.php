@@ -228,7 +228,13 @@ header("X-Content-Type-Options: nosniff");
                     <div id="tour-dwell-bar" class="h-full bg-[#00ffcc] origin-center" style="transform: scaleX(1)"></div>
                 </div>
 
-                <!-- Close Button -->
+                <!-- Share permalink + Close -->
+                <button id="rm-share-btn" class="absolute top-4 right-12 text-white/50 hover:text-white transition-colors z-10" title="Copy link to this wormhole">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M10 14a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.5 1.5"/>
+                        <path d="M14 10a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1.5-1.5"/>
+                    </svg>
+                </button>
                 <button id="rm-close-btn" class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-10">
                     <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M18 6L6 18M6 6l12 12"/>
@@ -401,6 +407,7 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_KEYWORD_CHIPS_ENABLED = <?php echo !empty($keywordChipsEnabled) ? 'true' : 'false'; ?>;
         window.TELARIS_IDLE_SPOTLIGHT_CONFIG = <?php echo json_encode($idleSpotlightConfig ?? null); ?>;
         window.TELARIS_RELATED_NODES_ENABLED = <?php echo !empty($relatedNodesEnabled) ? 'true' : 'false'; ?>;
+        window.TELARIS_INITIAL_NODE_ID = <?php echo $initialNodeId !== null ? (int)$initialNodeId : 'null'; ?>;
     </script>
     <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
     (function() {
@@ -459,6 +466,28 @@ header("X-Content-Type-Options: nosniff");
         var rmCloseBtn = document.getElementById('rm-close-btn');
         if (rmCloseBtn) rmCloseBtn.addEventListener('click', function() {
             if (window.telarisNetwork) window.telarisNetwork.closeRichMediaWindow();
+        });
+        // Share permalink: copies /{galaxy-slug-or-id}/{node-id} to clipboard.
+        var rmShareBtn = document.getElementById('rm-share-btn');
+        if (rmShareBtn) rmShareBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var app = window.telarisApp;
+            var focused = app && app.networkManager ? app.networkManager.getFocusedNode() : null;
+            if (!focused) return;
+            var nodeId = focused.userData && focused.userData.id;
+            if (!nodeId) return;
+            var slug = window.TELARIS_CONSTELLATION_SLUG || (window.TELARIS_CONSTELLATION_ID + '');
+            var url = window.location.origin + '/' + encodeURIComponent(slug) + '/' + nodeId;
+            (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(function() {
+                rmShareBtn.title = 'Link copied!';
+                rmShareBtn.style.color = '#00ffcc';
+                setTimeout(function() {
+                    rmShareBtn.title = 'Copy link to this wormhole';
+                    rmShareBtn.style.color = '';
+                }, 1500);
+            }).catch(function() {
+                window.prompt('Copy this link:', url);
+            });
         });
         var reloadEl = document.getElementById('constellation-reload');
         if (reloadEl) reloadEl.addEventListener('click', function() { location.reload(); });

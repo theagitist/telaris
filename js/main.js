@@ -41,10 +41,44 @@ function initTelaris() {
         if (idleCfg && idleCfg.enabled) {
             startIdleSpotlightWhenReady(app, idleCfg);
         }
+
+        if (window.TELARIS_INITIAL_NODE_ID) {
+            openInitialNodeWhenReady(app, parseInt(window.TELARIS_INITIAL_NODE_ID, 10));
+        }
     } catch (error) {
         console.error('Error initializing TelarisNetwork:', error);
         console.error('Error stack:', error.stack);
     }
+}
+
+function openInitialNodeWhenReady(app, nodeId) {
+    if (!nodeId || isNaN(nodeId)) return;
+    let attempts = 0;
+    const maxAttempts = 100;
+    const tick = () => {
+        attempts++;
+        if (Array.isArray(app.nodes) && app.nodes.length > 0) {
+            const node = app.nodes.find(n =>
+                n && n.userData && (n.userData.id === nodeId || parseInt(n.userData.id, 10) === nodeId)
+            );
+            if (node) {
+                // Small delay so the scene has settled visually before the card flies in.
+                setTimeout(() => {
+                    if (app.networkManager?.setFocusedNode) app.networkManager.setFocusedNode(node);
+                    if (app.tourFocusOnNode) {
+                        app.tourFocusOnNode(node, 1200).then(() => {
+                            if (app.showRichMediaWindow) app.showRichMediaWindow(node);
+                        });
+                    } else if (app.showRichMediaWindow) {
+                        app.showRichMediaWindow(node);
+                    }
+                }, 600);
+            }
+            return;
+        }
+        if (attempts < maxAttempts) setTimeout(tick, 100);
+    };
+    setTimeout(tick, 100);
 }
 
 function startIdleSpotlightWhenReady(app, cfg) {

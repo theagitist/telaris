@@ -24,8 +24,17 @@ try {
     match ($method) {
         'GET' => (function(): void {
             $nodeId = isset($_GET['node_id']) ? (int)$_GET['node_id'] : null;
-            $keywords = db_get_keywords($nodeId > 0 ? $nodeId : null);
-            echo json_encode($keywords, JSON_THROW_ON_ERROR);
+            if ($nodeId !== null && $nodeId > 0) {
+                echo json_encode(db_get_keywords($nodeId), JSON_THROW_ON_ERROR);
+                return;
+            }
+            // Per-constellation keyword list with usage counts (for bulk-by-keyword UI).
+            if (isset($_GET['constellation_id']) && is_numeric($_GET['constellation_id'])) {
+                $cid = (int)$_GET['constellation_id'];
+                echo json_encode(db_get_keywords_for_constellation($cid), JSON_THROW_ON_ERROR);
+                return;
+            }
+            echo json_encode(db_get_keywords(), JSON_THROW_ON_ERROR);
         })(),
         
         'POST' => (function(): void {

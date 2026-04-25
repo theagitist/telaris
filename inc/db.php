@@ -1803,7 +1803,8 @@ function db_get_nodes_paginated(
     int $perPage = 25,
     ?string $sort = null,
     string $order = 'asc',
-    ?string $filter = null
+    ?string $filter = null,
+    bool $touchedToday = false
 ): array {
     db_ensure_nodes_show_keywords_column();
     db_ensure_nodes_use_image_as_node_column();
@@ -1850,6 +1851,12 @@ function db_get_nodes_paginated(
         $params[':filter2'] = $filterVal;
         $params[':filter3'] = $filterVal;
         $params[':filter4'] = $filterVal;
+    }
+
+    if ($touchedToday) {
+        // Server-local "today" — matches what an editor would see on their clock.
+        $where[] = "n.updated_at >= :today_start";
+        $params[':today_start'] = date('Y-m-d') . ' 00:00:00';
     }
 
     $whereClause = $where !== [] ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -2250,6 +2257,41 @@ function db_update_node(int $id, string $name, ?string $description, ?string $ur
             ':use_image_as_node' => $useImageAsNode ? 1 : 0
         ]);
     }
+}
+
+/**
+ * Find node IDs in a constellation that have the given keyword id attached.
+ * @return list<int>
+ */
+function db_get_node_ids_with_keyword(int $constellationId, int $keywordId): array {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT n.id FROM nodes n
+        INNER JOIN node_keywords nk ON nk.node_id = n.id
+        WHERE n.constellation_id = :cid AND nk.keyword_id = :kid
+    ");
+    $stmt->execute([':cid' => $constellationId, ':kid' => $keywordId]);
+    $out = [];
+    while (($id = $stmt->fetchColumn()) !== false) $out[] = (int)$id;
+    return $out;
+}
+
+/**
+ * Bulk-move all nodes in $constellationId carrying $keywordId to $targetConstellationId.
+ * Returns the number of rows updated. Note: keyword associations are kept (keywords
+ * are per-galaxy; the node will retain its association with the source-galaxy keyword).
+ * That mirrors the existing per-node bulkMove behavior in the editor.
+ */
+function db_bulk_move_nodes_by_keyword(int $constellationId, int $keywordId, int $targetConstellationId): int {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        UPDATE nodes n
+        INNER JOIN node_keywords nk ON nk.node_id = n.id
+        SET n.constellation_id = :target
+        WHERE n.constellation_id = :cid AND nk.keyword_id = :kid
+    ");
+    $stmt->execute([':target' => $targetConstellationId, ':cid' => $constellationId, ':kid' => $keywordId]);
+    return $stmt->rowCount();
 }
 
 /**

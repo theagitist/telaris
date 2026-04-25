@@ -2507,7 +2507,7 @@ $fieldMeta = [
                         <td class="py-2 px-2 font-mono text-xs text-blue-600 cursor-pointer" onclick="${clickEdit}">${escapeHtmlAdmin(slug)}</td>
                         <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="${clickEdit}" title="${escapeHtmlAdmin(c.tagline)}">${escapeHtmlAdmin(c.tagline)}</td>
                         <td class="py-2 px-2 text-right whitespace-nowrap">
-                            <a href="../edit/?constellation_id=${c.id}" class="text-blue-600 hover:text-blue-800 hover:underline text-sm font-medium">${c.node_count}</a>
+                            <a href="../edit/?${slug ? 'slug=' + encodeURIComponent(slug) : 'constellation_id=' + c.id}" class="text-blue-600 hover:text-blue-800 hover:underline text-sm font-medium">${c.node_count}</a>
                         </td>
                         <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(createdAt)}</td>
                         <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(updatedAt)}</td>

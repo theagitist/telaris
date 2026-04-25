@@ -214,17 +214,30 @@ The search bar queries all nodes in the constellation (not just visible ones) vi
 
 Uploaded files are stored at `UPLOAD_DIR` (defined in `config.php`, external to the app directory). Nginx serves them via an alias at `/uploads/`. Nodes can have an image, video, audio, and/or embed code.
 
-### Auto-tour
+### Discovery features (per-galaxy opt-in)
 
-Optional per-galaxy feature that auto-navigates visitors through nodes, opening each rich-media card and playing video or audio in full before advancing. Disabled by default; turned on per galaxy in the admin "Discovery" section of the galaxy edit form.
+A family of per-galaxy toggles in the admin/editor's "Discovery" section of the galaxy edit modal. Every flag is off by default — existing galaxies look identical until an editor opts in. All settings live on the `constellations` table and are managed by `db_get_constellation_tour_config` / `db_set_constellation_tour_config`. New columns auto-migrate via `db_ensure_constellations_tour_columns()`. The shared form handler is `inc/galaxy-update.php`'s `handle_galaxy_update_post()`, used by both `admin/index.php` and `edit/index.php`.
 
-Settings live on the `constellations` table (`tour_enabled`, `tour_start_mode`, `tour_idle_seconds`, `tour_node_selection`, `tour_random_count`, `tour_default_dwell`, `tour_loop`) plus a `constellation_tour_keywords` junction for `node_selection = tagged`. New columns auto-migrate via `db_ensure_constellations_tour_columns()`.
+**Auto-tour** (`tour_enabled` + `tour_start_mode` / `tour_idle_seconds` / `tour_node_selection` / `tour_random_count` / `tour_default_dwell` / `tour_loop`, plus the `constellation_tour_keywords` junction for `node_selection = tagged`). Auto-navigates visitors through nodes, opening each rich-media card and playing audio/video to its `ended` event (or for the dwell duration, scaled by description reading time at 180 wpm). Bezier camera arc with random perpendicular swing; spotlight halo + floating label that ease in over ~600ms; non-spotlight wormholes dim to 30% opacity/emissive. Three start modes: `manual` (Play button), `idle` (after N seconds inactive), `immediate` (3s grace then start). Four node selections: `all`, `accentuated`, `random_n`, `tagged`. The Discovery section also has a "Preview tour" button that opens `?tour=preview` to audition without saving the start mode. Mobile (viewport < 768px) is excluded.
 
-Three start modes: `manual` (visitor clicks Play), `idle` (after N seconds of inactivity), `immediate` (on page load). Four node selections: `all`, `accentuated` (uses existing `is_accentuated` flag), `random_n`, or `tagged` (OR-matched against the galaxy's keywords). Mobile (viewport < 768px) is excluded for v1.
+**Idle spotlight** (`idle_spotlight_enabled`, `idle_spotlight_selection`, `idle_spotlight_idle_seconds`). When the visitor has been idle for N seconds, fly the camera to a random wormhole (all or accentuated only) and open its info card with the same halo + dim + dwell-bar treatment as the tour. After the card closes the idle watch re-arms. Co-exists with the auto-tour; the second one to fire bails if the card is already open.
 
-Frontend lives in `js/tour.js` (`TourController`), instantiated by `js/main.js` after nodes are loaded. The card itself is the existing `showRichMediaWindow`; tour just drives selection, sequencing, and pause/exit. Config is injected into `window.TELARIS_TOUR_CONFIG` by `inc/bootstrap.php` + `inc/main-view.php`.
+**Keyword chip strip** (`keyword_chips_enabled`). Top-N most-used keywords for the current galaxy as text-only filter chips at the bottom of the visitor view; click to dim non-matching wormholes (OR-match across active chips). Up to 40 chips emitted in random order, CSS-clipped to two lines, so a different sample surfaces each load.
 
-Tour config and keyword selections are included in backup/restore via `inc/backup.php`.
+**Related wormholes** (`related_nodes_enabled`). When an info card opens, dim everything except the current node + nodes sharing keywords; show up to 5 click-to-jump chips at the bottom of the card. Click → tour-style camera fly to the target.
+
+**Per-node use-image-as-icon** (`nodes.use_image_as_node`, default off). Renders the node's `image_url` as the 3D icon instead of the theme icon. The Discovery section has a bulk action that flips it on/off for every wormhole in the galaxy in one POST.
+
+**Visitor permalinks.** `/{galaxy-slug-or-id}/{wormhole-id}` opens that wormhole's card on load (with camera fly). `?node=ID` is a query-string fallback. The card has a "share" icon next to the close button that copies the permalink.
+
+**Frontend modules.** Each lives in its own file: `js/auto-tour.js` (`TourController`), `js/idle-spotlight.js` (`IdleSpotlightController`), `js/keyword-chips.js` (`KeywordChipsController`). Per-card behaviors (related row, dim, halo, label, ease-in) are in `js/telaris-3d.js`. The shared edit modal is the partial at `inc/partials/galaxy-edit-modal.php` plus `js/galaxy-edit-modal.js`. All discovery configs are injected into `window.TELARIS_*` globals by `inc/bootstrap.php` + `inc/main-view.php`. Backup/restore preserves all tour fields + keyword selections via `inc/backup.php`.
+
+### Editor productivity
+
+`/edit/` accepts `?slug=foo` in addition to `?constellation_id=N` (slug takes precedence). The wormhole list has three quick controls next to "New Wormhole":
+- **Touched today** — toggle that filters to nodes whose `updated_at >= today 00:00`. Implemented as a `touched_today=1` query param on `api/nodes.php` paginated mode, threaded into `db_get_nodes_paginated()`.
+- **Bulk by keyword** — modal that lists keywords in the current galaxy with usage counts; pick one + an action (delete or move-to-galaxy). API: `POST /api/nodes.php` with `{action: 'bulk_by_keyword', constellation_id, keyword_id, op: 'delete'|'move'|'count', target_constellation_id?}`. Backed by `db_get_node_ids_with_keyword()` and `db_bulk_move_nodes_by_keyword()`.
+- **Keyboard shortcuts** — `n` (new wormhole), `/` (focus search), `t` (touched-today filter), `g` (galaxy settings), `?` (help modal). Ignored while typing in any input or while a `<dialog>` is open. The `?` button next to the controls opens the help.
 
 ### Localization
 
@@ -236,7 +249,10 @@ Requires Nginx rewrite rule so `/{number}` and `/{slug}` paths are handled by `i
 - `/` — default constellation
 - `/{number}` — constellation by ID
 - `/{slug}` — constellation by slug
+- `/{slug-or-id}/{node-id}` — open that wormhole's info card on load (visitor permalink)
 - `?constellation_id={number}` — constellation by ID (query param fallback)
+- `?node={number}` — open that wormhole's card (query param fallback)
+- `?tour=preview` — force the auto-tour to start regardless of the configured start mode (used by the editor's Preview button)
 
 ### Cache Busting
 

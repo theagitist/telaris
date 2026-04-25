@@ -69,6 +69,15 @@ export class TourController {
 
         this.bindControls();
 
+        // ?tour=preview overrides the configured start mode (used by the
+        // editor's Preview button so admins can audition without flipping
+        // the visitor's start setting).
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('tour') === 'preview') {
+            setTimeout(() => { if (!this.active && !this.cancelled) this.start(); }, 1500);
+            return;
+        }
+
         const mode = this.config.tour_start_mode || 'manual';
         if (mode === 'manual') {
             this.showPlayButton();

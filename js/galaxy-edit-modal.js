@@ -171,6 +171,23 @@
                 applyBulkFlag(btn.dataset.bulkFlag, btn.dataset.bulkValue === '1', btn);
             });
         });
+
+        const previewBtn = document.getElementById('modal-tour-preview');
+        if (previewBtn) {
+            previewBtn.addEventListener('click', () => {
+                const id = parseInt(document.getElementById('modal-constellation-id')?.value, 10);
+                if (!id || isNaN(id)) return;
+                // Look up the slug from the page-level galaxy list if available; else use id.
+                let path = '../index.php?constellation_id=' + id;
+                if (Array.isArray(window.TELARIS_GALAXIES)) {
+                    const g = window.TELARIS_GALAXIES.find(x => x.id === id);
+                    if (g && g.slug) path = '../' + encodeURIComponent(g.slug);
+                }
+                // ?tour=preview tells the visitor to ignore start_mode and start the tour now.
+                const sep = path.includes('?') ? '&' : '?';
+                window.open(path + sep + 'tour=preview', '_blank');
+            });
+        }
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', bind);

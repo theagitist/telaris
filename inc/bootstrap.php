@@ -195,8 +195,37 @@ if ($defaultInfo) {
 }
 
 $path = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
+$initialNodeId = null;
 
-if (preg_match('/^[0-9]+$/', $path)) {
+// /{galaxy-slug-or-id}/{node-id} — open a specific wormhole on load.
+if (preg_match('#^([^/]+)/([0-9]+)$#', $path, $m)) {
+    $first = $m[1];
+    $initialNodeId = (int) $m[2];
+    if (preg_match('/^[0-9]+$/', $first)) {
+        $constellationId = (int) $first;
+        $info = db_get_constellation_by_id($constellationId);
+        if ($info) {
+            $constellationName = $info['name'];
+            $constellationTagline = $info['tagline'];
+            $constellationTheme = $info['theme'] ?? 'cosmic';
+            $constellationSlug = $info['slug'] ?? null;
+        } else {
+            $constellationId = $defaultConstellationId;
+            $initialNodeId = null;
+        }
+    } else {
+        $info = db_get_constellation_by_slug($first);
+        if ($info) {
+            $constellationId = $info['id'];
+            $constellationName = $info['name'];
+            $constellationTagline = $info['tagline'];
+            $constellationTheme = $info['theme'] ?? 'cosmic';
+            $constellationSlug = $first;
+        } else {
+            $initialNodeId = null;
+        }
+    }
+} elseif (preg_match('/^[0-9]+$/', $path)) {
     $constellationId = (int) $path;
     $constellationInfo = db_get_constellation_by_id($constellationId);
     if ($constellationInfo) {
@@ -250,6 +279,11 @@ if ($tourConfig === null) {
 }
 $keywordChipsEnabled = !empty($tourConfig['keyword_chips_enabled']);
 $relatedNodesEnabled = !empty($tourConfig['related_nodes_enabled']);
+
+// ?node=ID query-string fallback for permalinks (when path-based form isn't usable).
+if ($initialNodeId === null && isset($_GET['node']) && ctype_digit((string)$_GET['node'])) {
+    $initialNodeId = (int) $_GET['node'];
+}
 $idleSpotlightConfig = [
     'enabled' => !empty($tourConfig['idle_spotlight_enabled']),
     'selection' => (string)($tourConfig['idle_spotlight_selection'] ?? 'all'),

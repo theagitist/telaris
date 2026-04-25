@@ -107,9 +107,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 onchange="switchConstellation(this.value)"
                                 class="select select-bordered select-sm min-w-[180px] bg-white join-item">
                             <?php
-                            $currentConstellationParam = isset($_GET['constellation_id']) ? trim((string)$_GET['constellation_id']) : 'all';
-                            if (!is_numeric($currentConstellationParam) && $currentConstellationParam !== 'all') {
-                                $currentConstellationParam = 'all';
+                            // Resolve current galaxy from ?constellation_id=N or ?slug=foo (slug takes precedence).
+                            $currentConstellationParam = 'all';
+                            if (isset($_GET['slug']) && is_string($_GET['slug']) && trim((string)$_GET['slug']) !== '') {
+                                $slugLookup = trim((string)$_GET['slug']);
+                                $resolved = db_get_constellation_by_slug($slugLookup);
+                                if ($resolved && isset($resolved['id'])) {
+                                    $currentConstellationParam = (string)(int)$resolved['id'];
+                                }
+                            } elseif (isset($_GET['constellation_id']) && is_numeric($_GET['constellation_id'])) {
+                                $currentConstellationParam = trim((string)$_GET['constellation_id']);
                             }
                             ?>
                             <option value="all"<?php echo $currentConstellationParam === 'all' ? ' selected' : ''; ?>><?php echo $isAdmin ? 'All galaxies' : 'All my galaxies'; ?></option>
@@ -190,6 +197,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <div class="flex items-center gap-3">
                         <h2 class="text-gray-800 text-xl font-semibold">Wormholes (<span id="tab-list-count">0</span>)</h2>
                         <button type="button" onclick="openCreateNodeModal()" class="node-edit-action text-blue-600 hover:text-blue-800 font-medium text-base">New Wormhole</button>
+                        <button type="button" id="filter-touched-today-btn" onclick="toggleTouchedTodayFilter()" class="text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-500 transition" title="Show only wormholes touched today">Touched today</button>
+                        <button type="button" onclick="openBulkByKeywordModal()" id="bulk-by-keyword-btn" class="text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-500 transition" title="Bulk delete or move every wormhole in this galaxy carrying a chosen keyword">Bulk by keyword…</button>
+                        <button type="button" onclick="document.getElementById('shortcuts_modal').showModal()" class="text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-500 transition" title="Keyboard shortcuts (? to open)">?</button>
                     </div>
                     
                     <!-- Top Pagination Container -->
@@ -821,6 +831,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 if (currentFilter) {
                     params.set('filter', currentFilter);
                 }
+                if (touchedTodayFilter) {
+                    params.set('touched_today', '1');
+                }
 
                 const response = await fetch(API_BASE + '?' + params.toString(), {
                     headers: { 'X-API-Key': API_KEY }
@@ -1054,6 +1067,22 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         // Filter state
         let currentFilter = '';
+        let touchedTodayFilter = false;
+        function toggleTouchedTodayFilter() {
+            touchedTodayFilter = !touchedTodayFilter;
+            const btn = document.getElementById('filter-touched-today-btn');
+            if (btn) {
+                if (touchedTodayFilter) {
+                    btn.classList.remove('border-gray-300', 'text-gray-600', 'hover:border-gray-500');
+                    btn.classList.add('bg-neutral', 'text-neutral-content', 'border-neutral');
+                } else {
+                    btn.classList.add('border-gray-300', 'text-gray-600', 'hover:border-gray-500');
+                    btn.classList.remove('bg-neutral', 'text-neutral-content', 'border-neutral');
+                }
+            }
+            currentPage = 1;
+            loadNodes();
+        }
 
         // Debounced search
         const debouncedSearch = (() => {
@@ -2505,6 +2534,237 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
     <?php require __DIR__ . '/../inc/partials/galaxy-edit-modal.php'; ?>
 
+    <!-- Bulk by keyword modal -->
+    <dialog id="bulk_by_keyword_modal" class="modal">
+        <div class="modal-box bg-white !pt-0 max-w-lg">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
+                <h3 class="font-bold text-xl">Bulk action by keyword</h3>
+            </div>
+            <p class="text-sm text-gray-600 mt-4">
+                Pick a keyword in the current galaxy. Then choose to delete every wormhole carrying it, or move them all to another galaxy.
+            </p>
+
+            <div class="mt-4">
+                <label for="bulk-kw-keyword" class="block mb-1.5 text-gray-800 font-medium text-sm">Keyword</label>
+                <select id="bulk-kw-keyword" class="select select-bordered select-sm w-full bg-white">
+                    <option value="">Loading…</option>
+                </select>
+            </div>
+
+            <div class="mt-4">
+                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Action</label>
+                <div class="space-y-1">
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="radio" name="bulk-kw-op" value="delete" class="radio radio-neutral radio-sm" checked>
+                        <span>Delete the matching wormholes</span>
+                    </label>
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="radio" name="bulk-kw-op" value="move" class="radio radio-neutral radio-sm">
+                        <span>Move them to another galaxy</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="bulk-kw-target-row" class="mt-4 hidden">
+                <label for="bulk-kw-target" class="block mb-1.5 text-gray-800 font-medium text-sm">Target galaxy</label>
+                <select id="bulk-kw-target" class="select select-bordered select-sm w-full bg-white"></select>
+            </div>
+
+            <p id="bulk-kw-preview" class="text-xs text-gray-600 mt-4">Pick a keyword to see the count.</p>
+
+            <div class="modal-action">
+                <button type="button" id="bulk-kw-apply" class="btn btn-neutral" disabled>Apply</button>
+                <button type="button" class="btn" onclick="document.getElementById('bulk_by_keyword_modal').close()">Cancel</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script>
+        let bulkKwAvailable = []; // [{id, keyword, usage_count}]
+
+        async function openBulkByKeywordModal() {
+            const sel = document.getElementById('current-constellation');
+            const cid = parseInt(sel?.value, 10);
+            if (!cid || isNaN(cid)) {
+                showMessage('Pick a specific galaxy first (not "All galaxies").', 'error');
+                return;
+            }
+
+            const kwSelect = document.getElementById('bulk-kw-keyword');
+            const targetSelect = document.getElementById('bulk-kw-target');
+            const preview = document.getElementById('bulk-kw-preview');
+            const applyBtn = document.getElementById('bulk-kw-apply');
+            kwSelect.innerHTML = '<option value="">Loading…</option>';
+            targetSelect.innerHTML = '';
+            preview.textContent = 'Pick a keyword to see the count.';
+            preview.style.color = '';
+            applyBtn.disabled = true;
+            document.querySelector('input[name="bulk-kw-op"][value="delete"]').checked = true;
+            document.getElementById('bulk-kw-target-row').classList.add('hidden');
+
+            // Load keyword list for the current galaxy.
+            try {
+                const r = await fetch(`../api/keywords.php?constellation_id=${cid}`, { headers: { 'X-API-Key': API_KEY } });
+                if (!r.ok) throw new Error('Failed to load keywords');
+                bulkKwAvailable = await r.json();
+                if (!Array.isArray(bulkKwAvailable) || bulkKwAvailable.length === 0) {
+                    kwSelect.innerHTML = '<option value="">(no keywords in this galaxy)</option>';
+                } else {
+                    kwSelect.innerHTML = '<option value="">— pick one —</option>' + bulkKwAvailable
+                        .sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0) || String(a.keyword).localeCompare(String(b.keyword)))
+                        .map(k => `<option value="${k.id}">${escapeHtmlEdit(k.keyword)} (${k.usage_count || 0})</option>`)
+                        .join('');
+                }
+            } catch (e) {
+                kwSelect.innerHTML = '<option value="">Error loading keywords</option>';
+            }
+
+            // Target galaxy list (excludes current galaxy itself).
+            if (Array.isArray(window.TELARIS_GALAXIES)) {
+                targetSelect.innerHTML = '<option value="">— pick a galaxy —</option>' + window.TELARIS_GALAXIES
+                    .filter(g => g.id !== cid)
+                    .map(g => `<option value="${g.id}">${escapeHtmlEdit(g.name)}</option>`)
+                    .join('');
+            }
+
+            document.getElementById('bulk_by_keyword_modal').showModal();
+        }
+
+        function escapeHtmlEdit(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const kwSelect = document.getElementById('bulk-kw-keyword');
+            const opRadios = document.querySelectorAll('input[name="bulk-kw-op"]');
+            const targetSelect = document.getElementById('bulk-kw-target');
+            const targetRow = document.getElementById('bulk-kw-target-row');
+            const preview = document.getElementById('bulk-kw-preview');
+            const applyBtn = document.getElementById('bulk-kw-apply');
+
+            const refreshPreview = () => {
+                const kid = parseInt(kwSelect.value, 10);
+                if (!kid || isNaN(kid)) {
+                    preview.textContent = 'Pick a keyword to see the count.';
+                    applyBtn.disabled = true;
+                    return;
+                }
+                const entry = bulkKwAvailable.find(k => k.id === kid);
+                const count = entry ? (entry.usage_count || 0) : 0;
+                const op = (document.querySelector('input[name="bulk-kw-op"]:checked') || {}).value || 'delete';
+                if (op === 'move') {
+                    const tid = parseInt(targetSelect.value, 10);
+                    preview.textContent = tid && !isNaN(tid)
+                        ? `Will move ${count} wormhole${count === 1 ? '' : 's'} to the chosen galaxy.`
+                        : `Will move ${count} wormhole${count === 1 ? '' : 's'} — pick a target galaxy first.`;
+                    applyBtn.disabled = !(tid && !isNaN(tid)) || count === 0;
+                } else {
+                    preview.textContent = `Will permanently delete ${count} wormhole${count === 1 ? '' : 's'}.`;
+                    applyBtn.disabled = count === 0;
+                }
+            };
+
+            kwSelect && kwSelect.addEventListener('change', refreshPreview);
+            opRadios.forEach(r => r.addEventListener('change', () => {
+                targetRow.classList.toggle('hidden', (document.querySelector('input[name="bulk-kw-op"]:checked') || {}).value !== 'move');
+                refreshPreview();
+            }));
+            targetSelect && targetSelect.addEventListener('change', refreshPreview);
+
+            applyBtn && applyBtn.addEventListener('click', async () => {
+                const sel = document.getElementById('current-constellation');
+                const cid = parseInt(sel?.value, 10);
+                const kid = parseInt(kwSelect.value, 10);
+                const op = (document.querySelector('input[name="bulk-kw-op"]:checked') || {}).value;
+                const tid = op === 'move' ? parseInt(targetSelect.value, 10) : null;
+                if (!cid || !kid || !op) return;
+                const entry = bulkKwAvailable.find(k => k.id === kid);
+                const count = entry ? (entry.usage_count || 0) : 0;
+                const msg = op === 'delete'
+                    ? `Permanently delete ${count} wormhole${count === 1 ? '' : 's'} carrying "${entry?.keyword || ''}"? This cannot be undone.`
+                    : `Move ${count} wormhole${count === 1 ? '' : 's'} carrying "${entry?.keyword || ''}" to the selected galaxy?`;
+                if (!window.confirm(msg)) return;
+
+                applyBtn.disabled = true;
+                try {
+                    const body = { action: 'bulk_by_keyword', constellation_id: cid, keyword_id: kid, op };
+                    if (op === 'move') body.target_constellation_id = tid;
+                    const r = await fetch(API_BASE, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+                        body: JSON.stringify(body),
+                    });
+                    const json = await r.json();
+                    if (!r.ok) throw new Error(json?.error || 'Bulk action failed');
+                    showMessage(`${op === 'delete' ? 'Deleted' : 'Moved'} ${json.affected} wormhole${json.affected === 1 ? '' : 's'}.`);
+                    document.getElementById('bulk_by_keyword_modal').close();
+                    loadNodes();
+                } catch (e) {
+                    showMessage('Bulk action failed: ' + e.message, 'error');
+                } finally {
+                    applyBtn.disabled = false;
+                }
+            });
+        });
+    </script>
+
+    <!-- Keyboard shortcuts modal -->
+    <dialog id="shortcuts_modal" class="modal">
+        <div class="modal-box bg-white !pt-0 max-w-md">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
+                <h3 class="font-bold text-xl">Keyboard shortcuts</h3>
+            </div>
+            <table class="w-full mt-4 text-sm">
+                <tbody class="divide-y divide-gray-200">
+                    <tr><td class="py-2"><kbd class="kbd kbd-sm">N</kbd></td><td class="text-gray-700">New wormhole</td></tr>
+                    <tr><td class="py-2"><kbd class="kbd kbd-sm">/</kbd></td><td class="text-gray-700">Focus the search box</td></tr>
+                    <tr><td class="py-2"><kbd class="kbd kbd-sm">T</kbd></td><td class="text-gray-700">Toggle "Touched today" filter</td></tr>
+                    <tr><td class="py-2"><kbd class="kbd kbd-sm">G</kbd></td><td class="text-gray-700">Open galaxy settings (current galaxy)</td></tr>
+                    <tr><td class="py-2"><kbd class="kbd kbd-sm">Esc</kbd></td><td class="text-gray-700">Close any open modal</td></tr>
+                    <tr><td class="py-2"><kbd class="kbd kbd-sm">?</kbd></td><td class="text-gray-700">Open this help</td></tr>
+                </tbody>
+            </table>
+            <p class="text-xs text-gray-500 mt-4">Shortcuts are ignored while typing in a text field.</p>
+            <div class="modal-action">
+                <button type="button" class="btn btn-neutral" onclick="document.getElementById('shortcuts_modal').close()">Close</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script>
+        // Editor keyboard shortcuts. Ignored while typing in any input/textarea/select
+        // and while a modal is open (Esc still closes the topmost modal natively).
+        document.addEventListener('keydown', function (e) {
+            if (e.metaKey || e.ctrlKey || e.altKey) return;
+            const t = e.target;
+            const tag = t && t.tagName ? t.tagName.toUpperCase() : '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+            // Don't fire shortcuts when any modal dialog is open.
+            if (document.querySelector('dialog[open]')) return;
+
+            const key = e.key.toLowerCase();
+            if (key === '?') {
+                e.preventDefault();
+                document.getElementById('shortcuts_modal').showModal();
+            } else if (key === '/') {
+                e.preventDefault();
+                const s = document.getElementById('search-nodes');
+                if (s) s.focus();
+            } else if (key === 'n') {
+                e.preventDefault();
+                if (typeof openCreateNodeModal === 'function') openCreateNodeModal();
+            } else if (key === 't') {
+                e.preventDefault();
+                if (typeof toggleTouchedTodayFilter === 'function') toggleTouchedTodayFilter();
+            } else if (key === 'g') {
+                e.preventDefault();
+                if (typeof openCurrentGalaxySettings === 'function') openCurrentGalaxySettings();
+            }
+        });
+    </script>
+
     <script>
         window.GALAXY_EDIT_API_URL = '../api/constellations.php';
         window.GALAXY_EDIT_API_KEY = <?php echo json_encode($apiKey); ?>;
@@ -2547,13 +2807,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         <?php if ($galaxyEditMessage): ?>
         document.addEventListener('DOMContentLoaded', () => {
-            if (typeof showMessage === 'function') showMessage(<?php echo json_encode($galaxyEditMessage); ?>, 'success');
-            else alert(<?php echo json_encode($galaxyEditMessage); ?>);
+            showMessage(<?php echo json_encode($galaxyEditMessage); ?>, 'success');
         });
         <?php elseif ($galaxyEditError): ?>
         document.addEventListener('DOMContentLoaded', () => {
-            if (typeof showMessage === 'function') showMessage(<?php echo json_encode($galaxyEditError); ?>, 'error');
-            else alert(<?php echo json_encode($galaxyEditError); ?>);
+            showMessage(<?php echo json_encode($galaxyEditError); ?>, 'error');
         });
         <?php endif; ?>
     </script>

@@ -22,7 +22,9 @@ const BACKUP_FORMAT_VERSION = 1;
 /**
  * Resolve the SNAPSHOTS_DIR path. Falls back to <UPLOAD_DIR>/../snapshots
  * when the constant isn't defined (older config.php files).
- * Creates the directory if missing.
+ * Creates the directory if missing. Read-only callers can use this safely
+ * even when the directory doesn't exist; writers should call
+ * backup_snapshots_dir_writable() to get an actionable error up front.
  */
 function backup_snapshots_dir(): string {
     if (defined('SNAPSHOTS_DIR')) {
@@ -39,6 +41,33 @@ function backup_snapshots_dir(): string {
         @mkdir($dir, 02775, true);
     }
     return rtrim($dir, '/');
+}
+
+/**
+ * Same path, but throws a clear actionable RuntimeException if the directory
+ * is missing or not writable by the current process user. Writers should call
+ * this so failures point at the real cause (perms, missing parent, fallback
+ * path on a path the web user can't reach) instead of a generic write error.
+ */
+function backup_snapshots_dir_writable(): string {
+    $dir = backup_snapshots_dir();
+    $configured = defined('SNAPSHOTS_DIR');
+    $hint = $configured
+        ? "Set permissions so the web/cron user can write to {$dir} (e.g. chmod 02775 {$dir} && chgrp www-data {$dir})."
+        : "SNAPSHOTS_DIR is not defined in config.php; the snapshot subsystem is falling back to {$dir}, which the current user can't create or write to. Add `define('SNAPSHOTS_DIR', '/your/path/starmaps-snapshots');` to config.php and ensure the directory exists with mode 02775.";
+
+    if (!is_dir($dir)) {
+        throw new RuntimeException("Snapshots directory does not exist and could not be created: {$dir}. {$hint}");
+    }
+    if (!is_writable($dir)) {
+        $owner = function_exists('posix_getpwuid') ? (posix_getpwuid(fileowner($dir))['name'] ?? '?') : '?';
+        $perms = substr(sprintf('%o', fileperms($dir)), -4);
+        $whoami = function_exists('posix_geteuid') && function_exists('posix_getpwuid')
+            ? (posix_getpwuid(posix_geteuid())['name'] ?? '?')
+            : '?';
+        throw new RuntimeException("Snapshots directory {$dir} is not writable by '{$whoami}' (currently owned by '{$owner}', mode {$perms}). {$hint}");
+    }
+    return $dir;
 }
 
 // ---------------------------------------------------------------------------
@@ -276,9 +305,28 @@ function backup_write_to_file(array $dump, string $outputPath): array {
     if ($gz === false) {
         throw new RuntimeException('Failed to gzip the backup payload.');
     }
+    $dir = dirname($outputPath);
+    // Pre-flight: surface the real cause (missing dir, wrong perms, fallback
+    // path, etc.) instead of a generic file_put_contents=false later on.
+    if (!is_dir($dir)) {
+        $hint = defined('SNAPSHOTS_DIR')
+            ? "Create it: mkdir -p {$dir} && chmod 02775 {$dir} && chgrp www-data {$dir}"
+            : "SNAPSHOTS_DIR is not defined in config.php; falling back to {$dir}. Define SNAPSHOTS_DIR in config.php to point at a directory the web/cron user can write.";
+        throw new RuntimeException("Cannot write snapshot: directory does not exist: {$dir}. {$hint}");
+    }
+    if (!is_writable($dir)) {
+        $owner = function_exists('posix_getpwuid') ? (posix_getpwuid(fileowner($dir))['name'] ?? '?') : '?';
+        $perms = substr(sprintf('%o', fileperms($dir)), -4);
+        $whoami = function_exists('posix_geteuid') && function_exists('posix_getpwuid')
+            ? (posix_getpwuid(posix_geteuid())['name'] ?? '?')
+            : '?';
+        throw new RuntimeException("Cannot write snapshot to {$dir}: not writable by '{$whoami}' (owned by '{$owner}', mode {$perms}). Try: chmod 02775 {$dir} && chgrp www-data {$dir}");
+    }
     $written = @file_put_contents($outputPath, $gz);
     if ($written === false) {
-        throw new RuntimeException('Failed to write backup to ' . $outputPath);
+        $err = error_get_last();
+        $reason = ($err && !empty($err['message'])) ? ' (' . $err['message'] . ')' : '';
+        throw new RuntimeException('Failed to write backup to ' . $outputPath . $reason);
     }
     return ['size_bytes' => $written];
 }

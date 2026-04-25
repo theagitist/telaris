@@ -119,8 +119,9 @@ try {
                 $order = (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') ? 'desc' : 'asc';
                 $filter = isset($_GET['filter']) ? trim((string)$_GET['filter']) : null;
                 if ($filter === '') $filter = null;
+                $touchedToday = !empty($_GET['touched_today']);
 
-                $result = db_get_nodes_paginated($constellationId, $currentUserId, $isAdmin, $page, $perPage, $sort, $order, $filter);
+                $result = db_get_nodes_paginated($constellationId, $currentUserId, $isAdmin, $page, $perPage, $sort, $order, $filter, $touchedToday);
                 $result['nodes'] = db_format_nodes_bulk($result['nodes']);
                 echo json_encode($result, JSON_THROW_ON_ERROR);
                 return;
@@ -223,6 +224,57 @@ try {
                     }
                 }
             }
+            // Bulk delete or bulk move nodes in a galaxy that carry a given keyword.
+            if (($data['action'] ?? '') === 'bulk_by_keyword') {
+                $constellationId = (int)($data['constellation_id'] ?? 0);
+                $keywordId = (int)($data['keyword_id'] ?? 0);
+                $op = (string)($data['op'] ?? '');
+                if ($constellationId <= 0 || $keywordId <= 0 || !in_array($op, ['delete', 'move', 'count'], true)) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'constellation_id, keyword_id, and op (delete|move|count) are required'], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                $userId = $_SESSION['admin_user_id'] ?? null;
+                if (!isAdminLoggedIn()) {
+                    $allowed = $userId ? db_get_user_constellation_ids($userId) : [];
+                    if (!in_array($constellationId, $allowed, true)) {
+                        http_response_code(403);
+                        echo json_encode(['error' => 'No access to this galaxy'], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                }
+                $ids = db_get_node_ids_with_keyword($constellationId, $keywordId);
+                if ($op === 'count') {
+                    echo json_encode(['count' => count($ids)], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                if ($op === 'delete') {
+                    foreach ($ids as $nid) {
+                        try { db_delete_node($nid); } catch (Throwable $e) { /* keep going */ }
+                    }
+                    echo json_encode(['success' => true, 'op' => 'delete', 'affected' => count($ids)], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                // op === 'move'
+                $target = (int)($data['target_constellation_id'] ?? 0);
+                if ($target <= 0) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'target_constellation_id is required for move'], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                if (!isAdminLoggedIn()) {
+                    $allowed = $userId ? db_get_user_constellation_ids($userId) : [];
+                    if (!in_array($target, $allowed, true)) {
+                        http_response_code(403);
+                        echo json_encode(['error' => 'No access to the target galaxy'], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                }
+                $moved = db_bulk_move_nodes_by_keyword($constellationId, $keywordId, $target);
+                echo json_encode(['success' => true, 'op' => 'move', 'affected' => $moved], JSON_THROW_ON_ERROR);
+                return;
+            }
+
             // Bulk-set use_image_as_node for every node in a galaxy.
             if (($data['action'] ?? '') === 'bulk_use_image_as_node') {
                 $constellationId = (int)($data['constellation_id'] ?? 0);

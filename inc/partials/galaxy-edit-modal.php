@@ -114,10 +114,13 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
             </div>
 
             <div class="mb-4 border-t border-gray-200 pt-4">
-                <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" id="modal-tour-enabled" name="tour_enabled" value="1" class="toggle toggle-neutral toggle-sm">
-                    <span class="text-gray-800 font-medium">Auto-tour</span>
-                </label>
+                <div class="flex items-center justify-between gap-2">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="modal-tour-enabled" name="tour_enabled" value="1" class="toggle toggle-neutral toggle-sm">
+                        <span class="text-gray-800 font-medium">Auto-tour</span>
+                    </label>
+                    <button type="button" id="modal-tour-preview" class="btn btn-xs btn-outline" title="Save first, then preview the tour in a new tab">Preview tour</button>
+                </div>
                 <p class="text-xs text-gray-500 mt-1">Automatically navigate visitors through nodes, opening each card and playing media. Desktop and iPad only.</p>
 
                 <div id="modal-tour-section" class="mt-4 pl-6 border-l-2 border-gray-200 space-y-4 hidden">

@@ -59,7 +59,7 @@ The setup script follows this 4-step process:
 
 After setup, you can access:
 
-- **Main Visualization**: `https://your-domain.com/` or `https://your-domain.com/index.php` — shows the default constellation (id 0). To open a specific constellation by id, use `https://your-domain.com/{id}` (e.g. `/5`) or `?constellation_id={id}`; the path form may require a rewrite rule so `/{number}` is handled by `index.php`.
+- **Main Visualization**: `https://your-domain.com/` or `https://your-domain.com/index.php` — shows the default constellation (id 0). To open a specific constellation by id, use `https://your-domain.com/{id}` (e.g. `/5`) or `?constellation_id={id}`; the path form may require a rewrite rule so `/{number}` is handled by `index.php`. To deep-link a specific wormhole, use `https://your-domain.com/{slug-or-id}/{wormhole-id}` (or `?node={wormhole-id}` as a fallback) — the wormhole's info card opens automatically with a camera fly. The card's share icon copies that permalink.
 - **Login Page**: `https://your-domain.com/utils/login.php`
 - **Admin Console**: `https://your-domain.com/admin/` (requires admin login)
 - **Node Editor**: `https://your-domain.com/edit/` (requires editor or admin login)
@@ -302,6 +302,31 @@ tests/
 - API key authentication for API endpoints.
 
 ## Version History
+
+### Version 6.7.x — Discovery & editor productivity
+
+Per-galaxy "Discovery" features that turn the same scene into a more inviting experience without changing the underlying data. Every flag is off by default. All settings sit on the `constellations` table and are managed through the Discovery section of the galaxy edit modal in admin and the editor (the modal is shared via `inc/partials/galaxy-edit-modal.php` + `inc/galaxy-update.php`).
+
+- **Auto-tour**: bezier camera arc through the chosen wormhole set (all / accentuated / random N / tagged), with halo + floating label spotlight (eased in/out), dim of non-spotlight nodes, dwell bar whose duration scales by description reading time at 180 wpm. Three start modes (manual Play button / idle / immediate with 3-second grace period). Autoplay-blocked failsafe so the tour never gets stuck. Close-X advances to the next stop. The Discovery section has a "Preview tour" button that opens `?tour=preview` in a new tab to audition without changing the start mode.
+- **Idle spotlight**: when the visitor is idle for N seconds, fly the camera to a random wormhole (all or accentuated only) and open its card with the same halo / dim / dwell-bar treatment as the tour. Re-arms after the card closes.
+- **Keyword chip strip**: text-only top-N keywords at the bottom of the visitor view; click to dim non-matching wormholes. Up to 40 emitted in random order, CSS-clipped to two lines so a different sample surfaces each load.
+- **Related wormholes**: when an info card opens, dim everything except the current node + nodes sharing keywords; show up to 5 click-to-jump chips at the bottom of the card. Click → tour-style camera fly to the target.
+- **Per-node "use image as wormhole icon"** (`nodes.use_image_as_node`): renders the node's image as the 3D icon. Bulk action in the modal flips it on/off for the whole galaxy at once.
+- **Visitor permalinks**: `/{galaxy-slug-or-id}/{wormhole-id}` opens that wormhole's card on load (with camera fly). `?node=ID` is a fallback. The card has a small share-icon next to the close button that copies the permalink.
+
+**Editor productivity** improvements that don't depend on the discovery features:
+
+- **Editors can edit galaxy settings**: the same modal admins use is now in `/edit/`, gated by the editor's per-galaxy access. Slug stays admin-only.
+- **`/edit/?slug=foo`** routing alongside `?constellation_id=N`. Admin's wormhole-count link uses the slug.
+- **Touched-today filter** in the wormhole list (`touched_today=1` query param on the paginated nodes API).
+- **Bulk by keyword** modal: pick a keyword in the current galaxy, choose delete or move-to-galaxy, see the affected count, confirm. New API action: `POST /api/nodes.php` with `{action: 'bulk_by_keyword', constellation_id, keyword_id, op, target_constellation_id?}`.
+- **Keyboard shortcuts**: `n` (new wormhole), `/` (focus search), `t` (touched-today), `g` (galaxy settings), `?` (help). Ignored while typing or while a `<dialog>` is open.
+
+**Infra**:
+
+- **Path-based JS asset versioning** (`/js/vX.Y.Z/foo.js`) since Safari ignores `?v=` query strings for ES module dedup. Requires an nginx `alias` rule. `inc/bootstrap.php` self-probes the rule once per version and renders a fixed-position warning banner if it isn't installed (with the snippet inlined). Sample at `docs/nginx-versioned-assets.conf`.
+- **Snapshot error hardening**: the snapshot writer now surfaces the real cause (missing dir, wrong ownership/perms, fallback path the web user can't reach) instead of a generic "Failed to write" message. `backup_snapshots_dir_writable()` throws an actionable `RuntimeException` with the fix command.
+- **Schema additions**: many new `constellations.*` columns (`tour_*`, `keyword_chips_enabled`, `idle_spotlight_*`, `related_nodes_enabled`) plus `nodes.use_image_as_node` and the `constellation_tour_keywords` junction. All auto-migrate via `db_ensure_constellations_tour_columns()` and `db_ensure_nodes_use_image_as_node_column()`.
 
 ### Version 6.5.0
 - **Backup & Restore**: Portable `.telaris-backup` file format (gzipped JSON, format version 1) for exporting and importing galaxies and/or users across instances. Two-phase web upload wizard inspects the file before any changes are written. Per-galaxy overwrite-or-rename conflict modes, bracket-prefix bulk selection (`[TE]`, `[FT]`, etc.), and live upload/server-parse progress. CLI entry points: `admin/cli/backup_export.php` and `admin/cli/backup_import.php`.
