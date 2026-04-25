@@ -19,7 +19,7 @@ header("X-Content-Type-Options: nosniff");
     <meta property="og:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <meta name="twitter:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
     <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
-    <script src="js/tailwind.min.js?v=<?php echo $appVersion; ?>"></script>
+    <script src="<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'tailwind.min.js')); ?>"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
     <style>
         :root {
@@ -147,6 +147,24 @@ header("X-Content-Type-Options: nosniff");
     </style>
 </head>
 <body class="overflow-hidden bg-black">
+<?php if (empty($nginxVersionedPathsOk)): ?>
+    <!-- Visible to everyone because the app's JS will not load until the admin installs the rule. -->
+    <div id="nginx-config-warning" style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#7f1d1d;color:#fff;padding:14px 20px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;border-bottom:2px solid #fca5a5;box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+        <div style="max-width:900px;margin:0 auto;">
+            <strong style="font-size:14px;display:block;margin-bottom:6px;">Telaris configuration: nginx versioned-asset rule not installed</strong>
+            JavaScript modules will not be served. Add this block to the server's nginx vhost (replacing the docroot if different), then run <code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>.
+            <pre style="background:rgba(0,0,0,0.45);padding:10px 12px;margin:10px 0 4px;border-radius:4px;overflow:auto;font-size:12px;color:#fecaca;">location ~ ^/js/v[0-9]+\.[0-9]+\.[0-9]+/(.+\.js)$ {
+    alias <?php echo htmlspecialchars($root); ?>/js/$1;
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+    # Repeat the security headers since add_header inheritance breaks here:
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+}</pre>
+            <span style="opacity:0.85;font-size:12px;">This banner disappears automatically once the rule serves <code>/js/v<?php echo htmlspecialchars($appVersion); ?>/main.js</code> with HTTP 200.</span>
+        </div>
+    </div>
+<?php endif; ?>
     <div id="loading-overlay" aria-live="polite" aria-busy="true">
         <canvas id="loading-torus-canvas" aria-hidden="true"></canvas>
         <p class="loading-text"><?php echo htmlspecialchars($projectLoadingText ?? 'Loading'); ?></p>
@@ -439,14 +457,14 @@ header("X-Content-Type-Options: nosniff");
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "./telaris-3d.js": "./js/telaris-3d.js?v=<?php echo $appVersion; ?>",
-                "./network-manager.js": "./js/network-manager.js?v=<?php echo $appVersion; ?>",
-                "./geometry-manager.js": "./js/geometry-manager.js?v=<?php echo $appVersion; ?>",
-                "./api.js": "./js/api.js?v=<?php echo $appVersion; ?>",
-                "./telaris-node-icons.js": "./js/telaris-node-icons.js?v=<?php echo $appVersion; ?>",
-                "./themes.js": "./js/themes.js?v=<?php echo $appVersion; ?>",
-                "./telaris-soundscape.js": "./js/telaris-soundscape.js?v=<?php echo $appVersion; ?>",
-                "./auto-tour.js": "./js/auto-tour.js?v=<?php echo $appVersion; ?>"
+                "./telaris-3d.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-3d.js')); ?>",
+                "./network-manager.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'network-manager.js')); ?>",
+                "./geometry-manager.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'geometry-manager.js')); ?>",
+                "./api.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'api.js')); ?>",
+                "./telaris-node-icons.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-node-icons.js')); ?>",
+                "./themes.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'themes.js')); ?>",
+                "./telaris-soundscape.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-soundscape.js')); ?>",
+                "./auto-tour.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'auto-tour.js')); ?>"
             }
         }
     </script>
@@ -542,7 +560,7 @@ header("X-Content-Type-Options: nosniff");
             };
         }
     </script>
-    <script src="js/telaris-soundscape.js?v=<?php echo $appVersion; ?>"></script>
-    <script type="module" src="js/main.js?v=<?php echo $appVersion; ?>"></script>
+    <script src="<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-soundscape.js')); ?>"></script>
+    <script type="module" src="<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'main.js')); ?>"></script>
 </body>
 </html>

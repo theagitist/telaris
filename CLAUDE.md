@@ -240,4 +240,6 @@ Requires Nginx rewrite rule so `/{number}` and `/{slug}` paths are handled by `i
 
 ### Cache Busting
 
-JavaScript modules and assets use `?v=VERSION` query strings. The version is read from the `VERSION` file at runtime by `inc/bootstrap.php` (into `$appVersion`) and injected into all `<script>` and import map entries automatically. When bumping the version, only the `VERSION` file needs updating.
+JavaScript assets are served from versioned **paths**, not query strings: `/js/v6.6.9/main.js`. The path-based scheme is the only reliable way to bust Safari's ES module cache, which ignores query strings for module dedup. The version is read from the `VERSION` file at runtime by `inc/bootstrap.php` (into `$appVersion`) and emitted by `asset_versioned_js_url()`; `<script>` tags and import map entries use this helper.
+
+The nginx vhost must include an alias rule that maps `/js/vX.Y.Z/foo.js` to `/js/foo.js` and sets `Cache-Control: immutable`. `inc/bootstrap.php` probes the rule once per version (`asset_versioned_paths_ok`) and caches the result at `var/nginx-paths-VERSION.ok`. If the probe fails, `inc/main-view.php` renders a fixed-position red banner at the top of every page that shows the exact nginx snippet to install. The banner disappears once the rule serves `200 OK` for the current version's `main.js`.

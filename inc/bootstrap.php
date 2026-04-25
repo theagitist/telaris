@@ -12,6 +12,70 @@ $root = dirname(__DIR__);
 // Read version from VERSION file (single source of truth)
 $appVersion = trim(@file_get_contents($root . '/VERSION') ?: '0.0.0');
 
+/**
+ * Path-based versioned URL for a static JS module.
+ * Requires the nginx alias rule: /js/vX.Y.Z/foo.js → /js/foo.js with Cache-Control: immutable.
+ * Path-based versioning is what makes Safari reliably refetch ES modules between releases;
+ * Safari ignores ?v= query strings for module dedup.
+ */
+function asset_versioned_js_url(string $appVersion, string $relativePath): string {
+    $rel = ltrim($relativePath, '/');
+    if (str_starts_with($rel, 'js/')) {
+        $rel = substr($rel, 3);
+    }
+    return 'js/v' . $appVersion . '/' . $rel;
+}
+
+/**
+ * Probe the nginx versioned-asset rule once per app version.
+ * Caches success forever (per-version file marker); caches failure for 60s in /tmp
+ * so we don't hammer ourselves with self-probes when an admin hasn't installed the rule.
+ */
+function asset_versioned_paths_ok(string $appVersion, string $root): bool {
+    static $cached = null;
+    if ($cached !== null) return $cached;
+
+    $cacheDir = $root . '/var';
+    $safeVer = preg_replace('/[^0-9a-z.-]/', '', strtolower($appVersion));
+    $okFile = $cacheDir . '/nginx-paths-' . $safeVer . '.ok';
+    $failFile = '/tmp/telaris-nginx-paths-fail-' . md5($root . '|' . $safeVer);
+
+    if (is_file($okFile)) {
+        $cached = true;
+        return true;
+    }
+    if (is_file($failFile) && (time() - filemtime($failFile)) < 60) {
+        $cached = false;
+        return false;
+    }
+
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $probeUrl = 'https://127.0.0.1/js/v' . rawurlencode($appVersion) . '/main.js';
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'HEAD',
+            'timeout' => 2,
+            'ignore_errors' => true,
+            'header' => 'Host: ' . $host,
+        ],
+        'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
+    ]);
+    $headers = @get_headers($probeUrl, false, $ctx);
+    $ok = is_array($headers) && !empty($headers[0]) && (bool)preg_match('/\b200\b/', $headers[0]);
+
+    if ($ok) {
+        if (!is_dir($cacheDir)) @mkdir($cacheDir, 0775, true);
+        @file_put_contents($okFile, '1');
+        $cached = true;
+    } else {
+        @file_put_contents($failFile, '0');
+        $cached = false;
+    }
+    return $cached;
+}
+
+$nginxVersionedPathsOk = asset_versioned_paths_ok($appVersion, $root);
+
 if (!file_exists($root . '/config.php')) {
     header('Location: admin/setup.php');
     exit();

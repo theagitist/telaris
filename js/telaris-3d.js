@@ -3127,7 +3127,7 @@ class TelarisNetwork {
                             }
                             // Accentuated nodes get a smaller emissive boost now
                             const accentBoost = d.is_accentuated ? 1.4 : 1.0;
-                            const tourBoost = isTourSpotlight ? (3.0 + Math.sin(time * 5.0) * 1.5) : 1.0;
+                            const tourBoost = isTourSpotlight ? (6.0 + Math.sin(time * 3.5) * 3.5) : 1.0;
                             m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost * tourBoost;
                         }
                     }
@@ -3159,9 +3159,9 @@ class TelarisNetwork {
             const pulseAmp = d.is_accentuated ? 0.15 : 0.08;
             const baseS = d.is_accentuated ? 2.8 : 1.8;
             const scaleMult = isTransitioning ? 1.0 : glitchScaleMult;
-            // Tour spotlight: faster, larger pulse on top of the normal one.
+            // Tour spotlight: large, slow pulse so the eye catches it during the camera pan.
             const tourSpotlightMult = (this._tourSpotlightNode === n)
-                ? (1.45 + Math.sin(time * 4.0) * 0.18)
+                ? (1.9 + Math.sin(time * 2.5) * 0.35)
                 : 1.0;
             const s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * scaleMult * tourSpotlightMult;
             n.scale.set(s, s, s);
