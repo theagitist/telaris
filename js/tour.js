@@ -8,6 +8,10 @@
 
 const MOBILE_MIN_WIDTH = 768;
 
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function shuffle(arr) {
     const out = arr.slice();
     for (let i = out.length - 1; i > 0; i--) {
@@ -236,7 +240,7 @@ export class TourController {
         this.playCurrent();
     }
 
-    playCurrent() {
+    async playCurrent() {
         if (this.cancelled) return;
         const node = this.queue[this.position];
         if (!node) return;
@@ -246,6 +250,21 @@ export class TourController {
         if (this.app?.networkManager?.setFocusedNode) {
             this.app.networkManager.setFocusedNode(node);
         }
+
+        // Close the previous card so the camera animation is visible.
+        const overlay = document.getElementById('rich-media-overlay');
+        const cardOpen = overlay && !overlay.classList.contains('hidden');
+        if (cardOpen && this.app?.closeRichMediaWindow) {
+            this.app.closeRichMediaWindow();
+            await delay(500);
+            if (this.cancelled || !this.active) return;
+        }
+
+        if (this.app?.tourFocusOnNode) {
+            await this.app.tourFocusOnNode(node, 900);
+            if (this.cancelled || !this.active) return;
+        }
+
         if (this.app?.showRichMediaWindow) {
             this.app.showRichMediaWindow(node);
         }

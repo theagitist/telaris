@@ -3849,6 +3849,43 @@ class TelarisNetwork {
             mat.resolution.set(window.innerWidth, window.innerHeight);
         }
     }
+
+    /**
+     * Smoothly slide the camera + orbit target so a tour node sits centered.
+     * Preserves the current orbit offset so the framing feels continuous.
+     * Returns a Promise that resolves when the animation finishes.
+     */
+    tourFocusOnNode(node, durationMs = 900) {
+        return new Promise((resolve) => {
+            if (!node || !this.camera || !this.controls) {
+                resolve();
+                return;
+            }
+            const targetWorld = new THREE.Vector3();
+            node.getWorldPosition(targetWorld);
+
+            const camStart = this.camera.position.clone();
+            const tgtStart = this.controls.target.clone();
+            const offset = camStart.clone().sub(tgtStart);
+            const camEnd = targetWorld.clone().add(offset);
+            const tgtEnd = targetWorld.clone();
+
+            const startTime = performance.now();
+            const tick = () => {
+                const raw = Math.min(1, (performance.now() - startTime) / durationMs);
+                const eased = raw < 0.5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
+                this.camera.position.lerpVectors(camStart, camEnd, eased);
+                this.controls.target.lerpVectors(tgtStart, tgtEnd, eased);
+                this.camera.lookAt(this.controls.target);
+                if (raw < 1) {
+                    requestAnimationFrame(tick);
+                } else {
+                    resolve();
+                }
+            };
+            requestAnimationFrame(tick);
+        });
+    }
 }
 
 export { TelarisNetwork };
