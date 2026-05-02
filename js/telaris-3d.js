@@ -59,6 +59,8 @@ class TelarisNetwork {
         this._anchorCache = new Map();
 
         this.searchQuery = '';
+        this.searchFilterIds = null; // when set (Set<number>), only nodes with these ids are visible
+        this._searchFlatViewActive = false; // true while a search committed us to a no_cluster flat view
         this.soundEnabled = true;
         window.telarisNetwork = this;
         this.clearAll();
@@ -3119,11 +3121,24 @@ class TelarisNetwork {
         this.nodes.forEach((n, i) => {
             const d = n.userData;
             
-            // Search Filtering: hard visibility toggle
-            const matchesSearch = !this.searchQuery || 
-                (d.name && d.name.toLowerCase().includes(this.searchQuery)) || 
-                (d.keywords && d.keywords.some(k => k.toLowerCase().includes(this.searchQuery)));
-            
+            // Search Filtering: hard visibility toggle. When searchFilterIds is set
+            // (committed search via Enter or single-result click), it takes precedence
+            // over text matching so we can show exactly the chosen nodes.
+            let matchesSearch;
+            if (this.searchFilterIds) {
+                const rawId = d.id;
+                const numId = typeof rawId === 'string' ? parseInt(rawId, 10) : rawId;
+                matchesSearch = this.searchFilterIds.has(numId);
+            } else if (this.searchQuery) {
+                const q = this.searchQuery;
+                matchesSearch =
+                    (d.name && d.name.toLowerCase().includes(q)) ||
+                    (d.description && d.description.toLowerCase().includes(q)) ||
+                    (d.keywords && d.keywords.some(k => k.toLowerCase().includes(q)));
+            } else {
+                matchesSearch = true;
+            }
+
             n.visible = !!matchesSearch;
 
             if (!n.visible) {
@@ -3779,12 +3794,74 @@ class TelarisNetwork {
 
     clearSearch() {
         this.searchQuery = '';
+        this.searchFilterIds = null;
         const searchInput = document.getElementById('hud-search');
         const clearBtn = document.getElementById('hud-search-clear');
         const resultsDropdown = document.getElementById('hud-search-results');
         if (searchInput) searchInput.value = '';
         if (clearBtn) clearBtn.style.display = 'none';
         if (resultsDropdown) resultsDropdown.style.display = 'none';
+        this._hideSearchLegend();
+
+        // If we navigated into a flat (no_cluster) view to display search hits,
+        // restore the constellation's default (auto-clustered) root view.
+        if (this._searchFlatViewActive) {
+            this._searchFlatViewActive = false;
+            const cid = window.TELARIS_CONSTELLATION_ID;
+            this.navigationStack = [{ constellationId: cid, clusterKey: null }];
+            this.transitionToCluster(cid, null, true);
+        }
+    }
+
+    /**
+     * Floating pill at the top of the canvas that announces "Search results"
+     * while a flat-search view is active. Click the × to clear and restore.
+     */
+    _renderSearchLegend(text) {
+        let el = document.getElementById('search-legend');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'search-legend';
+            Object.assign(el.style, {
+                position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)',
+                zIndex: '90', fontFamily: 'var(--font-mono)', fontSize: '0.65rem',
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                color: 'rgba(0, 255, 204, 0.85)', background: 'rgba(0, 0, 0, 0.55)',
+                padding: '0.3rem 0.7rem', borderRadius: '2px',
+                backdropFilter: 'blur(4px)', border: '1px solid rgba(0, 255, 204, 0.35)',
+                cursor: 'default', pointerEvents: 'auto',
+                gap: '0.5rem', alignItems: 'center', maxWidth: '60vw'
+            });
+            const container = document.getElementById('canvas-container');
+            if (container) container.appendChild(el);
+        }
+        el.innerHTML = '';
+
+        const label = document.createElement('span');
+        label.textContent = text;
+        label.style.overflow = 'hidden';
+        label.style.textOverflow = 'ellipsis';
+        label.style.whiteSpace = 'nowrap';
+        el.appendChild(label);
+
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.textContent = '×';
+        close.title = (window.TELARIS_CLEAR_SCAN_TEXT || 'Clear search');
+        Object.assign(close.style, {
+            background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)',
+            cursor: 'pointer', fontSize: '1rem', lineHeight: '1',
+            padding: '0 0 0 0.25rem', marginLeft: 'auto'
+        });
+        close.addEventListener('click', () => this.clearSearch());
+        el.appendChild(close);
+
+        el.style.display = 'flex';
+    }
+
+    _hideSearchLegend() {
+        const el = document.getElementById('search-legend');
+        if (el) el.style.display = 'none';
     }
 
     setupSearch() {
@@ -3796,6 +3873,11 @@ class TelarisNetwork {
         let searchTimer = null;
         let abortController = null;
         let selectedIndex = -1;
+        // Cache the last successful query+results so focusing the input again
+        // (after Enter/click closed the dropdown) can re-show the same list
+        // without waiting for a refetch.
+        let lastResults = null;
+        let lastQuery = '';
 
         const hideResults = () => {
             if (resultsDropdown) resultsDropdown.style.display = 'none';
@@ -3842,7 +3924,8 @@ class TelarisNetwork {
 
                 item.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    this.clearSearch();
+                    hideResults();
+                    searchInput.blur();
                     this.navigateToSearchResult(r);
                 });
 
@@ -3884,6 +3967,8 @@ class TelarisNetwork {
                 if (!resp.ok) return;
                 const data = await resp.json();
                 if (data.search && Array.isArray(data.results)) {
+                    lastResults = data.results;
+                    lastQuery = query;
                     showResults(data.results, query);
                 }
             } catch (e) {
@@ -3894,6 +3979,9 @@ class TelarisNetwork {
         const updateSearch = (val) => {
             const query = val.trim();
             this.searchQuery = query.toLowerCase();
+            // User is editing — drop any committed-id filter so text matching takes over.
+            // The flat dataset (if previously loaded by Enter/click) stays loaded for refinement.
+            this.searchFilterIds = null;
             if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
 
             // Local filtering for currently visible nodes
@@ -3912,6 +4000,22 @@ class TelarisNetwork {
 
         searchInput.addEventListener('input', (e) => updateSearch(e.target.value));
 
+        // Re-show the dropdown when the user comes back to the field — focus
+        // covers Tab/programmatic; click covers re-clicking an already-focused
+        // input. If the input still holds the same query we showed before,
+        // serve the cached results instantly; otherwise refetch.
+        const rehydrateDropdown = () => {
+            const cur = searchInput.value.trim();
+            if (cur.length < 2) return;
+            if (cur === lastQuery && Array.isArray(lastResults)) {
+                showResults(lastResults, lastQuery);
+            } else {
+                doSearch(cur);
+            }
+        };
+        searchInput.addEventListener('focus', rehydrateDropdown);
+        searchInput.addEventListener('click', rehydrateDropdown);
+
         searchInput.addEventListener('keydown', (e) => {
             e.stopPropagation();
             if (!resultsDropdown || resultsDropdown.style.display === 'none') return;
@@ -3928,9 +4032,17 @@ class TelarisNetwork {
                 selectedIndex = Math.max(selectedIndex - 1, 0);
                 updateHighlight();
                 items[selectedIndex]?.scrollIntoView({ block: 'nearest' });
-            } else if (e.key === 'Enter' && selectedIndex >= 0) {
+            } else if (e.key === 'Enter') {
                 e.preventDefault();
-                items[selectedIndex]?.click();
+                if (selectedIndex >= 0) {
+                    items[selectedIndex]?.click();
+                } else {
+                    // Commit search: pull all matching nodes into a flat view.
+                    const q = searchInput.value.trim();
+                    hideResults();
+                    searchInput.blur();
+                    if (q.length >= 2) this.commitSearchFromQuery(q);
+                }
             } else if (e.key === 'Escape') {
                 hideResults();
                 searchInput.blur();
@@ -3939,9 +4051,7 @@ class TelarisNetwork {
 
         if (clearBtn) {
             clearBtn.addEventListener('click', () => {
-                searchInput.value = '';
-                updateSearch('');
-                hideResults();
+                this.clearSearch();
                 searchInput.focus();
             });
         }
@@ -3955,33 +4065,81 @@ class TelarisNetwork {
     }
 
     /**
-     * Navigate to a search result: drill into the correct cluster and highlight the node.
+     * Navigate to a single search result: render only that node (flat, no cluster),
+     * fly the camera to it, and open its rich-media card. Mirrors the visitor-
+     * permalink path used for ?node=ID.
      */
     async navigateToSearchResult(result) {
         const cid = window.TELARIS_CONSTELLATION_ID;
-        const clusterPath = result.cluster_path;
-        const nodeId = result.id;
+        const nodeId = typeof result.id === 'string' ? parseInt(result.id, 10) : result.id;
+        if (!Number.isFinite(nodeId)) return;
 
-        if ((clusterPath && clusterPath !== (this.currentClusterKey || '')) || (!clusterPath && this.currentClusterKey)) {
-            // Navigate to a different level, then focus the node
-            let fetchUrl = `api/nodes.php?constellation_id=${cid}`;
-            if (clusterPath) fetchUrl += `&cluster=${encodeURIComponent(clusterPath)}`;
-            const dataPromise = apiFetch(fetchUrl)
-                .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to fetch')))
-                .then(json => Array.isArray(json) ? json : []);
+        await this._loadFlatWithFilter(cid, new Set([nodeId]));
 
-            if (clusterPath) {
-                this.navigationStack.push({ constellationId: cid, clusterKey: clusterPath });
-            } else {
-                this.navigationStack = [{ constellationId: cid, clusterKey: null }];
-            }
-            this.updateBackButtonVisibility();
+        const labelBase = window.TELARIS_SEARCH_RESULT_TEXT || 'Search result';
+        const name = (result.name || '').trim();
+        this._renderSearchLegend(name ? `${labelBase}: ${name}` : labelBase);
 
-            await this._clusterLoading(cid, clusterPath || null, dataPromise);
-            setTimeout(() => this._focusNodeById(nodeId), 500);
-        } else {
-            this._focusNodeById(nodeId);
+        const target = this.nodes.find(n =>
+            n && n.userData && (n.userData.id === nodeId || parseInt(n.userData.id, 10) === nodeId)
+        );
+        if (!target) return;
+
+        if (this.networkManager?.setFocusedNode) this.networkManager.setFocusedNode(target);
+        this.playGlitch();
+        if (this.tourFocusOnNode) {
+            try { await this.tourFocusOnNode(target, 1200); } catch (e) { /* non-fatal */ }
         }
+        if (this.showRichMediaWindow) this.showRichMediaWindow(target);
+    }
+
+    /**
+     * Pressing Enter in the search box: ask the server for every node whose
+     * name/description/keywords match the query, then load the constellation
+     * flat (no clustering) and let the visibility filter show only those ids.
+     */
+    async commitSearchFromQuery(query) {
+        const q = (query || '').trim();
+        if (q.length < 2) return;
+        const cid = window.TELARIS_CONSTELLATION_ID;
+        try {
+            const resp = await apiFetch(
+                `api/nodes.php?constellation_id=${cid}&search=${encodeURIComponent(q)}&search_limit=1000`
+            );
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (!data || !data.search || !Array.isArray(data.results)) return;
+            if (data.results.length === 0) return;
+            const ids = new Set(
+                data.results
+                    .map(r => (typeof r.id === 'string' ? parseInt(r.id, 10) : r.id))
+                    .filter(Number.isFinite)
+            );
+            if (ids.size === 0) return;
+            await this._loadFlatWithFilter(cid, ids);
+            const labelBase = window.TELARIS_SEARCH_RESULTS_TEXT || 'Search results';
+            this._renderSearchLegend(`${labelBase}: "${q}" (${ids.size})`);
+        } catch (e) {
+            console.error('Search commit failed:', e);
+        }
+    }
+
+    /**
+     * Fetch the constellation flat (no_cluster=1) and render only the nodes
+     * whose ids are in `filterIds`. Used by Enter-commit and single-result click.
+     */
+    async _loadFlatWithFilter(cid, filterIds) {
+        const fetchUrl = `api/nodes.php?constellation_id=${cid}&no_cluster=1`;
+        const dataPromise = apiFetch(fetchUrl)
+            .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to fetch')))
+            .then(json => Array.isArray(json) ? json : []);
+
+        // Apply filter BEFORE loading so the very first frame renders correctly.
+        this.searchFilterIds = filterIds;
+        this._searchFlatViewActive = true;
+        this.navigationStack = [{ constellationId: cid, clusterKey: null }];
+        // skipPushState: this is a transient UI mode, not a navigable URL state.
+        await this._clusterLoading(cid, null, dataPromise, true);
     }
 
     /**
