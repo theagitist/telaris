@@ -1189,26 +1189,25 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             };
         }
 
-        function switchAVTab(tab, context) {
-            const audioTab = document.getElementById(`${context}-audio-tab`);
-            const videoTab = document.getElementById(`${context}-video-tab`);
-            const audioContent = document.getElementById(`${context}-audio-content`);
-            const videoContent = document.getElementById(`${context}-video-content`);
-            const activeTypeInput = document.getElementById(`${context}-av-type`);
-
-            if (tab === 'audio') {
-                audioTab.classList.add('tab-active');
-                videoTab.classList.remove('tab-active');
-                audioContent.classList.remove('hidden');
-                videoContent.classList.add('hidden');
-                activeTypeInput.value = 'audio';
-            } else {
-                audioTab.classList.remove('tab-active');
-                videoTab.classList.add('tab-active');
-                audioContent.classList.add('hidden');
-                videoContent.classList.remove('hidden');
-                activeTypeInput.value = 'video';
+        // Primary visual tab switcher (Image | Video | PDF). Audio is independent.
+        // ctx is 'create' or 'edit'; tab is 'image' | 'video' | 'pdf'.
+        function switchVisualTab(tab, ctx) {
+            const types = ['image', 'video', 'pdf'];
+            if (!types.includes(tab)) tab = 'image';
+            for (const t of types) {
+                const tabEl = document.getElementById(`${ctx}-${t}-tab`);
+                const contentEl = document.getElementById(`${ctx}-${t}-content`);
+                if (!tabEl || !contentEl) continue;
+                if (t === tab) {
+                    tabEl.classList.add('tab-active');
+                    contentEl.classList.remove('hidden');
+                } else {
+                    tabEl.classList.remove('tab-active');
+                    contentEl.classList.add('hidden');
+                }
             }
+            const hidden = document.getElementById(`${ctx}-visual-type`);
+            if (hidden) hidden.value = tab;
         }
 
         // View node - preview modal
@@ -1518,15 +1517,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 }
             }
 
-            // Set correct A/V tab and visibility
-            const audioContent = document.getElementById('edit-audio-content');
-            const videoContent = document.getElementById('edit-video-content');
-            
-            if (node.video_url) {
-                switchAVTab('video', 'edit');
-            } else {
-                switchAVTab('audio', 'edit');
-            }
+            // Pick the active primary-visual tab based on which URL is set on the node.
+            // Audio is independent; its block is always visible.
+            let visual = 'image';
+            if (node.pdf_url) visual = 'pdf';
+            else if (node.video_url) visual = 'video';
+            switchVisualTab(visual, 'edit');
 
             // Toggle target constellation if portal
             toggleTargetConstellation(node.node_type || 'object', 'modal');
@@ -1562,12 +1558,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('description', document.getElementById('edit-description').value.trim());
             formData.append('url', document.getElementById('edit-url').value.trim());
             
-            formData.append('image_url', document.getElementById('edit-image-url').value.trim());
-            formData.append('image_attribution', document.getElementById('edit-image-attribution').value.trim());
+            // Image-related fields (image_url, image_attribution, use_image_as_node) are
+            // appended below in the visual-tab block — only when the Image tab is active.
             formData.append('embed_code', document.getElementById('edit-embed-code').value.trim());
             formData.append('is_accentuated', document.getElementById('edit-accentuated').checked ? 1 : 0);
             formData.append('show_keywords', document.getElementById('edit-show-keywords').checked ? 1 : 0);
-            formData.append('use_image_as_node', document.getElementById('edit-use-image-as-node').checked ? 1 : 0);
             formData.append('constellation_id', document.getElementById('edit-constellation').value);
             
             const nodeType = document.getElementById('edit-node-type').value;
@@ -1583,35 +1578,47 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             
             formData.append('keywords', (keywordState['modal'] || []).join(','));
 
-            const imageFile = document.getElementById('edit-image-file').files[0];
-            if (imageFile) formData.append('image_file', imageFile);
+            // Icon (independent of the visual mutex).
             formData.append('icon_url', document.getElementById('edit-icon-url').value.trim());
             const iconFile = document.getElementById('edit-icon-file').files[0];
             if (iconFile) formData.append('icon_file', iconFile);
 
-            const activeType = document.getElementById('edit-av-type').value;
-            if (activeType === 'audio') {
-                formData.append('audio_url', document.getElementById('edit-audio-url').value.trim());
-                formData.append('audio_autoplay', document.getElementById('edit-audio-autoplay').checked ? 1 : 0);
-                formData.append('audio_loop', document.getElementById('edit-audio-loop').checked ? 1 : 0);
-                const audioFile = document.getElementById('edit-audio-file').files[0];
-                if (audioFile) formData.append('audio_file', audioFile);
-                // Clear video fields to enforce exclusivity
+            // Primary visual: send only the active tab's URL/file; clear the other two so
+            // the server-side mutex doesn't fight a stale value.
+            const visualType = document.getElementById('edit-visual-type')?.value || 'image';
+            // Credit/attribution is shared across all visual types now (not just image).
+            formData.append('image_attribution', document.getElementById('edit-image-attribution').value.trim());
+
+            if (visualType === 'image') {
+                formData.append('image_url', document.getElementById('edit-image-url').value.trim());
+                formData.append('use_image_as_node', document.getElementById('edit-use-image-as-node').checked ? 1 : 0);
+                const imageFile = document.getElementById('edit-image-file').files[0];
+                if (imageFile) formData.append('image_file', imageFile);
                 formData.append('video_url', '');
-            } else {
+                formData.append('pdf_url', '');
+            } else if (visualType === 'video') {
                 formData.append('video_url', document.getElementById('edit-video-url').value.trim());
                 formData.append('video_autoplay', document.getElementById('edit-video-autoplay').checked ? 1 : 0);
                 const videoFile = document.getElementById('edit-video-file').files[0];
                 if (videoFile) formData.append('video_file', videoFile);
-                // Clear audio fields to enforce exclusivity
-                formData.append('audio_url', '');
+                formData.append('image_url', '');
+                formData.append('use_image_as_node', 0);
+                formData.append('pdf_url', '');
+            } else {
+                formData.append('pdf_url', document.getElementById('edit-pdf-url').value.trim());
+                const pdfFile = document.getElementById('edit-pdf-file').files[0];
+                if (pdfFile) formData.append('pdf_file', pdfFile);
+                formData.append('image_url', '');
+                formData.append('use_image_as_node', 0);
+                formData.append('video_url', '');
             }
 
-            // PDF (mutex with image+video is enforced server-side).
-            const pdfUrlEl = document.getElementById('edit-pdf-url');
-            const pdfFileEl = document.getElementById('edit-pdf-file');
-            if (pdfUrlEl) formData.append('pdf_url', pdfUrlEl.value.trim());
-            if (pdfFileEl && pdfFileEl.files[0]) formData.append('pdf_file', pdfFileEl.files[0]);
+            // Audio is always sent (independent of the visual mutex).
+            formData.append('audio_url', document.getElementById('edit-audio-url').value.trim());
+            formData.append('audio_autoplay', document.getElementById('edit-audio-autoplay').checked ? 1 : 0);
+            formData.append('audio_loop', document.getElementById('edit-audio-loop').checked ? 1 : 0);
+            const audioFile = document.getElementById('edit-audio-file').files[0];
+            if (audioFile) formData.append('audio_file', audioFile);
 
             handleNodeSubmit(formData, 'edit', 'PUT');
         }
@@ -1812,46 +1819,59 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('name', nodeName);
             formData.append('description', document.getElementById('node-description').value.trim());
             formData.append('url', document.getElementById('node-url').value.trim());
-            formData.append('image_url', document.getElementById('node-image-url').value.trim());
-            formData.append('image_attribution', document.getElementById('node-image-attribution').value.trim());
             formData.append('embed_code', document.getElementById('node-embed-code').value.trim());
             formData.append('is_accentuated', document.getElementById('node-accentuated').checked ? 1 : 0);
             formData.append('show_keywords', document.getElementById('node-show-keywords').checked ? 1 : 0);
-            const newUseImage = document.getElementById('node-use-image-as-node');
-            formData.append('use_image_as_node', (newUseImage && newUseImage.checked) ? 1 : 0);
             formData.append('constellation_id', isNaN(constellationId) ? 0 : constellationId);
             formData.append('node_type', nodeType);
-            
+
             if (nodeType === 'portal') {
                 formData.append('target_constellation_id', document.getElementById('node-target-constellation').value);
             }
             formData.append('animation', JSON.stringify(animation));
             formData.append('keywords', (keywordState['create'] || []).join(','));
 
-            const imageFile = document.getElementById('node-image-file').files[0];
-            if (imageFile) formData.append('image_file', imageFile);
+            // Icon (independent of the visual mutex).
             formData.append('icon_url', document.getElementById('node-icon-url').value.trim());
             const iconFile = document.getElementById('node-icon-file').files[0];
             if (iconFile) formData.append('icon_file', iconFile);
 
-            const activeType = document.getElementById('create-av-type').value;
-            if (activeType === 'audio') {
-                formData.append('audio_url', document.getElementById('node-audio-url').value.trim());
-                formData.append('audio_autoplay', document.getElementById('node-audio-autoplay').checked ? 1 : 0);
-                formData.append('audio_loop', document.getElementById('node-audio-loop').checked ? 1 : 0);
-                const audioFile = document.getElementById('node-audio-file').files[0];
-                if (audioFile) formData.append('audio_file', audioFile);
-            } else {
+            // Credit/attribution is shared across all visual types now (not just image).
+            formData.append('image_attribution', document.getElementById('node-image-attribution').value.trim());
+
+            // Primary visual: send only the active tab's URL/file; clear the other two.
+            const visualType = document.getElementById('create-visual-type')?.value || 'image';
+            if (visualType === 'image') {
+                formData.append('image_url', document.getElementById('node-image-url').value.trim());
+                const newUseImage = document.getElementById('node-use-image-as-node');
+                formData.append('use_image_as_node', (newUseImage && newUseImage.checked) ? 1 : 0);
+                const imageFile = document.getElementById('node-image-file').files[0];
+                if (imageFile) formData.append('image_file', imageFile);
+                formData.append('video_url', '');
+                formData.append('pdf_url', '');
+            } else if (visualType === 'video') {
                 formData.append('video_url', document.getElementById('node-video-url').value.trim());
                 formData.append('video_autoplay', document.getElementById('node-video-autoplay').checked ? 1 : 0);
                 const videoFile = document.getElementById('node-video-file').files[0];
                 if (videoFile) formData.append('video_file', videoFile);
+                formData.append('image_url', '');
+                formData.append('use_image_as_node', 0);
+                formData.append('pdf_url', '');
+            } else {
+                formData.append('pdf_url', document.getElementById('node-pdf-url').value.trim());
+                const pdfFile = document.getElementById('node-pdf-file').files[0];
+                if (pdfFile) formData.append('pdf_file', pdfFile);
+                formData.append('image_url', '');
+                formData.append('use_image_as_node', 0);
+                formData.append('video_url', '');
             }
-            // PDF (mutex with image+video is enforced server-side).
-            const createPdfUrlEl = document.getElementById('node-pdf-url');
-            const createPdfFileEl = document.getElementById('node-pdf-file');
-            if (createPdfUrlEl) formData.append('pdf_url', createPdfUrlEl.value.trim());
-            if (createPdfFileEl && createPdfFileEl.files[0]) formData.append('pdf_file', createPdfFileEl.files[0]);
+
+            // Audio (independent of the visual mutex).
+            formData.append('audio_url', document.getElementById('node-audio-url').value.trim());
+            formData.append('audio_autoplay', document.getElementById('node-audio-autoplay').checked ? 1 : 0);
+            formData.append('audio_loop', document.getElementById('node-audio-loop').checked ? 1 : 0);
+            const audioFile = document.getElementById('node-audio-file').files[0];
+            if (audioFile) formData.append('audio_file', audioFile);
 
             handleNodeSubmit(formData, 'create', 'POST');
         }
@@ -2271,44 +2291,62 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <span class="text-xs text-gray-500 mt-1 block">URL to open when the wormhole is clicked (optional).</span>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <div class="flex items-center justify-between mb-1.5 gap-2">
-                            <label for="node-image-url" class="text-gray-800 font-medium text-sm">Image URL / File</label>
-                            <label class="label cursor-pointer justify-end gap-2 py-0">
-                                <span class="label-text text-xs text-gray-700">Use as wormhole icon</span>
-                                <input type="checkbox" id="node-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral toggle-sm">
+                    <!-- Left column: Primary visual (Image / Video / PDF — mutually exclusive). -->
+                    <div class="flex flex-col">
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Primary visual</label>
+                        <div class="tabs tabs-bordered mb-2">
+                            <button type="button" id="create-image-tab" onclick="switchVisualTab('image', 'create')" class="tab tab-sm tab-active">Image</button>
+                            <button type="button" id="create-video-tab" onclick="switchVisualTab('video', 'create')" class="tab tab-sm">Video (MP4)</button>
+                            <button type="button" id="create-pdf-tab" onclick="switchVisualTab('pdf', 'create')" class="tab tab-sm">PDF</button>
+                        </div>
+                        <input type="hidden" id="create-visual-type" value="image">
+                        <span class="text-xs text-gray-500 mt-0 mb-2 block">Pick one. Switching tabs and saving clears the others.</span>
+
+                        <!-- Image content (default visible) -->
+                        <div id="create-image-content">
+                            <div class="flex items-center justify-between mb-1.5 gap-2">
+                                <label for="node-image-url" class="text-gray-800 font-medium text-xs">Image URL / File</label>
+                                <label class="label cursor-pointer justify-end gap-2 py-0">
+                                    <span class="label-text text-xs text-gray-700">Use as wormhole icon</span>
+                                    <input type="checkbox" id="node-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral toggle-sm">
+                                </label>
+                            </div>
+                            <input type="text" id="node-image-url" name="image_url" placeholder="https://example.com/image.jpg" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="node-image-file" name="image_file" accept="image/*,video/*" class="text-xs">
+                        </div>
+
+                        <!-- Video content -->
+                        <div id="create-video-content" class="hidden">
+                            <input type="text" id="node-video-url" name="video_url" placeholder="https://example.com/video.mp4" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="node-video-file" name="video_file" accept="video/mp4" class="text-xs">
+                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
+                                <input type="checkbox" id="node-video-autoplay" name="video_autoplay" checked>
+                                Autoplay video
                             </label>
                         </div>
-                        <input type="text" id="node-image-url" name="image_url" placeholder="https://example.com/image.jpg" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                        <input type="file" id="node-image-file" name="image_file" accept="image/*,video/*" class="text-xs">
-                        <span class="text-xs text-gray-500 mt-1 block">Upload an image or provide a link to be displayed.</span>
-                        <input type="text" id="node-image-attribution" name="image_attribution" placeholder="Photo by..." class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-2" maxlength="255">
-                        <span class="text-xs text-gray-500 mt-0.5 block">Attribution text shown on the image (optional).</span>
-                    </div>
-                    <div>
-                        <label for="node-icon-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Icon URL / File</label>
-                        <input type="text" id="node-icon-url" name="icon_url" placeholder="https://example.com/icon.png" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                        <input type="file" id="node-icon-file" name="icon_file" accept="image/*" class="text-xs">
-                        <span class="text-xs text-gray-500 mt-1 block">Custom icon displayed in the 3D scene (overrides theme icon).</span>
-                    </div>
 
-                    <div>
-                        <label for="node-pdf-url" class="block mb-1.5 text-gray-800 font-medium text-sm">PDF URL / File</label>
-                        <input type="text" id="node-pdf-url" name="pdf_url" placeholder="https://example.com/document.pdf" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                        <input type="file" id="node-pdf-file" name="pdf_file" accept="application/pdf,.pdf" class="text-xs">
-                        <span class="text-xs text-gray-500 mt-1 block">Upload a PDF or provide a link. Setting a PDF clears the image and video on save (only one primary visual per wormhole).</span>
-                    </div>
-
-                    <div class="flex flex-col">
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Media (Audio or Video)</label>
-                        <div class="tabs tabs-bordered mb-2">
-                            <button type="button" id="create-audio-tab" onclick="switchAVTab('audio', 'create')" class="tab tab-sm tab-active">Audio</button>
-                            <button type="button" id="create-video-tab" onclick="switchAVTab('video', 'create')" class="tab tab-sm">Video (MP4)</button>
+                        <!-- PDF content -->
+                        <div id="create-pdf-content" class="hidden">
+                            <input type="text" id="node-pdf-url" name="pdf_url" placeholder="https://example.com/document.pdf" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="node-pdf-file" name="pdf_file" accept="application/pdf,.pdf" class="text-xs">
+                            <span class="text-xs text-gray-500 mt-1 block">Upload a PDF or provide a link.</span>
                         </div>
-                        <input type="hidden" id="create-av-type" value="audio">
-                        
-                        <!-- Audio Content -->
-                        <div id="create-audio-content">
+
+                        <!-- Credit (applies to whichever visual is active). Stored on nodes.image_attribution. -->
+                        <input type="text" id="node-image-attribution" name="image_attribution" placeholder="Credit / attribution..." class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-3" maxlength="255">
+                        <span class="text-xs text-gray-500 mt-0.5 block">Optional credit shown on the visual in the info box (image, video, or PDF).</span>
+                    </div>
+
+                    <!-- Right column: Icon (top), Audio (bottom — independent of the visual mutex). -->
+                    <div class="flex flex-col gap-4">
+                        <div>
+                            <label for="node-icon-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Icon URL / File</label>
+                            <input type="text" id="node-icon-url" name="icon_url" placeholder="https://example.com/icon.png" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="node-icon-file" name="icon_file" accept="image/*" class="text-xs">
+                            <span class="text-xs text-gray-500 mt-1 block">Custom icon displayed in the 3D scene (overrides theme icon).</span>
+                        </div>
+                        <div>
+                            <label for="node-audio-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Audio URL / File</label>
                             <input type="text" id="node-audio-url" name="audio_url" placeholder="https://example.com/audio.mp3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                             <input type="file" id="node-audio-file" name="audio_file" accept="audio/*" class="text-xs">
                             <div class="flex items-center gap-4 mt-2">
@@ -2321,23 +2359,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                     Loop
                                 </label>
                             </div>
-                        </div>
-                        
-                        <!-- Video Content -->
-                        <div id="create-video-content" class="hidden">
-                            <input type="text" id="node-video-url" name="video_url" placeholder="https://example.com/video.mp4" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="node-video-file" name="video_file" accept="video/mp4" class="text-xs">
-                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
-                                <input type="checkbox" id="node-video-autoplay" name="video_autoplay" checked>
-                                Autoplay video
-                            </label>
+                            <span class="text-xs text-gray-500 mt-1 block">Independent of the primary visual — audio can pair with image, video, or PDF.</span>
                         </div>
                     </div>
                 </div>
-                <div>
-                    <label for="node-embed-code" class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
-                    <textarea id="node-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
-                    <span class="text-xs text-gray-500 mt-1 block">Paste iframe or HTML code for videos or interactive content.</span>
+                <!-- Embed code field is hidden from the editor for now (unused in practice).
+                     The textarea stays in the DOM so existing embed_code values round-trip on save. -->
+                <div class="hidden">
+                    <textarea id="node-embed-code" name="embed_code"></textarea>
                 </div>
                 <div id="create-progress-wrap" class="hidden space-y-2">
                     <div class="flex justify-between text-xs font-medium">
@@ -2435,61 +2464,86 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div>
                 <div class="divider text-gray-400 text-xs">Media</div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div id="edit-icon-container">
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Icon URL / File</label>
-                        <div id="edit-icon-file-wrap">
-                            <input type="text" id="edit-icon-url" name="icon_url" placeholder="https://example.com/icon.png" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="edit-icon-file" name="icon_file" accept="image/*" class="text-xs">
+                    <!-- Left column: Primary visual (Image / Video / PDF — mutually exclusive). -->
+                    <div class="flex flex-col">
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Primary visual</label>
+                        <div class="tabs tabs-bordered mb-2">
+                            <button type="button" id="edit-image-tab" onclick="switchVisualTab('image', 'edit')" class="tab tab-sm tab-active">Image</button>
+                            <button type="button" id="edit-video-tab" onclick="switchVisualTab('video', 'edit')" class="tab tab-sm">Video (MP4)</button>
+                            <button type="button" id="edit-pdf-tab" onclick="switchVisualTab('pdf', 'edit')" class="tab tab-sm">PDF</button>
                         </div>
-                        <div id="edit-icon-existing" class="hidden flex items-center gap-2 mb-2">
-                            <input type="text" id="edit-icon-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
-                            <button type="button" onclick="deleteModalFile('icon')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                        <input type="hidden" id="edit-visual-type" value="image">
+                        <span class="text-xs text-gray-500 mt-0 mb-2 block">Pick one. Switching tabs and saving clears the others.</span>
+
+                        <!-- Image content -->
+                        <div id="edit-image-content">
+                            <div class="flex items-center justify-between mb-1.5 gap-2">
+                                <label for="edit-image-url" class="text-gray-800 font-medium text-xs">Image URL / File</label>
+                                <label class="label cursor-pointer justify-end gap-2 py-0">
+                                    <span class="label-text text-xs text-gray-700">Use as wormhole icon</span>
+                                    <input type="checkbox" id="edit-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral toggle-sm">
+                                </label>
+                            </div>
+                            <div id="edit-image-file-wrap">
+                                <input type="text" id="edit-image-url" name="image_url" placeholder="https://example.com/image.jpg" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                <input type="file" id="edit-image-file" name="image_file" accept="image/*,video/*" class="text-xs">
+                            </div>
+                            <div id="edit-image-existing" class="hidden flex items-center gap-2 mb-2">
+                                <input type="text" id="edit-image-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
+                                <button type="button" onclick="deleteModalFile('image')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                            </div>
                         </div>
-                        <span class="text-xs text-gray-500 mt-1 block">Custom icon displayed in the 3D scene (overrides theme icon).</span>
-                    </div>
-                    <div id="edit-image-container">
-                        <div class="flex items-center justify-between mb-1.5 gap-2">
-                            <label for="edit-image-url" class="text-gray-800 font-medium text-sm">Image URL / File</label>
-                            <label class="label cursor-pointer justify-end gap-2 py-0">
-                                <span class="label-text text-xs text-gray-700">Use as wormhole icon</span>
-                                <input type="checkbox" id="edit-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral toggle-sm">
+
+                        <!-- Video content -->
+                        <div id="edit-video-content" class="hidden">
+                            <div id="edit-video-file-wrap">
+                                <input type="text" id="edit-video-url" name="video_url" placeholder="https://example.com/video.mp4" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                <input type="file" id="edit-video-file" name="video_file" accept="video/mp4" class="text-xs">
+                            </div>
+                            <div id="edit-video-existing" class="hidden flex items-center gap-2 mb-2">
+                                <input type="text" id="edit-video-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
+                                <button type="button" onclick="deleteModalFile('video')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                            </div>
+                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
+                                <input type="checkbox" id="edit-video-autoplay" name="video_autoplay">
+                                Autoplay video
                             </label>
                         </div>
-                        <div id="edit-image-file-wrap">
-                            <input type="text" id="edit-image-url" name="image_url" placeholder="https://example.com/image.jpg" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="edit-image-file" name="image_file" accept="image/*,video/*" class="text-xs">
+
+                        <!-- PDF content -->
+                        <div id="edit-pdf-content" class="hidden">
+                            <div id="edit-pdf-file-wrap">
+                                <input type="text" id="edit-pdf-url" name="pdf_url" placeholder="https://example.com/document.pdf" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                <input type="file" id="edit-pdf-file" name="pdf_file" accept="application/pdf,.pdf" class="text-xs">
+                            </div>
+                            <div id="edit-pdf-existing" class="hidden flex items-center gap-2 mb-2">
+                                <input type="text" id="edit-pdf-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
+                                <button type="button" onclick="deleteModalFile('pdf')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                            </div>
                         </div>
-                        <div id="edit-image-existing" class="hidden flex items-center gap-2 mb-2">
-                            <input type="text" id="edit-image-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
-                            <button type="button" onclick="deleteModalFile('image')" class="btn btn-error btn-sm btn-outline">Delete</button>
-                        </div>
-                        <input type="text" id="edit-image-attribution" name="image_attribution" placeholder="Photo by..." class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-2" maxlength="255">
-                        <span class="text-xs text-gray-500 mt-0.5 block">Attribution text shown on the image (optional).</span>
+
+                        <!-- Credit (applies to whichever visual is active). Stored on nodes.image_attribution. -->
+                        <input type="text" id="edit-image-attribution" name="image_attribution" placeholder="Credit / attribution..." class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-3" maxlength="255">
+                        <span class="text-xs text-gray-500 mt-0.5 block">Optional credit shown on the visual in the info box (image, video, or PDF).</span>
                     </div>
 
-                    <div id="edit-pdf-container">
-                        <label for="edit-pdf-url" class="block mb-1.5 text-gray-800 font-medium text-sm">PDF URL / File</label>
-                        <div id="edit-pdf-file-wrap">
-                            <input type="text" id="edit-pdf-url" name="pdf_url" placeholder="https://example.com/document.pdf" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="edit-pdf-file" name="pdf_file" accept="application/pdf,.pdf" class="text-xs">
+                    <!-- Right column: Icon (top), Audio (middle), Embed code (bottom — independent of mutex). -->
+                    <div class="flex flex-col gap-4">
+                        <div id="edit-icon-container">
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Icon URL / File</label>
+                            <div id="edit-icon-file-wrap">
+                                <input type="text" id="edit-icon-url" name="icon_url" placeholder="https://example.com/icon.png" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                <input type="file" id="edit-icon-file" name="icon_file" accept="image/*" class="text-xs">
+                            </div>
+                            <div id="edit-icon-existing" class="hidden flex items-center gap-2 mb-2">
+                                <input type="text" id="edit-icon-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
+                                <button type="button" onclick="deleteModalFile('icon')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                            </div>
+                            <span class="text-xs text-gray-500 mt-1 block">Custom icon displayed in the 3D scene (overrides theme icon).</span>
                         </div>
-                        <div id="edit-pdf-existing" class="hidden flex items-center gap-2 mb-2">
-                            <input type="text" id="edit-pdf-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
-                            <button type="button" onclick="deleteModalFile('pdf')" class="btn btn-error btn-sm btn-outline">Delete</button>
-                        </div>
-                        <span class="text-xs text-gray-500 mt-0.5 block">Setting a PDF clears the image and video on save (only one primary visual per wormhole).</span>
-                    </div>
 
-                    <div class="flex flex-col">
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Media (Audio or Video)</label>
-                        <div class="tabs tabs-bordered mb-2">
-                            <button type="button" id="edit-audio-tab" onclick="switchAVTab('audio', 'edit')" class="tab tab-sm">Audio</button>
-                            <button type="button" id="edit-video-tab" onclick="switchAVTab('video', 'edit')" class="tab tab-sm">Video (MP4)</button>
-                        </div>
-                        <input type="hidden" id="edit-av-type" value="audio">
-
-                        <!-- Audio Content -->
-                        <div id="edit-audio-content">
+                        <div>
+                            <label for="edit-audio-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Audio URL / File</label>
                             <div id="edit-audio-file-wrap">
                                 <input type="text" id="edit-audio-url" name="audio_url" placeholder="https://example.com/audio.mp3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                                 <input type="file" id="edit-audio-file" name="audio_file" accept="audio/*" class="text-xs">
@@ -2508,27 +2562,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                     Loop
                                 </label>
                             </div>
+                            <span class="text-xs text-gray-500 mt-1 block">Independent of the primary visual — pairs with image, video, or PDF.</span>
                         </div>
 
-                        <!-- Video Content -->
-                        <div id="edit-video-content" class="hidden">
-                            <div id="edit-video-file-wrap">
-                                <input type="text" id="edit-video-url" name="video_url" placeholder="https://example.com/video.mp4" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                                <input type="file" id="edit-video-file" name="video_file" accept="video/mp4" class="text-xs">
-                            </div>
-                            <div id="edit-video-existing" class="hidden flex items-center gap-2 mb-2">
-                                <input type="text" id="edit-video-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
-                                <button type="button" onclick="deleteModalFile('video')" class="btn btn-error btn-sm btn-outline">Delete</button>
-                            </div>
-                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
-                                <input type="checkbox" id="edit-video-autoplay" name="video_autoplay">
-                                Autoplay video
-                            </label>
+                        <!-- Embed code is hidden from the editor for now (unused in practice).
+                             The textarea stays in the DOM so existing embed_code values round-trip on save. -->
+                        <div class="hidden">
+                            <textarea id="edit-embed-code" name="embed_code"></textarea>
                         </div>
-                    </div>
-                    <div>
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Embed Code (HTML)</label>
-                        <textarea id="edit-embed-code" name="embed_code" rows="3" placeholder='<iframe ...></iframe>' class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
                     </div>
                 </div>
                 <div id="edit-progress-wrap" class="hidden space-y-2">

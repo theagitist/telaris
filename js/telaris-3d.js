@@ -170,21 +170,26 @@ class TelarisNetwork {
 
         // Image
         if (imageWrap && imageEl) {
-            const attrEl = document.getElementById('rm-image-attribution');
             if (d.image_url) {
                 imageEl.src = d.image_url;
                 imageWrap.classList.remove('hidden');
-                if (attrEl) {
-                    if (d.image_attribution) {
-                        attrEl.textContent = d.image_attribution;
-                        attrEl.style.display = '';
-                    } else {
-                        attrEl.style.display = 'none';
-                    }
-                }
             } else {
                 imageWrap.classList.add('hidden');
-                if (attrEl) attrEl.style.display = 'none';
+            }
+        }
+
+        // Shared credit for the active primary visual (image / video / pdf).
+        // Stored on nodes.image_attribution; column name is historical.
+        const creditWrap = document.getElementById('rm-credit-wrap');
+        const creditEl = document.getElementById('rm-credit');
+        if (creditWrap && creditEl) {
+            const hasVisual = !!(d.image_url || d.video_url || d.pdf_url);
+            if (hasVisual && d.image_attribution) {
+                creditEl.textContent = d.image_attribution;
+                creditWrap.classList.remove('hidden');
+            } else {
+                creditEl.textContent = '';
+                creditWrap.classList.add('hidden');
             }
         }
 

@@ -262,7 +262,6 @@ header("X-Content-Type-Options: nosniff");
                         <!-- Image -->
                         <div id="rm-image-wrap" class="hidden relative">
                             <img id="rm-image" src="" alt="" class="w-full h-auto rounded-md border" style="border-color: var(--node-accent-muted);">
-                            <span id="rm-image-attribution" style="display:none;position:absolute;bottom:0.25rem;right:0.25rem;font-size:10px;color:rgba(255,255,255,0.8);background:rgba(0,0,0,0.5);padding:2px 6px;border-radius:4px;pointer-events:none;"></span>
                         </div>
 
                         <!-- Embed -->
@@ -282,6 +281,12 @@ header("X-Content-Type-Options: nosniff");
                                 <a id="rm-pdf-download" href="#" target="_blank" rel="noopener" class="hover:text-white transition-colors" download>Download</a>
                             </div>
                             <div id="rm-pdf-pages" class="max-h-[70vh] overflow-y-auto rounded-md border bg-black/30" style="border-color: var(--node-accent-muted);"></div>
+                        </div>
+
+                        <!-- Credit / attribution shared across image / video / PDF. Stored on
+                             nodes.image_attribution (legacy column name; semantics broadened). -->
+                        <div id="rm-credit-wrap" class="hidden -mt-4 text-right text-[11px] text-white/60 italic">
+                            <span id="rm-credit"></span>
                         </div>
 
                         <!-- Audio -->
