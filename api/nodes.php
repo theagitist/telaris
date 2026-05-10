@@ -99,6 +99,17 @@ try {
                 return;
             }
 
+            // Multigalaxy: ?galaxies=1,5,7 (numeric IDs only — slugs are resolved server-side
+            // in inc/bootstrap.php before they reach the JS). Non-empty list → union mode.
+            $multiGalaxyIds = [];
+            if (isset($_GET['galaxies']) && is_string($_GET['galaxies']) && $_GET['galaxies'] !== '') {
+                $tokens = array_filter(array_map('trim', explode(',', $_GET['galaxies'])), fn($t) => $t !== '');
+                foreach ($tokens as $tok) {
+                    if (preg_match('/^\d+$/', $tok)) $multiGalaxyIds[] = (int) $tok;
+                }
+                $multiGalaxyIds = array_values(array_unique($multiGalaxyIds));
+            }
+
             $constellationId = null;
             if (isset($_GET['constellation_id'])) {
                 if ($_GET['constellation_id'] === 'all') {
@@ -107,8 +118,16 @@ try {
                     $constellationId = (int) $_GET['constellation_id'];
                 }
             }
-            if ($constellationId === null && !isset($_GET['constellation_id'])) {
+            if ($constellationId === null && !isset($_GET['constellation_id']) && empty($multiGalaxyIds)) {
                 $constellationId = db_get_default_constellation_id(); // main view without param: show default constellation only
+            }
+
+            // Multigalaxy mode: paginated/single-id/admin paths are intentionally not supported
+            // since this is a public read-only visitor feature. Reject explicitly so callers know.
+            if (!empty($multiGalaxyIds) && (isset($_GET['page']) || isset($_GET['id']))) {
+                http_response_code(400);
+                echo json_encode(['error' => 'galaxies= is incompatible with page/id'], JSON_THROW_ON_ERROR);
+                return;
             }
 
             // Server-side paginated mode (for editor)
@@ -128,7 +147,11 @@ try {
             }
 
             // Flat array mode (for 3D frontend)
-            $nodes = db_get_nodes($constellationId, $currentUserId, $isAdmin);
+            if (!empty($multiGalaxyIds)) {
+                $nodes = db_get_nodes_for_constellations($multiGalaxyIds);
+            } else {
+                $nodes = db_get_nodes($constellationId, $currentUserId, $isAdmin);
+            }
             $formatted = db_format_nodes_bulk($nodes);
 
             // Global search mode: return matching nodes with cluster paths

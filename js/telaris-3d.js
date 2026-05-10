@@ -1841,10 +1841,13 @@ class TelarisNetwork {
             }
             
             const constellationId = window.TELARIS_CONSTELLATION_ID || 0;
+            const multiIds = Array.isArray(window.TELARIS_MULTI_GALAXY_IDS) ? window.TELARIS_MULTI_GALAXY_IDS : null;
             const urlParams = new URLSearchParams(window.location.search);
             const initialClusterKey = urlParams.get('cluster') || null;
             this.currentClusterKey = initialClusterKey;
-            let fetchUrl = `api/nodes.php?constellation_id=${constellationId}`;
+            let fetchUrl = multiIds && multiIds.length
+                ? `api/nodes.php?galaxies=${multiIds.join(',')}`
+                : `api/nodes.php?constellation_id=${constellationId}`;
             if (initialClusterKey) fetchUrl += `&cluster=${encodeURIComponent(initialClusterKey)}`;
             const response = await apiFetch(fetchUrl);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -2752,6 +2755,7 @@ class TelarisNetwork {
                     name: data.name,
                     description: data.description,
                     keywords: data.keywords || [],
+                    constellation_id: (data.constellation_id !== undefined && data.constellation_id !== null) ? Number(data.constellation_id) : null,
                     url: data.url,
                     image_url: data.image_url,
                     image_attribution: data.image_attribution || null,
@@ -2895,25 +2899,50 @@ class TelarisNetwork {
                     const bIdx = Math.min(Math.floor(pct * 4), 3);
                     const thickness = bands[bIdx];
                     const opacity = opacities[bIdx];
-                    
+
                     const hue = (this.connections.length * 0.618) % 1;
                     const color = new THREE.Color().setHSL(hue, 0.7, 0.68);
-                    const material = new THREE.MeshBasicMaterial({ 
-                        color, 
-                        transparent: true, 
-                        opacity: 0, 
-                        side: THREE.DoubleSide,
-                        depthWrite: false,
-                        depthTest: true
-                    });
-                    
-                    const mesh = new THREE.Mesh(geometry, material);
+
+                    // Bridge = the two endpoints belong to different galaxies (only meaningful in
+                    // multigalaxy union views, where shared keyword text crosses galaxy boundaries).
+                    const cid1 = n1.userData.constellation_id;
+                    const cid2 = n2.userData.constellation_id;
+                    const isBridge = (cid1 != null && cid2 != null && cid1 !== cid2);
+
+                    let mesh;
+                    if (isBridge) {
+                        // Subtle dashed line, same hue, slightly muted opacity so the bridge
+                        // reads as part of the same fabric without editorialising it.
+                        const lineGeo = new THREE.BufferGeometry();
+                        lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+                        const lineMat = new THREE.LineDashedMaterial({
+                            color,
+                            transparent: true,
+                            opacity: 0,
+                            dashSize: 0.18,
+                            gapSize: 0.12,
+                            depthWrite: false,
+                            depthTest: true
+                        });
+                        mesh = new THREE.Line(lineGeo, lineMat);
+                    } else {
+                        const material = new THREE.MeshBasicMaterial({
+                            color,
+                            transparent: true,
+                            opacity: 0,
+                            side: THREE.DoubleSide,
+                            depthWrite: false,
+                            depthTest: true
+                        });
+                        mesh = new THREE.Mesh(geometry, material);
+                    }
                     mesh.visible = false; // Start invisible
                     mesh.renderOrder = 50; // Render after nebulas, before nodes (100)
                     this.connections.push({
                         mesh, node1: n1, node2: n2, sharedCount: shared,
-                        thickness, baseOpacity: Math.min(opacity * 1.5, 1.0),
-                        currentOpacity: 0, targetOpacity: 0
+                        thickness, baseOpacity: Math.min(opacity * (isBridge ? 1.0 : 1.5), 1.0),
+                        currentOpacity: 0, targetOpacity: 0,
+                        isBridge
                     });
                 }
             }
@@ -3010,7 +3039,19 @@ class TelarisNetwork {
             }
 
             const p1 = getAnchor(c.node1), p2 = getAnchor(c.node2);
-            
+
+            if (c.isBridge) {
+                // Two-vertex Line: write world positions directly into the buffer.
+                // computeLineDistances() must be called whenever positions change so
+                // LineDashedMaterial spaces dashes correctly.
+                const positions = c.mesh.geometry.attributes.position.array;
+                positions[0] = p1.x; positions[1] = p1.y; positions[2] = p1.z;
+                positions[3] = p2.x; positions[4] = p2.y; positions[5] = p2.z;
+                c.mesh.geometry.attributes.position.needsUpdate = true;
+                c.mesh.computeLineDistances();
+                continue;
+            }
+
             // Vector from p1 to p2
             this._scratchVec.subVectors(p2, p1);
             const dist = this._scratchVec.length();
@@ -3018,15 +3059,15 @@ class TelarisNetwork {
 
             // Set position to EXACT midpoint
             c.mesh.position.copy(p1).addScaledVector(this._scratchVec, 0.5);
-            
+
             // Align orientation: point cylinder UP (Y) along the connection vector
             this._scratchVec.normalize();
             this._scratchQuat.setFromUnitVectors(this._upVec, this._scratchVec);
             c.mesh.quaternion.copy(this._scratchQuat);
-            
+
             // Scale: Y is height (distance), X/Z is thickness
             // Using a higher multiplier since radius is now 0.5 (diameter 1)
-            const t = c.thickness * 2.0; 
+            const t = c.thickness * 2.0;
             c.mesh.scale.set(t, dist, t);
         }
         this.networkManager.updateVisibility(this.connections, deltaTimeSec, this._portalFadeInMultiplier);

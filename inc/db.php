@@ -1063,6 +1063,33 @@ function db_get_constellations(): array {
 }
 
 /**
+ * Find all constellations whose name starts with a literal "[PREFIX]" token (case-insensitive).
+ * Used by the visitor view's prefix-grouped multigalaxy mode (e.g. /[TE] unions every galaxy whose
+ * name begins with "[TE]"). Trim/case-fold the prefix on the caller side; this just does the SQL.
+ *
+ * @return list<array{id:int,name:string,slug:?string,theme:string}>
+ */
+function db_get_constellations_by_name_prefix(string $prefix): array {
+    $needle = '[' . $prefix . ']';
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT id, name, slug, theme FROM constellations WHERE name LIKE :p ORDER BY id");
+    // Escape LIKE wildcards in the supplied prefix; we want a literal prefix match.
+    $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $needle);
+    $stmt->execute([':p' => $escaped . '%']);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = [
+            'id' => (int) $r['id'],
+            'name' => (string) ($r['name'] ?? ''),
+            'slug' => $r['slug'] ?? null,
+            'theme' => (string) ($r['theme'] ?? 'cosmic'),
+        ];
+    }
+    return $out;
+}
+
+/**
  * Server-side paginated, sorted, filtered constellation query.
  * @return array{constellations: list<array>, total: int, page: int, per_page: int}
  */
@@ -1762,6 +1789,40 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
     }
 
     return [];
+}
+
+/**
+ * Multi-galaxy union: nodes from any of the listed constellation IDs, in id order.
+ * Used by the visitor view's ?galaxies=a,b,c mode. Caller is responsible for the access policy
+ * (visitor view treats all galaxies as public; editor/admin paths still go through db_get_nodes()).
+ *
+ * @param list<int> $constellationIds
+ * @return list<array<string, mixed>>
+ */
+function db_get_nodes_for_constellations(array $constellationIds): array {
+    db_ensure_nodes_show_keywords_column();
+    db_ensure_nodes_use_image_as_node_column();
+    db_ensure_nodes_icon_url_column();
+    db_ensure_nodes_image_attribution_column();
+    db_ensure_nodes_clustering_columns();
+    $ids = array_values(array_unique(array_map('intval', $constellationIds)));
+    if ($ids === []) return [];
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.animation, n.created_at, n.updated_at, n.constellation_id,
+               n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords, n.use_image_as_node,
+               n.mucua_name, n.media_type, n.source_created_at,
+               c.name AS constellation_name,
+               tc.slug AS target_constellation_slug
+        FROM nodes n
+        LEFT JOIN constellations c ON c.id = n.constellation_id
+        LEFT JOIN constellations tc ON tc.id = n.target_constellation_id
+        WHERE n.constellation_id IN ($placeholders)
+        ORDER BY n.id
+    ");
+    $stmt->execute($ids);
+    return $stmt->fetchAll();
 }
 
 /**

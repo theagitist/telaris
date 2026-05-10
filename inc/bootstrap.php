@@ -179,11 +179,16 @@ $defaultConstellationId = $projectStrings['default_constellation_id'] ?? 0;
 
 // Constellation for main view: root URL = default; /{NUMBER} or ?constellation_id=NUMBER = that constellation
 // NEW: Support for slugs /{SLUG}
+// Multigalaxy: ?galaxies=slug-or-id,slug-or-id,... renders a union of those galaxies
+//   in a single 3D scene. Theme defaults to the first listed galaxy's theme; ?theme=<id> overrides.
+//   Cross-galaxy connections are detected client-side from shared keyword text.
 $constellationId = $defaultConstellationId;
 $constellationName = $projectName;
 $constellationTagline = $projectTagline;
 $constellationTheme = 'cosmic';
 $constellationSlug = null;
+$multiGalaxyIds = [];        // Non-empty triggers multigalaxy mode in main-view.php / JS
+$multiGalaxyTitle = null;    // Synthesized title for the union view
 
 // Load actual constellation metadata if available
 $defaultInfo = db_get_constellation_by_id($constellationId);
@@ -194,9 +199,102 @@ if ($defaultInfo) {
     $constellationSlug = $defaultInfo['slug'] ?? null;
 }
 
+// ---------------------------------------------------------------------------
+// Multigalaxy resolution (?galaxies=a,b,c)
+// ---------------------------------------------------------------------------
+// Each entry can be a slug or a numeric ID; unknown entries are silently dropped.
+// If the resolved list is non-empty we enter "multi-galaxy mode" and skip the
+// single-constellation path-based logic below.
+if (!empty($_GET['galaxies']) && is_string($_GET['galaxies'])) {
+    $raw = $_GET['galaxies'];
+    $tokens = array_filter(array_map('trim', explode(',', $raw)), fn($t) => $t !== '');
+    $resolvedMembers = []; // [['id' => int, 'name' => string, 'theme' => string], ...]
+    $seenIds = [];
+    foreach ($tokens as $token) {
+        $info = null;
+        $gid = null;
+        if (preg_match('/^\d+$/', $token)) {
+            $gid = (int) $token;
+            $info = db_get_constellation_by_id($gid);
+        } else {
+            $info = db_get_constellation_by_slug($token);
+            // db_get_constellation_by_slug returns 'id'; db_get_constellation_by_id does not.
+            if ($info && isset($info['id'])) $gid = (int) $info['id'];
+        }
+        if (!$info || !$gid) continue;
+        if (isset($seenIds[$gid])) continue; // dedupe
+        $seenIds[$gid] = true;
+        $resolvedMembers[] = [
+            'id' => $gid,
+            'name' => (string) ($info['name'] ?? ''),
+            'theme' => (string) ($info['theme'] ?? 'cosmic'),
+        ];
+    }
+    if (!empty($resolvedMembers)) {
+        $multiGalaxyIds = array_column($resolvedMembers, 'id');
+        // Theme: first listed galaxy by default; ?theme=<id> overrides if it matches a known theme.
+        $constellationTheme = $resolvedMembers[0]['theme'] ?: 'cosmic';
+        if (!empty($_GET['theme']) && is_string($_GET['theme'])) {
+            $themeReq = preg_replace('/[^a-z0-9_-]/', '', strtolower(trim($_GET['theme'])));
+            $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech'];
+            if (in_array($themeReq, $allowedThemes, true)) {
+                $constellationTheme = $themeReq;
+            }
+        }
+        // Title: "A + B" for two, "A + B + N more" beyond that.
+        $names = array_column($resolvedMembers, 'name');
+        if (count($names) <= 2) {
+            $multiGalaxyTitle = implode(' + ', $names);
+        } else {
+            $extra = count($names) - 2;
+            $multiGalaxyTitle = $names[0] . ' + ' . $names[1] . ' + ' . $extra . ' more';
+        }
+        $constellationName = $multiGalaxyTitle;
+        $constellationTagline = ''; // No single tagline for a union view.
+        // Use the first member as the "current" galaxy for things that still need a single ID
+        // (tour config, breadcrumb fallback, etc.). The frontend reads $multiGalaxyIds for fetching.
+        $constellationId = $resolvedMembers[0]['id'];
+        $constellationSlug = null; // No canonical single slug for a union.
+    }
+}
+
 $path = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
 $initialNodeId = null;
 
+// ---------------------------------------------------------------------------
+// Multigalaxy resolution by name prefix: /[XXX]
+// ---------------------------------------------------------------------------
+// If the path is literally a bracketed token like "[TE]" or "[306]", union every galaxy
+// whose name starts with that prefix. Reuses the same downstream pipeline as ?galaxies=.
+// parse_url() does NOT URL-decode, so /%5BTE%5D stays as %5BTE%5D — decode explicitly.
+$decodedPath = rawurldecode($path);
+if (empty($multiGalaxyIds) && preg_match('/^\[([^\]\/]+)\]$/', $decodedPath, $pm)) {
+    $prefix = trim($pm[1]);
+    if ($prefix !== '') {
+        $members = db_get_constellations_by_name_prefix($prefix);
+        if (!empty($members)) {
+            $multiGalaxyIds = array_map(fn($m) => (int)$m['id'], $members);
+            $constellationTheme = $members[0]['theme'] ?: 'cosmic';
+            // ?theme=<id> still overrides the inherited theme.
+            if (!empty($_GET['theme']) && is_string($_GET['theme'])) {
+                $themeReq = preg_replace('/[^a-z0-9_-]/', '', strtolower(trim($_GET['theme'])));
+                $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech'];
+                if (in_array($themeReq, $allowedThemes, true)) {
+                    $constellationTheme = $themeReq;
+                }
+            }
+            $multiGalaxyTitle = '[' . $prefix . ']';
+            $constellationName = $multiGalaxyTitle;
+            $constellationTagline = count($members) . ' galaxies';
+            $constellationId = $members[0]['id'];
+            $constellationSlug = null;
+        }
+    }
+}
+
+// Single-constellation path/query parsing is skipped in multigalaxy mode so it can't
+// overwrite the synthesized title/theme/IDs we resolved above.
+if (empty($multiGalaxyIds)):
 // /{galaxy-slug-or-id}/{node-id} — open a specific wormhole on load.
 if (preg_match('#^([^/]+)/([0-9]+)$#', $path, $m)) {
     $first = $m[1];
@@ -258,6 +356,7 @@ if (preg_match('#^([^/]+)/([0-9]+)$#', $path, $m)) {
         $constellationId = $defaultConstellationId;
     }
 }
+endif; // empty($multiGalaxyIds)
 
 $tourConfig = db_get_constellation_tour_config((int) $constellationId);
 if ($tourConfig === null) {
@@ -304,4 +403,16 @@ if (!empty($tourConfig['tour_keyword_ids']) && $tourConfig['tour_node_selection'
     }
 }
 $tourConfig['tour_keyword_names'] = $tourKeywordNames;
+
+// In multigalaxy mode, the per-galaxy discovery features (auto-tour, idle spotlight,
+// keyword chips, related-nodes) don't have a meaningful single owner. Disable them for v1;
+// we can revisit per-feature once the Galaxy Cluster type lands.
+if (!empty($multiGalaxyIds)) {
+    $tourConfig['tour_enabled'] = false;
+    $tourConfig['keyword_chips_enabled'] = false;
+    $tourConfig['related_nodes_enabled'] = false;
+    $keywordChipsEnabled = false;
+    $relatedNodesEnabled = false;
+    $idleSpotlightConfig['enabled'] = false;
+}
 

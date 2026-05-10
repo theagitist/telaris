@@ -408,6 +408,8 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_IDLE_SPOTLIGHT_CONFIG = <?php echo json_encode($idleSpotlightConfig ?? null); ?>;
         window.TELARIS_RELATED_NODES_ENABLED = <?php echo !empty($relatedNodesEnabled) ? 'true' : 'false'; ?>;
         window.TELARIS_INITIAL_NODE_ID = <?php echo $initialNodeId !== null ? (int)$initialNodeId : 'null'; ?>;
+        window.TELARIS_MULTI_GALAXY_IDS = <?php echo json_encode(!empty($multiGalaxyIds) ? array_values($multiGalaxyIds) : null); ?>;
+        window.TELARIS_MULTI_GALAXY_TITLE = <?php echo json_encode($multiGalaxyTitle ?? null); ?>;
     </script>
     <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
     (function() {
