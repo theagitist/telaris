@@ -268,6 +268,36 @@ function db_ensure_constellations_tour_columns(): void {
     }
 }
 
+/**
+ * Ensure the galaxy_tags junction table exists.
+ *
+ * Each row associates a galaxy with a tag. The slug is the canonical lookup key
+ * (lowercase, hyphenated); the label is the editor's display preference and may
+ * legitimately differ across galaxies sharing the same slug. For union view titles
+ * we pick the most-common label per slug.
+ */
+function db_ensure_galaxy_tags_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS galaxy_tags (
+                constellation_id INT NOT NULL,
+                tag_slug VARCHAR(80) NOT NULL,
+                tag_label VARCHAR(120) NOT NULL,
+                PRIMARY KEY (constellation_id, tag_slug),
+                INDEX idx_tag_slug (tag_slug),
+                INDEX idx_constellation_id (constellation_id),
+                FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_galaxy_tags_table: ' . $e->getMessage());
+    }
+}
+
 /** Ensure nodes.image_attribution column exists. */
 function db_ensure_nodes_image_attribution_column(): void {
     static $checked = false;
@@ -1063,6 +1093,37 @@ function db_get_constellations(): array {
 }
 
 /**
+ * Extract a galaxy's "[PREFIX]" if its name starts with one, otherwise null.
+ * Used so the autocomplete endpoints can surface vocabulary from sibling galaxies in
+ * the same prefix group (editorial coherence within /[XX] unions).
+ */
+function db_extract_constellation_prefix(int $constellationId): ?string {
+    $info = db_get_constellation_by_id($constellationId);
+    if (!$info) return null;
+    $name = (string) ($info['name'] ?? '');
+    if (preg_match('/^\[([^\]]+)\]/', $name, $m)) {
+        return trim($m[1]);
+    }
+    return null;
+}
+
+/**
+ * Resolve the IDs of all galaxies sharing the given galaxy's "[PREFIX]" prefix
+ * (including the galaxy itself). Returns just the input ID if there's no prefix.
+ *
+ * @return list<int>
+ */
+function db_get_prefix_sibling_ids(int $constellationId): array {
+    $prefix = db_extract_constellation_prefix($constellationId);
+    if ($prefix === null) return [$constellationId];
+    $rows = db_get_constellations_by_name_prefix($prefix);
+    if ($rows === []) return [$constellationId];
+    $ids = array_map(fn($r) => (int)$r['id'], $rows);
+    if (!in_array($constellationId, $ids, true)) $ids[] = $constellationId;
+    return $ids;
+}
+
+/**
  * Find all constellations whose name starts with a literal "[PREFIX]" token (case-insensitive).
  * Used by the visitor view's prefix-grouped multigalaxy mode (e.g. /[TE] unions every galaxy whose
  * name begins with "[TE]"). Trim/case-fold the prefix on the caller side; this just does the SQL.
@@ -1085,6 +1146,201 @@ function db_get_constellations_by_name_prefix(string $prefix): array {
             'slug' => $r['slug'] ?? null,
             'theme' => (string) ($r['theme'] ?? 'cosmic'),
         ];
+    }
+    return $out;
+}
+
+// ---------------------------------------------------------------------------
+// Galaxy tags (multi-galaxy union by tag, /tag/foo)
+// ---------------------------------------------------------------------------
+
+/**
+ * Tags currently assigned to a galaxy (slug + label).
+ *
+ * @return list<array{slug:string,label:string}>
+ */
+function db_get_tags_for_galaxy(int $constellationId): array {
+    db_ensure_galaxy_tags_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT tag_slug, tag_label FROM galaxy_tags WHERE constellation_id = :cid ORDER BY tag_label");
+    $stmt->execute([':cid' => $constellationId]);
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = ['slug' => (string) $r['tag_slug'], 'label' => (string) $r['tag_label']];
+    }
+    return $out;
+}
+
+/**
+ * Replace the set of tags on a galaxy. Each input is a free-form label; the slug is derived
+ * via db_slugify(). Empty inputs are skipped. Existing rows for this galaxy are deleted before
+ * inserting the new set, so callers don't need to diff client-side.
+ *
+ * @param list<string> $labels
+ */
+function db_set_tags_for_galaxy(int $constellationId, array $labels): void {
+    db_ensure_galaxy_tags_table();
+    $pdo = getDB();
+    $pdo->beginTransaction();
+    try {
+        $del = $pdo->prepare("DELETE FROM galaxy_tags WHERE constellation_id = :cid");
+        $del->execute([':cid' => $constellationId]);
+        $ins = $pdo->prepare("INSERT IGNORE INTO galaxy_tags (constellation_id, tag_slug, tag_label) VALUES (:cid, :slug, :label)");
+        $seen = [];
+        foreach ($labels as $raw) {
+            $label = trim((string) $raw);
+            if ($label === '') continue;
+            $slug = db_slugify($label);
+            if ($slug === '' || isset($seen[$slug])) continue;
+            $seen[$slug] = true;
+            $ins->execute([':cid' => $constellationId, ':slug' => $slug, ':label' => $label]);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/**
+ * All galaxies that carry a given tag (by slug). Used by the /tag/foo route.
+ *
+ * @return list<array{id:int,name:string,slug:?string,theme:string,tag_label:string}>
+ */
+function db_get_galaxies_for_tag(string $tagSlug): array {
+    db_ensure_galaxy_tags_table();
+    $tagSlug = trim($tagSlug);
+    if ($tagSlug === '') return [];
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT c.id, c.name, c.slug, c.theme, gt.tag_label
+        FROM galaxy_tags gt
+        JOIN constellations c ON c.id = gt.constellation_id
+        WHERE gt.tag_slug = :s
+        ORDER BY c.id
+    ");
+    $stmt->execute([':s' => $tagSlug]);
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [
+            'id' => (int) $r['id'],
+            'name' => (string) ($r['name'] ?? ''),
+            'slug' => $r['slug'] ?? null,
+            'theme' => (string) ($r['theme'] ?? 'cosmic'),
+            'tag_label' => (string) ($r['tag_label'] ?? ''),
+        ];
+    }
+    return $out;
+}
+
+/**
+ * For a given tag slug, return the most-frequently-used label among assigned galaxies.
+ * Stable canonical display when editors have spelled the same tag with different casing.
+ */
+function db_get_canonical_label_for_tag(string $tagSlug): ?string {
+    db_ensure_galaxy_tags_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT tag_label, COUNT(*) AS c
+        FROM galaxy_tags
+        WHERE tag_slug = :s
+        GROUP BY tag_label
+        ORDER BY c DESC, tag_label ASC
+        LIMIT 1
+    ");
+    $stmt->execute([':s' => $tagSlug]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ? (string) $row['tag_label'] : null;
+}
+
+/**
+ * All known tags with global counts. Used as the autocomplete fallback pool.
+ *
+ * @return list<array{slug:string,label:string,count:int}>
+ */
+function db_get_all_tags_with_counts(): array {
+    db_ensure_galaxy_tags_table();
+    $pdo = getDB();
+    $stmt = $pdo->query("
+        SELECT tag_slug, tag_label, COUNT(*) AS c
+        FROM galaxy_tags
+        GROUP BY tag_slug, tag_label
+        ORDER BY c DESC, tag_label ASC
+    ");
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Collapse duplicate slugs with different labels: keep the highest-count row per slug.
+    $bySlug = [];
+    foreach ($rows as $r) {
+        $slug = (string) $r['tag_slug'];
+        if (isset($bySlug[$slug])) continue; // already saw a higher-count label
+        $bySlug[$slug] = [
+            'slug' => $slug,
+            'label' => (string) $r['tag_label'],
+            'count' => (int) $r['c'],
+        ];
+    }
+    return array_values($bySlug);
+}
+
+/**
+ * Tags assigned to the listed galaxies (used to score autocomplete suggestions).
+ *
+ * @param list<int> $constellationIds
+ * @return list<array{slug:string,label:string,count:int}>
+ */
+function db_get_tags_for_galaxies(array $constellationIds): array {
+    db_ensure_galaxy_tags_table();
+    $ids = array_values(array_unique(array_map('intval', $constellationIds)));
+    if ($ids === []) return [];
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT tag_slug, tag_label, COUNT(*) AS c
+        FROM galaxy_tags
+        WHERE constellation_id IN ($placeholders)
+        GROUP BY tag_slug, tag_label
+        ORDER BY c DESC, tag_label ASC
+    ");
+    $stmt->execute($ids);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $bySlug = [];
+    foreach ($rows as $r) {
+        $slug = (string) $r['tag_slug'];
+        if (isset($bySlug[$slug])) continue;
+        $bySlug[$slug] = [
+            'slug' => $slug,
+            'label' => (string) $r['tag_label'],
+            'count' => (int) $r['c'],
+        ];
+    }
+    return array_values($bySlug);
+}
+
+/**
+ * Keywords used by every node across the listed galaxies (used by wormhole-keyword
+ * autocomplete that surfaces sibling-galaxy vocabulary).
+ *
+ * @param list<int> $constellationIds
+ * @return list<array{keyword:string,count:int}>
+ */
+function db_get_keywords_for_galaxies(array $constellationIds): array {
+    $ids = array_values(array_unique(array_map('intval', $constellationIds)));
+    if ($ids === []) return [];
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT k.keyword, COUNT(DISTINCT nk.node_id) AS c
+        FROM keywords k
+        JOIN node_keywords nk ON nk.keyword_id = k.id
+        JOIN nodes n ON n.id = nk.node_id
+        WHERE n.constellation_id IN ($placeholders)
+        GROUP BY k.keyword
+        ORDER BY c DESC, k.keyword ASC
+    ");
+    $stmt->execute($ids);
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = ['keyword' => (string) $r['keyword'], 'count' => (int) $r['c']];
     }
     return $out;
 }
@@ -1814,6 +2070,7 @@ function db_get_nodes_for_constellations(array $constellationIds): array {
                n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords, n.use_image_as_node,
                n.mucua_name, n.media_type, n.source_created_at,
                c.name AS constellation_name,
+               c.theme AS constellation_theme,
                tc.slug AS target_constellation_slug
         FROM nodes n
         LEFT JOIN constellations c ON c.id = n.constellation_id
@@ -2037,6 +2294,11 @@ function db_format_nodes_bulk(array $nodes): array {
             'updated_at' => $updatedAt,
             'constellation_id' => isset($node['constellation_id']) ? (int)$node['constellation_id'] : db_get_default_constellation_id(),
             'constellation_name' => isset($node['constellation_name']) && (string)$node['constellation_name'] !== '' ? (string)$node['constellation_name'] : 'Default',
+            // Per-node origin-galaxy theme. Multi-galaxy union views render each wormhole's icon
+            // with its source galaxy's theme while keeping the scene theme global. Falls back to
+            // null when the upstream SQL didn't join (single-galaxy editor paths) — frontend then
+            // defaults to the global currentTheme, which is identical in that case.
+            'constellation_theme' => isset($node['constellation_theme']) && (string)$node['constellation_theme'] !== '' ? (string)$node['constellation_theme'] : null,
             'node_type' => $nodeType,
             'target_constellation_id' => $targetConstellationId,
             'target_constellation_slug' => isset($node['target_constellation_slug']) && $node['target_constellation_slug'] !== null && $node['target_constellation_slug'] !== '' ? (string)$node['target_constellation_slug'] : null,

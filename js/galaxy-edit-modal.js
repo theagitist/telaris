@@ -35,8 +35,171 @@
         if (badge) badge.textContent = '#' + c.id;
         const feedback = document.getElementById('modal-bulk-feedback');
         if (feedback) { feedback.textContent = ''; feedback.style.color = ''; }
-        await loadTourConfigIntoModal(c.id);
+        await Promise.all([
+            loadTourConfigIntoModal(c.id),
+            loadGalaxyTagsIntoModal(c.id),
+        ]);
         document.getElementById('constellation_modal').showModal();
+    }
+
+    // ---------------------------------------------------------------------
+    // Galaxy tag chip input (Idea 3 — multi-galaxy union by tag).
+    // ---------------------------------------------------------------------
+    // State is local to the modal instance; we re-fetch on every open so we never
+    // leak a previous galaxy's tags. Suggestions are bucketed (current/siblings/global)
+    // by api/tags.php so we can label sources differently in the dropdown.
+
+    const galaxyTagState = { labels: [], suggestions: { current: [], siblings: [], global: [] } };
+
+    function tagsApiUrl() {
+        // GALAXY_EDIT_API_URL points at constellations.php (relative to caller); same dir as tags.php.
+        return getApiUrl().replace(/[^/]+$/, 'tags.php');
+    }
+
+    function renderGalaxyTagChips() {
+        const container = document.getElementById('modal-galaxy-tags-container');
+        const input = document.getElementById('modal-galaxy-tags-input');
+        const hidden = document.getElementById('modal-galaxy-tags-hidden');
+        if (!container || !input || !hidden) return;
+
+        // Wipe existing chips
+        container.querySelectorAll('.galaxy-tag-chip').forEach(el => el.remove());
+
+        galaxyTagState.labels.forEach((label, idx) => {
+            const chip = document.createElement('span');
+            chip.className = 'galaxy-tag-chip badge bg-gray-100 text-gray-800 border border-gray-300 gap-2 py-3 px-3';
+            chip.innerHTML = `${escape(label)}<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-4 h-4 stroke-current cursor-pointer hover:opacity-70" data-galaxy-tag-remove="${idx}"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`;
+            container.insertBefore(chip, input);
+        });
+
+        hidden.value = galaxyTagState.labels.join(',');
+    }
+
+    function addGalaxyTag(label) {
+        const t = (label || '').trim().replace(/,/g, '');
+        if (!t) return false;
+        const existing = galaxyTagState.labels.map(l => l.toLowerCase());
+        if (existing.includes(t.toLowerCase())) return false;
+        galaxyTagState.labels.push(t);
+        renderGalaxyTagChips();
+        return true;
+    }
+
+    function removeGalaxyTag(idx) {
+        if (idx < 0 || idx >= galaxyTagState.labels.length) return;
+        galaxyTagState.labels.splice(idx, 1);
+        renderGalaxyTagChips();
+    }
+
+    function showGalaxyTagSuggestions(filter) {
+        const box = document.getElementById('modal-galaxy-tags-suggestions');
+        if (!box) return;
+        const f = (filter || '').trim().toLowerCase();
+        const taken = new Set(galaxyTagState.labels.map(l => l.toLowerCase()));
+
+        const buckets = [
+            { key: 'current', label: 'Already on this galaxy', items: galaxyTagState.suggestions.current },
+            { key: 'siblings', label: 'In sibling galaxies (same [XX] prefix)', items: galaxyTagState.suggestions.siblings },
+            { key: 'global', label: 'Other tags', items: galaxyTagState.suggestions.global },
+        ];
+
+        const rows = [];
+        buckets.forEach(b => {
+            const matches = b.items.filter(item => {
+                if (taken.has(item.label.toLowerCase())) return false;
+                if (!f) return true;
+                return item.label.toLowerCase().includes(f) || (item.slug || '').toLowerCase().includes(f);
+            });
+            if (matches.length === 0) return;
+            rows.push(`<div class="px-3 py-1 text-[10px] uppercase tracking-wider text-gray-500 bg-gray-50 border-b border-gray-100">${escape(b.label)}</div>`);
+            matches.slice(0, 12).forEach(m => {
+                const count = (typeof m.count === 'number' && m.count > 0) ? `<span class="text-xs text-gray-400 ml-2">${m.count}</span>` : '';
+                rows.push(`<div class="px-3 py-1.5 hover:bg-blue-50 cursor-pointer flex items-center justify-between" data-galaxy-tag-suggest="${escape(m.label)}"><span class="text-gray-800">${escape(m.label)}</span>${count}</div>`);
+            });
+        });
+
+        if (rows.length === 0) {
+            box.classList.add('hidden');
+            box.innerHTML = '';
+            return;
+        }
+        box.innerHTML = rows.join('');
+        box.classList.remove('hidden');
+    }
+
+    function hideGalaxyTagSuggestions() {
+        const box = document.getElementById('modal-galaxy-tags-suggestions');
+        if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
+    }
+
+    async function loadGalaxyTagsIntoModal(galaxyId) {
+        galaxyTagState.labels = [];
+        galaxyTagState.suggestions = { current: [], siblings: [], global: [] };
+        renderGalaxyTagChips();
+        hideGalaxyTagSuggestions();
+        try {
+            const r = await fetch(`${tagsApiUrl()}?galaxy_id=${galaxyId}`, { headers: { 'X-API-Key': getApiKey() } });
+            if (!r.ok) throw new Error('Failed to load tags');
+            const data = await r.json();
+            galaxyTagState.suggestions.current = (data.current || []).map(t => ({ label: t.label, slug: t.slug }));
+            galaxyTagState.suggestions.siblings = (data.siblings || []).map(t => ({ label: t.label, slug: t.slug, count: t.count }));
+            galaxyTagState.suggestions.global = (data.global || []).map(t => ({ label: t.label, slug: t.slug, count: t.count }));
+            // Pre-fill chips from the 'current' bucket — those are the tags already assigned.
+            galaxyTagState.labels = galaxyTagState.suggestions.current.map(t => t.label);
+            renderGalaxyTagChips();
+        } catch (e) {
+            // Silent fail: editor can still type tags free-form; autocomplete just won't help.
+        }
+    }
+
+    function bindGalaxyTagInput() {
+        const input = document.getElementById('modal-galaxy-tags-input');
+        const container = document.getElementById('modal-galaxy-tags-container');
+        const box = document.getElementById('modal-galaxy-tags-suggestions');
+        if (!input || !container) return;
+
+        input.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' || ev.key === ',') {
+                ev.preventDefault();
+                if (addGalaxyTag(input.value)) {
+                    input.value = '';
+                    showGalaxyTagSuggestions('');
+                }
+            } else if (ev.key === 'Backspace' && input.value === '') {
+                if (galaxyTagState.labels.length > 0) {
+                    removeGalaxyTag(galaxyTagState.labels.length - 1);
+                }
+            } else if (ev.key === 'Escape') {
+                hideGalaxyTagSuggestions();
+            }
+        });
+        input.addEventListener('input', () => showGalaxyTagSuggestions(input.value));
+        input.addEventListener('focus', () => showGalaxyTagSuggestions(input.value));
+
+        // Click handlers (delegation): suggestion picks + chip removes.
+        container.addEventListener('click', (ev) => {
+            const removeIdx = ev.target.closest('[data-galaxy-tag-remove]');
+            if (removeIdx) {
+                removeGalaxyTag(parseInt(removeIdx.getAttribute('data-galaxy-tag-remove'), 10));
+                input.focus();
+                return;
+            }
+        });
+        if (box) {
+            box.addEventListener('mousedown', (ev) => {
+                const pick = ev.target.closest('[data-galaxy-tag-suggest]');
+                if (!pick) return;
+                ev.preventDefault();
+                addGalaxyTag(pick.getAttribute('data-galaxy-tag-suggest'));
+                input.value = '';
+                input.focus();
+                showGalaxyTagSuggestions('');
+            });
+        }
+        // Click outside container hides suggestions.
+        document.addEventListener('click', (ev) => {
+            if (!container.contains(ev.target)) hideGalaxyTagSuggestions();
+        });
     }
 
     async function loadTourConfigIntoModal(constellationId) {
@@ -161,6 +324,7 @@
     function bind() {
         const enabled = document.getElementById('modal-tour-enabled');
         if (!enabled) return; // partial not on this page
+        bindGalaxyTagInput();
         enabled.addEventListener('change', updateTourFieldVisibility);
         document.querySelectorAll('.tour-start-mode').forEach(r => r.addEventListener('change', updateTourFieldVisibility));
         document.querySelectorAll('.tour-node-selection').forEach(r => r.addEventListener('change', updateTourFieldVisibility));

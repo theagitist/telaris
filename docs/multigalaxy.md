@@ -57,8 +57,9 @@ Order is a sketch, not a commitment — revisit after each step.
 ## Status
 
 - 2026-05-10 — design discussion captured.
-- 2026-05-10 — **Idea 4 (query string) shipped on starmaps.** `?galaxies=slug-or-id,slug-or-id,...` unions the listed galaxies; theme defaults to first-listed, `&theme=<id>` overrides. Bridges (cross-galaxy connections via shared keyword text) render as subtle dashed lines (`THREE.LineDashedMaterial`); same hue as intra-galaxy lines. Auto-clustering uses the existing cascade unmodified. Per-galaxy discovery features (auto-tour, idle spotlight, keyword chips, related-nodes) are disabled in union mode. Visitor-only — editor pages are unaffected.
+- 2026-05-10 — **Idea 4 (query string) shipped on starmaps.** `?galaxies=slug-or-id,slug-or-id,...` unions the listed galaxies; theme defaults to first-listed, `&theme=<id>` overrides. Bridges (cross-galaxy connections via shared keyword text) render as subtle dashed lines (`THREE.LineDashedMaterial`); same hue as intra-galaxy lines. Auto-clustering uses the existing cascade unmodified. Per-galaxy discovery features (auto-tour, idle spotlight, keyword chips, related-nodes) are disabled in union mode. Visitor-only — editor pages are unaffected. **Per-node origin theme**: each wormhole's 3D icon uses its source galaxy's theme so it stays recognizable across the union; the scene theme (lighting, background animations, station rings) remains global.
 - 2026-05-10 — **Idea 1 (prefix matching) shipped on starmaps.** `/[XXX]` (also accepts `%5BXXX%5D`) unions every galaxy whose name starts with the literal `[XXX]` token. Reuses the same downstream pipeline as `?galaxies=`; title is `[XXX]`, tagline is the member count. Case-insensitive (MySQL `LIKE` collation).
+- 2026-05-10 — **Idea 3 (galaxy tags) shipped on starmaps.** New `galaxy_tags` junction table (constellation_id, tag_slug, tag_label). `/tag/<slug>` (also accepts URL-encoded form) unions every galaxy carrying the tag. Slug derivation via `db_slugify()`; canonical display label is the most-frequently-used label across assigned galaxies. Editor UI: chip input in the galaxy edit modal with autocomplete bucketed as **current galaxy → prefix-siblings (same `[XX]`) → global**. The same autocomplete UX is now also wired on the per-wormhole keyword input. Tags ride through `.telaris-backup` files (additive on format v1; old dumps restore cleanly with no tags).
 
 ### Implementation reference
 
@@ -70,5 +71,23 @@ Order is a sketch, not a commitment — revisit after each step.
 
 ### Still to ship
 
-- Idea 3 (galaxy-level tags) — generalizes the prefix scheme; introduces a tag schema reusable for galaxy search/filter.
 - Idea 2 (Galaxy Cluster type) — first-class object with own slug/title/theme/permalink.
+
+### Implementation reference (Idea 3)
+
+- Schema: `galaxy_tags(constellation_id, tag_slug, tag_label)` auto-migrated by `db_ensure_galaxy_tags_table()`.
+- DB helpers (in `inc/db.php`):
+  - `db_get_tags_for_galaxy(int)` / `db_set_tags_for_galaxy(int, list<string>)`
+  - `db_get_galaxies_for_tag(string $slug)` / `db_get_canonical_label_for_tag(string)`
+  - `db_get_all_tags_with_counts()` / `db_get_tags_for_galaxies(list<int>)`
+  - `db_get_keywords_for_galaxies(list<int>)` (drives wormhole autocomplete bucket-2)
+  - `db_extract_constellation_prefix(int)` / `db_get_prefix_sibling_ids(int)` (shared helper)
+- Bootstrap: `inc/bootstrap.php` adds a `/tag/<slug>` block before the `/[XXX]` block. Reuses `$multiGalaxyIds` / `$multiGalaxyTitle`.
+- API:
+  - `GET /api/tags.php?galaxy_id=N` → bucketed `{current, siblings, global}` for autocomplete.
+  - `GET /api/tags.php?galaxy_id=N&assigned=1` → just the current assignments.
+  - `GET /api/tags.php` → flat global tag list with counts.
+  - `GET /api/keywords.php?constellation_id=N&autocomplete=1` → same bucketed shape for node keywords.
+- Persistence: `inc/galaxy-update.php` reads a comma-separated `tags` field from POST and calls `db_set_tags_for_galaxy()`.
+- Editor UI: chip input in `inc/partials/galaxy-edit-modal.php`; JS in `js/galaxy-edit-modal.js`. Wormhole keyword autocomplete extends the existing chip input in `edit/index.php`.
+- Backup: `inc/backup.php` adds a per-galaxy `tags: [labels...]` array on export and re-applies it on restore.

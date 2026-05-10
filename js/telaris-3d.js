@@ -2756,6 +2756,7 @@ class TelarisNetwork {
                     description: data.description,
                     keywords: data.keywords || [],
                     constellation_id: (data.constellation_id !== undefined && data.constellation_id !== null) ? Number(data.constellation_id) : null,
+                    constellation_theme: (typeof data.constellation_theme === 'string' && data.constellation_theme !== '') ? data.constellation_theme : null,
                     url: data.url,
                     image_url: data.image_url,
                     image_attribution: data.image_attribution || null,
@@ -2800,7 +2801,11 @@ class TelarisNetwork {
                 // If the editor opted in, use the node's main image as the 3D icon.
                 // Falls back to icon_url, then to the theme's default icon.
                 const iconSourceUrl = (node.use_image_as_node && data.image_url) ? data.image_url : node.icon_url;
-                const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type, this.currentTheme.id, iconSourceUrl);
+                // In multi-galaxy union views, each wormhole carries its source galaxy's theme so its
+                // 3D icon stays recognizable across themes. The scene theme stays global (lighting,
+                // background animations, station rings); only the icon factory branches per-node.
+                const iconThemeId = node.constellation_theme || this.currentTheme.id;
+                const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type, iconThemeId, iconSourceUrl);
                 mesh.visible = !isTransitioningIn;
                 mesh.position.copy(pos);
                 mesh.renderOrder = 100; // Force nodes to stay in front of lines

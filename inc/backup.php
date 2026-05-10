@@ -238,6 +238,9 @@ function backup_build_dump(array $opts): array {
                 'nodes' => $nodesOut,
                 'editor_emails' => $g['editor_emails'],
                 'tour' => $tourOut,
+                // Multigalaxy tags (Idea 3). Stored as labels; slugs are re-derived on restore.
+                // Additive field — older format-v1 dumps without it restore cleanly (no tags).
+                'tags' => array_map(fn($t) => $t['label'], db_get_tags_for_galaxy((int)$g['id'])),
             ];
         }
     }
@@ -681,6 +684,12 @@ function backup_restore_one_galaxy(array $g, array $dump, array $opts): array {
         }
         $targetId = db_create_constellation($name, (string)($g['tagline'] ?? ''), $slug, (string)($g['theme'] ?? 'cosmic'));
         if (!empty($g['import_source'])) db_set_constellation_import_source($targetId, (string)$g['import_source']);
+    }
+
+    // Restore galaxy tags (Idea 3). Backup stores labels; slugs are re-derived.
+    if (isset($g['tags']) && is_array($g['tags'])) {
+        $labels = array_values(array_filter(array_map(fn($t) => trim((string)$t), $g['tags']), fn($s) => $s !== ''));
+        db_set_tags_for_galaxy($targetId, $labels);
     }
 
     // Insert keywords

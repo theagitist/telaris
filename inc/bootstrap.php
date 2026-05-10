@@ -262,6 +262,37 @@ $path = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/
 $initialNodeId = null;
 
 // ---------------------------------------------------------------------------
+// Multigalaxy resolution by tag: /tag/foo
+// ---------------------------------------------------------------------------
+// /tag/<slug> unions every galaxy that carries the tag. Canonical label is the most-used
+// label among assigned galaxies (db_get_canonical_label_for_tag); falls back to the slug
+// if labels are missing. Reuses the same downstream pipeline as ?galaxies= and /[XXX].
+$decodedPathForTag = rawurldecode($path);
+if (empty($multiGalaxyIds) && preg_match('#^tag/([^/]+)$#', $decodedPathForTag, $tm)) {
+    $tagSlug = db_slugify(trim($tm[1])); // canonicalize the URL token
+    if ($tagSlug !== '') {
+        $tagMembers = db_get_galaxies_for_tag($tagSlug);
+        if (!empty($tagMembers)) {
+            $multiGalaxyIds = array_map(fn($m) => (int)$m['id'], $tagMembers);
+            $constellationTheme = $tagMembers[0]['theme'] ?: 'cosmic';
+            if (!empty($_GET['theme']) && is_string($_GET['theme'])) {
+                $themeReq = preg_replace('/[^a-z0-9_-]/', '', strtolower(trim($_GET['theme'])));
+                $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech'];
+                if (in_array($themeReq, $allowedThemes, true)) {
+                    $constellationTheme = $themeReq;
+                }
+            }
+            $canonicalLabel = db_get_canonical_label_for_tag($tagSlug) ?: $tagSlug;
+            $multiGalaxyTitle = $canonicalLabel;
+            $constellationName = $multiGalaxyTitle;
+            $constellationTagline = count($tagMembers) === 1 ? '1 galaxy' : count($tagMembers) . ' galaxies';
+            $constellationId = $tagMembers[0]['id'];
+            $constellationSlug = null;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Multigalaxy resolution by name prefix: /[XXX]
 // ---------------------------------------------------------------------------
 // If the path is literally a bracketed token like "[TE]" or "[306]", union every galaxy
@@ -285,7 +316,7 @@ if (empty($multiGalaxyIds) && preg_match('/^\[([^\]\/]+)\]$/', $decodedPath, $pm
             }
             $multiGalaxyTitle = '[' . $prefix . ']';
             $constellationName = $multiGalaxyTitle;
-            $constellationTagline = count($members) . ' galaxies';
+            $constellationTagline = count($members) === 1 ? '1 galaxy' : count($members) . ' galaxies';
             $constellationId = $members[0]['id'];
             $constellationSlug = null;
         }

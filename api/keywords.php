@@ -28,6 +28,41 @@ try {
                 echo json_encode(db_get_keywords($nodeId), JSON_THROW_ON_ERROR);
                 return;
             }
+            // Autocomplete bucketed response for the node-keyword chip input.
+            // Same shape as api/tags.php: current galaxy first, then prefix-siblings, then global.
+            if (isset($_GET['constellation_id']) && is_numeric($_GET['constellation_id']) && !empty($_GET['autocomplete'])) {
+                $cid = (int)$_GET['constellation_id'];
+                $current = db_get_keywords_for_galaxies([$cid]);
+                $currentNames = array_flip(array_map(fn($k) => $k['keyword'], $current));
+
+                $siblingIds = db_get_prefix_sibling_ids($cid);
+                $siblingIds = array_values(array_filter($siblingIds, fn($id) => $id !== $cid));
+                $siblings = $siblingIds === [] ? [] : db_get_keywords_for_galaxies($siblingIds);
+                $siblings = array_values(array_filter($siblings, fn($k) => !isset($currentNames[$k['keyword']])));
+                $siblingNames = array_flip(array_map(fn($k) => $k['keyword'], $siblings));
+
+                $global = db_get_keywords_for_galaxies([]); // empty list → no rows
+                // Fallback to all keywords from any galaxy when sibling/current sets are small.
+                if (count($current) + count($siblings) < 50) {
+                    $allRaw = db_get_keywords();
+                    $globalAccum = [];
+                    foreach ($allRaw as $row) {
+                        $kw = is_array($row) ? ($row['keyword'] ?? null) : (string) $row;
+                        if (!is_string($kw) || $kw === '') continue;
+                        if (isset($currentNames[$kw]) || isset($siblingNames[$kw])) continue;
+                        if (isset($globalAccum[$kw])) continue;
+                        $globalAccum[$kw] = ['keyword' => $kw, 'count' => 1];
+                    }
+                    $global = array_values($globalAccum);
+                }
+
+                echo json_encode([
+                    'current' => $current,
+                    'siblings' => $siblings,
+                    'global' => $global,
+                ], JSON_THROW_ON_ERROR);
+                return;
+            }
             // Per-constellation keyword list with usage counts (for bulk-by-keyword UI).
             if (isset($_GET['constellation_id']) && is_numeric($_GET['constellation_id'])) {
                 $cid = (int)$_GET['constellation_id'];

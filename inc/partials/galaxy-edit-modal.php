@@ -55,6 +55,17 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
                 </select>
             </div>
 
+            <div class="mb-4">
+                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Tags</label>
+                <div id="modal-galaxy-tags-container" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors min-h-[2.75rem] relative">
+                    <input type="text" id="modal-galaxy-tags-input" placeholder="Add tag..."
+                        class="flex-1 min-w-[120px] outline-none border-none focus:ring-0 text-sm bg-transparent" autocomplete="off">
+                    <div id="modal-galaxy-tags-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 z-[100] max-h-56 overflow-y-auto rounded border border-gray-300 bg-white shadow-lg text-sm"></div>
+                </div>
+                <input type="hidden" id="modal-galaxy-tags-hidden" name="tags" value="">
+                <span class="text-xs text-gray-500 mt-1 block">Visitors can browse the union of every galaxy carrying a tag at <code>/tag/&lt;tag&gt;</code>. Type to add; press Enter or comma. Suggestions surface tags already used in this galaxy and in sibling galaxies sharing your <code>[XX]</code> prefix.</span>
+            </div>
+
             <div class="mb-4 border-t border-gray-200 pt-4">
                 <label class="block mb-1.5 text-gray-800 font-medium text-sm">Bulk wormhole actions</label>
                 <p class="text-xs text-gray-500 mb-2">Apply to every wormhole in this galaxy at once. Per-wormhole toggles still override afterward.</p>

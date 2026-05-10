@@ -81,5 +81,14 @@ function handle_galaxy_update_post(array $post, ?string $userId, bool $isAdmin):
     $tourKeywordIds = array_map('intval', array_filter((array)($post['tour_keyword_ids'] ?? [])));
     db_set_tour_keyword_ids($id, $tourKeywordIds);
 
+    // Galaxy tags. Form serializes the chip list as a comma-separated 'tags' field.
+    // Absent field = no change (don't wipe existing tags); present-but-empty = clear all.
+    if (array_key_exists('tags', $post)) {
+        $raw = (string) $post['tags'];
+        $labels = $raw === '' ? [] : array_map('trim', explode(',', $raw));
+        $labels = array_values(array_filter($labels, fn($l) => $l !== ''));
+        db_set_tags_for_galaxy($id, $labels);
+    }
+
     return ['ok' => true, 'message' => 'Galaxy updated successfully.'];
 }

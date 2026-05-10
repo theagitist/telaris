@@ -1950,6 +1950,132 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
         }
 
+        // ----- Keyword autocomplete (Idea 3 follow-on) -------------------
+        // Suggestions are bucketed by api/keywords.php?autocomplete=1: current-galaxy
+        // first, then prefix-siblings, then global. We cache per-constellation so
+        // changing the editor's galaxy filter or opening different node modals
+        // doesn't refetch on every keystroke.
+        const keywordSuggestionCache = new Map(); // cid -> { current:[], siblings:[], global:[] }
+        let keywordSuggestionConstellation = { create: null, modal: null };
+
+        function keywordSuggestionContainer(contextId) {
+            return document.getElementById('keyword-suggestions-' + contextId);
+        }
+
+        function keywordSuggestionConstellationFor(contextId) {
+            if (contextId === 'modal') {
+                const v = parseInt(document.getElementById('edit-constellation')?.value, 10);
+                return Number.isFinite(v) ? v : null;
+            }
+            // Create form: ask the create-row's node-constellation select; fall back to the
+            // page-level "current galaxy" filter if the create row hasn't picked one yet.
+            const v1 = parseInt(document.getElementById('node-constellation')?.value, 10);
+            if (Number.isFinite(v1) && v1 > 0) return v1;
+            const v2 = document.getElementById('current-constellation')?.value;
+            if (v2 && v2 !== 'all') {
+                const v2n = parseInt(v2, 10);
+                if (Number.isFinite(v2n)) return v2n;
+            }
+            return null;
+        }
+
+        async function ensureKeywordSuggestions(contextId) {
+            const cid = keywordSuggestionConstellationFor(contextId);
+            keywordSuggestionConstellation[contextId] = cid;
+            if (cid === null) return null;
+            if (keywordSuggestionCache.has(cid)) return keywordSuggestionCache.get(cid);
+            try {
+                const r = await fetch(`../api/keywords.php?constellation_id=${cid}&autocomplete=1`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                if (!r.ok) throw new Error('fetch failed');
+                const data = await r.json();
+                keywordSuggestionCache.set(cid, data);
+                return data;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function renderKeywordSuggestions(contextId, data, filter) {
+            const box = keywordSuggestionContainer(contextId);
+            if (!box) return;
+            const f = (filter || '').trim().toLowerCase();
+            const taken = new Set((keywordState[contextId] || []).map(k => k.toLowerCase()));
+
+            const buckets = [
+                { key: 'current',  label: 'Already in this galaxy',                items: data.current  || [] },
+                { key: 'siblings', label: 'In sibling galaxies (same [XX] prefix)', items: data.siblings || [] },
+                { key: 'global',   label: 'Other keywords',                        items: data.global   || [] },
+            ];
+
+            const rows = [];
+            buckets.forEach(b => {
+                const matches = b.items.filter(item => {
+                    if (taken.has(item.keyword.toLowerCase())) return false;
+                    if (!f) return true;
+                    return item.keyword.toLowerCase().includes(f);
+                });
+                if (matches.length === 0) return;
+                rows.push(`<div class="px-3 py-1 text-[10px] uppercase tracking-wider text-gray-500 bg-gray-50 border-b border-gray-100">${escapeHtml(b.label)}</div>`);
+                matches.slice(0, 12).forEach(m => {
+                    const count = (typeof m.count === 'number' && m.count > 0) ? `<span class="text-xs text-gray-400 ml-2">${m.count}</span>` : '';
+                    rows.push(`<div class="px-3 py-1.5 hover:bg-blue-50 cursor-pointer flex items-center justify-between" data-kw-suggest="${escapeHtml(m.keyword)}" data-kw-context="${escapeHtml(contextId)}"><span class="text-gray-800">${escapeHtml(m.keyword)}</span>${count}</div>`);
+                });
+            });
+
+            if (rows.length === 0) {
+                box.classList.add('hidden');
+                box.innerHTML = '';
+                return;
+            }
+            box.innerHTML = rows.join('');
+            box.classList.remove('hidden');
+        }
+
+        async function updateKeywordSuggestions(contextId) {
+            const input = contextId === 'modal'
+                ? document.getElementById('edit-keywords-input-modal')
+                : document.getElementById('node-keywords-input');
+            const data = await ensureKeywordSuggestions(contextId);
+            if (!data) {
+                const box = keywordSuggestionContainer(contextId);
+                if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
+                return;
+            }
+            renderKeywordSuggestions(contextId, data, input ? input.value : '');
+        }
+
+        // Click-to-pick on suggestions (delegated, once globally).
+        document.addEventListener('mousedown', (ev) => {
+            const pick = ev.target.closest('[data-kw-suggest]');
+            if (!pick) return;
+            const ctx = pick.getAttribute('data-kw-context');
+            const kw = pick.getAttribute('data-kw-suggest');
+            ev.preventDefault();
+            addKeywords(kw, ctx);
+            const input = ctx === 'modal'
+                ? document.getElementById('edit-keywords-input-modal')
+                : document.getElementById('node-keywords-input');
+            if (input) { input.value = ''; input.focus(); }
+            updateKeywordSuggestions(ctx);
+        });
+
+        // Click outside the keyword container hides suggestions.
+        document.addEventListener('click', (ev) => {
+            ['create', 'modal'].forEach(ctx => {
+                const c = document.getElementById('keywords-container-' + ctx);
+                const box = keywordSuggestionContainer(ctx);
+                if (!c || !box) return;
+                if (!c.contains(ev.target)) {
+                    box.classList.add('hidden');
+                }
+            });
+        });
+
+        // Expose for inline handlers.
+        window.updateKeywordSuggestions = updateKeywordSuggestions;
+
         // Initialize on page load
         const API_URL = '../api/validate.php';
 
@@ -2063,14 +2189,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     </div>
                     <div>
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
-                        <div id="keywords-container-create" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
-                            <input type="text" id="node-keywords-input" placeholder="Add keyword..." 
-                                   onkeydown="handleKeywordInput(event, 'create')" 
-                                   oninput="if(this.value.includes(',')) { addKeywords(this.value, 'create'); this.value = ''; }"
+                        <div id="keywords-container-create" class="relative flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
+                            <input type="text" id="node-keywords-input" placeholder="Add keyword..."
+                                   onkeydown="handleKeywordInput(event, 'create')"
+                                   oninput="if(this.value.includes(',')) { addKeywords(this.value, 'create'); this.value = ''; } else { updateKeywordSuggestions('create'); }"
+                                   onfocus="updateKeywordSuggestions('create')"
+                                   autocomplete="off"
                                    class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
+                            <div id="keyword-suggestions-create" class="hidden absolute left-0 right-0 top-full mt-1 z-[100] max-h-56 overflow-y-auto rounded border border-gray-300 bg-white shadow-lg text-sm"></div>
                         </div>
                         <input type="hidden" id="node-keywords" name="keywords">
-                        <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords.</span>
+                        <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords. Suggestions surface keywords already used in this galaxy and in sibling galaxies sharing your <code>[XX]</code> prefix.</span>
                     </div>
                     <div class="flex flex-col justify-center">
                         <label class="label cursor-pointer justify-start gap-4">
@@ -2223,14 +2352,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     </div>
                     <div>
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
-                        <div id="keywords-container-modal" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
-                            <input type="text" id="edit-keywords-input-modal" placeholder="Add keyword..." 
-                                   onkeydown="handleKeywordInput(event, 'modal')" 
-                                   oninput="if(this.value.includes(',')) { addKeywords(this.value, 'modal'); this.value = ''; }"
+                        <div id="keywords-container-modal" class="relative flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
+                            <input type="text" id="edit-keywords-input-modal" placeholder="Add keyword..."
+                                   onkeydown="handleKeywordInput(event, 'modal')"
+                                   oninput="if(this.value.includes(',')) { addKeywords(this.value, 'modal'); this.value = ''; } else { updateKeywordSuggestions('modal'); }"
+                                   onfocus="updateKeywordSuggestions('modal')"
+                                   autocomplete="off"
                                    class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
+                            <div id="keyword-suggestions-modal" class="hidden absolute left-0 right-0 top-full mt-1 z-[100] max-h-56 overflow-y-auto rounded border border-gray-300 bg-white shadow-lg text-sm"></div>
                         </div>
                         <input type="hidden" id="edit-keywords-hidden" name="keywords">
-                        <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords</span>
+                        <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords. Suggestions surface keywords already used in this galaxy and in sibling galaxies sharing your <code>[XX]</code> prefix.</span>
                     </div>
                     <div class="flex flex-col justify-center">
                         <label class="label cursor-pointer justify-start gap-4">
