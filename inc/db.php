@@ -269,6 +269,41 @@ function db_ensure_constellations_tour_columns(): void {
 }
 
 /**
+ * Ensure constellations.type column + galaxy_cluster_members table exist.
+ *
+ * 'galaxy' is the default; 'cluster' rows hold no native wormholes and get their nodes
+ * from member galaxies via galaxy_cluster_members. The visitor render path treats clusters
+ * as a curated alias for ?galaxies=member1,member2,...; only routing/edit-UI care about the
+ * type distinction.
+ */
+function db_ensure_constellations_type_and_cluster_members(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'type'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE constellations ADD COLUMN `type` ENUM('galaxy','cluster') NOT NULL DEFAULT 'galaxy' AFTER theme, ADD INDEX idx_type (`type`)");
+        }
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS galaxy_cluster_members (
+                cluster_id INT NOT NULL,
+                member_id INT NOT NULL,
+                position INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (cluster_id, member_id),
+                INDEX idx_cluster_id (cluster_id),
+                INDEX idx_member_id (member_id),
+                FOREIGN KEY (cluster_id) REFERENCES constellations(id) ON DELETE CASCADE,
+                FOREIGN KEY (member_id)  REFERENCES constellations(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_constellations_type_and_cluster_members: ' . $e->getMessage());
+    }
+}
+
+/**
  * Ensure the galaxy_tags junction table exists.
  *
  * Each row associates a galaxy with a tag. The slug is the canonical lookup key
@@ -1083,12 +1118,16 @@ function db_default_constellation_tagline(PDO $pdo): string {
 }
 
 /**
+ * Galaxy-typed constellations. Existing callers (editor dropdowns, portal-target pickers,
+ * admin galaxy list) all want galaxies only — clusters are managed via db_get_clusters().
+ *
  * @return list<array{id: int, name: string, tagline: string}>
  */
 function db_get_constellations(): array {
     db_ensure_constellations_import_source_column();
+    db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
-    $stmt = $pdo->query("SELECT id, name, tagline, slug, theme, import_source, created_at, updated_at FROM constellations ORDER BY id");
+    $stmt = $pdo->query("SELECT id, name, tagline, slug, theme, import_source, created_at, updated_at FROM constellations WHERE `type` = 'galaxy' ORDER BY id");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -1131,9 +1170,10 @@ function db_get_prefix_sibling_ids(int $constellationId): array {
  * @return list<array{id:int,name:string,slug:?string,theme:string}>
  */
 function db_get_constellations_by_name_prefix(string $prefix): array {
+    db_ensure_constellations_type_and_cluster_members();
     $needle = '[' . $prefix . ']';
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT id, name, slug, theme FROM constellations WHERE name LIKE :p ORDER BY id");
+    $stmt = $pdo->prepare("SELECT id, name, slug, theme FROM constellations WHERE name LIKE :p AND `type` = 'galaxy' ORDER BY id");
     // Escape LIKE wildcards in the supplied prefix; we want a literal prefix match.
     $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $needle);
     $stmt->execute([':p' => $escaped . '%']);
@@ -1209,6 +1249,7 @@ function db_set_tags_for_galaxy(int $constellationId, array $labels): void {
  */
 function db_get_galaxies_for_tag(string $tagSlug): array {
     db_ensure_galaxy_tags_table();
+    db_ensure_constellations_type_and_cluster_members();
     $tagSlug = trim($tagSlug);
     if ($tagSlug === '') return [];
     $pdo = getDB();
@@ -1216,7 +1257,7 @@ function db_get_galaxies_for_tag(string $tagSlug): array {
         SELECT c.id, c.name, c.slug, c.theme, gt.tag_label
         FROM galaxy_tags gt
         JOIN constellations c ON c.id = gt.constellation_id
-        WHERE gt.tag_slug = :s
+        WHERE gt.tag_slug = :s AND c.`type` = 'galaxy'
         ORDER BY c.id
     ");
     $stmt->execute([':s' => $tagSlug]);
@@ -1345,6 +1386,151 @@ function db_get_keywords_for_galaxies(array $constellationIds): array {
     return $out;
 }
 
+// ---------------------------------------------------------------------------
+// Galaxy clusters (Idea 2 — first-class union object)
+// ---------------------------------------------------------------------------
+// Clusters are constellation rows with type='cluster'. They have no native wormholes;
+// their nodes come from members via the multigalaxy pipeline. The galaxy_cluster_members
+// junction stores membership; position is reserved for ordering (defaults to 0 in v1).
+
+/**
+ * Member galaxy IDs for a cluster, in insertion order.
+ *
+ * @return list<int>
+ */
+function db_get_cluster_member_ids(int $clusterId): array {
+    db_ensure_constellations_type_and_cluster_members();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT m.member_id
+        FROM galaxy_cluster_members m
+        JOIN constellations c ON c.id = m.member_id AND c.`type` = 'galaxy'
+        WHERE m.cluster_id = :cid
+        ORDER BY m.position ASC, m.member_id ASC
+    ");
+    $stmt->execute([':cid' => $clusterId]);
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+/**
+ * Replace the set of members on a cluster. Non-galaxy IDs are silently dropped.
+ * Position is the index in the input list.
+ *
+ * @param list<int> $memberIds
+ */
+function db_set_cluster_members(int $clusterId, array $memberIds): void {
+    db_ensure_constellations_type_and_cluster_members();
+    $ids = array_values(array_unique(array_map('intval', $memberIds)));
+    $pdo = getDB();
+    $pdo->beginTransaction();
+    try {
+        $del = $pdo->prepare("DELETE FROM galaxy_cluster_members WHERE cluster_id = :cid");
+        $del->execute([':cid' => $clusterId]);
+
+        if ($ids !== []) {
+            // Validate each candidate is a galaxy (not a cluster, not the cluster itself).
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $vstmt = $pdo->prepare("SELECT id FROM constellations WHERE id IN ($placeholders) AND `type` = 'galaxy'");
+            $vstmt->execute($ids);
+            $valid = array_map('intval', $vstmt->fetchAll(PDO::FETCH_COLUMN));
+            $validSet = array_flip($valid);
+
+            $ins = $pdo->prepare("INSERT INTO galaxy_cluster_members (cluster_id, member_id, position) VALUES (:cid, :mid, :pos)");
+            $position = 0;
+            foreach ($ids as $mid) {
+                if ($mid === $clusterId) continue;     // cluster can't be its own member
+                if (!isset($validSet[$mid])) continue; // non-galaxy or unknown → skip
+                $ins->execute([':cid' => $clusterId, ':mid' => $mid, ':pos' => $position++]);
+            }
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/**
+ * Create a cluster row in constellations + populate its members.
+ *
+ * @param list<int> $memberIds
+ */
+function db_create_cluster(string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic', array $memberIds = []): int {
+    db_ensure_constellations_type_and_cluster_members();
+    $pdo = getDB();
+    $finalSlug = ($slug !== null && $slug !== '') ? $slug : db_slugify($name);
+    $stmt = $pdo->prepare("INSERT INTO constellations (name, tagline, slug, theme, `type`) VALUES (:name, :tagline, :slug, :theme, 'cluster')");
+    $stmt->execute([
+        ':name' => $name,
+        ':tagline' => $tagline,
+        ':slug' => $finalSlug,
+        ':theme' => $theme,
+    ]);
+    $clusterId = (int) $pdo->lastInsertId();
+    if ($memberIds !== []) {
+        db_set_cluster_members($clusterId, $memberIds);
+    }
+    return $clusterId;
+}
+
+/**
+ * Update a cluster's metadata. Members are passed separately via db_set_cluster_members.
+ */
+function db_update_cluster(int $id, string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic'): void {
+    db_ensure_constellations_type_and_cluster_members();
+    $pdo = getDB();
+    $finalSlug = ($slug !== null && $slug !== '') ? $slug : db_slugify($name);
+    $stmt = $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline, slug = :slug, theme = :theme WHERE id = :id AND `type` = 'cluster'");
+    $stmt->execute([
+        ':id' => $id,
+        ':name' => $name,
+        ':tagline' => $tagline,
+        ':slug' => $finalSlug,
+        ':theme' => $theme,
+    ]);
+}
+
+/**
+ * Delete a cluster row. ON DELETE CASCADE on the members FK takes care of the junction.
+ */
+function db_delete_cluster(int $id): void {
+    db_ensure_constellations_type_and_cluster_members();
+    $pdo = getDB();
+    $pdo->prepare("DELETE FROM constellations WHERE id = :id AND `type` = 'cluster'")->execute([':id' => $id]);
+}
+
+/**
+ * List all clusters with their member counts (for the admin list view).
+ *
+ * @return list<array{id:int,name:string,tagline:string,slug:?string,theme:string,member_count:int,created_at:?string,updated_at:?string}>
+ */
+function db_get_clusters(): array {
+    db_ensure_constellations_type_and_cluster_members();
+    $pdo = getDB();
+    $stmt = $pdo->query("
+        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.created_at, c.updated_at,
+               (SELECT COUNT(*) FROM galaxy_cluster_members m WHERE m.cluster_id = c.id) AS member_count
+        FROM constellations c
+        WHERE c.`type` = 'cluster'
+        ORDER BY c.id
+    ");
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = [
+            'id' => (int) $r['id'],
+            'name' => (string) ($r['name'] ?? ''),
+            'tagline' => (string) ($r['tagline'] ?? ''),
+            'slug' => $r['slug'] ?? null,
+            'theme' => (string) ($r['theme'] ?? 'cosmic'),
+            'member_count' => (int) $r['member_count'],
+            'created_at' => $r['created_at'] ?? null,
+            'updated_at' => $r['updated_at'] ?? null,
+        ];
+    }
+    return $out;
+}
+
 /**
  * Server-side paginated, sorted, filtered constellation query.
  * @return array{constellations: list<array>, total: int, page: int, per_page: int}
@@ -1360,7 +1546,8 @@ function db_get_constellations_paginated(
     db_ensure_constellations_tour_columns();
     $pdo = getDB();
 
-    $where = [];
+    db_ensure_constellations_type_and_cluster_members();
+    $where = ["c.`type` = 'galaxy'"];
     $params = [];
 
     if ($filter !== null && $filter !== '') {
@@ -1372,7 +1559,7 @@ function db_get_constellations_paginated(
         $params[':filter4'] = $filterVal;
     }
 
-    $whereClause = $where !== [] ? 'WHERE ' . implode(' AND ', $where) : '';
+    $whereClause = 'WHERE ' . implode(' AND ', $where);
 
     $countStmt = $pdo->prepare("SELECT COUNT(*) FROM constellations c {$whereClause}");
     $countStmt->execute($params);
@@ -1419,11 +1606,13 @@ function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
     if ($userId === null || $userId === '') {
         return [];
     }
+    db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
     $stmt = $pdo->prepare("
         SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.import_source, c.created_at, c.updated_at
         FROM constellations c
         INNER JOIN user_constellations uc ON uc.constellation_id = c.id AND uc.user_id = :user_id
+        WHERE c.`type` = 'galaxy'
         ORDER BY c.id
     ");
     $stmt->execute([':user_id' => $userId]);
@@ -1436,8 +1625,9 @@ function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
  */
 function db_get_constellation_by_id(int $id): ?array {
     db_ensure_constellations_import_source_column();
+    db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme, import_source FROM constellations WHERE id = :id LIMIT 1");
+    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme, import_source, `type` FROM constellations WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
@@ -1448,7 +1638,8 @@ function db_get_constellation_by_id(int $id): ?array {
         'tagline' => (string) ($row['tagline'] ?? ''),
         'slug' => $row['slug'],
         'theme' => (string) ($row['theme'] ?? 'cosmic'),
-        'import_source' => $row['import_source'] ?? null
+        'import_source' => $row['import_source'] ?? null,
+        'type' => (string) ($row['type'] ?? 'galaxy'),
     ];
 }
 
@@ -1486,14 +1677,15 @@ function db_clear_constellation_nodes(int $constellationId): void {
  * @return array{id: int, name: string, tagline: string, theme: string}|null
  */
 function db_get_constellation_by_slug(string $slug): ?array {
+    db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT id, name, tagline, theme FROM constellations WHERE slug = :slug LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, name, tagline, theme, `type` FROM constellations WHERE slug = :slug LIMIT 1");
     $stmt->execute([':slug' => $slug]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     if (!$row) {
         // Fallback: check if any constellation name slugifies to this value
-        $all = $pdo->query("SELECT id, name, tagline, slug, theme FROM constellations");
+        $all = $pdo->query("SELECT id, name, tagline, slug, theme, `type` FROM constellations");
         while ($c = $all->fetch(PDO::FETCH_ASSOC)) {
             if (db_slugify($c['name']) === strtolower($slug)) {
                 $row = $c;
@@ -1509,7 +1701,8 @@ function db_get_constellation_by_slug(string $slug): ?array {
         'id' => (int)$row['id'],
         'name' => (string) ($row['name'] ?? ''),
         'tagline' => (string) ($row['tagline'] ?? ''),
-        'theme' => (string) ($row['theme'] ?? 'cosmic')
+        'theme' => (string) ($row['theme'] ?? 'cosmic'),
+        'type' => (string) ($row['type'] ?? 'galaxy'),
     ];
 }
 

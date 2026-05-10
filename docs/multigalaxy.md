@@ -60,6 +60,7 @@ Order is a sketch, not a commitment — revisit after each step.
 - 2026-05-10 — **Idea 4 (query string) shipped on starmaps.** `?galaxies=slug-or-id,slug-or-id,...` unions the listed galaxies; theme defaults to first-listed, `&theme=<id>` overrides. Bridges (cross-galaxy connections via shared keyword text) render as subtle dashed lines (`THREE.LineDashedMaterial`); same hue as intra-galaxy lines. Auto-clustering uses the existing cascade unmodified. Per-galaxy discovery features (auto-tour, idle spotlight, keyword chips, related-nodes) are disabled in union mode. Visitor-only — editor pages are unaffected. **Per-node origin theme**: each wormhole's 3D icon uses its source galaxy's theme so it stays recognizable across the union; the scene theme (lighting, background animations, station rings) remains global.
 - 2026-05-10 — **Idea 1 (prefix matching) shipped on starmaps.** `/[XXX]` (also accepts `%5BXXX%5D`) unions every galaxy whose name starts with the literal `[XXX]` token. Reuses the same downstream pipeline as `?galaxies=`; title is `[XXX]`, tagline is the member count. Case-insensitive (MySQL `LIKE` collation).
 - 2026-05-10 — **Idea 3 (galaxy tags) shipped on starmaps.** New `galaxy_tags` junction table (constellation_id, tag_slug, tag_label). `/tag/<slug>` (also accepts URL-encoded form) unions every galaxy carrying the tag. Slug derivation via `db_slugify()`; canonical display label is the most-frequently-used label across assigned galaxies. Editor UI: chip input in the galaxy edit modal with autocomplete bucketed as **current galaxy → prefix-siblings (same `[XX]`) → global**. The same autocomplete UX is now also wired on the per-wormhole keyword input. Tags ride through `.telaris-backup` files (additive on format v1; old dumps restore cleanly with no tags).
+- 2026-05-10 — **Idea 2 (Galaxy Cluster type) shipped on starmaps.** New `type ENUM('galaxy','cluster')` column on `constellations` + `galaxy_cluster_members(cluster_id, member_id, position)` junction. A cluster is a first-class row with its own slug, title, tagline, theme, permalink — visiting `/<slug>` (or `/<id>`) pivots to multigalaxy mode using the cluster's members. Clusters have no native wormholes (strictly a view). Admin-only management: new "Galaxy Clusters" section under the Galaxies tab + dedicated create/edit modal (member checklist, no tour/chips/related-nodes — those don't apply to a curated union). `/[XXX]` and `/tag/` stay scoped to galaxy-typed rows only so clusters never bleed into emergent unions. Clusters ride through `.telaris-backup` files referencing members by galaxy slug (additive on format v1).
 
 ### Implementation reference
 
@@ -71,7 +72,17 @@ Order is a sketch, not a commitment — revisit after each step.
 
 ### Still to ship
 
-- Idea 2 (Galaxy Cluster type) — first-class object with own slug/title/theme/permalink.
+- Galaxy list strip (visitor multigalaxy filter): bottom-right column of galaxies on screen, click-to-dim, multi-select OR-match. Default ON for query-string / prefix / tag unions; per-cluster toggle (default OFF) for Galaxy Cluster type. (Originally raised mid-stream during Idea 2 work.)
+
+### Implementation reference (Idea 2)
+
+- Schema: `constellations.type ENUM('galaxy','cluster')` + `galaxy_cluster_members(cluster_id, member_id, position)`. Auto-migrated by `db_ensure_constellations_type_and_cluster_members()`.
+- DB helpers: `db_get_cluster_member_ids`, `db_set_cluster_members`, `db_create_cluster`, `db_update_cluster`, `db_delete_cluster`, `db_get_clusters`. Existing `db_get_constellations`, `db_get_constellations_paginated`, `db_get_constellations_for_user` filter to `type='galaxy'` so dropdowns/portal-target pickers/admin galaxy lists don't surface clusters.
+- Bootstrap: post-chain pivot — after the existing slug/ID resolution lands on a constellation, if its `type='cluster'` we load `db_get_cluster_member_ids()` and pivot to multigalaxy mode using the cluster's own metadata (name, tagline, theme, slug).
+- API: `GET /api/constellations.php?action=cluster_members&id=N` returns `{member_ids: [...]}` for the admin edit modal.
+- Admin: `admin/index.php` adds a Galaxy Clusters section under the Galaxies tab with a dedicated create/edit modal (`#cluster_modal`); actions `create_cluster`, `update_cluster`, `delete_cluster` mirror the existing galaxy form-action pattern.
+- Backup/restore: dump includes a `clusters` array referencing members by galaxy slug; restore creates/overwrites cluster rows after galaxies are restored so member slugs resolve.
+- Scope guards: `db_get_constellations_by_name_prefix` and `db_get_galaxies_for_tag` filter `type='galaxy'` so `/[XXX]` and `/tag/` never include clusters.
 
 ### Implementation reference (Idea 3)
 

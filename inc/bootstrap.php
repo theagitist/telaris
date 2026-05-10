@@ -387,6 +387,27 @@ if (preg_match('#^([^/]+)/([0-9]+)$#', $path, $m)) {
         $constellationId = $defaultConstellationId;
     }
 }
+
+// Cluster pivot: if the chain landed on a cluster-typed row, swap to multigalaxy mode using
+// its members. The cluster keeps its own name / tagline / theme / slug — they were already set
+// above by the lookup. Only $multiGalaxyIds + $multiGalaxyTitle need populating.
+$_resolvedInfo = db_get_constellation_by_id((int) $constellationId);
+if ($_resolvedInfo && ($_resolvedInfo['type'] ?? 'galaxy') === 'cluster') {
+    $memberIds = db_get_cluster_member_ids((int) $constellationId);
+    if (!empty($memberIds)) {
+        $multiGalaxyIds = $memberIds;
+        $multiGalaxyTitle = $constellationName;
+        // ?theme=<id> override (cluster's own theme already applied via the chain).
+        if (!empty($_GET['theme']) && is_string($_GET['theme'])) {
+            $themeReq = preg_replace('/[^a-z0-9_-]/', '', strtolower(trim($_GET['theme'])));
+            $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech'];
+            if (in_array($themeReq, $allowedThemes, true)) {
+                $constellationTheme = $themeReq;
+            }
+        }
+    }
+    // Empty-cluster case: render as a normal (empty) constellation; the visitor sees no nodes.
+}
 endif; // empty($multiGalaxyIds)
 
 $tourConfig = db_get_constellation_tour_config((int) $constellationId);

@@ -38,6 +38,18 @@ try {
                 return;
             }
 
+            if (isset($_GET['action']) && $_GET['action'] === 'cluster_members' && isset($_GET['id'])) {
+                $id = (int)$_GET['id'];
+                $info = db_get_constellation_by_id($id);
+                if (!$info || ($info['type'] ?? 'galaxy') !== 'cluster') {
+                    http_response_code(404);
+                    echo json_encode(['error' => 'Cluster not found'], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                echo json_encode(['member_ids' => db_get_cluster_member_ids($id)], JSON_THROW_ON_ERROR);
+                return;
+            }
+
             if (isset($_GET['action']) && $_GET['action'] === 'tour_config' && isset($_GET['id'])) {
                 $id = (int)$_GET['id'];
                 $config = db_get_constellation_tour_config($id);

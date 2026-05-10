@@ -275,6 +275,76 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $message = 'Galaxy deleted successfully.';
                 $activeTab = 'constellations';
             })(),
+
+            // ---------- Galaxy clusters (Idea 2) ----------
+            // Admin-only — auth gate is the page-level requireAdmin() above. Clusters share the
+            // constellations table (type='cluster') so slug uniqueness is enforced by the same
+            // db_constellation_exists() helper used for galaxies.
+            'create_cluster' => (function(): void {
+                global $message, $error, $activeTab;
+                $name = trim((string)($_POST['name'] ?? ''));
+                if ($name === '') throw new Exception('Cluster name is required');
+                $tagline = trim((string)($_POST['tagline'] ?? ''));
+                $slug = trim((string)($_POST['slug'] ?? ''));
+                $finalSlug = ($slug !== '') ? $slug : db_slugify($name);
+                $exists = db_constellation_exists($name, $finalSlug);
+                if ($exists['name'] || $exists['slug']) {
+                    $errs = [];
+                    if ($exists['name']) $errs[] = 'name "' . htmlspecialchars($name) . '"';
+                    if ($exists['slug']) $errs[] = 'slug "' . htmlspecialchars($finalSlug) . '"';
+                    throw new Exception('A galaxy or cluster with this ' . implode(' and ', $errs) . ' already exists.');
+                }
+                $allowedThemes = ['cosmic', 'simple', 'abstract', 'rectangles', 'stripes', 'tech'];
+                $theme = trim((string)($_POST['theme'] ?? 'cosmic'));
+                if (!in_array($theme, $allowedThemes, true)) $theme = 'cosmic';
+                $members = array_values(array_filter(array_map('intval', (array)($_POST['members'] ?? [])), fn($i) => $i > 0));
+                db_create_cluster($name, $tagline, $finalSlug, $theme, $members);
+                $message = 'Cluster created successfully.';
+                $activeTab = 'constellations';
+            })(),
+
+            'update_cluster' => (function(): void {
+                global $message, $error, $activeTab;
+                $id = (int)($_POST['id'] ?? -1);
+                if ($id <= 0) throw new Exception('Missing cluster id.');
+                $existing = db_get_constellation_by_id($id);
+                if (!$existing || ($existing['type'] ?? 'galaxy') !== 'cluster') {
+                    throw new Exception('Not a cluster.');
+                }
+                $name = trim((string)($_POST['name'] ?? ''));
+                if ($name === '') throw new Exception('Cluster name is required');
+                $tagline = trim((string)($_POST['tagline'] ?? ''));
+                $slug = trim((string)($_POST['slug'] ?? ''));
+                $finalSlug = ($slug !== '') ? $slug : db_slugify($name);
+                $exists = db_constellation_exists($name, $finalSlug, $id);
+                if ($exists['name'] || $exists['slug']) {
+                    $errs = [];
+                    if ($exists['name']) $errs[] = 'name "' . htmlspecialchars($name) . '"';
+                    if ($exists['slug']) $errs[] = 'slug "' . htmlspecialchars($finalSlug) . '"';
+                    throw new Exception('A galaxy or cluster with this ' . implode(' and ', $errs) . ' already exists.');
+                }
+                $allowedThemes = ['cosmic', 'simple', 'abstract', 'rectangles', 'stripes', 'tech'];
+                $theme = trim((string)($_POST['theme'] ?? 'cosmic'));
+                if (!in_array($theme, $allowedThemes, true)) $theme = 'cosmic';
+                db_update_cluster($id, $name, $tagline, $finalSlug, $theme);
+                $members = array_values(array_filter(array_map('intval', (array)($_POST['members'] ?? [])), fn($i) => $i > 0));
+                db_set_cluster_members($id, $members);
+                $message = 'Cluster updated successfully.';
+                $activeTab = 'constellations';
+            })(),
+
+            'delete_cluster' => (function(): void {
+                global $message, $error, $activeTab;
+                $id = (int)($_POST['id'] ?? -1);
+                if ($id <= 0) throw new Exception('Missing cluster id.');
+                $existing = db_get_constellation_by_id($id);
+                if (!$existing || ($existing['type'] ?? 'galaxy') !== 'cluster') {
+                    throw new Exception('Not a cluster.');
+                }
+                db_delete_cluster($id);
+                $message = 'Cluster deleted successfully.';
+                $activeTab = 'constellations';
+            })(),
             
             'logout' => (function(): void {
                 logoutAdmin();
@@ -334,6 +404,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
 $apiKeys = db_get_api_keys();
 $users = db_get_users();
 $constellations = db_get_constellations();
+$clusters = db_get_clusters(); // Idea 2 — first-class galaxy unions
 
 // Group constellations by [Tag] prefix for visual grouping
 function extractConstellationGroup(string $name): ?string {
@@ -830,6 +901,54 @@ $fieldMeta = [
                     <p class="text-sm text-gray-600 mb-4">Each galaxy is a separate set of wormholes and keywords. The current default galaxy, <strong><?php echo $defaultName; ?></strong>, cannot be deleted.<br>You can change the default galaxy in the <button onclick="showTab(\'settings\')" class="text-blue-600 hover:underline">Global Settings</button> tab.</p>
                     <div id="copy-url-toast" class="hidden fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded shadow-lg text-sm" role="status" aria-live="polite">URL copied to clipboard.</div>
                     <div id="constellations-list-container"></div>
+                </div>
+
+                <!-- ========== Galaxy Clusters (Idea 2) ========== -->
+                <div class="mt-10 pt-6 border-t border-gray-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-3">
+                            <h2 class="text-gray-800 text-base font-semibold">Galaxy Clusters (<?php echo count($clusters); ?>)</h2>
+                            <button type="button" onclick="openClusterCreate()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Cluster</button>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-4">A cluster is a curated union of galaxies with its own slug, title, theme, and permalink. Clusters have no native wormholes; they render the union of their members via the multigalaxy pipeline.</p>
+
+                    <?php if (empty($clusters)): ?>
+                        <p class="text-sm text-gray-500 italic">No clusters yet.</p>
+                    <?php else: ?>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                                    <tr>
+                                        <th class="text-left py-2 px-2">Name</th>
+                                        <th class="text-left py-2 px-2">Slug</th>
+                                        <th class="text-left py-2 px-2">Theme</th>
+                                        <th class="text-left py-2 px-2">Members</th>
+                                        <th class="text-right py-2 px-2">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($clusters as $cl): ?>
+                                        <tr class="border-b border-gray-100 hover:bg-gray-50" data-cluster-id="<?php echo (int)$cl['id']; ?>">
+                                            <td class="py-2 px-2 font-medium text-gray-800"><?php echo htmlspecialchars($cl['name']); ?>
+                                                <?php if (!empty($cl['tagline'])): ?>
+                                                    <div class="text-xs text-gray-500 italic"><?php echo htmlspecialchars($cl['tagline']); ?></div>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="py-2 px-2 font-mono text-xs"><a href="../<?php echo htmlspecialchars(rawurlencode((string)$cl['slug'])); ?>" target="_blank" rel="noopener" class="text-blue-600 hover:underline"><?php echo htmlspecialchars((string)$cl['slug']); ?></a></td>
+                                            <td class="py-2 px-2 font-mono text-xs"><?php echo htmlspecialchars($cl['theme']); ?></td>
+                                            <td class="py-2 px-2"><?php echo (int)$cl['member_count']; ?></td>
+                                            <td class="py-2 px-2 text-right">
+                                                <button type="button" onclick='openClusterEdit(<?php echo json_encode($cl, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)' class="text-blue-600 hover:text-blue-800 text-xs">Edit</button>
+                                                <span class="text-gray-300 mx-1">|</span>
+                                                <a onclick="triggerDelete('delete_cluster', '<?php echo (int)$cl['id']; ?>', 'Delete cluster &quot;<?php echo htmlspecialchars(addslashes($cl['name'])); ?>&quot;? Members are unaffected.', '<?php echo htmlspecialchars(addslashes($cl['name'])); ?>')" class="text-red-600 hover:text-red-800 text-xs cursor-pointer">Delete</a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -1960,6 +2079,62 @@ $fieldMeta = [
                 resultDiv.classList.remove('hidden');
             }
         }
+
+        // ---------- Galaxy Cluster modal (Idea 2) ----------
+        function _clusterMemberCheckboxes() {
+            return Array.from(document.querySelectorAll('#cluster_modal input[data-cluster-member]'));
+        }
+        function _refreshClusterMembersCount() {
+            const checked = _clusterMemberCheckboxes().filter(cb => cb.checked).length;
+            const out = document.getElementById('cluster-members-count');
+            if (out) out.textContent = checked === 1 ? '1 selected' : (checked + ' selected');
+        }
+        function openClusterCreate() {
+            document.getElementById('cluster-modal-title').textContent = 'Create Cluster';
+            document.getElementById('cluster-modal-id-badge').textContent = '';
+            document.getElementById('cluster-form-action').value = 'create_cluster';
+            document.getElementById('cluster-form-id').value = '';
+            document.getElementById('cluster-name').value = '';
+            document.getElementById('cluster-slug').value = '';
+            document.getElementById('cluster-tagline').value = '';
+            document.getElementById('cluster-theme').value = 'cosmic';
+            _clusterMemberCheckboxes().forEach(cb => { cb.checked = false; });
+            document.getElementById('cluster-submit-btn').textContent = 'Create Cluster';
+            _refreshClusterMembersCount();
+            document.getElementById('cluster_modal').showModal();
+        }
+        async function openClusterEdit(cluster) {
+            document.getElementById('cluster-modal-title').textContent = 'Edit Cluster';
+            document.getElementById('cluster-modal-id-badge').textContent = '#' + cluster.id;
+            document.getElementById('cluster-form-action').value = 'update_cluster';
+            document.getElementById('cluster-form-id').value = cluster.id;
+            document.getElementById('cluster-name').value = cluster.name || '';
+            document.getElementById('cluster-slug').value = cluster.slug || '';
+            document.getElementById('cluster-tagline').value = cluster.tagline || '';
+            document.getElementById('cluster-theme').value = cluster.theme || 'cosmic';
+            // Fetch members and check the corresponding boxes.
+            _clusterMemberCheckboxes().forEach(cb => { cb.checked = false; });
+            try {
+                const r = await fetch(`../api/constellations.php?action=cluster_members&id=${cluster.id}`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                if (r.ok) {
+                    const data = await r.json();
+                    const ids = new Set((data.member_ids || []).map(Number));
+                    _clusterMemberCheckboxes().forEach(cb => {
+                        if (ids.has(parseInt(cb.value, 10))) cb.checked = true;
+                    });
+                }
+            } catch (e) { /* leave members empty if fetch failed */ }
+            document.getElementById('cluster-submit-btn').textContent = 'Update Cluster';
+            _refreshClusterMembersCount();
+            document.getElementById('cluster_modal').showModal();
+        }
+        document.addEventListener('change', (ev) => {
+            if (ev.target && ev.target.matches && ev.target.matches('input[data-cluster-member]')) {
+                _refreshClusterMembersCount();
+            }
+        });
 
         async function triggerDelete(action, id, message, confirmName = null) {
             document.getElementById('delete-action').value = action;
@@ -3309,6 +3484,71 @@ $fieldMeta = [
                 <div class="modal-action">
                     <button type="submit" class="btn btn-neutral">Create Galaxy</button>
                     <button type="button" class="btn" onclick="document.getElementById('create_constellation_modal').close()">Cancel</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Cluster create/edit modal (Idea 2) -->
+    <dialog id="cluster_modal" class="modal">
+        <div class="modal-box bg-white !pt-0 max-w-3xl">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
+                <h3 id="cluster-modal-title" class="font-bold text-xl">Create Cluster</h3>
+                <span id="cluster-modal-id-badge" class="text-xs opacity-70 font-mono"></span>
+            </div>
+            <form method="POST" action="" class="mt-4">
+                <input type="hidden" name="action" id="cluster-form-action" value="create_cluster">
+                <input type="hidden" name="id" id="cluster-form-id" value="">
+
+                <div class="mb-4">
+                    <label for="cluster-name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
+                    <input type="text" id="cluster-name" name="name" required placeholder="e.g. Tracing the Earth" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div class="mb-4">
+                    <label for="cluster-slug" class="block mb-1.5 text-gray-800 font-medium">URL Slug</label>
+                    <input type="text" id="cluster-slug" name="slug" placeholder="e.g. tracing-the-earth" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block">Visitors land at <code>/&lt;slug&gt;</code>. If left blank, one is generated from the name.</span>
+                </div>
+
+                <div class="mb-4">
+                    <label for="cluster-tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
+                    <input type="text" id="cluster-tagline" name="tagline" placeholder="e.g. A curated cluster" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div class="mb-4">
+                    <label for="cluster-theme" class="block mb-1.5 text-gray-800 font-medium text-sm">Visual Theme</label>
+                    <select id="cluster-theme" name="theme" class="select select-bordered select-sm w-full bg-white">
+                        <option value="cosmic">Cosmic</option>
+                        <option value="abstract">Abstract</option>
+                        <option value="rectangles">Rectangles</option>
+                        <option value="stripes">Stripes</option>
+                        <option value="tech">Tech</option>
+                    </select>
+                    <span class="text-xs text-gray-500 mt-1 block">Scene theme. Each wormhole's icon still uses its source galaxy's theme.</span>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block mb-1.5 text-gray-800 font-medium text-sm">Member galaxies *</label>
+                    <p class="text-xs text-gray-500 mb-2">Visitors see the union of these galaxies' wormholes. Bridges (subtle dashed lines) connect wormholes sharing keyword text across galaxies.</p>
+                    <div class="border border-gray-300 rounded p-2 max-h-64 overflow-y-auto bg-white">
+                        <?php foreach ($constellations as $g): ?>
+                            <label class="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50 px-1 rounded">
+                                <input type="checkbox" name="members[]" value="<?php echo (int)$g['id']; ?>" data-cluster-member="1" class="checkbox checkbox-neutral checkbox-xs">
+                                <span class="text-sm text-gray-800"><?php echo htmlspecialchars($g['name']); ?></span>
+                                <?php if (!empty($g['slug'])): ?>
+                                    <span class="text-xs text-gray-400 font-mono">/<?php echo htmlspecialchars((string)$g['slug']); ?></span>
+                                <?php endif; ?>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <p id="cluster-members-count" class="text-xs text-gray-500 mt-1">0 selected</p>
+                </div>
+
+                <div class="modal-action">
+                    <button type="submit" id="cluster-submit-btn" class="btn btn-neutral">Create Cluster</button>
+                    <button type="button" class="btn" onclick="document.getElementById('cluster_modal').close()">Cancel</button>
                 </div>
             </form>
         </div>

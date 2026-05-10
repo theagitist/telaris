@@ -261,6 +261,29 @@ function backup_build_dump(array $opts): array {
         }
     }
 
+    // Galaxy clusters (Idea 2). Always include; member references use galaxy slug so a
+    // cluster restored into a different instance still resolves correctly. Additive on
+    // format v1 — older readers ignore the 'clusters' key.
+    $clustersOut = [];
+    if ($includeGalaxies) {
+        foreach (db_get_clusters() as $cl) {
+            $memberIds = db_get_cluster_member_ids((int)$cl['id']);
+            $memberSlugs = [];
+            foreach ($memberIds as $mid) {
+                $info = db_get_constellation_by_id($mid);
+                if ($info && !empty($info['slug'])) $memberSlugs[] = (string)$info['slug'];
+            }
+            $clustersOut[] = [
+                'ref' => 'cluster-' . $cl['id'],
+                'name' => $cl['name'],
+                'tagline' => $cl['tagline'],
+                'slug' => $cl['slug'],
+                'theme' => $cl['theme'],
+                'member_galaxy_slugs' => $memberSlugs,
+            ];
+        }
+    }
+
     $appVersion = '0.0.0';
     if (file_exists(__DIR__ . '/../VERSION')) {
         $appVersion = trim((string)file_get_contents(__DIR__ . '/../VERSION'));
@@ -277,6 +300,7 @@ function backup_build_dump(array $opts): array {
             'media' => $mediaMode,
         ],
         'galaxies' => $galaxies,
+        'clusters' => $clustersOut,
         'users' => $usersOut,
         'media_blobs' => $mediaBlobs,
     ];
@@ -577,6 +601,42 @@ function backup_restore_from_file(string $path, array $opts): array {
             $targetCid = db_get_constellation_id_by_slug($pu['target_slug']);
         }
         db_set_node_target_constellation((int)$pu['node_id'], $targetCid);
+    }
+
+    // 4b. Restore galaxy clusters (Idea 2). Members referenced by galaxy slug; missing members
+    // are silently dropped (e.g. a galaxy excluded from the dump). On slug conflict in granular
+    // mode we overwrite in place; in wipe_all mode the slug is always free.
+    foreach ($dump['clusters'] ?? [] as $cl) {
+        $name = (string)($cl['name'] ?? '');
+        $slug = (string)($cl['slug'] ?? '');
+        if ($name === '' || $slug === '') continue;
+        $tagline = (string)($cl['tagline'] ?? '');
+        $theme = (string)($cl['theme'] ?? 'cosmic');
+        $allowedThemes = ['cosmic', 'simple', 'abstract', 'rectangles', 'stripes', 'tech'];
+        if (!in_array($theme, $allowedThemes, true)) $theme = 'cosmic';
+
+        $memberIds = [];
+        foreach (($cl['member_galaxy_slugs'] ?? []) as $msl) {
+            $cid = db_get_constellation_id_by_slug((string)$msl);
+            if ($cid !== null) $memberIds[] = $cid;
+        }
+
+        try {
+            $existingId = db_get_constellation_id_by_slug($slug);
+            if ($existingId !== null) {
+                $existingInfo = db_get_constellation_by_id($existingId);
+                if ($existingInfo && ($existingInfo['type'] ?? 'galaxy') === 'cluster') {
+                    db_update_cluster($existingId, $name, $tagline, $slug, $theme);
+                    db_set_cluster_members($existingId, $memberIds);
+                }
+                // Slug taken by a galaxy — skip silently rather than corrupt the galaxy.
+            } else {
+                db_create_cluster($name, $tagline, $slug, $theme, $memberIds);
+            }
+        } catch (Throwable $e) {
+            // Log and continue; cluster restore failures shouldn't block the rest of the dump.
+            error_log('backup cluster restore failed: ' . $e->getMessage());
+        }
     }
 
     // 5. Re-link editors to their galaxies (now that both exist)
