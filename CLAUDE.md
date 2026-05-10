@@ -8,6 +8,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Current version: **6.5.0** (tracked in `VERSION` file).
 
+## Dev and production sites
+
+Telaris runs as two sibling sites on this VPS:
+
+- `/var/www/telaris.polivoxia.ca` — production
+- `/var/www/starmaps.polivoxia.ca` — development sibling and **source of truth**
+
+Both share the codebase via the `git@github.com:theagitist/telaris.git` repo, but each has its own database and `UPLOAD_DIR` set in its own `config.php`. Develop on **starmaps**; bring changes to telaris only after they've been validated. Code flows starmaps → telaris, never the reverse. Database content, uploads, snapshots, and `config.php` are per-site and must not be cross-pollinated.
+
 ## Vocabulary Mapping (Code → UI)
 
 The codebase uses internal names that differ from what users see in the UI:
