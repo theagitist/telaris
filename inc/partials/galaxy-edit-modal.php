@@ -60,7 +60,7 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
                 <div id="modal-galaxy-tags-container" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors min-h-[2.75rem] relative">
                     <input type="text" id="modal-galaxy-tags-input" placeholder="Add tag..."
                         class="flex-1 min-w-[120px] outline-none border-none focus:ring-0 text-sm bg-transparent" autocomplete="off">
-                    <div id="modal-galaxy-tags-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 z-[100] max-h-56 overflow-y-auto rounded border border-gray-300 bg-white shadow-lg text-sm"></div>
+                    <div id="modal-galaxy-tags-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 z-[100] max-h-56 overflow-y-auto overscroll-contain rounded border border-gray-300 bg-white shadow-lg text-sm"></div>
                 </div>
                 <input type="hidden" id="modal-galaxy-tags-hidden" name="tags" value="">
                 <span class="text-xs text-gray-500 mt-1 block">Visitors can browse the union of every galaxy carrying a tag at <code>/tag/&lt;tag&gt;</code>. Type to add; press Enter or comma. Suggestions surface tags already used in this galaxy and in sibling galaxies sharing your <code>[XX]</code> prefix.</span>

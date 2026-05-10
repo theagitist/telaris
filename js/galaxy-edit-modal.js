@@ -97,32 +97,43 @@
         const f = (filter || '').trim().toLowerCase();
         const taken = new Set(galaxyTagState.labels.map(l => l.toLowerCase()));
 
-        const buckets = [
-            { key: 'current', label: 'Already on this galaxy', items: galaxyTagState.suggestions.current },
-            { key: 'siblings', label: 'In sibling galaxies (same [XX] prefix)', items: galaxyTagState.suggestions.siblings },
-            { key: 'global', label: 'Other tags', items: galaxyTagState.suggestions.global },
+        // Merge buckets (current galaxy / prefix-siblings / global) into one deduped,
+        // alphabetically-sorted list. Origin doesn't matter; we just want to see what
+        // tags exist anywhere.
+        const merged = new Map(); // lowercase label -> { label, slug, count }
+        const all = [
+            ...(galaxyTagState.suggestions.current  || []),
+            ...(galaxyTagState.suggestions.siblings || []),
+            ...(galaxyTagState.suggestions.global   || []),
         ];
+        for (const item of all) {
+            if (!item || typeof item.label !== 'string' || item.label === '') continue;
+            const lc = item.label.toLowerCase();
+            if (taken.has(lc)) continue;
+            if (f && !(lc.includes(f) || (item.slug || '').toLowerCase().includes(f))) continue;
+            const existing = merged.get(lc);
+            if (existing) {
+                existing.count = (existing.count || 0) + (item.count || 0);
+            } else {
+                merged.set(lc, { label: item.label, slug: item.slug || null, count: item.count || 0 });
+            }
+        }
 
-        const rows = [];
-        buckets.forEach(b => {
-            const matches = b.items.filter(item => {
-                if (taken.has(item.label.toLowerCase())) return false;
-                if (!f) return true;
-                return item.label.toLowerCase().includes(f) || (item.slug || '').toLowerCase().includes(f);
-            });
-            if (matches.length === 0) return;
-            rows.push(`<div class="px-3 py-1 text-[10px] uppercase tracking-wider text-gray-500 bg-gray-50 border-b border-gray-100">${escape(b.label)}</div>`);
-            matches.slice(0, 12).forEach(m => {
-                const count = (typeof m.count === 'number' && m.count > 0) ? `<span class="text-xs text-gray-400 ml-2">${m.count}</span>` : '';
-                rows.push(`<div class="px-3 py-1.5 hover:bg-blue-50 cursor-pointer flex items-center justify-between" data-galaxy-tag-suggest="${escape(m.label)}"><span class="text-gray-800">${escape(m.label)}</span>${count}</div>`);
-            });
-        });
-
-        if (rows.length === 0) {
+        if (merged.size === 0) {
             box.classList.add('hidden');
             box.innerHTML = '';
             return;
         }
+
+        const sorted = Array.from(merged.values()).sort((a, b) =>
+            a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+        );
+
+        const rows = sorted.slice(0, 50).map(m => {
+            const count = (typeof m.count === 'number' && m.count > 0) ? `<span class="text-xs text-gray-400 ml-2">${m.count}</span>` : '';
+            return `<div class="px-3 py-1.5 hover:bg-gray-50 cursor-pointer flex items-center justify-between gap-2" data-galaxy-tag-suggest="${escape(m.label)}"><span class="badge bg-gray-100 text-gray-800 border border-gray-300 px-2 py-2 text-xs whitespace-nowrap">${escape(m.label)}</span>${count}</div>`;
+        });
+
         box.innerHTML = rows.join('');
         box.classList.remove('hidden');
     }

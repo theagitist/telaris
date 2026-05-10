@@ -284,7 +284,7 @@ header("X-Content-Type-Options: nosniff");
                                     <a id="rm-pdf-download" href="#" target="_blank" rel="noopener" class="hover:text-white transition-colors" download><?php echo htmlspecialchars($projectPdfDownloadText ?? 'Download'); ?></a>
                                 </span>
                             </div>
-                            <div id="rm-pdf-pages" class="max-h-[50vh] overflow-y-auto rounded-md border bg-black/30" style="border-color: var(--node-accent-muted);"></div>
+                            <div id="rm-pdf-pages" class="max-h-[50vh] overflow-y-auto overscroll-contain rounded-md border bg-black/30" style="border-color: var(--node-accent-muted);"></div>
                         </div>
 
                         <!-- Credit / attribution shared across image / video / PDF. Stored on

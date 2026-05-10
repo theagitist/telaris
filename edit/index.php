@@ -2053,32 +2053,40 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const f = (filter || '').trim().toLowerCase();
             const taken = new Set((keywordState[contextId] || []).map(k => k.toLowerCase()));
 
-            const buckets = [
-                { key: 'current',  label: 'Already in this galaxy',                items: data.current  || [] },
-                { key: 'siblings', label: 'In sibling galaxies (same [XX] prefix)', items: data.siblings || [] },
-                { key: 'global',   label: 'Other keywords',                        items: data.global   || [] },
-            ];
+            // Merge all source buckets (current galaxy, prefix-siblings, global) into one
+            // deduped, alphabetically-sorted list. Origin doesn't matter to the editor —
+            // the only thing that matters is whether the keyword exists somewhere relevant.
+            const merged = new Map(); // lowercase keyword -> { keyword, count }
+            const all = [...(data.current || []), ...(data.siblings || []), ...(data.global || [])];
+            for (const item of all) {
+                if (!item || typeof item.keyword !== 'string' || item.keyword === '') continue;
+                const lc = item.keyword.toLowerCase();
+                if (taken.has(lc)) continue;
+                if (f && !lc.includes(f)) continue;
+                const existing = merged.get(lc);
+                if (existing) {
+                    existing.count = (existing.count || 0) + (item.count || 0);
+                } else {
+                    merged.set(lc, { keyword: item.keyword, count: item.count || 0 });
+                }
+            }
 
-            const rows = [];
-            buckets.forEach(b => {
-                const matches = b.items.filter(item => {
-                    if (taken.has(item.keyword.toLowerCase())) return false;
-                    if (!f) return true;
-                    return item.keyword.toLowerCase().includes(f);
-                });
-                if (matches.length === 0) return;
-                rows.push(`<div class="px-3 py-1 text-[10px] uppercase tracking-wider text-gray-500 bg-gray-50 border-b border-gray-100">${escapeHtml(b.label)}</div>`);
-                matches.slice(0, 12).forEach(m => {
-                    const count = (typeof m.count === 'number' && m.count > 0) ? `<span class="text-xs text-gray-400 ml-2">${m.count}</span>` : '';
-                    rows.push(`<div class="px-3 py-1.5 hover:bg-blue-50 cursor-pointer flex items-center justify-between" data-kw-suggest="${escapeHtml(m.keyword)}" data-kw-context="${escapeHtml(contextId)}"><span class="text-gray-800">${escapeHtml(m.keyword)}</span>${count}</div>`);
-                });
-            });
-
-            if (rows.length === 0) {
+            if (merged.size === 0) {
                 box.classList.add('hidden');
                 box.innerHTML = '';
                 return;
             }
+
+            const sorted = Array.from(merged.values()).sort((a, b) =>
+                a.keyword.localeCompare(b.keyword, undefined, { sensitivity: 'base' })
+            );
+
+            const rows = sorted.slice(0, 50).map(m => {
+                const colorClass = getPastelColor(m.keyword);
+                const count = (typeof m.count === 'number' && m.count > 0) ? `<span class="text-xs text-gray-400 ml-2">${m.count}</span>` : '';
+                return `<div class="px-3 py-1.5 hover:bg-gray-50 cursor-pointer flex items-center justify-between gap-2" data-kw-suggest="${escapeHtml(m.keyword)}" data-kw-context="${escapeHtml(contextId)}"><span class="badge ${colorClass} border border-current/20 px-2 py-2 text-xs whitespace-nowrap">${escapeHtml(m.keyword)}</span>${count}</div>`;
+            });
+
             box.innerHTML = rows.join('');
             box.classList.remove('hidden');
         }
@@ -2246,7 +2254,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                    onfocus="updateKeywordSuggestions('create')"
                                    autocomplete="off"
                                    class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
-                            <div id="keyword-suggestions-create" class="hidden absolute left-0 right-0 top-full mt-1 z-[100] max-h-56 overflow-y-auto rounded border border-gray-300 bg-white shadow-lg text-sm"></div>
+                            <div id="keyword-suggestions-create" class="hidden absolute left-0 right-0 top-full mt-1 z-[100] max-h-56 overflow-y-auto overscroll-contain rounded border border-gray-300 bg-white shadow-lg text-sm"></div>
                         </div>
                         <input type="hidden" id="node-keywords" name="keywords">
                         <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords. Suggestions surface keywords already used in this galaxy and in sibling galaxies sharing your <code>[XX]</code> prefix.</span>
@@ -2425,7 +2433,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                    onfocus="updateKeywordSuggestions('modal')"
                                    autocomplete="off"
                                    class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
-                            <div id="keyword-suggestions-modal" class="hidden absolute left-0 right-0 top-full mt-1 z-[100] max-h-56 overflow-y-auto rounded border border-gray-300 bg-white shadow-lg text-sm"></div>
+                            <div id="keyword-suggestions-modal" class="hidden absolute left-0 right-0 top-full mt-1 z-[100] max-h-56 overflow-y-auto overscroll-contain rounded border border-gray-300 bg-white shadow-lg text-sm"></div>
                         </div>
                         <input type="hidden" id="edit-keywords-hidden" name="keywords">
                         <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords. Suggestions surface keywords already used in this galaxy and in sibling galaxies sharing your <code>[XX]</code> prefix.</span>
