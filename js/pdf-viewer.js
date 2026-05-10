@@ -32,18 +32,30 @@ async function ensurePdfJs() {
  */
 let activeToken = 0;
 
-export async function renderPdf({ pagesEl, statusEl, downloadEl, url }) {
+// Localized strings injected by inc/main-view.php; English fallback if unset.
+function L(key, fallback) {
+    const v = window['TELARIS_PDF_' + key];
+    return (typeof v === 'string' && v !== '') ? v : fallback;
+}
+function pageCountText(n) {
+    if (n === 1) return L('PAGES_SINGULAR_TEXT', '1 page');
+    const tpl = L('PAGES_PLURAL_TEXT', '%d pages');
+    return tpl.replace('%d', String(n));
+}
+
+export async function renderPdf({ pagesEl, statusEl, downloadEl, openEl, url }) {
     const myToken = ++activeToken;
     if (!pagesEl) return;
     pagesEl.innerHTML = '';
-    if (statusEl) statusEl.textContent = 'Loading PDF…';
+    if (statusEl) statusEl.textContent = L('LOADING_TEXT', 'Loading PDF…');
     if (downloadEl) downloadEl.href = url;
+    if (openEl) openEl.href = url;
 
     let lib;
     try {
         lib = await ensurePdfJs();
     } catch (err) {
-        if (statusEl) statusEl.textContent = 'PDF library failed to load.';
+        if (statusEl) statusEl.textContent = L('ERROR_LOAD_TEXT', 'PDF library failed to load.');
         console.error('PDF.js load failed:', err);
         return;
     }
@@ -55,13 +67,13 @@ export async function renderPdf({ pagesEl, statusEl, downloadEl, url }) {
         doc = await loadingTask.promise;
     } catch (err) {
         if (myToken !== activeToken) return;
-        if (statusEl) statusEl.textContent = 'Couldn\'t open PDF.';
+        if (statusEl) statusEl.textContent = L('ERROR_OPEN_TEXT', "Couldn't open PDF.");
         console.error('PDF load failed for', url, err);
         return;
     }
     if (myToken !== activeToken) return;
 
-    if (statusEl) statusEl.textContent = `Rendering ${doc.numPages} page${doc.numPages === 1 ? '' : 's'}…`;
+    if (statusEl) statusEl.textContent = L('RENDERING_TEXT', 'Rendering pages…');
 
     // Pixel ratio scaling so text stays crisp on high-DPI screens.
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -98,7 +110,7 @@ export async function renderPdf({ pagesEl, statusEl, downloadEl, url }) {
         }
     }
     if (myToken !== activeToken) return;
-    if (statusEl) statusEl.textContent = doc.numPages === 1 ? '1 page' : `${doc.numPages} pages`;
+    if (statusEl) statusEl.textContent = pageCountText(doc.numPages);
 }
 
 /**

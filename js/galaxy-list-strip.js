@@ -157,10 +157,12 @@ export class GalaxyListStripController {
         if (!this.toggleLabel) return;
         const active = this.app.activeGalaxyIds || new Set();
         const total = this.galaxies.length;
+        const label = (typeof window.TELARIS_GALAXIES_LABEL === 'string' && window.TELARIS_GALAXIES_LABEL !== '')
+            ? window.TELARIS_GALAXIES_LABEL : 'Galaxies';
         if (active.size === 0) {
-            this.toggleLabel.textContent = `Galaxies · ${total}`;
+            this.toggleLabel.textContent = `${label} · ${total}`;
         } else {
-            this.toggleLabel.textContent = `Galaxies · ${active.size}/${total}`;
+            this.toggleLabel.textContent = `${label} · ${active.size}/${total}`;
         }
     }
 }

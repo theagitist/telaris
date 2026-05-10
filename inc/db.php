@@ -80,7 +80,7 @@ function getDefaultApiKey(?PDO $pdo = null): ?string {
 // ---------------------------------------------------------------------------
 
 /** Column keys for project_info (one row per locale). */
-const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text', 'back_button_text', 'system_online_text', 'reload_system_text', 'scan_system_text', 'clear_scan_text', 'systems_label_text', 'hyperlinks_label_text', 'initialize_auth_text', 'admin_label_text', 'logout_label_text', 'click_to_view_text', 'tap_to_view_text', 'open_portal_text', 'sound_label_text', 'sound_on_text', 'sound_off_text', 'launching_text', 'mission_active_text', 'go_text', 'breadcrumb_all_text', 'launch_button_text', 'no_results_text', 'items_label_text', 'other_label_text'];
+const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text', 'back_button_text', 'system_online_text', 'reload_system_text', 'scan_system_text', 'clear_scan_text', 'systems_label_text', 'hyperlinks_label_text', 'initialize_auth_text', 'admin_label_text', 'logout_label_text', 'click_to_view_text', 'tap_to_view_text', 'open_portal_text', 'sound_label_text', 'sound_on_text', 'sound_off_text', 'launching_text', 'mission_active_text', 'go_text', 'breadcrumb_all_text', 'launch_button_text', 'no_results_text', 'items_label_text', 'other_label_text', 'galaxies_label_text', 'galaxy_count_singular_text', 'galaxy_count_plural_text', 'pdf_loading_text', 'pdf_rendering_text', 'pdf_pages_singular_text', 'pdf_pages_plural_text', 'pdf_open_text', 'pdf_download_text', 'pdf_error_load_text', 'pdf_error_open_text'];
 
 /** Locales supported (one row per locale in project_info). */
 const PROJECT_INFO_LOCALES = ['en', 'es', 'pt'];
@@ -178,7 +178,18 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'sound_label_text' => 'Sound:', 'sound_on_text' => 'ON', 'sound_off_text' => 'OFF',
             'launching_text' => 'Launching', 'mission_active_text' => 'Mission Active', 'go_text' => 'GO',
             'breadcrumb_all_text' => 'All', 'launch_button_text' => 'LAUNCH',
-            'no_results_text' => 'No results', 'items_label_text' => 'items', 'other_label_text' => 'Other'
+            'no_results_text' => 'No results', 'items_label_text' => 'items', 'other_label_text' => 'Other',
+            'galaxies_label_text' => 'Galaxies',
+            'galaxy_count_singular_text' => '1 galaxy',
+            'galaxy_count_plural_text' => '%d galaxies',
+            'pdf_loading_text' => 'Loading PDF…',
+            'pdf_rendering_text' => 'Rendering pages…',
+            'pdf_pages_singular_text' => '1 page',
+            'pdf_pages_plural_text' => '%d pages',
+            'pdf_open_text' => 'Open in new window',
+            'pdf_download_text' => 'Download',
+            'pdf_error_load_text' => 'PDF library failed to load.',
+            'pdf_error_open_text' => "Couldn't open PDF.",
         ],
         'es' => [
             'name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 
@@ -194,7 +205,18 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'sound_label_text' => 'Sonido:', 'sound_on_text' => 'SÍ', 'sound_off_text' => 'NO',
             'launching_text' => 'Lanzando', 'mission_active_text' => 'Misión Activa', 'go_text' => 'YA',
             'breadcrumb_all_text' => 'Todo', 'launch_button_text' => 'LANZAR',
-            'no_results_text' => 'Sin resultados', 'items_label_text' => 'elementos', 'other_label_text' => 'Otros'
+            'no_results_text' => 'Sin resultados', 'items_label_text' => 'elementos', 'other_label_text' => 'Otros',
+            'galaxies_label_text' => 'Galaxias',
+            'galaxy_count_singular_text' => '1 galaxia',
+            'galaxy_count_plural_text' => '%d galaxias',
+            'pdf_loading_text' => 'Cargando PDF…',
+            'pdf_rendering_text' => 'Procesando páginas…',
+            'pdf_pages_singular_text' => '1 página',
+            'pdf_pages_plural_text' => '%d páginas',
+            'pdf_open_text' => 'Abrir en otra pestaña',
+            'pdf_download_text' => 'Descargar',
+            'pdf_error_load_text' => 'No se pudo cargar la biblioteca de PDF.',
+            'pdf_error_open_text' => 'No se pudo abrir el PDF.',
         ],
         'pt' => [
             'name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 
@@ -210,7 +232,18 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'sound_label_text' => 'Som:', 'sound_on_text' => 'SIM', 'sound_off_text' => 'NÃO',
             'launching_text' => 'Lançando', 'mission_active_text' => 'Missão Ativa', 'go_text' => 'VAI',
             'breadcrumb_all_text' => 'Tudo', 'launch_button_text' => 'LANÇAR',
-            'no_results_text' => 'Sem resultados', 'items_label_text' => 'itens', 'other_label_text' => 'Outros'
+            'no_results_text' => 'Sem resultados', 'items_label_text' => 'itens', 'other_label_text' => 'Outros',
+            'galaxies_label_text' => 'Galáxias',
+            'galaxy_count_singular_text' => '1 galáxia',
+            'galaxy_count_plural_text' => '%d galáxias',
+            'pdf_loading_text' => 'Carregando PDF…',
+            'pdf_rendering_text' => 'Processando páginas…',
+            'pdf_pages_singular_text' => '1 página',
+            'pdf_pages_plural_text' => '%d páginas',
+            'pdf_open_text' => 'Abrir em outra aba',
+            'pdf_download_text' => 'Baixar',
+            'pdf_error_load_text' => 'Falha ao carregar a biblioteca de PDF.',
+            'pdf_error_open_text' => 'Não foi possível abrir o PDF.',
         ],
     ];
 }
@@ -670,6 +703,17 @@ function db_ensure_project_info_columns(): void {
         'no_results_text' => "VARCHAR(200) NOT NULL DEFAULT 'No results'",
         'items_label_text' => "VARCHAR(200) NOT NULL DEFAULT 'items'",
         'other_label_text' => "VARCHAR(200) NOT NULL DEFAULT 'Other'",
+        'galaxies_label_text' => "VARCHAR(200) NOT NULL DEFAULT 'Galaxies'",
+        'galaxy_count_singular_text' => "VARCHAR(200) NOT NULL DEFAULT '1 galaxy'",
+        'galaxy_count_plural_text' => "VARCHAR(200) NOT NULL DEFAULT '%d galaxies'",
+        'pdf_loading_text' => "VARCHAR(200) NOT NULL DEFAULT 'Loading PDF…'",
+        'pdf_rendering_text' => "VARCHAR(200) NOT NULL DEFAULT 'Rendering pages…'",
+        'pdf_pages_singular_text' => "VARCHAR(200) NOT NULL DEFAULT '1 page'",
+        'pdf_pages_plural_text' => "VARCHAR(200) NOT NULL DEFAULT '%d pages'",
+        'pdf_open_text' => "VARCHAR(200) NOT NULL DEFAULT 'Open in new window'",
+        'pdf_download_text' => "VARCHAR(200) NOT NULL DEFAULT 'Download'",
+        'pdf_error_load_text' => "VARCHAR(200) NOT NULL DEFAULT 'PDF library failed to load.'",
+        'pdf_error_open_text' => "VARCHAR(200) NOT NULL DEFAULT \"Couldn't open PDF.\"",
     ];
     try {
         $pdo = getDB();

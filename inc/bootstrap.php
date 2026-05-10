@@ -175,6 +175,18 @@ $projectLaunchButtonText = $projectStrings['launch_button_text'] ?? 'LAUNCH';
 $projectNoResultsText = $projectStrings['no_results_text'] ?? 'No results';
 $projectItemsLabelText = $projectStrings['items_label_text'] ?? 'items';
 $projectOtherLabelText = $projectStrings['other_label_text'] ?? 'Other';
+// Multigalaxy + PDF visitor strings (introduced 2026-05-10).
+$projectGalaxiesLabelText = $projectStrings['galaxies_label_text'] ?? 'Galaxies';
+$projectGalaxyCountSingularText = $projectStrings['galaxy_count_singular_text'] ?? '1 galaxy';
+$projectGalaxyCountPluralText = $projectStrings['galaxy_count_plural_text'] ?? '%d galaxies';
+$projectPdfLoadingText = $projectStrings['pdf_loading_text'] ?? 'Loading PDF…';
+$projectPdfRenderingText = $projectStrings['pdf_rendering_text'] ?? 'Rendering pages…';
+$projectPdfPagesSingularText = $projectStrings['pdf_pages_singular_text'] ?? '1 page';
+$projectPdfPagesPluralText = $projectStrings['pdf_pages_plural_text'] ?? '%d pages';
+$projectPdfOpenText = $projectStrings['pdf_open_text'] ?? 'Open in new window';
+$projectPdfDownloadText = $projectStrings['pdf_download_text'] ?? 'Download';
+$projectPdfErrorLoadText = $projectStrings['pdf_error_load_text'] ?? 'PDF library failed to load.';
+$projectPdfErrorOpenText = $projectStrings['pdf_error_open_text'] ?? "Couldn't open PDF.";
 $defaultConstellationId = $projectStrings['default_constellation_id'] ?? 0;
 
 // Constellation for main view: root URL = default; /{NUMBER} or ?constellation_id=NUMBER = that constellation
@@ -285,7 +297,9 @@ if (empty($multiGalaxyIds) && preg_match('#^tag/([^/]+)$#', $decodedPathForTag, 
             $canonicalLabel = db_get_canonical_label_for_tag($tagSlug) ?: $tagSlug;
             $multiGalaxyTitle = $canonicalLabel;
             $constellationName = $multiGalaxyTitle;
-            $constellationTagline = count($tagMembers) === 1 ? '1 galaxy' : count($tagMembers) . ' galaxies';
+            $constellationTagline = count($tagMembers) === 1
+                ? $projectGalaxyCountSingularText
+                : sprintf($projectGalaxyCountPluralText, count($tagMembers));
             $constellationId = $tagMembers[0]['id'];
             $constellationSlug = null;
         }
@@ -316,7 +330,9 @@ if (empty($multiGalaxyIds) && preg_match('/^\[([^\]\/]+)\]$/', $decodedPath, $pm
             }
             $multiGalaxyTitle = '[' . $prefix . ']';
             $constellationName = $multiGalaxyTitle;
-            $constellationTagline = count($members) === 1 ? '1 galaxy' : count($members) . ' galaxies';
+            $constellationTagline = count($members) === 1
+                ? $projectGalaxyCountSingularText
+                : sprintf($projectGalaxyCountPluralText, count($members));
             $constellationId = $members[0]['id'];
             $constellationSlug = null;
         }

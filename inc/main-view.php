@@ -200,7 +200,7 @@ header("X-Content-Type-Options: nosniff");
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" id="galaxy-list-toggle-icon" style="transition: transform 180ms ease;" aria-hidden="true">
                     <path d="M6 9l6 6 6-6"/>
                 </svg>
-                <span id="galaxy-list-toggle-label">Galaxies</span>
+                <span id="galaxy-list-toggle-label"><?php echo htmlspecialchars($projectGalaxiesLabelText ?? 'Galaxies'); ?></span>
             </button>
         </div>
 
@@ -277,10 +277,14 @@ header("X-Content-Type-Options: nosniff");
                         <!-- PDF (rendered by js/pdf-viewer.js using vendored PDF.js). -->
                         <div id="rm-pdf-wrap" class="hidden">
                             <div id="rm-pdf-toolbar" class="flex items-center justify-between mb-2 text-xs uppercase tracking-wider text-white/60">
-                                <span id="rm-pdf-status">Loading PDF…</span>
-                                <a id="rm-pdf-download" href="#" target="_blank" rel="noopener" class="hover:text-white transition-colors" download>Download</a>
+                                <span id="rm-pdf-status"><?php echo htmlspecialchars($projectPdfLoadingText ?? 'Loading PDF…'); ?></span>
+                                <span class="flex items-center gap-3">
+                                    <a id="rm-pdf-open" href="#" target="_blank" rel="noopener" class="hover:text-white transition-colors"><?php echo htmlspecialchars($projectPdfOpenText ?? 'Open in new window'); ?></a>
+                                    <span class="opacity-30">|</span>
+                                    <a id="rm-pdf-download" href="#" target="_blank" rel="noopener" class="hover:text-white transition-colors" download><?php echo htmlspecialchars($projectPdfDownloadText ?? 'Download'); ?></a>
+                                </span>
                             </div>
-                            <div id="rm-pdf-pages" class="max-h-[70vh] overflow-y-auto rounded-md border bg-black/30" style="border-color: var(--node-accent-muted);"></div>
+                            <div id="rm-pdf-pages" class="max-h-[50vh] overflow-y-auto rounded-md border bg-black/30" style="border-color: var(--node-accent-muted);"></div>
                         </div>
 
                         <!-- Credit / attribution shared across image / video / PDF. Stored on
@@ -439,6 +443,13 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_MULTI_GALAXY_TITLE = <?php echo json_encode($multiGalaxyTitle ?? null); ?>;
         window.TELARIS_GALAXY_LIST_ENABLED = <?php echo !empty($galaxyListEnabled) ? 'true' : 'false'; ?>;
         window.TELARIS_GALAXY_LIST = <?php echo json_encode(!empty($galaxyListMembers) ? $galaxyListMembers : null); ?>;
+        window.TELARIS_GALAXIES_LABEL = <?php echo json_encode($projectGalaxiesLabelText ?? 'Galaxies'); ?>;
+        window.TELARIS_PDF_LOADING_TEXT = <?php echo json_encode($projectPdfLoadingText ?? 'Loading PDF…'); ?>;
+        window.TELARIS_PDF_RENDERING_TEXT = <?php echo json_encode($projectPdfRenderingText ?? 'Rendering pages…'); ?>;
+        window.TELARIS_PDF_PAGES_SINGULAR_TEXT = <?php echo json_encode($projectPdfPagesSingularText ?? '1 page'); ?>;
+        window.TELARIS_PDF_PAGES_PLURAL_TEXT = <?php echo json_encode($projectPdfPagesPluralText ?? '%d pages'); ?>;
+        window.TELARIS_PDF_ERROR_LOAD_TEXT = <?php echo json_encode($projectPdfErrorLoadText ?? 'PDF library failed to load.'); ?>;
+        window.TELARIS_PDF_ERROR_OPEN_TEXT = <?php echo json_encode($projectPdfErrorOpenText ?? "Couldn't open PDF."); ?>;
     </script>
     <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
     (function() {

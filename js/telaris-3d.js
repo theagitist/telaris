@@ -154,6 +154,7 @@ class TelarisNetwork {
         const pdfPagesEl = document.getElementById('rm-pdf-pages');
         const pdfStatusEl = document.getElementById('rm-pdf-status');
         const pdfDownloadEl = document.getElementById('rm-pdf-download');
+        const pdfOpenEl = document.getElementById('rm-pdf-open');
         const urlWrap = document.getElementById('rm-url-wrap');
         const urlButton = document.getElementById('rm-url-button');
 
@@ -311,6 +312,7 @@ class TelarisNetwork {
                     pagesEl: pdfPagesEl,
                     statusEl: pdfStatusEl,
                     downloadEl: pdfDownloadEl,
+                    openEl: pdfOpenEl,
                     url: d.pdf_url,
                 });
             } else {
