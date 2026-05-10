@@ -298,9 +298,10 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $theme = trim((string)($_POST['theme'] ?? 'cosmic'));
                 if (!in_array($theme, $allowedThemes, true)) $theme = 'cosmic';
                 $members = array_values(array_filter(array_map('intval', (array)($_POST['members'] ?? [])), fn($i) => $i > 0));
-                db_create_cluster($name, $tagline, $finalSlug, $theme, $members);
+                $showGalaxyList = !empty($_POST['show_galaxy_list']);
+                db_create_cluster($name, $tagline, $finalSlug, $theme, $members, $showGalaxyList);
                 $message = 'Cluster created successfully.';
-                $activeTab = 'constellations';
+                $activeTab = 'clusters';
             })(),
 
             'update_cluster' => (function(): void {
@@ -326,11 +327,12 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $allowedThemes = ['cosmic', 'simple', 'abstract', 'rectangles', 'stripes', 'tech'];
                 $theme = trim((string)($_POST['theme'] ?? 'cosmic'));
                 if (!in_array($theme, $allowedThemes, true)) $theme = 'cosmic';
-                db_update_cluster($id, $name, $tagline, $finalSlug, $theme);
+                $showGalaxyList = !empty($_POST['show_galaxy_list']);
+                db_update_cluster($id, $name, $tagline, $finalSlug, $theme, $showGalaxyList);
                 $members = array_values(array_filter(array_map('intval', (array)($_POST['members'] ?? [])), fn($i) => $i > 0));
                 db_set_cluster_members($id, $members);
                 $message = 'Cluster updated successfully.';
-                $activeTab = 'constellations';
+                $activeTab = 'clusters';
             })(),
 
             'delete_cluster' => (function(): void {
@@ -343,7 +345,35 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 }
                 db_delete_cluster($id);
                 $message = 'Cluster deleted successfully.';
-                $activeTab = 'constellations';
+                $activeTab = 'clusters';
+            })(),
+
+            // ---------- Bulk user creation ----------
+            // Two-step flow: 'preview' parses the textarea and renders a confirmation panel;
+            // 'commit' re-parses and creates users + sends setup emails.
+            'bulk_users_preview' => (function(): void {
+                global $message, $error, $activeTab, $bulkUsersPreview, $bulkUsersInput;
+                require_once __DIR__ . '/../inc/bulk-users.php';
+                $bulkUsersInput = (string)($_POST['bulk_users_input'] ?? '');
+                $bulkUsersPreview = bulk_users_parse($bulkUsersInput);
+                $activeTab = 'users';
+            })(),
+
+            'bulk_users_commit' => (function(): void {
+                global $message, $error, $activeTab, $bulkUsersResult;
+                require_once __DIR__ . '/../inc/bulk-users.php';
+                $input = (string)($_POST['bulk_users_input'] ?? '');
+                $rows = bulk_users_parse($input);
+                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                $bulkUsersResult = bulk_users_apply($rows, $scheme . '://' . $host);
+                $created = $bulkUsersResult['created'];
+                $message = "Bulk import: {$created} user" . ($created === 1 ? '' : 's') . ' created'
+                         . ($bulkUsersResult['mail_failed'] > 0 ? " ({$bulkUsersResult['mail_failed']} mail send(s) failed — check error_log)" : '')
+                         . ($bulkUsersResult['skipped_exists'] > 0 ? ", {$bulkUsersResult['skipped_exists']} skipped (already exists)" : '')
+                         . ($bulkUsersResult['skipped_invalid'] > 0 ? ", {$bulkUsersResult['skipped_invalid']} skipped (invalid)" : '')
+                         . '.';
+                $activeTab = 'users';
             })(),
             
             'logout' => (function(): void {
@@ -590,6 +620,11 @@ $fieldMeta = [
                         class="tab tab-lg <?php echo $activeTab === 'constellations' ? 'tab-active' : ''; ?>">
                     Galaxies
                 </button>
+                <button onclick="showTab('clusters')"
+                        id="tab-clusters"
+                        class="tab tab-lg <?php echo $activeTab === 'clusters' ? 'tab-active' : ''; ?>">
+                    Clusters
+                </button>
                 <button onclick="showTab('users')"
                         id="tab-users"
                         class="tab tab-lg <?php echo $activeTab === 'users' ? 'tab-active' : ''; ?>">
@@ -631,6 +666,7 @@ $fieldMeta = [
                         <div class="flex items-center gap-3">
                             <h2 class="text-gray-800 text-base font-semibold">Users (<?php echo count($users); ?>)</h2>
                             <button type="button" onclick="document.getElementById('create_user_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New User</button>
+                            <button type="button" onclick="openBulkUsersModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">Bulk import</button>
                         </div>
                         
                         <!-- Top Pagination -->
@@ -902,54 +938,54 @@ $fieldMeta = [
                     <div id="copy-url-toast" class="hidden fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded shadow-lg text-sm" role="status" aria-live="polite">URL copied to clipboard.</div>
                     <div id="constellations-list-container"></div>
                 </div>
+            </div>
 
-                <!-- ========== Galaxy Clusters (Idea 2) ========== -->
-                <div class="mt-10 pt-6 border-t border-gray-200">
-                    <div class="flex items-center justify-between mb-3">
-                        <div class="flex items-center gap-3">
-                            <h2 class="text-gray-800 text-base font-semibold">Galaxy Clusters (<?php echo count($clusters); ?>)</h2>
-                            <button type="button" onclick="openClusterCreate()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Cluster</button>
-                        </div>
+            <!-- ========== Clusters Tab (Idea 2) ========== -->
+            <div id="content-clusters" class="p-6 <?php echo $activeTab !== 'clusters' ? 'hidden' : ''; ?>">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <h2 class="text-gray-800 text-base font-semibold">Galaxy Clusters (<?php echo count($clusters); ?>)</h2>
+                        <button type="button" onclick="openClusterCreate()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Cluster</button>
                     </div>
-                    <p class="text-sm text-gray-600 mb-4">A cluster is a curated union of galaxies with its own slug, title, theme, and permalink. Clusters have no native wormholes; they render the union of their members via the multigalaxy pipeline.</p>
-
-                    <?php if (empty($clusters)): ?>
-                        <p class="text-sm text-gray-500 italic">No clusters yet.</p>
-                    <?php else: ?>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-sm">
-                                <thead class="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-200">
-                                    <tr>
-                                        <th class="text-left py-2 px-2">Name</th>
-                                        <th class="text-left py-2 px-2">Slug</th>
-                                        <th class="text-left py-2 px-2">Theme</th>
-                                        <th class="text-left py-2 px-2">Members</th>
-                                        <th class="text-right py-2 px-2">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($clusters as $cl): ?>
-                                        <tr class="border-b border-gray-100 hover:bg-gray-50" data-cluster-id="<?php echo (int)$cl['id']; ?>">
-                                            <td class="py-2 px-2 font-medium text-gray-800"><?php echo htmlspecialchars($cl['name']); ?>
-                                                <?php if (!empty($cl['tagline'])): ?>
-                                                    <div class="text-xs text-gray-500 italic"><?php echo htmlspecialchars($cl['tagline']); ?></div>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td class="py-2 px-2 font-mono text-xs"><a href="../<?php echo htmlspecialchars(rawurlencode((string)$cl['slug'])); ?>" target="_blank" rel="noopener" class="text-blue-600 hover:underline"><?php echo htmlspecialchars((string)$cl['slug']); ?></a></td>
-                                            <td class="py-2 px-2 font-mono text-xs"><?php echo htmlspecialchars($cl['theme']); ?></td>
-                                            <td class="py-2 px-2"><?php echo (int)$cl['member_count']; ?></td>
-                                            <td class="py-2 px-2 text-right">
-                                                <button type="button" onclick='openClusterEdit(<?php echo json_encode($cl, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)' class="text-blue-600 hover:text-blue-800 text-xs">Edit</button>
-                                                <span class="text-gray-300 mx-1">|</span>
-                                                <a onclick="triggerDelete('delete_cluster', '<?php echo (int)$cl['id']; ?>', 'Delete cluster &quot;<?php echo htmlspecialchars(addslashes($cl['name'])); ?>&quot;? Members are unaffected.', '<?php echo htmlspecialchars(addslashes($cl['name'])); ?>')" class="text-red-600 hover:text-red-800 text-xs cursor-pointer">Delete</a>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php endif; ?>
                 </div>
+                <p class="text-sm text-gray-600 mb-4">A cluster is a curated union of galaxies with its own slug, title, theme, and permalink. Clusters have no native wormholes; they render the union of their members via the multigalaxy pipeline.</p>
+
+                <?php if (empty($clusters)): ?>
+                    <p class="text-sm text-gray-500 italic">No clusters yet.</p>
+                <?php else: ?>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                                <tr>
+                                    <th class="text-left py-2 px-2">Name</th>
+                                    <th class="text-left py-2 px-2">Slug</th>
+                                    <th class="text-left py-2 px-2">Theme</th>
+                                    <th class="text-left py-2 px-2">Members</th>
+                                    <th class="text-right py-2 px-2">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($clusters as $cl): ?>
+                                    <tr class="border-b border-gray-100 hover:bg-gray-50" data-cluster-id="<?php echo (int)$cl['id']; ?>">
+                                        <td class="py-2 px-2 font-medium text-gray-800"><?php echo htmlspecialchars($cl['name']); ?>
+                                            <?php if (!empty($cl['tagline'])): ?>
+                                                <div class="text-xs text-gray-500 italic"><?php echo htmlspecialchars($cl['tagline']); ?></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="py-2 px-2 font-mono text-xs"><a href="../<?php echo htmlspecialchars(rawurlencode((string)$cl['slug'])); ?>" target="_blank" rel="noopener" class="text-blue-600 hover:underline"><?php echo htmlspecialchars((string)$cl['slug']); ?></a></td>
+                                        <td class="py-2 px-2 font-mono text-xs"><?php echo htmlspecialchars($cl['theme']); ?></td>
+                                        <td class="py-2 px-2"><?php echo (int)$cl['member_count']; ?></td>
+                                        <td class="py-2 px-2 text-right">
+                                            <button type="button" onclick='openClusterEdit(<?php echo json_encode($cl, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)' class="text-blue-600 hover:text-blue-800 text-xs">Edit</button>
+                                            <span class="text-gray-300 mx-1">|</span>
+                                            <a onclick="triggerDelete('delete_cluster', '<?php echo (int)$cl['id']; ?>', 'Delete cluster &quot;<?php echo htmlspecialchars(addslashes($cl['name'])); ?>&quot;? Members are unaffected.', '<?php echo htmlspecialchars(addslashes($cl['name'])); ?>')" class="text-red-600 hover:text-red-800 text-xs cursor-pointer">Delete</a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
             </div>
 
             <!-- Global Settings Tab -->
@@ -2080,6 +2116,18 @@ $fieldMeta = [
             }
         }
 
+        // ---------- Bulk users modal ----------
+        function openBulkUsersModal() {
+            document.getElementById('bulk_users_modal').showModal();
+        }
+        // Auto-reopen after preview/commit POSTs (the dialog dismisses on each request).
+        <?php if (isset($bulkUsersPreview) || isset($bulkUsersResult)): ?>
+        document.addEventListener('DOMContentLoaded', () => {
+            const m = document.getElementById('bulk_users_modal');
+            if (m) m.showModal();
+        });
+        <?php endif; ?>
+
         // ---------- Galaxy Cluster modal (Idea 2) ----------
         function _clusterMemberCheckboxes() {
             return Array.from(document.querySelectorAll('#cluster_modal input[data-cluster-member]'));
@@ -2098,6 +2146,8 @@ $fieldMeta = [
             document.getElementById('cluster-slug').value = '';
             document.getElementById('cluster-tagline').value = '';
             document.getElementById('cluster-theme').value = 'cosmic';
+            const sgl = document.getElementById('cluster-show-galaxy-list');
+            if (sgl) sgl.checked = false;
             _clusterMemberCheckboxes().forEach(cb => { cb.checked = false; });
             document.getElementById('cluster-submit-btn').textContent = 'Create Cluster';
             _refreshClusterMembersCount();
@@ -2112,6 +2162,8 @@ $fieldMeta = [
             document.getElementById('cluster-slug').value = cluster.slug || '';
             document.getElementById('cluster-tagline').value = cluster.tagline || '';
             document.getElementById('cluster-theme').value = cluster.theme || 'cosmic';
+            const sgl = document.getElementById('cluster-show-galaxy-list');
+            if (sgl) sgl.checked = !!cluster.show_galaxy_list;
             // Fetch members and check the corresponding boxes.
             _clusterMemberCheckboxes().forEach(cb => { cb.checked = false; });
             try {
@@ -2227,6 +2279,8 @@ $fieldMeta = [
             document.getElementById('content-users').classList.add('hidden');
             const contentConstellations = document.getElementById('content-constellations');
             if (contentConstellations) contentConstellations.classList.add('hidden');
+            const contentClusters = document.getElementById('content-clusters');
+            if (contentClusters) contentClusters.classList.add('hidden');
             const contentSettings = document.getElementById('content-settings');
             if (contentSettings) contentSettings.classList.add('hidden');
             const contentBackup = document.getElementById('content-backup');
@@ -2236,7 +2290,7 @@ $fieldMeta = [
             document.getElementById('content-php-info').classList.add('hidden');
 
             // Remove active styling from all tabs
-            const tabs = ['api-keys', 'users', 'constellations', 'settings', 'backup', 'snapshots', 'php-info'];
+            const tabs = ['api-keys', 'users', 'constellations', 'clusters', 'settings', 'backup', 'snapshots', 'php-info'];
             tabs.forEach(tab => {
                 const tabElement = document.getElementById('tab-' + tab);
                 if (tabElement) {
@@ -3291,6 +3345,135 @@ $fieldMeta = [
             }
         }
     </script>
+    <!-- Bulk Users Import Modal -->
+    <dialog id="bulk_users_modal" class="modal">
+        <div class="modal-box bg-white !pt-0 max-w-3xl">
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
+                <h3 class="font-bold text-xl">Bulk import users</h3>
+            </div>
+            <div class="mt-4">
+                <?php $bulkUsersPreview = $bulkUsersPreview ?? null; $bulkUsersInput = $bulkUsersInput ?? ''; $bulkUsersResult = $bulkUsersResult ?? null; ?>
+
+                <?php if ($bulkUsersResult): ?>
+                    <p class="text-sm text-gray-700 mb-4">Imported <strong><?php echo (int)$bulkUsersResult['created']; ?></strong> user<?php echo $bulkUsersResult['created'] === 1 ? '' : 's'; ?>.<?php
+                        if ($bulkUsersResult['skipped_exists'] > 0) echo ' Skipped <strong>' . (int)$bulkUsersResult['skipped_exists'] . '</strong> already-existing email' . ($bulkUsersResult['skipped_exists'] === 1 ? '' : 's') . '.';
+                        if ($bulkUsersResult['skipped_invalid'] > 0) echo ' Skipped <strong>' . (int)$bulkUsersResult['skipped_invalid'] . '</strong> invalid row' . ($bulkUsersResult['skipped_invalid'] === 1 ? '' : 's') . '.';
+                        if ($bulkUsersResult['mail_failed'] > 0) echo ' <strong>' . (int)$bulkUsersResult['mail_failed'] . '</strong> setup email' . ($bulkUsersResult['mail_failed'] === 1 ? '' : 's') . ' failed to send.';
+                    ?></p>
+                    <div class="overflow-y-auto max-h-80 border border-gray-200 rounded">
+                        <table class="w-full text-xs">
+                            <thead class="bg-gray-50 text-gray-600 uppercase tracking-wider">
+                                <tr>
+                                    <th class="text-left py-2 px-3">Line</th>
+                                    <th class="text-left py-2 px-3">Email</th>
+                                    <th class="text-left py-2 px-3">Outcome</th>
+                                    <th class="text-left py-2 px-3">Note</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($bulkUsersResult['rows'] as $r): ?>
+                                    <tr class="border-t border-gray-100">
+                                        <td class="py-1 px-3 text-gray-500"><?php echo (int)$r['line']; ?></td>
+                                        <td class="py-1 px-3 font-mono text-gray-800"><?php echo htmlspecialchars((string)$r['email']); ?></td>
+                                        <td class="py-1 px-3">
+                                            <?php
+                                                $oc = (string)($r['outcome'] ?? '');
+                                                $color = match($oc) {
+                                                    'created' => 'text-emerald-700',
+                                                    'created_mail_failed' => 'text-amber-700',
+                                                    'skipped' => 'text-gray-500',
+                                                    'create_failed' => 'text-red-700',
+                                                    default => 'text-gray-500',
+                                                };
+                                            ?>
+                                            <span class="<?php echo $color; ?>"><?php echo htmlspecialchars($oc); ?></span>
+                                        </td>
+                                        <td class="py-1 px-3 text-gray-600"><?php echo htmlspecialchars((string)($r['note'] ?? '')); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="modal-action">
+                        <button type="button" class="btn btn-neutral" onclick="document.getElementById('bulk_users_modal').close(); window.location.href='?tab=users';">Done</button>
+                    </div>
+
+                <?php elseif ($bulkUsersPreview !== null): ?>
+                    <p class="text-sm text-gray-700 mb-3">Review the parsed list. Click <strong>Confirm import</strong> to create the new accounts and email each one a one-time setup link.</p>
+                    <div class="overflow-y-auto max-h-80 border border-gray-200 rounded">
+                        <table class="w-full text-xs">
+                            <thead class="bg-gray-50 text-gray-600 uppercase tracking-wider">
+                                <tr>
+                                    <th class="text-left py-2 px-3">Line</th>
+                                    <th class="text-left py-2 px-3">Email</th>
+                                    <th class="text-left py-2 px-3">Name</th>
+                                    <th class="text-left py-2 px-3">Role</th>
+                                    <th class="text-left py-2 px-3">Galaxies</th>
+                                    <th class="text-left py-2 px-3">Status</th>
+                                    <th class="text-left py-2 px-3">Note</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($bulkUsersPreview as $r): ?>
+                                    <tr class="border-t border-gray-100">
+                                        <td class="py-1 px-3 text-gray-500"><?php echo (int)$r['line']; ?></td>
+                                        <td class="py-1 px-3 font-mono text-gray-800"><?php echo htmlspecialchars((string)$r['email']); ?></td>
+                                        <td class="py-1 px-3"><?php echo htmlspecialchars(trim($r['firstname'] . ' ' . $r['lastname'])); ?></td>
+                                        <td class="py-1 px-3 font-mono text-gray-600"><?php echo htmlspecialchars((string)$r['role']); ?></td>
+                                        <td class="py-1 px-3 text-gray-600">
+                                            <?php echo htmlspecialchars(implode(', ', (array)$r['galaxy_slugs'])); ?>
+                                            <?php if (!empty($r['unknown_galaxy_slugs'])): ?>
+                                                <span class="text-amber-700"> (unknown: <?php echo htmlspecialchars(implode(', ', $r['unknown_galaxy_slugs'])); ?>)</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="py-1 px-3">
+                                            <?php
+                                                $color = match((string)$r['status']) {
+                                                    'new' => 'text-emerald-700',
+                                                    'exists' => 'text-gray-500',
+                                                    'invalid' => 'text-red-700',
+                                                    default => 'text-gray-500',
+                                                };
+                                            ?>
+                                            <span class="<?php echo $color; ?>"><?php echo htmlspecialchars((string)$r['status']); ?></span>
+                                        </td>
+                                        <td class="py-1 px-3 text-gray-600"><?php echo htmlspecialchars((string)($r['note'] ?? '')); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <form method="POST" action="" class="modal-action">
+                        <input type="hidden" name="action" value="bulk_users_commit">
+                        <input type="hidden" name="bulk_users_input" value="<?php echo htmlspecialchars($bulkUsersInput); ?>">
+                        <button type="submit" class="btn btn-neutral">Confirm import</button>
+                        <button type="button" class="btn" onclick="document.getElementById('bulk_users_modal').close(); window.location.href='?tab=users';">Cancel</button>
+                    </form>
+
+                <?php else: ?>
+                    <p class="text-sm text-gray-600 mb-3">Paste a list of users — one per line. The simplest format is to paste columns from a spreadsheet (tab-separated). Columns:</p>
+                    <ol class="text-xs text-gray-600 mb-3 list-decimal pl-5 space-y-1">
+                        <li><strong>email</strong> — required</li>
+                        <li><strong>firstname</strong> — optional</li>
+                        <li><strong>lastname</strong> — optional</li>
+                        <li><strong>role</strong> — optional, <code>editor</code> (default) or <code>admin</code></li>
+                        <li><strong>galaxies</strong> — optional, comma-separated galaxy slugs (TSV mode) or pipe-separated (CSV mode)</li>
+                    </ol>
+                    <p class="text-xs text-gray-500 mb-3">Each new user gets a one-time setup email with a 7-day reset link. Existing emails are skipped. Lines starting with <code>#</code> are ignored.</p>
+                    <form method="POST" action="">
+                        <input type="hidden" name="action" value="bulk_users_preview">
+                        <textarea name="bulk_users_input" rows="10" class="w-full p-3 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:border-blue-500" placeholder="email[\tfirstname[\tlastname[\trole[\tgalaxies]]]]"></textarea>
+                        <div class="modal-action">
+                            <button type="submit" class="btn btn-neutral">Preview</button>
+                            <button type="button" class="btn" onclick="document.getElementById('bulk_users_modal').close()">Cancel</button>
+                        </div>
+                    </form>
+                <?php endif; ?>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <!-- Create User Modal -->
     <dialog id="create_user_modal" class="modal">
         <div class="modal-box max-w-2xl bg-white !pt-0">
@@ -3527,6 +3710,14 @@ $fieldMeta = [
                         <option value="tech">Tech</option>
                     </select>
                     <span class="text-xs text-gray-500 mt-1 block">Scene theme. Each wormhole's icon still uses its source galaxy's theme.</span>
+                </div>
+
+                <div class="mb-4 border-t border-gray-200 pt-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="cluster-show-galaxy-list" name="show_galaxy_list" value="1" class="toggle toggle-neutral toggle-sm">
+                        <span class="text-gray-800 font-medium text-sm">Show galaxy list to visitors</span>
+                    </label>
+                    <p class="text-xs text-gray-500 mt-1">When on, visitors see a list of the cluster's member galaxies in the bottom-right corner; clicking dims wormholes from other galaxies. Off by default for clusters since the curated framing is usually meant to read as one experience.</p>
                 </div>
 
                 <div class="mb-4">

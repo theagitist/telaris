@@ -3294,6 +3294,14 @@ class TelarisNetwork {
                 if (!matches) keywordChipDim = 0.15;
             }
 
+            // Galaxy-list-strip filter (multigalaxy unions): when at least one galaxy
+            // chip is active, dim nodes whose source galaxy isn't in the active set.
+            const activeGalaxies = this.activeGalaxyIds;
+            let galaxyStripDim = 1.0;
+            if (activeGalaxies && activeGalaxies.size > 0) {
+                if (!activeGalaxies.has(Number(d.constellation_id))) galaxyStripDim = 0.15;
+            }
+
             // Related-nodes dim: when an info card is open and the galaxy enables
             // the related-wormholes feature, dim everything except the current
             // node + its related set.
@@ -3304,7 +3312,7 @@ class TelarisNetwork {
 
             // Optimization: iterate cached materials directly
             d.cachedMaterials.forEach(m => {
-                m.opacity = opacity * glitchOpacityMult * tourDimNonSpotlight * keywordChipDim * relatedDim;
+                m.opacity = opacity * glitchOpacityMult * tourDimNonSpotlight * keywordChipDim * galaxyStripDim * relatedDim;
                 m.transparent = true;
                 m.visible = true;
 

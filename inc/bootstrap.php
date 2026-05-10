@@ -468,3 +468,29 @@ if (!empty($multiGalaxyIds)) {
     $idleSpotlightConfig['enabled'] = false;
 }
 
+// Galaxy-list strip (visitor multigalaxy filter). Default ON for emergent unions
+// (?galaxies=, /[XX], /tag/) and OFF for cluster type unless the cluster opts in.
+$galaxyListEnabled = false;
+$galaxyListMembers = [];
+if (!empty($multiGalaxyIds)) {
+    $clusterInfo = db_get_constellation_by_id((int) $constellationId);
+    $isCluster = $clusterInfo && ($clusterInfo['type'] ?? 'galaxy') === 'cluster';
+    if ($isCluster) {
+        $galaxyListEnabled = !empty($clusterInfo['show_galaxy_list']);
+    } else {
+        $galaxyListEnabled = true;
+    }
+    if ($galaxyListEnabled) {
+        foreach ($multiGalaxyIds as $gid) {
+            $info = db_get_constellation_by_id((int) $gid);
+            if (!$info) continue;
+            $galaxyListMembers[] = [
+                'id' => (int) $gid,
+                'name' => (string) ($info['name'] ?? ''),
+                'slug' => $info['slug'] ?? null,
+                'theme' => (string) ($info['theme'] ?? 'cosmic'),
+            ];
+        }
+    }
+}
+

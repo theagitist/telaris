@@ -191,6 +191,19 @@ header("X-Content-Type-Options: nosniff");
         <!-- Keyword chips strip (bottom-center). Populated by js/keyword-chips.js. -->
         <div id="keyword-chips-strip" class="hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-[210] flex flex-wrap gap-x-3 gap-y-0 justify-center max-w-[80vw] overflow-hidden" style="font-size: 0.85rem; line-height: 1.4; max-height: 2.4rem;"></div>
 
+        <!-- Galaxy list strip (visitor multigalaxy filter, bottom-right). Slide-up menu:
+             a button reveals the chip panel. Populated by js/galaxy-list-strip.js.
+             Whole strip hidden by default; controller un-hides if window.TELARIS_GALAXY_LIST_ENABLED is true. -->
+        <div id="galaxy-list-strip" class="hidden fixed bottom-3 right-3 z-[210] flex flex-col items-end gap-2" style="font-size: 0.85rem; line-height: 1.4;">
+            <div id="galaxy-list-panel" class="flex flex-col gap-1 items-end max-h-[60vh] overflow-y-auto" style="opacity: 0; transform: translateY(8px); transition: opacity 180ms ease, transform 180ms ease; pointer-events: none;"></div>
+            <button id="galaxy-list-toggle" type="button" aria-expanded="false" style="background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.18); border-radius:9999px; padding:0.35rem 0.85rem; color:#fff; font-weight:500; cursor:pointer; backdrop-filter:blur(4px); display:flex; align-items:center; gap:0.5rem; transition:border-color 150ms, background 150ms;">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" id="galaxy-list-toggle-icon" style="transition: transform 180ms ease;" aria-hidden="true">
+                    <path d="M6 9l6 6 6-6"/>
+                </svg>
+                <span id="galaxy-list-toggle-label">Galaxies</span>
+            </button>
+        </div>
+
         <!-- Auto-tour HUD: Play button (manual start) and during-tour player overlay -->
         <button id="tour-play-btn" class="hidden fixed bottom-6 right-6 z-[260] bg-black/70 hover:bg-black/90 border border-white/30 hover:border-[#00ffcc] text-white text-xs uppercase tracking-wider px-4 py-2 rounded transition-all" type="button" aria-label="Start tour">
             <span class="inline-flex items-center gap-2">
@@ -410,6 +423,8 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_INITIAL_NODE_ID = <?php echo $initialNodeId !== null ? (int)$initialNodeId : 'null'; ?>;
         window.TELARIS_MULTI_GALAXY_IDS = <?php echo json_encode(!empty($multiGalaxyIds) ? array_values($multiGalaxyIds) : null); ?>;
         window.TELARIS_MULTI_GALAXY_TITLE = <?php echo json_encode($multiGalaxyTitle ?? null); ?>;
+        window.TELARIS_GALAXY_LIST_ENABLED = <?php echo !empty($galaxyListEnabled) ? 'true' : 'false'; ?>;
+        window.TELARIS_GALAXY_LIST = <?php echo json_encode(!empty($galaxyListMembers) ? $galaxyListMembers : null); ?>;
     </script>
     <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
     (function() {
@@ -509,7 +524,8 @@ header("X-Content-Type-Options: nosniff");
                 "./telaris-soundscape.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-soundscape.js')); ?>",
                 "./auto-tour.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'auto-tour.js')); ?>",
                 "./keyword-chips.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'keyword-chips.js')); ?>",
-                "./idle-spotlight.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'idle-spotlight.js')); ?>"
+                "./idle-spotlight.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'idle-spotlight.js')); ?>",
+                "./galaxy-list-strip.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'galaxy-list-strip.js')); ?>"
             }
         }
     </script>

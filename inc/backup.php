@@ -279,6 +279,7 @@ function backup_build_dump(array $opts): array {
                 'tagline' => $cl['tagline'],
                 'slug' => $cl['slug'],
                 'theme' => $cl['theme'],
+                'show_galaxy_list' => !empty($cl['show_galaxy_list']),
                 'member_galaxy_slugs' => $memberSlugs,
             ];
         }
@@ -621,17 +622,18 @@ function backup_restore_from_file(string $path, array $opts): array {
             if ($cid !== null) $memberIds[] = $cid;
         }
 
+        $showGalaxyList = !empty($cl['show_galaxy_list']);
         try {
             $existingId = db_get_constellation_id_by_slug($slug);
             if ($existingId !== null) {
                 $existingInfo = db_get_constellation_by_id($existingId);
                 if ($existingInfo && ($existingInfo['type'] ?? 'galaxy') === 'cluster') {
-                    db_update_cluster($existingId, $name, $tagline, $slug, $theme);
+                    db_update_cluster($existingId, $name, $tagline, $slug, $theme, $showGalaxyList);
                     db_set_cluster_members($existingId, $memberIds);
                 }
                 // Slug taken by a galaxy — skip silently rather than corrupt the galaxy.
             } else {
-                db_create_cluster($name, $tagline, $slug, $theme, $memberIds);
+                db_create_cluster($name, $tagline, $slug, $theme, $memberIds, $showGalaxyList);
             }
         } catch (Throwable $e) {
             // Log and continue; cluster restore failures shouldn't block the rest of the dump.

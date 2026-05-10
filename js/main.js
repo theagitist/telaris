@@ -12,6 +12,7 @@ import { TelarisNetwork } from './telaris-3d.js';
 import { TourController } from './auto-tour.js';
 import { KeywordChipsController } from './keyword-chips.js';
 import { IdleSpotlightController } from './idle-spotlight.js';
+import { GalaxyListStripController } from './galaxy-list-strip.js';
 
 /** Constellation ID history for portal Back navigation. Set in initTelaris from URL or 0. */
 let navigationStack;
@@ -35,6 +36,12 @@ function initTelaris() {
             const chips = new KeywordChipsController(app);
             chips.init();
             window.telarisKeywordChips = chips;
+        }
+
+        if (window.TELARIS_GALAXY_LIST_ENABLED) {
+            const strip = new GalaxyListStripController(app);
+            strip.init();
+            window.telarisGalaxyListStrip = strip;
         }
 
         const idleCfg = window.TELARIS_IDLE_SPOTLIGHT_CONFIG;

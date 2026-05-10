@@ -125,7 +125,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                 Sign In
             </button>
         </form>
-        
+
+        <div class="mt-4 text-center">
+            <a href="forgot.php" class="text-gray-400 hover:text-white transition-colors text-sm">Forgot your password?</a>
+        </div>
+
         <div class="mt-8 text-center pt-6 border-t border-gray-800">
             <a href="../index.php" class="text-gray-400 hover:text-white transition-colors text-sm">← Back to Constellation</a>
         </div>

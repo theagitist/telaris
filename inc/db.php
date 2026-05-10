@@ -286,6 +286,13 @@ function db_ensure_constellations_type_and_cluster_members(): void {
         if (!$row) {
             $pdo->exec("ALTER TABLE constellations ADD COLUMN `type` ENUM('galaxy','cluster') NOT NULL DEFAULT 'galaxy' AFTER theme, ADD INDEX idx_type (`type`)");
         }
+        // Per-cluster opt-in for the visitor's galaxy-list strip. Emergent unions
+        // (?galaxies=, /[XX], /tag/) default to ON; clusters default to OFF since the
+        // curator has authored a unified experience.
+        $row2 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'show_galaxy_list'")->fetch();
+        if (!$row2) {
+            $pdo->exec("ALTER TABLE constellations ADD COLUMN show_galaxy_list BOOLEAN NOT NULL DEFAULT FALSE AFTER `type`");
+        }
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS galaxy_cluster_members (
                 cluster_id INT NOT NULL,
@@ -300,6 +307,36 @@ function db_ensure_constellations_type_and_cluster_members(): void {
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_constellations_type_and_cluster_members: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Ensure the password_reset_tokens table exists.
+ *
+ * Tokens are hashed (SHA-256) before storage so a DB compromise can't be used to take over
+ * accounts via outstanding reset links. Single-use: used_at is set when consumed and the
+ * lookup query rejects rows with used_at IS NOT NULL.
+ */
+function db_ensure_password_reset_tokens_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                token_hash CHAR(64) NOT NULL PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                used_at DATETIME NULL DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_user_id (user_id),
+                INDEX idx_expires_at (expires_at),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_password_reset_tokens_table: ' . $e->getMessage());
     }
 }
 
@@ -908,6 +945,93 @@ function db_update_user_last_login(string|int $userId): void {
     $stmt->execute([':id' => $userId]);
 }
 
+// ---------------------------------------------------------------------------
+// Password reset tokens
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a single-use password-reset token for a user.
+ * Stores SHA-256 hash; returns the plaintext token (caller emails it in a URL).
+ * Any prior unconsumed tokens for this user are invalidated so a fresh request
+ * supersedes outdated links.
+ */
+function db_create_password_reset_token(string $userId, int $ttlSeconds = 86400): string {
+    db_ensure_password_reset_tokens_table();
+    $pdo = getDB();
+    // Invalidate any previous unused tokens for this user.
+    $pdo->prepare("UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE user_id = :uid AND used_at IS NULL")
+        ->execute([':uid' => $userId]);
+    $token = bin2hex(random_bytes(32)); // 64 hex chars, ~256 bits of entropy
+    $hash = hash('sha256', $token);
+    $stmt = $pdo->prepare("
+        INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
+        VALUES (:h, :uid, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL :ttl SECOND))
+    ");
+    $stmt->execute([':h' => $hash, ':uid' => $userId, ':ttl' => max(60, $ttlSeconds)]);
+    return $token;
+}
+
+/**
+ * Look up a valid (unconsumed, unexpired) password-reset token. Returns the user row
+ * if the token can be used, null otherwise. Does NOT consume the token — used by the
+ * GET handler that decides whether to render the new-password form.
+ *
+ * @return array<string,mixed>|null
+ */
+function db_get_user_for_password_reset_token(string $token): ?array {
+    if ($token === '' || strlen($token) !== 64) return null;
+    db_ensure_password_reset_tokens_table();
+    $pdo = getDB();
+    $hash = hash('sha256', $token);
+    $stmt = $pdo->prepare("
+        SELECT u.id, u.email, u.firstname, u.lastname, u.type
+        FROM password_reset_tokens t
+        JOIN users u ON u.id = t.user_id
+        WHERE t.token_hash = :h AND t.used_at IS NULL AND t.expires_at > CURRENT_TIMESTAMP
+        LIMIT 1
+    ");
+    $stmt->execute([':h' => $hash]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row !== false ? $row : null;
+}
+
+/**
+ * Consume a token and update the user's password atomically. Returns true if the password
+ * was changed, false if the token was invalid/expired/used.
+ */
+function db_consume_password_reset_token(string $token, string $newPasswordHash): bool {
+    if ($token === '' || strlen($token) !== 64) return false;
+    db_ensure_password_reset_tokens_table();
+    $pdo = getDB();
+    $hash = hash('sha256', $token);
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("
+            SELECT user_id FROM password_reset_tokens
+            WHERE token_hash = :h AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP
+            LIMIT 1
+            FOR UPDATE
+        ");
+        $stmt->execute([':h' => $hash]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            $pdo->rollBack();
+            return false;
+        }
+        $userId = (string) $row['user_id'];
+        $pdo->prepare("UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE token_hash = :h")
+            ->execute([':h' => $hash]);
+        $pdo->prepare("UPDATE users SET password = :p WHERE id = :id")
+            ->execute([':p' => $newPasswordHash, ':id' => $userId]);
+        $pdo->commit();
+        return true;
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log('db_consume_password_reset_token error: ' . $e->getMessage());
+        return false;
+    }
+}
+
 function db_user_email_exists(string $email, ?string $excludeId = null): bool {
     $pdo = getDB();
     if ($excludeId !== null) {
@@ -1455,16 +1579,17 @@ function db_set_cluster_members(int $clusterId, array $memberIds): void {
  *
  * @param list<int> $memberIds
  */
-function db_create_cluster(string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic', array $memberIds = []): int {
+function db_create_cluster(string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic', array $memberIds = [], bool $showGalaxyList = false): int {
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
     $finalSlug = ($slug !== null && $slug !== '') ? $slug : db_slugify($name);
-    $stmt = $pdo->prepare("INSERT INTO constellations (name, tagline, slug, theme, `type`) VALUES (:name, :tagline, :slug, :theme, 'cluster')");
+    $stmt = $pdo->prepare("INSERT INTO constellations (name, tagline, slug, theme, `type`, show_galaxy_list) VALUES (:name, :tagline, :slug, :theme, 'cluster', :sgl)");
     $stmt->execute([
         ':name' => $name,
         ':tagline' => $tagline,
         ':slug' => $finalSlug,
         ':theme' => $theme,
+        ':sgl' => $showGalaxyList ? 1 : 0,
     ]);
     $clusterId = (int) $pdo->lastInsertId();
     if ($memberIds !== []) {
@@ -1476,17 +1601,18 @@ function db_create_cluster(string $name, string $tagline = '', ?string $slug = n
 /**
  * Update a cluster's metadata. Members are passed separately via db_set_cluster_members.
  */
-function db_update_cluster(int $id, string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic'): void {
+function db_update_cluster(int $id, string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic', bool $showGalaxyList = false): void {
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
     $finalSlug = ($slug !== null && $slug !== '') ? $slug : db_slugify($name);
-    $stmt = $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline, slug = :slug, theme = :theme WHERE id = :id AND `type` = 'cluster'");
+    $stmt = $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline, slug = :slug, theme = :theme, show_galaxy_list = :sgl WHERE id = :id AND `type` = 'cluster'");
     $stmt->execute([
         ':id' => $id,
         ':name' => $name,
         ':tagline' => $tagline,
         ':slug' => $finalSlug,
         ':theme' => $theme,
+        ':sgl' => $showGalaxyList ? 1 : 0,
     ]);
 }
 
@@ -1508,7 +1634,7 @@ function db_get_clusters(): array {
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
     $stmt = $pdo->query("
-        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.created_at, c.updated_at,
+        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.show_galaxy_list, c.created_at, c.updated_at,
                (SELECT COUNT(*) FROM galaxy_cluster_members m WHERE m.cluster_id = c.id) AS member_count
         FROM constellations c
         WHERE c.`type` = 'cluster'
@@ -1523,6 +1649,7 @@ function db_get_clusters(): array {
             'tagline' => (string) ($r['tagline'] ?? ''),
             'slug' => $r['slug'] ?? null,
             'theme' => (string) ($r['theme'] ?? 'cosmic'),
+            'show_galaxy_list' => (bool)($r['show_galaxy_list'] ?? false),
             'member_count' => (int) $r['member_count'],
             'created_at' => $r['created_at'] ?? null,
             'updated_at' => $r['updated_at'] ?? null,
@@ -1627,7 +1754,7 @@ function db_get_constellation_by_id(int $id): ?array {
     db_ensure_constellations_import_source_column();
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme, import_source, `type` FROM constellations WHERE id = :id LIMIT 1");
+    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme, import_source, `type`, show_galaxy_list FROM constellations WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
@@ -1640,6 +1767,7 @@ function db_get_constellation_by_id(int $id): ?array {
         'theme' => (string) ($row['theme'] ?? 'cosmic'),
         'import_source' => $row['import_source'] ?? null,
         'type' => (string) ($row['type'] ?? 'galaxy'),
+        'show_galaxy_list' => (bool)($row['show_galaxy_list'] ?? false),
     ];
 }
 
