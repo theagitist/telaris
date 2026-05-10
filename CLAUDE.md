@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Telaris** — a 3D interactive node network visualization application. The PHP/MySQL backend serves data through a REST API; the frontend renders a Three.js 3D scene with nodes, connections, and themes directly in the browser.
 
-Current version: **6.5.0** (tracked in `VERSION` file).
+Current version: **6.9.x** (tracked in `VERSION` file).
+
+**Versioning convention.** Patch bumps for incremental work; minor/major only when explicitly directed. The `VERSION` file is read at runtime to drive Safari-safe ES module path-versioning (`/js/vX.Y.Z/foo.js` → alias). Bump on any visitor-side JS change so old browsers don't run stale modules.
 
 ## Dev and production sites
 
@@ -97,11 +99,18 @@ All code uses `declare(strict_types=1)`.
 - `inc/main-view.php` — the HTML shell for the 3D visualization; receives variables from bootstrap
 
 **API directory (`api/`):**
-- Each resource has its own file: `nodes.php`, `connections.php`, `keywords.php`, `constellations.php`
+- Each resource has its own file: `nodes.php`, `connections.php`, `keywords.php`, `constellations.php`, `tags.php`
 - `apikey.php` — public endpoint that returns the default API key (no auth required)
 - `auth.php` — validates `X-API-Key` header (or `Authorization: Bearer` or `?api_key=`)
 - `validate.php` — shared input validation helpers
+- `mocambos.php` — Mocambos import (web UI)
 - All API endpoints (except `apikey.php`) require API key authentication via `requireApiKey()`
+
+**Notable endpoints / query-string modes:**
+- `nodes.php?galaxies=1,5,7&no_cluster=1` — multigalaxy union (visitor view)
+- `keywords.php?constellation_id=N&autocomplete=1` — bucketed `{current, siblings, global}` for editor autocomplete (frontend merges + dedupes + sorts alphabetically; pill-styled in the dropdown)
+- `tags.php?galaxy_id=N` — same bucketed shape for galaxy-tag autocomplete; `?galaxy_id=N&assigned=1` returns only the tags currently on that galaxy
+- `constellations.php?action=cluster_members&id=N` — member galaxy IDs for the admin cluster edit modal
 
 **Auth (`utils/auth.php`):**
 - Session-based auth for browser interfaces (`requireEditorOrAdminLogin()`, `requireAdminLogin()`)
@@ -125,9 +134,13 @@ main.js
 
 **Key globals injected by PHP into the page:**
 - `window.TELARIS_API_KEY` — fetched by JS from `api/apikey.php` on init
-- `window.TELARIS_CONSTELLATION_ID` — current constellation integer ID
-- `window.TELARIS_THEME_ID` — theme identifier string (e.g. `'cosmic'`)
-- `window.TELARIS_APP_NAME`, `window.TELARIS_ALERT_MESSAGE` — localized strings
+- `window.TELARIS_CONSTELLATION_ID` — current constellation integer ID (the cluster's own ID in cluster mode; the first listed member in emergent unions)
+- `window.TELARIS_THEME_ID` — scene theme identifier string (e.g. `'cosmic'`)
+- `window.TELARIS_MULTI_GALAXY_IDS` — list of int member IDs in multigalaxy mode, else `null`
+- `window.TELARIS_MULTI_GALAXY_TITLE` — synthesized title in multigalaxy mode (cluster name, `[XXX]`, tag label, or "A + B + N more")
+- `window.TELARIS_GALAXY_LIST_ENABLED` / `TELARIS_GALAXY_LIST` — bottom-right strip
+- `window.TELARIS_PDF_*` — localized PDF viewer chrome (loading / rendering / N pages / open / download / errors)
+- `window.TELARIS_APP_NAME`, `window.TELARIS_ALERT_MESSAGE`, etc. — other localized strings
 
 ### Theme System
 
@@ -146,7 +159,13 @@ Key relationships:
 - `user_constellations` — links editor users to permitted constellations
 - `api_keys` — API keys with name, description, is_active flag, and usage tracking
 
-**Node fields of note:** `image_url`, `video_url`, `audio_url` (with `audio_autoplay` and `audio_loop` flags), `embed_code`, `node_type` (ENUM: `object` or `portal`), `target_constellation_id` (for portal nodes), `is_accentuated`, `mucua_name`, `media_type`, `source_created_at`, `import_slug` (clustering and import sync fields).
+**Node fields of note:** `image_url`, `video_url`, `audio_url` (with `audio_autoplay` and `audio_loop` flags), `pdf_url`, `embed_code`, `image_attribution` (a generic credit field — applies to whichever primary visual is active), `icon_url`, `use_image_as_node`, `node_type` (ENUM: `object` or `portal`), `target_constellation_id` (for portal nodes), `is_accentuated`, `show_keywords`, `mucua_name`, `media_type`, `source_created_at`, `import_slug` (clustering and import sync fields).
+
+**Primary-visual mutex.** A wormhole has at most one of `{image_url, video_url, pdf_url}` set at a time. Audio is independent — pairs cleanly with any primary visual. Enforced by `applyVisualMutex()` in `api/nodes.php` (priority pdf > image > video on conflict). Existing video↔audio mutex (audio dropped when video set) is preserved.
+
+**Constellation extras (multigalaxy).** `constellations.type` ENUM(`'galaxy'`, `'cluster'`); `show_galaxy_list` bool (per-cluster opt-in for the visitor's galaxy-list strip). New tables: `galaxy_tags(constellation_id, tag_slug, tag_label)` for /tag/foo unions; `galaxy_cluster_members(cluster_id, member_id, position)` for cluster member lists. Existing galaxy queries (`db_get_constellations`, `db_get_constellations_paginated`, `db_get_constellations_for_user`, `db_get_constellations_by_name_prefix`, `db_get_galaxies_for_tag`) filter `type='galaxy'` so clusters don't bleed into editor dropdowns.
+
+**Other tables added since v6.5:** `password_reset_tokens(token_hash, user_id, expires_at, used_at)` (single-use, SHA-256 hashed, 24h TTL by default). `project_info.pdf_max_bytes` global setting (default 25 MB; configurable via admin Global Settings).
 
 ### Auto-Clustering
 
@@ -248,20 +267,67 @@ A family of per-galaxy toggles in the admin/editor's "Discovery" section of the 
 - **Bulk by keyword** — modal that lists keywords in the current galaxy with usage counts; pick one + an action (delete or move-to-galaxy). API: `POST /api/nodes.php` with `{action: 'bulk_by_keyword', constellation_id, keyword_id, op: 'delete'|'move'|'count', target_constellation_id?}`. Backed by `db_get_node_ids_with_keyword()` and `db_bulk_move_nodes_by_keyword()`.
 - **Keyboard shortcuts** — `n` (new wormhole), `/` (focus search), `t` (touched-today filter), `g` (galaxy settings), `?` (help modal). Ignored while typing in any input or while a `<dialog>` is open. The `?` button next to the controls opens the help.
 
+### Multigalaxy (cross-constellation views)
+
+Visitors can see wormholes from multiple galaxies in a single 3D scene through four mechanisms (full design + history in `docs/multigalaxy.md`):
+
+1. **Query string** — `?galaxies=slug-or-id,slug-or-id,...` unions the listed galaxies. Cheapest entry, no editorial step.
+2. **Name prefix** — `/[XXX]` (also `/%5BXXX%5D`) unions every galaxy whose name starts with the literal `[XXX]` token. Case-insensitive.
+3. **Tag** — `/tag/<slug>` unions every galaxy carrying that tag. Tags are managed in the galaxy edit modal (chip input with autocomplete from siblings + global). Slug derivation via `db_slugify`; canonical display label is the most-frequent label across assigned galaxies.
+4. **Galaxy Cluster type** — first-class object with its own slug, title, theme, tagline, permalink. Admin-only management via the dedicated **Clusters** tab in `/admin/`. Strictly a view (no native wormholes).
+
+All four converge on the same downstream pipeline. `inc/bootstrap.php` populates `$multiGalaxyIds` (list of int member galaxy IDs) plus `$multiGalaxyTitle`; `inc/main-view.php` exposes them as `window.TELARIS_MULTI_GALAXY_IDS` and `window.TELARIS_MULTI_GALAXY_TITLE`. The frontend fetches `api/nodes.php?galaxies=…` instead of `?constellation_id=…` and renders the union.
+
+**Per-node origin theme.** Each wormhole's 3D icon uses its source galaxy's theme so it stays recognizable across themes; the scene theme remains global (the union's chosen theme). Driven by `nodes.constellation_theme` (joined into the node payload by `db_format_nodes_bulk`) and per-node branching in `js/telaris-3d.js`'s `createNodes`.
+
+**Cross-galaxy bridges.** When two wormholes from different galaxies share a keyword text, they're connected with a subtle dashed line (`THREE.LineDashedMaterial`) instead of the cylinder used for intra-galaxy connections. Detection is client-side (`n1.userData.constellation_id !== n2.userData.constellation_id` in `createConnections`). Per-galaxy discovery features (auto-tour, idle spotlight, keyword chips, related-nodes) are disabled in any union view.
+
+**Galaxy list strip.** Bottom-right slide-up button labelled "Galaxies · N" reveals a chip column for the active members. Click a galaxy chip to dim wormholes from other galaxies (multi-select OR-match). Default ON for emergent unions (`?galaxies=`, `/[XX]`, `/tag/`); per-cluster toggle in admin (default OFF). Implemented in `js/galaxy-list-strip.js`; dim multiplier added to `updateNodes` in `js/telaris-3d.js`.
+
+### PDF wormhole media
+
+A wormhole can carry a PDF as its primary visual. Schema: `nodes.pdf_url` auto-migrated by `db_ensure_nodes_pdf_url_column()`. Validation: MIME type `application/pdf` + magic-byte sniff (`fileHasPdfMagic` checks for `%PDF-`). Size cap default 25 MB; admin can change via the **PDF max size (MB)** input on the Global Settings tab (stored in `project_info.pdf_max_bytes`; read at upload time via `effectivePdfMaxBytes()` so the cap is hot-reloaded without a redeploy).
+
+Visitor renderer: `js/pdf-viewer.js` lazy-loads Mozilla **PDF.js** (vendored at `js/vendor/pdfjs/pdf.js` + `pdf.worker.js`; renamed from .mjs so nginx serves them as `application/javascript`). Rich-media card slot `rm-pdf-wrap` includes a status line, "Open in new window" + "Download" links, and a scrollable canvas pane. CSP gains `worker-src 'self' blob:` for the PDF.js worker. `.gitignore` has a negation `!js/vendor/` so PDF.js is committed even though the top-level `vendor/` rule is in force.
+
+### SMTP / mail
+
+`MAIL_*` config constants in `config.php` (placeholders in `config_default.php`). Outgoing mail through Mailgun via PHPMailer 7 (vendored via composer; needs `composer install` on each instance). Helper at `inc/mail.php` exposes `mail_send($to, $subject, $html, $textFallback?, $toName?)` and `mail_is_configured()`; failures are logged but never thrown.
+
+### Password reset flow
+
+`/utils/forgot.php` accepts an email and emits a one-time reset link (no email enumeration — same generic message regardless of whether the email exists or whether mail succeeds). `/utils/reset.php?token=…` validates the token (single-use, 24h TTL, SHA-256 hashed in `password_reset_tokens`) and lets the user set a new password via `password_hash(..., PASSWORD_DEFAULT)`. `db_create_password_reset_token` invalidates any prior unconsumed tokens for the same user when a fresh request comes in. "Forgot your password?" link added to `/utils/login.php`.
+
+### Bulk user creation (admin)
+
+`inc/bulk-users.php` exports `bulk_users_parse(string $input): list<row>` and `bulk_users_apply(list<row>, string $resetUrlBase): array<report>`. Editors paste TSV (auto-detected, paste-from-spreadsheet friendly) or CSV with columns `email[, firstname, lastname, role, galaxies]`. Existing emails are skipped with a per-row report; new users get a placeholder password they never see plus a 7-day setup reset link by email (uses the same token flow as forgot-password). Admin UI: dialog `#bulk_users_modal` with two-step preview→commit, opened via the "Bulk import" button on the Users tab.
+
 ### Localization
 
-Supported locales: `en`, `es`, `pt`. Detected from `?lang=` query param or `Accept-Language` header. A language switcher in the HUD allows users to switch. All UI strings come from the `project_info` table (30 localized keys). New columns are auto-migrated via `db_ensure_project_info_columns()`.
+Supported locales: `en`, `es`, `pt`. Detected from `?lang=` query param or `Accept-Language` header. A language switcher in the HUD allows users to switch. All visitor-facing UI strings come from the `project_info` table (~42 localized keys; keys after v6.9 cover multigalaxy taglines and PDF viewer chrome). New columns are auto-migrated via `db_ensure_project_info_columns()`.
+
+**Editor and admin pages remain English by convention.** Mail templates also default to English. Visitor-facing only is the bar.
 
 ### URL Routing
 
 Requires Nginx rewrite rule so `/{number}` and `/{slug}` paths are handled by `index.php`. Supported patterns:
 - `/` — default constellation
-- `/{number}` — constellation by ID
-- `/{slug}` — constellation by slug
+- `/{number}` — constellation by ID (galaxy or cluster)
+- `/{slug}` — constellation by slug (galaxy or cluster). Cluster slugs pivot to multigalaxy mode automatically.
 - `/{slug-or-id}/{node-id}` — open that wormhole's info card on load (visitor permalink)
+- `/[XXX]` (or `/%5BXXX%5D`) — multigalaxy union of every galaxy whose name starts with the literal `[XXX]`
+- `/tag/<slug>` — multigalaxy union of every galaxy carrying the tag
 - `?constellation_id={number}` — constellation by ID (query param fallback)
+- `?galaxies=slug-or-id,…` — multigalaxy query-string union; with optional `&theme=<id>` to override the inherited theme
 - `?node={number}` — open that wormhole's card (query param fallback)
 - `?tour=preview` — force the auto-tour to start regardless of the configured start mode (used by the editor's Preview button)
+
+### CSP / Cloudflare gotcha
+
+This site sits behind Cloudflare. Two operational notes:
+
+- **Cloudflare Insights** auto-injects a beacon from `static.cloudflareinsights.com`. Every page with a strict CSP allows it explicitly: `script-src` adds `https://static.cloudflareinsights.com`, `connect-src` adds `https://cloudflareinsights.com`. Files: `inc/main-view.php`, `edit/index.php`, `admin/index.php`, `utils/login.php`, `utils/forgot.php`, `utils/reset.php`, `utils/frame.php`.
+- **Cloudflare Rocket Loader**, if enabled for the domain, rewrites inline event handlers (`onfocus`, `oninput`, `onclick`) and silently breaks parts of the editor in ways CSP can't fix. Disable it in the Cloudflare dashboard for any Telaris hostname.
 
 ### Cache Busting
 
