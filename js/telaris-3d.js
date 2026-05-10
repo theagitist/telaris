@@ -2799,6 +2799,7 @@ class TelarisNetwork {
                     audio_loop: !!data.audio_loop,
                     video_url: data.video_url,
                     video_autoplay: !!data.video_autoplay,
+                    pdf_url: data.pdf_url || null,
                     node_type: data.node_type ?? 'object',
                     target_constellation_id: (data.target_constellation_id !== undefined && data.target_constellation_id !== null && data.target_constellation_id !== '') ? Number(data.target_constellation_id) : null,
                     target_constellation_slug: data.target_constellation_slug || null,
