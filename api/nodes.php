@@ -45,6 +45,37 @@ requireApiKey();
 require_once __DIR__ . '/../inc/validation.php';
 
 /**
+ * Enforce the primary-visual mutex on the wormhole: at most one of {image, video, pdf}.
+ * Priority on conflict: pdf > image > video. Audio is independent of this mutex.
+ * The existing video↔audio mutex (audio dropped when video is set) is enforced afterward
+ * so a wormhole with audio + pdf still keeps both.
+ */
+function applyVisualMutex(?string &$imageUrl, ?string &$videoUrl, ?string &$pdfUrl, ?string &$audioUrl): void {
+    if ($pdfUrl !== null && $pdfUrl !== '') {
+        $imageUrl = null;
+        $videoUrl = null;
+    } elseif ($imageUrl !== null && $imageUrl !== '') {
+        $videoUrl = null;
+    }
+    // Existing rule: a video clears audio (video player owns the audio track).
+    if ($videoUrl !== null && $videoUrl !== '' && $audioUrl !== null && $audioUrl !== '') {
+        $audioUrl = null;
+    }
+}
+
+/**
+ * Effective PDF size cap. Reads project_info.pdf_max_bytes when available; falls back to
+ * the compile-time default. Caller should treat the result as the runtime limit.
+ */
+function effectivePdfMaxBytes(): int {
+    if (function_exists('db_get_pdf_max_bytes')) {
+        $v = db_get_pdf_max_bytes();
+        if ($v > 0) return $v;
+    }
+    return MAX_PDF_BYTES_DEFAULT;
+}
+
+/**
  * If the current session belongs to an editor (not admin), verify they have access
  * to the given constellation. Returns an error message or null on success.
  */
@@ -418,24 +449,18 @@ try {
             $audioLoop = isset($data['audio_loop']) ? (bool)$data['audio_loop'] : false;
             $videoUrl = (isset($data['video_url']) && !empty(trim((string)$data['video_url']))) ? trim((string)$data['video_url']) : null;
             $videoAutoplay = isset($data['video_autoplay']) ? (bool)$data['video_autoplay'] : true;
+            $pdfUrl = (isset($data['pdf_url']) && !empty(trim((string)$data['pdf_url']))) ? trim((string)$data['pdf_url']) : null;
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
             $showKeywords = isset($data['show_keywords']) ? (bool)$data['show_keywords'] : false;
             $useImageAsNode = isset($data['use_image_as_node']) ? (bool)$data['use_image_as_node'] : false;
             $iconUrl = (isset($data['icon_url']) && !empty(trim((string)$data['icon_url']))) ? trim((string)$data['icon_url']) : null;
             $imageAttribution = (isset($data['image_attribution']) && !empty(trim((string)$data['image_attribution']))) ? trim((string)$data['image_attribution']) : null;
 
-            // Mutual exclusivity: uploaded files take precedence; otherwise URL values decide
-            if (isset($_FILES['video_file']) && $_FILES['video_file']['error'] === UPLOAD_ERR_OK) {
-                $audioUrl = null;
-            } elseif (isset($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK) {
-                $videoUrl = null;
-            } elseif ($videoUrl) {
-                $audioUrl = null;
-            } elseif ($audioUrl) {
-                $videoUrl = null;
-            }
+            // Apply mutex now (URL-only state); file uploads, processed below, may re-trigger
+            // the mutex when the resulting URL changes.
+            applyVisualMutex($imageUrl, $videoUrl, $pdfUrl, $audioUrl);
 
-            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode);
+            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode, $pdfUrl);
             if ($nodeId === 0) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to create node: Could not retrieve node ID'], JSON_THROW_ON_ERROR);
@@ -569,9 +594,38 @@ try {
                     return;
                 }
             }
+            if (isset($_FILES['pdf_file']) && $_FILES['pdf_file']['error'] === UPLOAD_ERR_OK) {
+                $detectedMime = '';
+                $err = validateUploadedFile($_FILES['pdf_file'], ALLOWED_PDF_MIMES, effectivePdfMaxBytes(), $detectedMime);
+                if ($err !== null) {
+                    http_response_code(400);
+                    echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                if (!fileHasPdfMagic($_FILES['pdf_file']['tmp_name'])) {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'File does not look like a valid PDF'], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                $pdfRelPath = "{$nodeRelDir}/document.pdf";
+                $pdfFullPath = "{$nodeFullDir}/document.pdf";
+                if (move_uploaded_file($_FILES['pdf_file']['tmp_name'], $pdfFullPath)) {
+                    $pdfUrl = $pdfRelPath;
+                    $uploadedFiles = true;
+                } else {
+                    http_response_code(500);
+                    echo json_encode(['error' => 'Failed to save uploaded PDF'], JSON_THROW_ON_ERROR);
+                    return;
+                }
+            }
+
+            // Re-apply visual mutex now that file uploads have potentially changed URLs.
+            // Priority pdf > image > video means a same-request PDF upload wins over an existing
+            // image/video URL and over any image_file/video_file written above.
+            applyVisualMutex($imageUrl, $videoUrl, $pdfUrl, $audioUrl);
 
             if ($uploadedFiles) {
-                db_update_node($nodeId, $name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode);
+                db_update_node($nodeId, $name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode, $pdfUrl);
             }
 
             if (isset($data['keywords'])) {
@@ -640,28 +694,22 @@ try {
             $audioLoop = isset($data['audio_loop']) ? (bool)$data['audio_loop'] : false;
             $videoUrl = (isset($data['video_url']) && !empty(trim((string)$data['video_url']))) ? trim((string)$data['video_url']) : null;
             $videoAutoplay = isset($data['video_autoplay']) ? (bool)$data['video_autoplay'] : true;
+            $pdfUrl = (isset($data['pdf_url']) && !empty(trim((string)$data['pdf_url']))) ? trim((string)$data['pdf_url']) : null;
             $isAccentuated = isset($data['is_accentuated']) ? (bool)$data['is_accentuated'] : false;
             $showKeywords = isset($data['show_keywords']) ? (bool)$data['show_keywords'] : false;
             $useImageAsNode = isset($data['use_image_as_node']) ? (bool)$data['use_image_as_node'] : false;
             $iconUrl = (isset($data['icon_url']) && !empty(trim((string)$data['icon_url']))) ? trim((string)$data['icon_url']) : null;
             $imageAttribution = (isset($data['image_attribution']) && !empty(trim((string)$data['image_attribution']))) ? trim((string)$data['image_attribution']) : null;
 
-            // Mutual exclusivity logic for PUT
+            // File-presence flags (used by file processing block + applyVisualMutex below).
             $hasAudioFile = isset($_FILES['audio_file']) && $_FILES['audio_file']['error'] === UPLOAD_ERR_OK;
             $hasVideoFile = isset($_FILES['video_file']) && $_FILES['video_file']['error'] === UPLOAD_ERR_OK;
-            $hasIconFile = isset($_FILES['icon_file']) && $_FILES['icon_file']['error'] === UPLOAD_ERR_OK;
+            $hasIconFile  = isset($_FILES['icon_file'])  && $_FILES['icon_file']['error']  === UPLOAD_ERR_OK;
+            $hasPdfFile   = isset($_FILES['pdf_file'])   && $_FILES['pdf_file']['error']   === UPLOAD_ERR_OK;
 
-            if ($hasVideoFile) {
-                $audioUrl = null;
-            } elseif ($hasAudioFile) {
-                $videoUrl = null;
-            } elseif ($videoUrl && $videoUrl !== (db_get_nodes((int)$id, null, true)[0]['video_url'] ?? null)) {
-                // If a new video URL is provided, clear audio
-                $audioUrl = null;
-            } elseif ($audioUrl && $audioUrl !== (db_get_nodes((int)$id, null, true)[0]['audio_url'] ?? null)) {
-                // If a new audio URL is provided, clear video
-                $videoUrl = null;
-            }
+            // Initial mutex on URL state; file uploads below may flip URLs and the mutex
+            // re-runs after they're processed.
+            applyVisualMutex($imageUrl, $videoUrl, $pdfUrl, $audioUrl);
 
             // Handle file uploads for PUT
             if ($constellationId !== null) {
@@ -786,9 +834,35 @@ try {
                         return;
                     }
                 }
+                if ($hasPdfFile) {
+                    $detectedMime = '';
+                    $err = validateUploadedFile($_FILES['pdf_file'], ALLOWED_PDF_MIMES, effectivePdfMaxBytes(), $detectedMime);
+                    if ($err !== null) {
+                        http_response_code(400);
+                        echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                    if (!fileHasPdfMagic($_FILES['pdf_file']['tmp_name'])) {
+                        http_response_code(400);
+                        echo json_encode(['error' => 'File does not look like a valid PDF'], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                    $pdfRelPath = "{$nodeRelDir}/document.pdf";
+                    $pdfFullPath = "{$nodeFullDir}/document.pdf";
+                    if (move_uploaded_file($_FILES['pdf_file']['tmp_name'], $pdfFullPath)) {
+                        $pdfUrl = $pdfRelPath;
+                    } else {
+                        http_response_code(500);
+                        echo json_encode(['error' => 'Failed to save uploaded PDF'], JSON_THROW_ON_ERROR);
+                        return;
+                    }
+                }
             }
 
-            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode);
+            // Final mutex pass after all uploads are reflected in the URLs.
+            applyVisualMutex($imageUrl, $videoUrl, $pdfUrl, $audioUrl);
+
+            db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode, $pdfUrl);
             if (isset($data['keywords'])) {
                 $keywords = is_array($data['keywords']) ? $data['keywords'] : explode(',', (string)$data['keywords']);
                 db_save_node_keywords((int)$id, $keywords);

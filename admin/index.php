@@ -403,6 +403,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     try {
                         $defaultConstellationId = isset($_POST['default_constellation_id']) ? (int)$_POST['default_constellation_id'] : null;
                         db_update_project_settings_with_locales($en, $es, $pt, $defaultConstellationId);
+                        // PDF max size: stored in MB on the form, persisted in bytes. Empty = revert to default.
+                        if (isset($_POST['pdf_max_mb'])) {
+                            $mb = trim((string)$_POST['pdf_max_mb']);
+                            if ($mb === '') {
+                                db_set_pdf_max_bytes(null);
+                            } elseif (is_numeric($mb)) {
+                                $mbNum = max(1, min(2048, (int)$mb)); // clamp to 1MB..2GB
+                                db_set_pdf_max_bytes($mbNum * 1024 * 1024);
+                            }
+                        }
                         $lang = isset($_POST['settings_lang']) && in_array($_POST['settings_lang'], ['en', 'es', 'pt'], true) ? $_POST['settings_lang'] : 'en';
                         header('Location: index.php?tab=settings&saved=1&lang=' . urlencode($lang));
                         exit;
@@ -1023,6 +1033,14 @@ $fieldMeta = [
                             ?>
                         </select>
                         <span class="text-xs text-gray-500 mt-1 block">Choose which galaxy is shown at the root of the website. The chosen galaxy will also have its name and tagline synced with the "App name" and "Description" fields below.</span>
+                    </div>
+
+                    <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <label for="pdf_max_mb" class="block mb-1.5 text-gray-800 font-medium text-sm">PDF max size (MB)</label>
+                        <input type="number" id="pdf_max_mb" name="pdf_max_mb" min="1" max="2048" step="1"
+                               value="<?php echo (int)(db_get_pdf_max_bytes() / (1024 * 1024)); ?>"
+                               class="input input-bordered input-sm w-32 bg-white">
+                        <span class="text-xs text-gray-500 mt-1 block">Largest PDF a wormhole can carry. Default 25 MB. Editors uploading bigger files will get a 'File exceeds maximum allowed size' error.</span>
                     </div>
 
                     <div class="border border-gray-200 rounded-lg bg-white overflow-hidden">

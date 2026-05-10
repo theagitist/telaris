@@ -148,6 +148,7 @@ function backup_build_dump(array $opts): array {
                     'audio_loop' => (bool)$n['audio_loop'],
                     'video_url' => $n['video_url'],
                     'video_autoplay' => (bool)$n['video_autoplay'],
+                    'pdf_url' => $n['pdf_url'] ?? null,
                     'animation' => is_string($n['animation']) ? json_decode($n['animation'], true) : $n['animation'],
                     'node_type' => $n['node_type'],
                     'target_galaxy_ref' => null,
@@ -172,7 +173,7 @@ function backup_build_dump(array $opts): array {
 
                 // Embed media blobs
                 if ($mediaMode === 'embedded') {
-                    foreach (['image_url', 'icon_url', 'audio_url', 'video_url'] as $field) {
+                    foreach (['image_url', 'icon_url', 'audio_url', 'video_url', 'pdf_url'] as $field) {
                         $url = $n[$field] ?? null;
                         if (!is_string($url) || $url === '' || !str_starts_with($url, 'uploads/')) continue;
                         $absPath = backup_resolve_upload_path($url);
@@ -194,7 +195,7 @@ function backup_build_dump(array $opts): array {
                         $mediaRefs[$field] = $mediaSeen[$url];
                     }
                 } elseif ($mediaMode === 'none') {
-                    foreach (['image_url', 'icon_url', 'audio_url', 'video_url'] as $field) {
+                    foreach (['image_url', 'icon_url', 'audio_url', 'video_url', 'pdf_url'] as $field) {
                         $nodeOut[$field] = null;
                     }
                 }
@@ -835,7 +836,7 @@ function backup_restore_one_galaxy(array $g, array $dump, array $opts): array {
         } elseif (!$restoreMedia) {
             // Strip media URLs we know we won't have
             $pdo = getDB();
-            $pdo->prepare("UPDATE nodes SET image_url = NULL, icon_url = NULL, audio_url = NULL, video_url = NULL WHERE id = :id")
+            $pdo->prepare("UPDATE nodes SET image_url = NULL, icon_url = NULL, audio_url = NULL, video_url = NULL, pdf_url = NULL WHERE id = :id")
                 ->execute([':id' => $newNodeId]);
         }
 

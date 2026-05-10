@@ -1500,6 +1500,24 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 iconUrlInput.value = node.icon_url || '';
             }
 
+            // Handle PDF fields (mutex with image+video enforced server-side).
+            const pdfFileWrap = document.getElementById('edit-pdf-file-wrap');
+            const pdfExisting = document.getElementById('edit-pdf-existing');
+            const pdfExistingName = document.getElementById('edit-pdf-existing-name');
+            const pdfUrlInput = document.getElementById('edit-pdf-url');
+            if (pdfUrlInput) {
+                if (node.pdf_url && node.pdf_url.startsWith('uploads/')) {
+                    pdfFileWrap.classList.add('hidden');
+                    pdfExisting.classList.remove('hidden');
+                    pdfExistingName.value = node.pdf_url.split('/').pop();
+                    pdfUrlInput.value = node.pdf_url;
+                } else {
+                    pdfFileWrap.classList.remove('hidden');
+                    pdfExisting.classList.add('hidden');
+                    pdfUrlInput.value = node.pdf_url || '';
+                }
+            }
+
             // Set correct A/V tab and visibility
             const audioContent = document.getElementById('edit-audio-content');
             const videoContent = document.getElementById('edit-video-content');
@@ -1588,7 +1606,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 // Clear audio fields to enforce exclusivity
                 formData.append('audio_url', '');
             }
-            
+
+            // PDF (mutex with image+video is enforced server-side).
+            const pdfUrlEl = document.getElementById('edit-pdf-url');
+            const pdfFileEl = document.getElementById('edit-pdf-file');
+            if (pdfUrlEl) formData.append('pdf_url', pdfUrlEl.value.trim());
+            if (pdfFileEl && pdfFileEl.files[0]) formData.append('pdf_file', pdfFileEl.files[0]);
+
             handleNodeSubmit(formData, 'edit', 'PUT');
         }
 
@@ -1707,6 +1731,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         else if (type === 'audio') node.audio_url = '';
                         else if (type === 'video') node.video_url = '';
                         else if (type === 'icon') node.icon_url = '';
+                        else if (type === 'pdf') node.pdf_url = '';
                     }
                     
                 } catch (error) {
@@ -1822,6 +1847,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const videoFile = document.getElementById('node-video-file').files[0];
                 if (videoFile) formData.append('video_file', videoFile);
             }
+            // PDF (mutex with image+video is enforced server-side).
+            const createPdfUrlEl = document.getElementById('node-pdf-url');
+            const createPdfFileEl = document.getElementById('node-pdf-file');
+            if (createPdfUrlEl) formData.append('pdf_url', createPdfUrlEl.value.trim());
+            if (createPdfFileEl && createPdfFileEl.files[0]) formData.append('pdf_file', createPdfFileEl.files[0]);
 
             handleNodeSubmit(formData, 'create', 'POST');
         }
@@ -2262,6 +2292,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <span class="text-xs text-gray-500 mt-1 block">Custom icon displayed in the 3D scene (overrides theme icon).</span>
                     </div>
 
+                    <div>
+                        <label for="node-pdf-url" class="block mb-1.5 text-gray-800 font-medium text-sm">PDF URL / File</label>
+                        <input type="text" id="node-pdf-url" name="pdf_url" placeholder="https://example.com/document.pdf" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                        <input type="file" id="node-pdf-file" name="pdf_file" accept="application/pdf,.pdf" class="text-xs">
+                        <span class="text-xs text-gray-500 mt-1 block">Upload a PDF or provide a link. Setting a PDF clears the image and video on save (only one primary visual per wormhole).</span>
+                    </div>
+
                     <div class="flex flex-col">
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm">Media (Audio or Video)</label>
                         <div class="tabs tabs-bordered mb-2">
@@ -2428,6 +2465,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </div>
                         <input type="text" id="edit-image-attribution" name="image_attribution" placeholder="Photo by..." class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-2" maxlength="255">
                         <span class="text-xs text-gray-500 mt-0.5 block">Attribution text shown on the image (optional).</span>
+                    </div>
+
+                    <div id="edit-pdf-container">
+                        <label for="edit-pdf-url" class="block mb-1.5 text-gray-800 font-medium text-sm">PDF URL / File</label>
+                        <div id="edit-pdf-file-wrap">
+                            <input type="text" id="edit-pdf-url" name="pdf_url" placeholder="https://example.com/document.pdf" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="edit-pdf-file" name="pdf_file" accept="application/pdf,.pdf" class="text-xs">
+                        </div>
+                        <div id="edit-pdf-existing" class="hidden flex items-center gap-2 mb-2">
+                            <input type="text" id="edit-pdf-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
+                            <button type="button" onclick="deleteModalFile('pdf')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                        </div>
+                        <span class="text-xs text-gray-500 mt-0.5 block">Setting a PDF clears the image and video on save (only one primary visual per wormhole).</span>
                     </div>
 
                     <div class="flex flex-col">

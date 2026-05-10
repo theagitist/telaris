@@ -9,6 +9,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { apiFetch } from './api.js';
 import { createNodeIcon } from './telaris-node-icons.js';
+import { renderPdf, clearPdf } from './pdf-viewer.js';
 import { NetworkManager } from './network-manager.js';
 import { GeometryManager } from './geometry-manager.js';
 import { getTheme } from './themes.js';
@@ -149,6 +150,10 @@ class TelarisNetwork {
         const audioEl = document.getElementById('rm-audio');
         const videoWrap = document.getElementById('rm-video-wrap');
         const videoEl = document.getElementById('rm-video');
+        const pdfWrap = document.getElementById('rm-pdf-wrap');
+        const pdfPagesEl = document.getElementById('rm-pdf-pages');
+        const pdfStatusEl = document.getElementById('rm-pdf-status');
+        const pdfDownloadEl = document.getElementById('rm-pdf-download');
         const urlWrap = document.getElementById('rm-url-wrap');
         const urlButton = document.getElementById('rm-url-button');
 
@@ -278,7 +283,7 @@ class TelarisNetwork {
                 videoEl.src = d.video_url;
                 videoEl.load();
                 videoWrap.classList.remove('hidden');
-                
+
                 if (d.video_autoplay) {
                     videoEl.play().catch(err => {
                         console.warn('Video autoplay prevented or failed:', err);
@@ -288,6 +293,24 @@ class TelarisNetwork {
                 videoEl.src = '';
                 videoEl.load();
                 videoWrap.classList.add('hidden');
+            }
+        }
+
+        // PDF (rendered by js/pdf-viewer.js, lazy-loaded). The mutex with image+video
+        // is enforced server-side, so under normal conditions only one of those wraps
+        // is unhidden at a time.
+        if (pdfWrap && pdfPagesEl) {
+            if (d.pdf_url) {
+                pdfWrap.classList.remove('hidden');
+                renderPdf({
+                    pagesEl: pdfPagesEl,
+                    statusEl: pdfStatusEl,
+                    downloadEl: pdfDownloadEl,
+                    url: d.pdf_url,
+                });
+            } else {
+                clearPdf({ pagesEl: pdfPagesEl, statusEl: pdfStatusEl });
+                pdfWrap.classList.add('hidden');
             }
         }
 
@@ -533,6 +556,11 @@ class TelarisNetwork {
             }
             const embed = document.getElementById('rm-embed');
             if(embed) { embed.innerHTML = ''; }
+            const pdfPages = document.getElementById('rm-pdf-pages');
+            const pdfStatus = document.getElementById('rm-pdf-status');
+            const pdfWrapEl = document.getElementById('rm-pdf-wrap');
+            if (pdfPages || pdfStatus) clearPdf({ pagesEl: pdfPages, statusEl: pdfStatus });
+            if (pdfWrapEl) pdfWrapEl.classList.add('hidden');
             overlay.classList.add('hidden');
         }, 500);
     }

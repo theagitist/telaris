@@ -13,6 +13,7 @@ const NODE_TYPE_VALUES = ['object', 'portal'];
 const ALLOWED_IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const ALLOWED_AUDIO_MIMES = ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/mp4', 'audio/aac', 'audio/webm', 'audio/x-m4a'];
 const ALLOWED_VIDEO_MIMES = ['video/mp4'];
+const ALLOWED_PDF_MIMES = ['application/pdf'];
 
 /** Video MIME types accepted for frame extraction (broader than upload — file is discarded after). */
 const FRAME_EXTRACTABLE_VIDEO_MIMES = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm', 'video/mpeg', 'video/3gpp', 'video/x-ms-wmv', 'video/x-flv'];
@@ -39,12 +40,26 @@ const MIME_TO_EXT = [
     'video/3gpp'      => '3gp',
     'video/x-ms-wmv'  => 'wmv',
     'video/x-flv'     => 'flv',
+    'application/pdf' => 'pdf',
 ];
 
 /** Maximum upload sizes. */
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;   // 10 MB
 const MAX_AUDIO_BYTES = 50 * 1024 * 1024;   // 50 MB
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024;  // 200 MB
+const MAX_PDF_BYTES_DEFAULT = 25 * 1024 * 1024;  // 25 MB; runtime overridable via project_info.pdf_max_bytes
+
+/**
+ * Verify a file starts with the PDF magic header. Catches mislabelled uploads
+ * even when the MIME sniff returns 'application/pdf' on something else.
+ */
+function fileHasPdfMagic(string $tmpPath): bool {
+    $f = @fopen($tmpPath, 'rb');
+    if (!$f) return false;
+    $head = fread($f, 5);
+    fclose($f);
+    return $head === '%PDF-';
+}
 
 /**
  * Sanitize node_type from request data; return one of NODE_TYPE_VALUES or 'object'.

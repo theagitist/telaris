@@ -7,6 +7,10 @@ composer.phar
 composer
 .phpunit.cache/
 
+# Track vendored frontend libraries (e.g. PDF.js) even though `vendor/` is ignored.
+!js/vendor/
+!js/vendor/**
+
 # IDE
 .idea/
 .vscode/

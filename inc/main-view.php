@@ -4,7 +4,7 @@
  * Expects: $projectName, $projectTagline, $isEditorOrAdmin, $currentLocale, $projectEditButtonText, $projectLoadingText (set by bootstrap).
  */
 $cspNonce = base64_encode(random_bytes(16));
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$cspNonce}' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors *");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$cspNonce}' https://cdn.jsdelivr.net; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors *");
 header("X-Content-Type-Options: nosniff");
 ?>
 <!DOCTYPE html>
@@ -273,6 +273,15 @@ header("X-Content-Type-Options: nosniff");
                         <!-- Video -->
                         <div id="rm-video-wrap" class="hidden">
                             <video id="rm-video" controls preload="auto" class="w-full h-auto rounded-md border" style="border-color: var(--node-accent-muted); width: 100% !important;"></video>
+                        </div>
+
+                        <!-- PDF (rendered by js/pdf-viewer.js using vendored PDF.js). -->
+                        <div id="rm-pdf-wrap" class="hidden">
+                            <div id="rm-pdf-toolbar" class="flex items-center justify-between mb-2 text-xs uppercase tracking-wider text-white/60">
+                                <span id="rm-pdf-status">Loading PDF…</span>
+                                <a id="rm-pdf-download" href="#" target="_blank" rel="noopener" class="hover:text-white transition-colors" download>Download</a>
+                            </div>
+                            <div id="rm-pdf-pages" class="max-h-[70vh] overflow-y-auto rounded-md border bg-black/30" style="border-color: var(--node-accent-muted);"></div>
                         </div>
 
                         <!-- Audio -->
