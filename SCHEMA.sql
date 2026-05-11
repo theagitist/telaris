@@ -39,7 +39,10 @@ CREATE TABLE IF NOT EXISTS constellations (
     idle_spotlight_idle_seconds INT UNSIGNED NOT NULL DEFAULT 30,
     related_nodes_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by VARCHAR(255) NULL DEFAULT NULL,
+    INDEX idx_constellations_created_by (created_by),
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Junction: galaxies that tour by tag pick visitable nodes from these keywords (OR logic).
@@ -100,23 +103,31 @@ CREATE TABLE IF NOT EXISTS keywords (
     constellation_id INT NOT NULL DEFAULT 0,
     keyword VARCHAR(100) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(255) NULL DEFAULT NULL,
     UNIQUE KEY unique_keyword_constellation (keyword, constellation_id),
     FOREIGN KEY (constellation_id) REFERENCES constellations(id),
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_keyword (keyword),
-    INDEX idx_constellation_id (constellation_id)
+    INDEX idx_constellation_id (constellation_id),
+    INDEX idx_keywords_created_by (created_by)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Junction table for node-keyword relationships (many-to-many)
+-- Junction table for node-keyword relationships (many-to-many).
+-- `created_by` attributes who tagged this wormhole with this keyword — distinct
+-- from `keywords.created_by`, which records who first created the keyword itself.
 CREATE TABLE IF NOT EXISTS node_keywords (
     id INT AUTO_INCREMENT PRIMARY KEY,
     node_id INT NOT NULL,
     keyword_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(255) NULL DEFAULT NULL,
     FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE,
     FOREIGN KEY (keyword_id) REFERENCES keywords(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
     UNIQUE KEY unique_node_keyword (node_id, keyword_id),
     INDEX idx_node_id (node_id),
-    INDEX idx_keyword_id (keyword_id)
+    INDEX idx_keyword_id (keyword_id),
+    INDEX idx_node_keywords_created_by (created_by)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table for project information (one row per locale: en, es, pt).

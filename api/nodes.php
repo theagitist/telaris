@@ -482,7 +482,9 @@ try {
             // the mutex when the resulting URL changes.
             applyVisualMutex($imageUrl, $videoUrl, $pdfUrl, $audioUrl);
 
-            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode, $pdfUrl);
+            if (session_status() === PHP_SESSION_NONE) { session_start(); }
+            $createdBy = isset($_SESSION['admin_user_id']) ? (string)$_SESSION['admin_user_id'] : null;
+            $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode, $pdfUrl, $createdBy);
             if ($nodeId === 0) {
                 http_response_code(500);
                 echo json_encode(['error' => 'Failed to create node: Could not retrieve node ID'], JSON_THROW_ON_ERROR);
@@ -652,7 +654,9 @@ try {
 
             if (isset($data['keywords'])) {
                 $keywords = is_array($data['keywords']) ? $data['keywords'] : explode(',', (string)$data['keywords']);
-                db_save_node_keywords($nodeId, $keywords);
+                if (session_status() === PHP_SESSION_NONE) { session_start(); }
+                $taggedBy = isset($_SESSION['admin_user_id']) ? (string)$_SESSION['admin_user_id'] : null;
+                db_save_node_keywords($nodeId, $keywords, $taggedBy);
             }
             $result = ['id' => $nodeId, 'success' => true];
             if ($uploadNotice !== null) $result['notice'] = $uploadNotice;
@@ -887,7 +891,9 @@ try {
             db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode, $pdfUrl);
             if (isset($data['keywords'])) {
                 $keywords = is_array($data['keywords']) ? $data['keywords'] : explode(',', (string)$data['keywords']);
-                db_save_node_keywords((int)$id, $keywords);
+                if (session_status() === PHP_SESSION_NONE) { session_start(); }
+                $taggedBy = isset($_SESSION['admin_user_id']) ? (string)$_SESSION['admin_user_id'] : null;
+                db_save_node_keywords((int)$id, $keywords, $taggedBy);
             }
             $putResult = ['success' => true];
             if (isset($uploadNotice) && $uploadNotice !== null) $putResult['notice'] = $uploadNotice;

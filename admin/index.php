@@ -143,7 +143,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 if ($newUser && isset($newUser['id'])) {
                     $constellationIds = array_map('intval', array_filter((array)($_POST['constellation_ids'] ?? [])));
                     if ($createConstellation && $newConstellationName !== '') {
-                        $newConstellationId = db_create_constellation($newConstellationName, '');
+                        $adminId = isset($_SESSION['admin_user_id']) ? (string)$_SESSION['admin_user_id'] : null;
+                        $newConstellationId = db_create_constellation($newConstellationName, '', null, 'cosmic', $adminId);
                         $constellationIds[] = $newConstellationId;
                     }
                     if ($type === USER_TYPE_EDITOR) {
@@ -223,7 +224,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $allowedThemes = ['cosmic', 'simple', 'abstract', 'rectangles', 'stripes', 'tech'];
                 $theme = trim($_POST['theme'] ?? 'cosmic');
                 if (!in_array($theme, $allowedThemes, true)) { $theme = 'cosmic'; }
-                db_create_constellation($name, $tagline, $slug !== '' ? $slug : null, $theme);
+                $createdBy = isset($_SESSION['admin_user_id']) ? (string)$_SESSION['admin_user_id'] : null;
+                db_create_constellation($name, $tagline, $slug !== '' ? $slug : null, $theme, $createdBy);
                 $message = 'Galaxy created successfully.';
                 $activeTab = 'constellations';
             })(),

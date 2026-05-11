@@ -87,7 +87,9 @@ function handle_galaxy_update_post(array $post, ?string $userId, bool $isAdmin):
         $raw = (string) $post['tags'];
         $labels = $raw === '' ? [] : array_map('trim', explode(',', $raw));
         $labels = array_values(array_filter($labels, fn($l) => $l !== ''));
-        db_set_tags_for_galaxy($id, $labels);
+        if (session_status() === PHP_SESSION_NONE) { session_start(); }
+        $createdBy = isset($_SESSION['admin_user_id']) ? (string)$_SESSION['admin_user_id'] : null;
+        db_set_tags_for_galaxy($id, $labels, $createdBy);
     }
 
     return ['ok' => true, 'message' => 'Galaxy updated successfully.'];

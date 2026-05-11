@@ -174,7 +174,9 @@ try {
             if (!in_array($theme, $allowedThemes, true)) {
                 $theme = 'cosmic';
             }
-            $id = db_create_constellation($name, $tagline, null, $theme);
+            if (session_status() === PHP_SESSION_NONE) { session_start(); }
+            $createdBy = isset($_SESSION['admin_user_id']) ? (string)$_SESSION['admin_user_id'] : null;
+            $id = db_create_constellation($name, $tagline, null, $theme, $createdBy);
             echo json_encode([
                 'id' => $id,
                 'name' => $name,

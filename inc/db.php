@@ -453,6 +453,92 @@ function db_ensure_galaxy_tags_table(): void {
     }
 }
 
+/**
+ * Provenance columns — second-pass migrations adding `created_by` (and where
+ * missing, `created_at`) to editorial tables. Legacy rows stay NULL meaning
+ * "pre-provenance era". users.id is VARCHAR(255) on this schema, so every
+ * `created_by` FK matches that type. New rows get populated by the write
+ * helpers below; the read/surface side is a separate ship (see TODOs).
+ */
+function db_ensure_keywords_created_by_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM keywords LIKE 'created_by'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE keywords
+                ADD COLUMN created_by VARCHAR(255) NULL DEFAULT NULL AFTER created_at,
+                ADD INDEX idx_keywords_created_by (created_by),
+                ADD CONSTRAINT fk_keywords_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_keywords_created_by_column: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_node_keywords_created_by_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM node_keywords LIKE 'created_by'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE node_keywords
+                ADD COLUMN created_by VARCHAR(255) NULL DEFAULT NULL AFTER created_at,
+                ADD INDEX idx_node_keywords_created_by (created_by),
+                ADD CONSTRAINT fk_node_keywords_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_node_keywords_created_by_column: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_galaxy_tags_provenance_columns(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        db_ensure_galaxy_tags_table();
+        $cols = [];
+        foreach ($pdo->query("SHOW COLUMNS FROM galaxy_tags") as $r) {
+            $cols[$r['Field']] = true;
+        }
+        if (!isset($cols['created_at'])) {
+            $pdo->exec("ALTER TABLE galaxy_tags ADD COLUMN created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP AFTER tag_label");
+        }
+        if (!isset($cols['created_by'])) {
+            $pdo->exec("ALTER TABLE galaxy_tags
+                ADD COLUMN created_by VARCHAR(255) NULL DEFAULT NULL AFTER created_at,
+                ADD INDEX idx_galaxy_tags_created_by (created_by),
+                ADD CONSTRAINT fk_galaxy_tags_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_galaxy_tags_provenance_columns: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_constellations_created_by_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'created_by'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE constellations
+                ADD COLUMN created_by VARCHAR(255) NULL DEFAULT NULL AFTER updated_at,
+                ADD INDEX idx_constellations_created_by (created_by),
+                ADD CONSTRAINT fk_constellations_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_constellations_created_by_column: ' . $e->getMessage());
+    }
+}
+
 /** Ensure nodes.image_attribution column exists. */
 function db_ensure_nodes_image_attribution_column(): void {
     static $checked = false;
@@ -1962,14 +2048,19 @@ function db_get_tags_for_galaxy(int $constellationId): array {
  *
  * @param list<string> $labels
  */
-function db_set_tags_for_galaxy(int $constellationId, array $labels): void {
+function db_set_tags_for_galaxy(int $constellationId, array $labels, ?string $createdBy = null): void {
     db_ensure_galaxy_tags_table();
+    db_ensure_galaxy_tags_provenance_columns();
     $pdo = getDB();
     $pdo->beginTransaction();
     try {
+        // Delete-then-insert means we lose prior creator attribution on tag
+        // rotations. That's correct: a tag re-added after removal is a fresh
+        // editorial act and the new editor owns it. If a per-tag preservation
+        // model is ever needed, switch to a diff-based update here.
         $del = $pdo->prepare("DELETE FROM galaxy_tags WHERE constellation_id = :cid");
         $del->execute([':cid' => $constellationId]);
-        $ins = $pdo->prepare("INSERT IGNORE INTO galaxy_tags (constellation_id, tag_slug, tag_label) VALUES (:cid, :slug, :label)");
+        $ins = $pdo->prepare("INSERT IGNORE INTO galaxy_tags (constellation_id, tag_slug, tag_label, created_by) VALUES (:cid, :slug, :label, :created_by)");
         $seen = [];
         foreach ($labels as $raw) {
             $label = trim((string) $raw);
@@ -1977,7 +2068,12 @@ function db_set_tags_for_galaxy(int $constellationId, array $labels): void {
             $slug = db_slugify($label);
             if ($slug === '' || isset($seen[$slug])) continue;
             $seen[$slug] = true;
-            $ins->execute([':cid' => $constellationId, ':slug' => $slug, ':label' => $label]);
+            $ins->execute([
+                ':cid' => $constellationId,
+                ':slug' => $slug,
+                ':label' => $label,
+                ':created_by' => $createdBy,
+            ]);
         }
         $pdo->commit();
     } catch (Throwable $e) {
@@ -2728,8 +2824,13 @@ function db_constellation_exists(string $name, ?string $slug = null, ?int $exclu
 
 /**
  * Create a new constellation with the next available id. Returns the new id.
+ *
+ * @param string|null $createdBy Optional user id (users.id, VARCHAR) to record
+ *        as the creator. NULL leaves provenance unattributed (system imports,
+ *        backup restores, pre-session contexts).
  */
-function db_create_constellation(string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic'): int {
+function db_create_constellation(string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic', ?string $createdBy = null): int {
+    db_ensure_constellations_created_by_column();
     $pdo = getDB();
 
     $name = trim($name) ?: 'Unnamed';
@@ -2737,11 +2838,12 @@ function db_create_constellation(string $name, string $tagline = '', ?string $sl
         $slug = db_slugify($name);
     }
 
-    $pdo->prepare("INSERT INTO constellations (name, tagline, slug, theme) VALUES (:name, :tagline, :slug, :theme)")->execute([
+    $pdo->prepare("INSERT INTO constellations (name, tagline, slug, theme, created_by) VALUES (:name, :tagline, :slug, :theme, :created_by)")->execute([
         ':name' => $name,
         ':tagline' => trim($tagline),
         ':slug' => trim($slug),
-        ':theme' => $theme
+        ':theme' => $theme,
+        ':created_by' => $createdBy,
     ]);
     return (int)$pdo->lastInsertId();
 }
@@ -3659,7 +3761,9 @@ function db_format_node(array $node): array {
     ];
 }
 
-function db_save_node_keywords(int $nodeId, array $keywords): void {
+function db_save_node_keywords(int $nodeId, array $keywords, ?string $createdBy = null): void {
+    db_ensure_keywords_created_by_column();
+    db_ensure_node_keywords_created_by_column();
     $pdo = getDB();
     $nodeStmt = $pdo->prepare("SELECT constellation_id FROM nodes WHERE id = :id LIMIT 1");
     $nodeStmt->execute([':id' => $nodeId]);
@@ -3683,13 +3787,16 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
 
     try {
         // Step 1: upsert every keyword in a single statement. INSERT IGNORE relies on
-        // unique_keyword_constellation (keyword, constellation_id).
-        $kwPlaceholders = implode(',', array_fill(0, count($names), '(?, ?)'));
-        $kwStmt = $pdo->prepare("INSERT IGNORE INTO keywords (keyword, constellation_id) VALUES $kwPlaceholders");
+        // unique_keyword_constellation (keyword, constellation_id). created_by lands
+        // on rows that win the insert race; existing keyword rows keep their prior
+        // creator attribution.
+        $kwPlaceholders = implode(',', array_fill(0, count($names), '(?, ?, ?)'));
+        $kwStmt = $pdo->prepare("INSERT IGNORE INTO keywords (keyword, constellation_id, created_by) VALUES $kwPlaceholders");
         $bind = [];
         foreach ($names as $n) {
             $bind[] = $n;
             $bind[] = $constellationId;
+            $bind[] = $createdBy;
         }
         $kwStmt->execute($bind);
 
@@ -3706,19 +3813,22 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
         }
 
         // Step 3: insert every junction row in a single statement. INSERT IGNORE relies on
-        // unique_node_keyword (node_id, keyword_id) to no-op on duplicates.
+        // unique_node_keyword (node_id, keyword_id) to no-op on duplicates. The
+        // junction row's created_by attributes *who tagged this wormhole with this
+        // keyword* — distinct from who first created the keyword itself.
         $keywordIds = [];
         foreach ($names as $n) {
             $kid = $idByLower[mb_strtolower($n)] ?? 0;
             if ($kid > 0) $keywordIds[$kid] = true;
         }
         if ($keywordIds === []) return;
-        $jPlaceholders = implode(',', array_fill(0, count($keywordIds), '(?, ?)'));
-        $jStmt = $pdo->prepare("INSERT IGNORE INTO node_keywords (node_id, keyword_id) VALUES $jPlaceholders");
+        $jPlaceholders = implode(',', array_fill(0, count($keywordIds), '(?, ?, ?)'));
+        $jStmt = $pdo->prepare("INSERT IGNORE INTO node_keywords (node_id, keyword_id, created_by) VALUES $jPlaceholders");
         $jBind = [];
         foreach (array_keys($keywordIds) as $kid) {
             $jBind[] = $nodeId;
             $jBind[] = $kid;
+            $jBind[] = $createdBy;
         }
         $jStmt->execute($jBind);
     } catch (PDOException $e) {
@@ -3790,7 +3900,7 @@ function db_duplicate_node(int $sourceNodeId, ?int $targetConstellationId = null
     return $newId;
 }
 
-function db_create_node(string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false, ?string $videoUrl = null, bool $videoAutoplay = true, bool $audioLoop = false, bool $showKeywords = false, ?string $iconUrl = null, ?string $imageAttribution = null, bool $useImageAsNode = false, ?string $pdfUrl = null): int {
+function db_create_node(string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false, ?string $videoUrl = null, bool $videoAutoplay = true, bool $audioLoop = false, bool $showKeywords = false, ?string $iconUrl = null, ?string $imageAttribution = null, bool $useImageAsNode = false, ?string $pdfUrl = null, ?string $createdBy = null): int {
     if ($constellationId === null) {
         $constellationId = db_get_default_constellation_id();
     }
@@ -3799,8 +3909,8 @@ function db_create_node(string $name, ?string $description, ?string $url, string
     db_ensure_nodes_pdf_url_column();
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        INSERT INTO nodes (name, description, url, image_url, image_attribution, icon_url, embed_code, audio_url, audio_autoplay, audio_loop, video_url, video_autoplay, pdf_url, animation, constellation_id, node_type, target_constellation_id, is_accentuated, show_keywords, use_image_as_node)
-        VALUES (:name, :description, :url, :image_url, :image_attribution, :icon_url, :embed_code, :audio_url, :audio_autoplay, :audio_loop, :video_url, :video_autoplay, :pdf_url, :animation, :constellation_id, :node_type, :target_constellation_id, :is_accentuated, :show_keywords, :use_image_as_node)
+        INSERT INTO nodes (name, description, url, image_url, image_attribution, icon_url, embed_code, audio_url, audio_autoplay, audio_loop, video_url, video_autoplay, pdf_url, animation, constellation_id, node_type, target_constellation_id, is_accentuated, show_keywords, use_image_as_node, created_by)
+        VALUES (:name, :description, :url, :image_url, :image_attribution, :icon_url, :embed_code, :audio_url, :audio_autoplay, :audio_loop, :video_url, :video_autoplay, :pdf_url, :animation, :constellation_id, :node_type, :target_constellation_id, :is_accentuated, :show_keywords, :use_image_as_node, :created_by)
     ");
     $stmt->execute([
         ':name' => $name,
@@ -3822,7 +3932,8 @@ function db_create_node(string $name, ?string $description, ?string $url, string
         ':target_constellation_id' => $targetConstellationId,
         ':is_accentuated' => $isAccentuated ? 1 : 0,
         ':show_keywords' => $showKeywords ? 1 : 0,
-        ':use_image_as_node' => $useImageAsNode ? 1 : 0
+        ':use_image_as_node' => $useImageAsNode ? 1 : 0,
+        ':created_by' => $createdBy,
     ]);
     return (int)$pdo->lastInsertId();
 }
@@ -4049,16 +4160,24 @@ function db_get_keywords(?int $nodeId = null): array {
     return $stmt->fetchAll();
 }
 
-function db_create_keyword(string $keyword, ?int $constellationId = null): int {
+function db_create_keyword(string $keyword, ?int $constellationId = null, ?string $createdBy = null): int {
     if ($constellationId === null) {
         $constellationId = db_get_default_constellation_id();
     }
+    db_ensure_keywords_created_by_column();
     $pdo = getDB();
+    // On the duplicate path, LAST_INSERT_ID(id) returns the existing row's id
+    // and created_by stays whatever it was originally (we never overwrite an
+    // earlier creator with a later editor).
     $stmt = $pdo->prepare("
-        INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :constellation_id)
+        INSERT INTO keywords (keyword, constellation_id, created_by) VALUES (:keyword, :constellation_id, :created_by)
         ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)
     ");
-    $stmt->execute([':keyword' => $keyword, ':constellation_id' => $constellationId]);
+    $stmt->execute([
+        ':keyword' => $keyword,
+        ':constellation_id' => $constellationId,
+        ':created_by' => $createdBy,
+    ]);
     return (int)$pdo->lastInsertId();
 }
 
