@@ -565,6 +565,8 @@ function db_ensure_keyword_canvas_tables(): void {
                 created_by VARCHAR(255) NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 note TEXT NULL,
+                anchor_a VARCHAR(8) NOT NULL DEFAULT 'right',
+                anchor_b VARCHAR(8) NOT NULL DEFAULT 'left',
                 UNIQUE KEY uk_pair (keyword_a_id, keyword_b_id),
                 CONSTRAINT chk_canonical CHECK (keyword_a_id < keyword_b_id),
                 FOREIGN KEY (keyword_a_id) REFERENCES keywords(id) ON DELETE CASCADE,
@@ -572,6 +574,13 @@ function db_ensure_keyword_canvas_tables(): void {
                 FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+        // Idempotent migration: if keyword_relations was created before the
+        // anchor_a/anchor_b columns landed, add them now with sensible defaults.
+        $hasAnchorA = $pdo->query("SHOW COLUMNS FROM keyword_relations LIKE 'anchor_a'")->fetch();
+        if (!$hasAnchorA) {
+            $pdo->exec("ALTER TABLE keyword_relations ADD COLUMN anchor_a VARCHAR(8) NOT NULL DEFAULT 'right' AFTER note");
+            $pdo->exec("ALTER TABLE keyword_relations ADD COLUMN anchor_b VARCHAR(8) NOT NULL DEFAULT 'left' AFTER anchor_a");
+        }
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS keyword_position_history (
@@ -714,7 +723,8 @@ function db_get_keyword_canvas_hydration(int $galaxyId): array {
     ], $posStmt->fetchAll());
 
     $relStmt = $pdo->prepare("
-        SELECT r.id, r.keyword_a_id, r.keyword_b_id, r.created_by, r.created_at, r.note
+        SELECT r.id, r.keyword_a_id, r.keyword_b_id, r.created_by, r.created_at,
+               r.note, r.anchor_a, r.anchor_b
         FROM keyword_relations r
         INNER JOIN keywords ka ON ka.id = r.keyword_a_id
         WHERE ka.constellation_id = :cid
@@ -728,6 +738,8 @@ function db_get_keyword_canvas_hydration(int $galaxyId): array {
         'created_by' => $r['created_by'] !== null ? (string)$r['created_by'] : null,
         'created_at' => $r['created_at'] !== null ? (string)$r['created_at'] : null,
         'note' => $r['note'] !== null ? (string)$r['note'] : null,
+        'anchor_a' => (string)($r['anchor_a'] ?? 'right'),
+        'anchor_b' => (string)($r['anchor_b'] ?? 'left'),
     ], $relStmt->fetchAll());
 
     return [
@@ -877,7 +889,9 @@ function db_reset_galaxy_positions(int $galaxyId, ?string $userId): int {
 
 /**
  * Create a discrete named lateral relation between two keywords. Normalizes pair
- * order (keyword_a < keyword_b) before insert. Rejects self-loops. Throws on
+ * order (keyword_a < keyword_b) before insert. If the pair has to be swapped
+ * for canonical ordering, the anchor sides swap with it so anchor_a always
+ * names the side on keyword_a (the lower id). Rejects self-loops. Throws on
  * duplicate pairs (caller catches and returns 409).
  *
  * Both keywords must be in the same galaxy — caller's job to verify the galaxy
@@ -885,20 +899,37 @@ function db_reset_galaxy_positions(int $galaxyId, ?string $userId): int {
  *
  * @return int The new relation's id.
  */
-function db_create_keyword_relation(int $keywordAId, int $keywordBId, ?string $userId, ?string $note = null): int {
+function db_create_keyword_relation(
+    int $keywordAId,
+    int $keywordBId,
+    ?string $userId,
+    ?string $note = null,
+    string $anchorA = 'right',
+    string $anchorB = 'left'
+): int {
     db_ensure_keyword_canvas_tables();
     if ($keywordAId === $keywordBId) {
         throw new InvalidArgumentException('Self-loop relations are not allowed.');
     }
-    [$lo, $hi] = $keywordAId < $keywordBId
-        ? [$keywordAId, $keywordBId]
-        : [$keywordBId, $keywordAId];
+    $validSides = ['top', 'right', 'bottom', 'left'];
+    if (!in_array($anchorA, $validSides, true)) $anchorA = 'right';
+    if (!in_array($anchorB, $validSides, true)) $anchorB = 'left';
+
+    if ($keywordAId < $keywordBId) {
+        [$lo, $hi, $loAnchor, $hiAnchor] = [$keywordAId, $keywordBId, $anchorA, $anchorB];
+    } else {
+        [$lo, $hi, $loAnchor, $hiAnchor] = [$keywordBId, $keywordAId, $anchorB, $anchorA];
+    }
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        INSERT INTO keyword_relations (keyword_a_id, keyword_b_id, created_by, note)
-        VALUES (:a, :b, :uid, :note)
+        INSERT INTO keyword_relations
+            (keyword_a_id, keyword_b_id, created_by, note, anchor_a, anchor_b)
+        VALUES (:a, :b, :uid, :note, :anchor_a, :anchor_b)
     ");
-    $stmt->execute([':a' => $lo, ':b' => $hi, ':uid' => $userId, ':note' => $note]);
+    $stmt->execute([
+        ':a' => $lo, ':b' => $hi, ':uid' => $userId, ':note' => $note,
+        ':anchor_a' => $loAnchor, ':anchor_b' => $hiAnchor,
+    ]);
     return (int)$pdo->lastInsertId();
 }
 

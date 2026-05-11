@@ -143,6 +143,8 @@ switch ($action) {
         $a = (int)($input['keyword_a_id'] ?? 0);
         $b = (int)($input['keyword_b_id'] ?? 0);
         $note = isset($input['note']) && $input['note'] !== '' ? (string)$input['note'] : null;
+        $anchorA = isset($input['anchor_a']) ? (string)$input['anchor_a'] : 'right';
+        $anchorB = isset($input['anchor_b']) ? (string)$input['anchor_b'] : 'left';
         if ($a <= 0 || $b <= 0) kc_fail(400, 'create_relation requires keyword_a_id and keyword_b_id');
         if ($a === $b) kc_fail(400, 'Self-loop relations are not allowed');
 
@@ -153,12 +155,17 @@ switch ($action) {
         if (!kc_can_edit_galaxy($galaxyA)) kc_fail(403, 'No edit access to this galaxy');
 
         try {
-            $id = db_create_keyword_relation($a, $b, $userId, $note);
+            $id = db_create_keyword_relation($a, $b, $userId, $note, $anchorA, $anchorB);
+            // Canonical pair order: keyword_a < keyword_b. If we swapped above,
+            // the anchors swap too — so anchor_a names the side on the lower id.
+            $isSwapped = $a > $b;
             echo json_encode([
                 'ok' => true,
                 'id' => $id,
                 'a' => min($a, $b),
                 'b' => max($a, $b),
+                'anchor_a' => $isSwapped ? $anchorB : $anchorA,
+                'anchor_b' => $isSwapped ? $anchorA : $anchorB,
                 'created_by' => $userId,
                 'note' => $note,
             ], JSON_THROW_ON_ERROR);

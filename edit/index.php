@@ -144,6 +144,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <button type="button" id="galaxy-settings-btn" onclick="openCurrentGalaxySettings()" class="btn btn-sm btn-outline join-item" title="Galaxy settings" style="display:none;">
                             Settings
                         </button>
+                        <button type="button" id="galaxy-canvas-btn" onclick="openCurrentGalaxyKeywordCanvas()" class="btn btn-sm btn-outline join-item" title="Author keyword relationships" style="display:none;">
+                            Canvas
+                        </button>
                         <button type="button" onclick="copyCurrentConstellationUrl(this)" class="btn btn-sm btn-outline join-item" title="Copy galaxy URL">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                         </button>
@@ -3026,9 +3029,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         function refreshGalaxySettingsButton() {
             const sel = document.getElementById('current-constellation');
             const btn = document.getElementById('galaxy-settings-btn');
-            if (!sel || !btn) return;
+            const canvasBtn = document.getElementById('galaxy-canvas-btn');
+            if (!sel) return;
             const v = sel.value;
-            btn.style.display = (v && v !== 'all') ? '' : 'none';
+            const show = (v && v !== 'all') ? '' : 'none';
+            if (btn) btn.style.display = show;
+            if (canvasBtn) canvasBtn.style.display = show;
+        }
+
+        function openCurrentGalaxyKeywordCanvas() {
+            const sel = document.getElementById('current-constellation');
+            const id = parseInt(sel?.value, 10);
+            if (!id || isNaN(id)) return;
+            window.open('keyword-canvas.php?galaxy_id=' + id, '_blank');
         }
         document.addEventListener('DOMContentLoaded', () => {
             const sel = document.getElementById('current-constellation');

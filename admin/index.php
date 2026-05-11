@@ -2854,10 +2854,11 @@ $fieldMeta = [
                                     <label tabindex="0" onclick="event.stopPropagation(); closeAllDropdowns(this)" class="btn btn-ghost btn-xs px-1.5">
                                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
                                     </label>
-                                    <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-40">
+                                    <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-44">
                                         <li><a onclick="event.stopPropagation(); editConstellation(${cJsonAttr})" class="text-gray-700 text-xs">Edit</a></li>
                                         <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">View</a></li>
                                         <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">Copy URL</a></li>
+                                        <li><a href="../edit/keyword-canvas.php?galaxy_id=${c.id}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">Keyword canvas</a></li>
                                         <li><a onclick="event.stopPropagation(); duplicateConstellation(${cJsonAttr})" class="text-gray-700 text-xs">Duplicate</a></li>
                                         ${c.import_source ? `<li><a onclick="event.stopPropagation(); refreshImportedConstellation(${c.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-purple-600 text-xs">Refresh</a></li>` : ''}
                                         ${!c.is_default ? `<li><a onclick="event.stopPropagation(); triggerDelete('delete_constellation', '${c.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">Delete</a></li>` : ''}

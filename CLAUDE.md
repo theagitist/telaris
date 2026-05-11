@@ -308,6 +308,41 @@ All four converge on the same downstream pipeline. `inc/bootstrap.php` populates
 
 **Galaxy list strip.** Bottom-right slide-up button labelled "Galaxies · N" reveals a chip column for the active members. Click a galaxy chip to dim wormholes from other galaxies (multi-select OR-match). Default ON for emergent unions (`?galaxies=`, `/[XX]`, `/tag/`); per-cluster toggle in admin (default OFF). Implemented in `js/galaxy-list-strip.js`; dim multiplier added to `updateNodes` in `js/telaris-3d.js`.
 
+### Keyword canvas (editor surface, per-galaxy)
+
+A dedicated editor route — `/edit/keyword-canvas.php?galaxy_id=N` — that opens a full-viewport SVG canvas where every keyword in a galaxy is a draggable pastel chip on a black background. Entry points: admin galaxy-list three-dots menu ("Keyword canvas"), editor toolbar "Canvas" button. Back link uses `document.referrer` to return wherever the editor came from. Editors with a galaxy seat (or any admin) can edit; clusters reject with 400 (no native keywords). Mobile shows a "open on desktop" message.
+
+**Two authoring layers.**
+
+1. *Positions* (continuous). Drag a chip to move it. Per-edit attributed (`keyword_positions.moved_by`/`moved_at`). Append-only audit log in `keyword_position_history`. Initial placement: Mitchell's best-candidate Poisson-disc sampling — truly uniform, no co-occurrence prior. `moved_by` stays `NULL` until the editor actively drags.
+2. *Discrete named lines.* Click an anchor dot on chip A, then click or drag-release on an anchor on chip B → relation row in `keyword_relations` with `created_by` + `created_at` + optional `note`, plus `anchor_a` / `anchor_b` (which side of which chip the line is glued to). Pair canonicalized as `keyword_a_id < keyword_b_id`; anchors swap with the pair if needed. Lines render from the actual anchor position (not chip center), updating on zoom because anchor world-points multiply chip-local offsets by `chipScale`.
+
+**Schema** (all auto-migrated via `db_ensure_keyword_canvas_tables()`):
+
+- `keyword_positions(keyword_id PK, canvas_x, canvas_y, moved_by VARCHAR(255) NULL, moved_at)`. `moved_by` is `VARCHAR(255)` not `INT` because `users.id` is `VARCHAR(255)`.
+- `keyword_relations(id, keyword_a_id, keyword_b_id, created_by, created_at, note, anchor_a VARCHAR(8) DEFAULT 'right', anchor_b VARCHAR(8) DEFAULT 'left')`. `UNIQUE(keyword_a_id, keyword_b_id)` + `CHECK (keyword_a_id < keyword_b_id)`. Anchor columns added by a separate `SHOW COLUMNS` / `ALTER` block inside the ensure (second-pass migration); legacy rows get the defaults.
+- `keyword_position_history(id, keyword_id, canvas_x, canvas_y, moved_by, moved_at)` — append-only.
+
+**API** at `/api/keyword-canvas.php`, session-auth gated + galaxy-seat checked + author-or-admin on relation edits:
+
+- `GET ?galaxy_id=N` — hydration: `{ keywords, positions, relations, canvas_width, canvas_height }`. Triggers lazy Poisson-disc seeding for keywords without a position.
+- `POST { action }` for six actions: `move_keyword`, `create_relation`, `update_relation`, `delete_relation`, `reset_keyword`, `reset_galaxy`. `create_relation` accepts `anchor_a` / `anchor_b` and returns canonicalized.
+
+**Frontend**: `js/keyword-canvas.js` is vanilla SVG, no external dependencies. Versioned via query-string (`?v=$appVersion`). Key UX choices, with the gotchas that surfaced during initial shipping:
+
+- *Render order matters.* `renderAll()` must call `renderNodes()` **before** `renderLines()`, because `renderLines` reads chip dimensions from `nodeSizes` (populated when `renderNodes` measures each chip's text bbox). Wrong order produces invisible lines plus silent "already exists" rejections on attempts to create them.
+- *Pixel-pinned strokes.* All lines (visible + invisible hit zone + preview) use `vector-effect="non-scaling-stroke"` so thickness is constant across zoom.
+- *Hit zones.* Anchors and lines render as stacked SVG elements: a thin visible element (`pointer-events="none"`) below a fat invisible element (`pointer-events="stroke"` for lines, `"all"` for anchor circles) carrying the `data-kc-*` attributes. Anchors store a JS reference (`hit._kcVisibleDot = dot`) so the hover handler can enlarge the visible dot while detecting on the wide hit circle.
+- *Chip size clamp.* `CHIP_MIN_PX = 14`, `CHIP_MAX_PX = 22`. Computed via `pxPerUnit × NODE_FONT_SIZE`; out-of-band sizes get an extra per-chip `scale(...)`. Lines re-render after every zoom/resize so anchor world-points stay glued to the visible anchors.
+- *Pan vs. rubber-band.* Standard graph-editor convention: plain drag on empty space = rubber-band multi-select; **Space + drag** or middle-click = pan; mouse wheel = zoom around cursor. Group drag works on any selected chip; selection persists across drags (white dashed outline, non-scaling stroke).
+- *Two ways to draw a line.* Click an anchor → click another anchor (click-click), OR pointerdown on an anchor → drag → release on another anchor (drag-release). Distinguished by a 5px movement threshold. Both work.
+- *Back link.* `document.referrer` (same-origin) is promoted to the back-link `href` on page load. Empty referrer falls back to the editor's galaxy view.
+- *No delete confirmation.* Deleting a relation is one click in the line inspector modal; recreating is cheap. Confirmation was removed as cumbersome.
+
+**Chip styling**: all chip surfaces across Telaris share one pastel palette (`CHIP_FG`) and one deterministic per-keyword hash (`colorIndexFor`) — authoritative copy in `js/keyword-chips.js`. The canvas reproduces both inline with a comment pointing at the source. Filled-pill variant: pastel fill + dark text + `rx = h/2`.
+
+**Design note** in the Polivoxia vault at `Projects/Telaris/Keyword canvas — design.md` carries the political/decolonial rationale (why uniform initial placement, why physics pins moved nodes, why visitor surfaces are deferred, anti-patterns the design explicitly refuses).
+
 ### PDF wormhole media
 
 A wormhole can carry a PDF as its primary visual. Schema: `nodes.pdf_url` auto-migrated by `db_ensure_nodes_pdf_url_column()`. Validation: MIME type `application/pdf` + magic-byte sniff (`fileHasPdfMagic` checks for `%PDF-`). Size cap default 25 MB; admin can change via the **PDF max size (MB)** input on the Global Settings tab (stored in `project_info.pdf_max_bytes`; read at upload time via `effectivePdfMaxBytes()` so the cap is hot-reloaded without a redeploy).
