@@ -41,6 +41,15 @@ function snapshot_full_path(string $filename): string {
 function snapshot_create(?string $note = null, string $trigger = 'manual', ?string $userId = null): int {
     db_ensure_snapshots_tables();
 
+    // backup_build_dump holds the entire DB + embedded media in memory before
+    // gzipping. With the default php-fpm 128M limit this OOMs once the corpus
+    // gets non-trivial (observed at ~30MB output). Bump the ceiling for this
+    // request — CLI runs already have unlimited memory, so this only affects
+    // web/cron paths.
+    @ini_set('memory_limit', '512M');
+    // Allow long FPM requests too. CLI ignores this.
+    @set_time_limit(0);
+
     $stamp = gmdate('Y-m-d\TH-i-s');
     // Avoid collision if two snapshots are taken in the same second
     $base = snapshot_filename_for($stamp);

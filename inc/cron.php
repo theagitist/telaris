@@ -10,8 +10,24 @@ declare(strict_types=1);
  * admin UI displays.
  */
 
-const CRON_MARKER_START = '# >>> telaris snapshot scheduler >>>';
-const CRON_MARKER_END   = '# <<< telaris snapshot scheduler <<<';
+/**
+ * Markers are site-tagged so multiple Telaris instances on one host (e.g. starmaps
+ * + telaris on this VPS) can coexist in www-data's crontab without stepping on
+ * each other. The tag is the document-root dirname (e.g. "starmaps.polivoxia.ca").
+ */
+function cron_site_tag(): string {
+    return basename(dirname(__DIR__));
+}
+function cron_marker_start(): string {
+    return '# >>> telaris snapshot scheduler: ' . cron_site_tag() . ' >>>';
+}
+function cron_marker_end(): string {
+    return '# <<< telaris snapshot scheduler: ' . cron_site_tag() . ' <<<';
+}
+// Pre-site-tag marker (single-tenant install). Kept solely so cron_strip_block
+// can clean up a stale legacy block whose script path matches THIS site.
+const CRON_LEGACY_MARKER_START = '# >>> telaris snapshot scheduler >>>';
+const CRON_LEGACY_MARKER_END   = '# <<< telaris snapshot scheduler <<<';
 
 /** Absolute path to the snapshot_run_scheduled.php CLI script. */
 function cron_script_path(): string {
@@ -79,20 +95,22 @@ function cron_is_installed(): bool {
     } catch (Throwable $e) {
         return false;
     }
-    return strpos($c, CRON_MARKER_START) !== false;
+    return strpos($c, cron_marker_start()) !== false;
 }
 
 /**
  * Install (or reinstall) the scheduler block in the crontab. Replaces any
- * existing block between our markers.
+ * existing block tagged for THIS site; sibling-site blocks are left alone.
+ * Also cleans up a legacy (pre-site-tag) block iff its script path matches
+ * this site — safe because the script path uniquely identifies the owner.
  */
 function cron_install(): void {
     $current = cron_current_crontab();
     $clean = cron_strip_block($current);
-    $block = CRON_MARKER_START . "\n"
+    $block = cron_marker_start() . "\n"
            . "# Managed by Telaris admin. Do not edit between these markers.\n"
            . cron_scheduled_line() . "\n"
-           . CRON_MARKER_END;
+           . cron_marker_end();
     $new = ($clean === '' ? '' : rtrim($clean, "\n") . "\n\n") . $block . "\n";
     cron_write_crontab($new);
 }
@@ -107,12 +125,40 @@ function cron_strip_block(string $crontab): string {
     if ($crontab === '') return '';
     $lines = preg_split('/\r?\n/', $crontab);
     $out = [];
-    $inside = false;
-    foreach ($lines as $ln) {
-        if (strpos($ln, CRON_MARKER_START) !== false) { $inside = true; continue; }
-        if ($inside && strpos($ln, CRON_MARKER_END) !== false) { $inside = false; continue; }
-        if ($inside) continue;
+    $startMarker = cron_marker_start();
+    $endMarker = cron_marker_end();
+    $myScript = cron_script_path();
+    $i = 0;
+    while ($i < count($lines)) {
+        $ln = $lines[$i];
+        $isOurStart = strpos($ln, $startMarker) !== false;
+        $isLegacyStart = strpos($ln, CRON_LEGACY_MARKER_START) !== false;
+        if ($isOurStart || $isLegacyStart) {
+            // Capture the full block (start through matching end) so we can
+            // decide whether to drop it: always drop our own site-tagged block;
+            // drop a legacy block only if its body references THIS site's script.
+            $blockLines = [$ln];
+            $j = $i + 1;
+            while ($j < count($lines)) {
+                $blockLines[] = $lines[$j];
+                $isOurEnd = strpos($lines[$j], $endMarker) !== false;
+                $isLegacyEnd = strpos($lines[$j], CRON_LEGACY_MARKER_END) !== false;
+                if ($isOurEnd || $isLegacyEnd) break;
+                $j++;
+            }
+            $blockBody = implode("\n", $blockLines);
+            $belongsToUs = $isOurStart || strpos($blockBody, $myScript) !== false;
+            if ($belongsToUs) {
+                $i = $j + 1; // drop the entire block
+                continue;
+            }
+            // Foreign block — leave it intact.
+            for ($k = $i; $k <= $j && $k < count($lines); $k++) $out[] = $lines[$k];
+            $i = $j + 1;
+            continue;
+        }
         $out[] = $ln;
+        $i++;
     }
     while (!empty($out) && trim(end($out)) === '') array_pop($out);
     return implode("\n", $out);
