@@ -23,7 +23,9 @@ function asset_versioned_js_url(string $appVersion, string $relativePath): strin
     if (str_starts_with($rel, 'js/')) {
         $rel = substr($rel, 3);
     }
-    return 'js/v' . $appVersion . '/' . $rel;
+    // Absolute path so it resolves correctly from any URL depth (e.g. visitor permalinks
+    // like /{slug}/{node-id} would otherwise break with relative paths).
+    return '/js/v' . $appVersion . '/' . $rel;
 }
 
 /**

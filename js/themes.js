@@ -55,8 +55,8 @@ export const THEMES = {
         },
         nodes: {
             type: 'image',
-            portalImage: 'img/themes/abstract/portal_icon.gif',
-            images: Array.from({ length: 73 }, (_, i) => `img/themes/abstract/icon_${String(i + 1).padStart(3, '0')}.png`)
+            portalImage: '/img/themes/abstract/portal_icon.gif',
+            images: Array.from({ length: 73 }, (_, i) => `/img/themes/abstract/icon_${String(i + 1).padStart(3, '0')}.png`)
         }
     },
     rectangles: {
@@ -77,8 +77,8 @@ export const THEMES = {
         },
         nodes: {
             type: 'image',
-            portalImage: 'img/themes/rectangles/portal_icon.gif',
-            images: Array.from({ length: 6 }, (_, i) => `img/themes/rectangles/icon_${String(i + 1).padStart(3, '0')}.png`)
+            portalImage: '/img/themes/rectangles/portal_icon.gif',
+            images: Array.from({ length: 6 }, (_, i) => `/img/themes/rectangles/icon_${String(i + 1).padStart(3, '0')}.png`)
         }
     },
     stripes: {
@@ -99,8 +99,8 @@ export const THEMES = {
         },
         nodes: {
             type: 'image',
-            portalImage: 'img/themes/stripes/portal_icon.gif',
-            images: Array.from({ length: 6 }, (_, i) => `img/themes/stripes/icon_${String(i + 1).padStart(3, '0')}.png`)
+            portalImage: '/img/themes/stripes/portal_icon.gif',
+            images: Array.from({ length: 6 }, (_, i) => `/img/themes/stripes/icon_${String(i + 1).padStart(3, '0')}.png`)
         }
     },
     simple: {
@@ -144,8 +144,8 @@ export const THEMES = {
         },
         nodes: {
             type: 'image',
-            portalImage: 'img/themes/tech/portal_icon.gif',
-            images: Array.from({ length: 12 }, (_, i) => `img/themes/tech/icon_${String(i + 1).padStart(3, '0')}.png`)
+            portalImage: '/img/themes/tech/portal_icon.gif',
+            images: Array.from({ length: 12 }, (_, i) => `/img/themes/tech/icon_${String(i + 1).padStart(3, '0')}.png`)
         }
     }
 };

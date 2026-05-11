@@ -424,11 +424,13 @@ class TelarisNetwork {
     }
 
 /**
-     * Pick a random sample (up to 5) of nodes that share at least one keyword
-     * with the current one. Render as click-to-jump chips inside the card and
-     * stash the set on `_relatedNodeSet` so updateNodes can dim non-members.
+     * Up to 5 wormholes sharing keywords with the current one, drawn from the
+     * source galaxy's group (prefix family ∪ tag siblings ∪ cluster co-members
+     * ∪ self) — so chips can cross galaxies. The dim set still only covers
+     * scene-loaded nodes, since we can't dim wormholes from galaxies that
+     * aren't loaded; cross-galaxy chips just navigate to a permalink.
      */
-    _renderRelatedNodes(currentNode) {
+    async _renderRelatedNodes(currentNode) {
         const wrap = document.getElementById('rm-related-wrap');
         const list = document.getElementById('rm-related');
         if (!wrap || !list) return;
@@ -437,50 +439,53 @@ class TelarisNetwork {
             this._relatedNodeSet = null;
             return;
         }
-        const d = currentNode?.userData;
-        const ownKws = (d?.keywords || []).map(s => String(s).toLowerCase());
-        if (ownKws.length === 0 || !Array.isArray(this.nodes)) {
-            wrap.classList.add('hidden');
-            this._relatedNodeSet = null;
-            return;
-        }
-        const ownSet = new Set(ownKws);
-        const candidates = [];
-        for (const n of this.nodes) {
-            if (n === currentNode) continue;
-            if (!n.userData || n.userData.id == null) continue;
-            if (n.userData.node_type === 'cluster') continue;
-            const kws = (n.userData.keywords || []).map(s => String(s).toLowerCase());
-            let shared = 0;
-            for (const k of kws) { if (ownSet.has(k)) shared++; }
-            if (shared > 0) candidates.push({ node: n, shared });
-        }
-        if (candidates.length === 0) {
+        const sourceId = currentNode?.userData?.id;
+        if (sourceId == null) {
             wrap.classList.add('hidden');
             this._relatedNodeSet = null;
             return;
         }
 
-        // Spatial dim: every candidate stays bright; the rest are dimmed.
-        const allRelated = new Set(candidates.map(c => c.node));
-        allRelated.add(currentNode);
-        this._relatedNodeSet = allRelated;
+        // Cancel-token: if the user opens another card mid-fetch, ignore the
+        // older response. Also bumped on closeRichMediaWindow so dangling
+        // fetches don't repopulate a closed card.
+        this._relatedFetchId = (this._relatedFetchId || 0) + 1;
+        const fetchId = this._relatedFetchId;
+        let rows = [];
+        try {
+            const resp = await apiFetch(`/api/nodes.php?related_to=${encodeURIComponent(sourceId)}&limit=5`);
+            if (fetchId !== this._relatedFetchId) return;
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            rows = await resp.json();
+        } catch (e) {
+            wrap.classList.add('hidden');
+            this._relatedNodeSet = null;
+            return;
+        }
+        if (!Array.isArray(rows) || rows.length === 0) {
+            wrap.classList.add('hidden');
+            this._relatedNodeSet = null;
+            return;
+        }
 
-        // Sort by shared-count desc, then shuffle within each tier so repeats
-        // surface different chips. Cap to 5.
-        candidates.sort((a, b) => b.shared - a.shared);
-        for (let i = candidates.length - 1; i > 0; i--) {
-            if (candidates[i].shared !== candidates[i - 1].shared) continue;
-            // Within a same-shared tier, randomize neighbors.
-            if (Math.random() < 0.5) {
-                const tmp = candidates[i]; candidates[i] = candidates[i - 1]; candidates[i - 1] = tmp;
+        // Map currently-loaded scene nodes by ID so we can: (a) reuse the existing
+        // fly-to behavior when the target is in the scene, (b) build the dim set
+        // for visible nodes only.
+        const loadedById = new Map();
+        if (Array.isArray(this.nodes)) {
+            for (const n of this.nodes) {
+                if (n?.userData?.id != null) loadedById.set(Number(n.userData.id), n);
             }
         }
-        const sample = candidates.slice(0, 5);
+        const allRelated = new Set();
+        for (const r of rows) {
+            const n = loadedById.get(Number(r.id));
+            if (n) allRelated.add(n);
+        }
+        if (allRelated.size > 0) allRelated.add(currentNode);
+        this._relatedNodeSet = allRelated.size > 0 ? allRelated : null;
 
-        // Pastel palette: same set used by keyword chips in this card, so it
-        // reads as on-brand. Color is hashed off the node name so the same
-        // wormhole always picks the same chip color.
+        // Pastel palette hashed off node name — same scheme used elsewhere in the card.
         const pastelText = [
             '#fca5a5', '#fdba74', '#fcd34d', '#fde047', '#bef264', '#86efac',
             '#6ee7b7', '#5eead4', '#67e8f9', '#7dd3fc', '#93c5fd', '#a5b4fc',
@@ -493,8 +498,8 @@ class TelarisNetwork {
         };
 
         list.innerHTML = '';
-        for (const { node: n } of sample) {
-            const name = n.userData?.name || 'Untitled';
+        for (const r of rows) {
+            const name = r.name || 'Untitled';
             const chip = document.createElement('button');
             chip.type = 'button';
             chip.textContent = name;
@@ -519,14 +524,20 @@ class TelarisNetwork {
             chip.addEventListener('mouseenter', () => { chip.style.opacity = '1'; chip.style.textDecoration = 'underline'; });
             chip.addEventListener('mouseleave', () => { chip.style.opacity = '0.85'; chip.style.textDecoration = 'none'; });
             chip.addEventListener('click', async () => {
-                // Same beat as the auto-tour: close current card, fly camera with
-                // the spotlight halo + dim, then open the target's card.
-                this.closeRichMediaWindow();
-                await new Promise(r => setTimeout(r, 500));
-                this._tourSpotlightNode = n;
-                if (this.networkManager?.setFocusedNode) this.networkManager.setFocusedNode(n);
-                if (this.tourFocusOnNode) await this.tourFocusOnNode(n, 1400);
-                this.showRichMediaWindow(n);
+                const localNode = loadedById.get(Number(r.id));
+                if (localNode) {
+                    // Same scene: existing fly-to behavior (close, beat, spotlight, fly, open).
+                    this.closeRichMediaWindow();
+                    await new Promise(res => setTimeout(res, 500));
+                    this._tourSpotlightNode = localNode;
+                    if (this.networkManager?.setFocusedNode) this.networkManager.setFocusedNode(localNode);
+                    if (this.tourFocusOnNode) await this.tourFocusOnNode(localNode, 1400);
+                    this.showRichMediaWindow(localNode);
+                } else {
+                    // Cross-galaxy: navigate to permalink in the sibling galaxy.
+                    const slug = r.constellation_slug || r.constellation_id;
+                    if (slug != null) window.location.href = `/${slug}/${r.id}`;
+                }
             });
             list.appendChild(chip);
         }
@@ -537,6 +548,7 @@ class TelarisNetwork {
         this.playGlitch();
         this._relatedNodeSet = null;
         this._tourSpotlightNode = null;
+        this._relatedFetchId = (this._relatedFetchId || 0) + 1; // cancel any in-flight related fetch
         const overlay = document.getElementById('rich-media-overlay');
         const win = document.getElementById('rich-media-window');
         if (!overlay || !win) return;
@@ -1860,7 +1872,7 @@ class TelarisNetwork {
 
     async loadApiKey() {
         try {
-            const response = await fetch('api/apikey.php');
+            const response = await fetch('/api/apikey.php');
             const config = await response.json();
             if (config.api_key) window.TELARIS_API_KEY = config.api_key;
         } catch (error) {
@@ -1881,8 +1893,8 @@ class TelarisNetwork {
             const initialClusterKey = urlParams.get('cluster') || null;
             this.currentClusterKey = initialClusterKey;
             let fetchUrl = multiIds && multiIds.length
-                ? `api/nodes.php?galaxies=${multiIds.join(',')}`
-                : `api/nodes.php?constellation_id=${constellationId}`;
+                ? `/api/nodes.php?galaxies=${multiIds.join(',')}`
+                : `/api/nodes.php?constellation_id=${constellationId}`;
             if (initialClusterKey) fetchUrl += `&cluster=${encodeURIComponent(initialClusterKey)}`;
             const response = await apiFetch(fetchUrl);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -1890,7 +1902,14 @@ class TelarisNetwork {
             const nodesJson = await response.json();
             const nodeData = Array.isArray(nodesJson) ? nodesJson : [];
             if (nodeData.length > 0) {
-                this._portalFadeInMultiplier = 0; // Keep invisible initially
+                // Skip the load fade-in when the page is opening on a specific wormhole
+                // (cross-galaxy chip click / direct permalink). The fade animation racing
+                // with the auto-open camera fly was leaving nodes stuck invisible —
+                // visitors landing on a permalink want to see the network instantly.
+                const isPermalinkLoad = !!window.TELARIS_INITIAL_NODE_ID;
+                if (!isPermalinkLoad) {
+                    this._portalFadeInMultiplier = 0; // Keep invisible initially
+                }
                 this.createNodes(nodeData);
                 this.createConnections();
                 this.warmupPhysics();
@@ -1952,10 +1971,19 @@ class TelarisNetwork {
         // Auto-start: transition immediately
         const autoStart = () => {
 
-            // Start torus warp-through effect, then fade overlay
+            // Start torus warp-through effect, then fade overlay.
+            // On permalink loads the network was created opaque (no _portalFadeInMultiplier=0
+            // in loadData), so the node fade-in animation must also be skipped — otherwise
+            // it'd reset the multiplier to 0 and re-hide everything that was already visible.
+            const isPermalinkLoad = !!window.TELARIS_INITIAL_NODE_ID;
             const fadeOutOverlay = () => {
                 loadingOverlay.style.transition = 'opacity 0.6s ease';
                 loadingOverlay.style.opacity = '0';
+
+                if (isPermalinkLoad) {
+                    setTimeout(() => { loadingOverlay.style.display = 'none'; }, 600);
+                    return;
+                }
 
                 const startTime = performance.now();
                 const duration = 2000;
@@ -1982,11 +2010,30 @@ class TelarisNetwork {
         autoStart();
     }
 
+    /**
+     * True when the visitor arrived via an in-app link (e.g. a cross-galaxy chip click in
+     * the info card) and a `history.back()` would land back inside Telaris rather than
+     * leaving the site.
+     */
+    _hasInAppReferrer() {
+        try {
+            if (!document.referrer) return false;
+            const ref = new URL(document.referrer);
+            return ref.origin === window.location.origin && ref.href !== window.location.href;
+        } catch (e) { return false; }
+    }
+
     setupBackButton() {
         const btn = document.getElementById('portal-back-button');
         if (!btn) return;
         btn.addEventListener('click', () => {
-            if (this.navigationStack.length <= 1) return;
+            // No portal/cluster stack but we got here from another Telaris page → use browser history.
+            if (this.navigationStack.length <= 1) {
+                if (this._hasInAppReferrer() && window.history.length > 1) {
+                    window.history.back();
+                }
+                return;
+            }
             this.navigationStack.pop(); // Remove current entry
             const prev = this.navigationStack[this.navigationStack.length - 1]; // Peek at the target
             this.updateBackButtonVisibility();
@@ -2007,7 +2054,12 @@ class TelarisNetwork {
 
     updateBackButtonVisibility() {
         const btn = document.getElementById('portal-back-button');
-        if (btn) btn.style.display = this.navigationStack.length > 1 ? 'block' : 'none';
+        if (!btn) return;
+        // Show if there's a portal/cluster stack to pop OR if we arrived from another
+        // Telaris page (e.g. cross-galaxy chip click) and can fall back to browser history.
+        const inAppReferrer = this._hasInAppReferrer() && window.history.length > 1;
+        const visible = this.navigationStack.length > 1 || inAppReferrer;
+        btn.style.display = visible ? 'block' : 'none';
     }
 
     /**
@@ -2025,7 +2077,7 @@ class TelarisNetwork {
         const titleEl = document.getElementById('constellation-title');
         const taglineEl = document.getElementById('constellation-tagline');
         try {
-            const response = await apiFetch('api/constellations.php');
+            const response = await apiFetch('/api/constellations.php');
             if (!response.ok) return null;
             const list = await response.json();
             const c = Array.isArray(list) ? list.find(x => x.id === constellationId) : null;
@@ -2105,7 +2157,7 @@ class TelarisNetwork {
         clickedNode.getWorldPosition(portalPos);
 
         // Pre-fetch data immediately
-        let fetchUrl = `api/nodes.php?constellation_id=${targetId}`;
+        let fetchUrl = `/api/nodes.php?constellation_id=${targetId}`;
         if (clusterKey) fetchUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
         const dataPromise = apiFetch(fetchUrl)
             .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
@@ -2245,7 +2297,7 @@ class TelarisNetwork {
      * Run transition BACK: show overlay, load data, reveal.
      */
     runBackTransition(targetId) {
-        const fetchUrl = `api/nodes.php?constellation_id=${targetId}`;
+        const fetchUrl = `/api/nodes.php?constellation_id=${targetId}`;
         const dataPromise = apiFetch(fetchUrl)
             .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
             .then(json => Array.isArray(json) ? json : []);
@@ -2302,7 +2354,7 @@ class TelarisNetwork {
         }
 
         if (!nodeData) {
-            let url = `api/nodes.php?constellation_id=${constellationId}`;
+            let url = `/api/nodes.php?constellation_id=${constellationId}`;
             if (clusterKey) url += `&cluster=${encodeURIComponent(clusterKey)}`;
             const response = await apiFetch(url);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -2340,7 +2392,7 @@ class TelarisNetwork {
      * Transition to a cluster view using back-style cross-fade (for breadcrumb/back navigation).
      */
     transitionToCluster(constellationId, clusterKey, isBack = false) {
-        let fetchUrl = `api/nodes.php?constellation_id=${constellationId}`;
+        let fetchUrl = `/api/nodes.php?constellation_id=${constellationId}`;
         if (clusterKey) fetchUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
         const dataPromise = apiFetch(fetchUrl)
             .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
@@ -3733,7 +3785,7 @@ class TelarisNetwork {
                     }
 
                     const app = window.telarisApp || this;
-                    let fetchUrl = `api/nodes.php?constellation_id=${tr.targetId}`;
+                    let fetchUrl = `/api/nodes.php?constellation_id=${tr.targetId}`;
                     if (tr.clusterKey) fetchUrl += `&cluster=${encodeURIComponent(tr.clusterKey)}`;
                     const dataPromise = tr.dataPromise || apiFetch(fetchUrl).then(r => r.json());
 
@@ -4051,7 +4103,7 @@ class TelarisNetwork {
             const cid = window.TELARIS_CONSTELLATION_ID;
             try {
                 const resp = await apiFetch(
-                    `api/nodes.php?constellation_id=${cid}&search=${encodeURIComponent(query)}&search_limit=10`,
+                    `/api/nodes.php?constellation_id=${cid}&search=${encodeURIComponent(query)}&search_limit=10`,
                     { signal: abortController.signal }
                 );
                 if (!resp.ok) return;
@@ -4194,7 +4246,7 @@ class TelarisNetwork {
         const cid = window.TELARIS_CONSTELLATION_ID;
         try {
             const resp = await apiFetch(
-                `api/nodes.php?constellation_id=${cid}&search=${encodeURIComponent(q)}&search_limit=1000`
+                `/api/nodes.php?constellation_id=${cid}&search=${encodeURIComponent(q)}&search_limit=1000`
             );
             if (!resp.ok) return;
             const data = await resp.json();
@@ -4219,7 +4271,7 @@ class TelarisNetwork {
      * whose ids are in `filterIds`. Used by Enter-commit and single-result click.
      */
     async _loadFlatWithFilter(cid, filterIds) {
-        const fetchUrl = `api/nodes.php?constellation_id=${cid}&no_cluster=1`;
+        const fetchUrl = `/api/nodes.php?constellation_id=${cid}&no_cluster=1`;
         const dataPromise = apiFetch(fetchUrl)
             .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to fetch')))
             .then(json => Array.isArray(json) ? json : []);

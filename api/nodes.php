@@ -130,6 +130,28 @@ try {
                 return;
             }
 
+            // Related-wormholes (visitor info card): ?related_to=NODE_ID returns up to N
+            // wormholes that share keywords with the source, drawn from the source galaxy's
+            // *group* (prefix family ∪ tag siblings ∪ cluster co-members ∪ self). Cross-galaxy
+            // candidates get a stochastic order boost so they're more likely to surface first.
+            if (isset($_GET['related_to']) && ctype_digit((string)$_GET['related_to'])) {
+                $sourceId = (int) $_GET['related_to'];
+                $limit = isset($_GET['limit']) && ctype_digit((string)$_GET['limit'])
+                    ? max(1, min(20, (int) $_GET['limit']))
+                    : 5;
+                $source = db_get_node_by_id($sourceId);
+                if ($source === null) {
+                    http_response_code(404);
+                    echo json_encode(['error' => 'Source node not found'], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                $sourceGalaxyId = (int) $source['constellation_id'];
+                $groupIds = db_get_group_galaxy_ids($sourceGalaxyId);
+                $rows = db_get_related_nodes($sourceId, $sourceGalaxyId, $groupIds, $limit);
+                echo json_encode($rows, JSON_THROW_ON_ERROR);
+                return;
+            }
+
             // Multigalaxy: ?galaxies=1,5,7 (numeric IDs only — slugs are resolved server-side
             // in inc/bootstrap.php before they reach the JS). Non-empty list → union mode.
             $multiGalaxyIds = [];

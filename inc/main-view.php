@@ -540,17 +540,17 @@ header("X-Content-Type-Options: nosniff");
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-                "./telaris-3d.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-3d.js')); ?>",
-                "./network-manager.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'network-manager.js')); ?>",
-                "./geometry-manager.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'geometry-manager.js')); ?>",
-                "./api.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'api.js')); ?>",
-                "./telaris-node-icons.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-node-icons.js')); ?>",
-                "./themes.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'themes.js')); ?>",
-                "./telaris-soundscape.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-soundscape.js')); ?>",
-                "./auto-tour.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'auto-tour.js')); ?>",
-                "./keyword-chips.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'keyword-chips.js')); ?>",
-                "./idle-spotlight.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'idle-spotlight.js')); ?>",
-                "./galaxy-list-strip.js": "./<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'galaxy-list-strip.js')); ?>"
+                "./telaris-3d.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-3d.js')); ?>",
+                "./network-manager.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'network-manager.js')); ?>",
+                "./geometry-manager.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'geometry-manager.js')); ?>",
+                "./api.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'api.js')); ?>",
+                "./telaris-node-icons.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-node-icons.js')); ?>",
+                "./themes.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'themes.js')); ?>",
+                "./telaris-soundscape.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-soundscape.js')); ?>",
+                "./auto-tour.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'auto-tour.js')); ?>",
+                "./keyword-chips.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'keyword-chips.js')); ?>",
+                "./idle-spotlight.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'idle-spotlight.js')); ?>",
+                "./galaxy-list-strip.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'galaxy-list-strip.js')); ?>"
             }
         }
     </script>

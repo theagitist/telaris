@@ -1620,6 +1620,95 @@ function db_get_keywords_for_galaxies(array $constellationIds): array {
     return $out;
 }
 
+/**
+ * Resolve a galaxy's "group" — the union of every galaxy that should be treated
+ * as a sibling for cross-galaxy discovery features:
+ *   - prefix-family siblings (galaxies sharing a "[XX]" name prefix)
+ *   - galaxies sharing any of this galaxy's tags
+ *   - co-members of any cluster this galaxy belongs to
+ * Always includes the galaxy itself. Result is deduped, returns int IDs only.
+ *
+ * @return list<int>
+ */
+function db_get_group_galaxy_ids(int $constellationId): array {
+    $ids = [$constellationId];
+    foreach (db_get_prefix_sibling_ids($constellationId) as $sibId) {
+        $ids[] = (int) $sibId;
+    }
+    foreach (db_get_tags_for_galaxy($constellationId) as $tag) {
+        foreach (db_get_galaxies_for_tag((string) $tag['slug']) as $g) {
+            $ids[] = (int) $g['id'];
+        }
+    }
+    db_ensure_constellations_type_and_cluster_members();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT DISTINCT cluster_id FROM galaxy_cluster_members WHERE member_id = :mid");
+    $stmt->execute([':mid' => $constellationId]);
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $clusterId) {
+        foreach (db_get_cluster_member_ids((int) $clusterId) as $memberId) {
+            $ids[] = (int) $memberId;
+        }
+    }
+    return array_values(array_unique(array_map('intval', $ids)));
+}
+
+/**
+ * Top-N wormholes that share at least one keyword with the source node, drawn from
+ * a given pool of galaxies. Cluster nodes are excluded. Within each shared-keyword-count
+ * tier, candidates from sibling galaxies (i.e. constellation_id != $sourceGalaxyId) are
+ * given a stochastic boost so they're more likely (but not guaranteed) to surface
+ * earlier than same-galaxy candidates — prevents the chip row from looking parochial
+ * while still allowing same-galaxy candidates through occasionally.
+ *
+ * @param list<int> $galaxyIds
+ * @return list<array{id:int,name:string,constellation_id:int,constellation_slug:?string,shared:int}>
+ */
+function db_get_related_nodes(int $sourceNodeId, int $sourceGalaxyId, array $galaxyIds, int $limit = 5): array {
+    if ($limit <= 0) return [];
+    $galaxyIds = array_values(array_unique(array_map('intval', $galaxyIds)));
+    if ($galaxyIds === []) return [];
+    $placeholders = implode(',', array_fill(0, count($galaxyIds), '?'));
+
+    // Cross-galaxy match by keyword *name* (case-insensitive), not keyword_id —
+    // each galaxy has its own copy of "Ideology" with a different ID, so an
+    // ID-only join would only find same-galaxy candidates.
+    $sql = "
+        SELECT n.id, n.name, n.constellation_id, c.slug AS constellation_slug,
+               COUNT(DISTINCT LOWER(TRIM(k1.keyword))) AS shared
+        FROM node_keywords nk1
+        INNER JOIN keywords k1 ON k1.id = nk1.keyword_id
+        INNER JOIN keywords k2 ON LOWER(TRIM(k2.keyword)) = LOWER(TRIM(k1.keyword))
+        INNER JOIN node_keywords nk2 ON nk2.keyword_id = k2.id AND nk2.node_id != nk1.node_id
+        INNER JOIN nodes n ON n.id = nk2.node_id
+        INNER JOIN constellations c ON c.id = n.constellation_id
+        WHERE nk1.node_id = ? AND n.constellation_id IN ($placeholders) AND n.node_type != 'cluster'
+        GROUP BY n.id, n.name, n.constellation_id, c.slug
+        ORDER BY shared DESC, (RAND() + IF(n.constellation_id != ?, 0.4, 0)) DESC
+        LIMIT ?
+    ";
+    $pdo = getDB();
+    $stmt = $pdo->prepare($sql);
+    $idx = 1;
+    $stmt->bindValue($idx++, $sourceNodeId, PDO::PARAM_INT);
+    foreach ($galaxyIds as $gid) {
+        $stmt->bindValue($idx++, $gid, PDO::PARAM_INT);
+    }
+    $stmt->bindValue($idx++, $sourceGalaxyId, PDO::PARAM_INT);
+    $stmt->bindValue($idx++, $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [
+            'id' => (int) $r['id'],
+            'name' => (string) ($r['name'] ?? ''),
+            'constellation_id' => (int) $r['constellation_id'],
+            'constellation_slug' => $r['constellation_slug'] !== null ? (string) $r['constellation_slug'] : null,
+            'shared' => (int) $r['shared'],
+        ];
+    }
+    return $out;
+}
+
 // ---------------------------------------------------------------------------
 // Galaxy clusters (Idea 2 — first-class union object)
 // ---------------------------------------------------------------------------
@@ -2679,6 +2768,24 @@ function db_get_keywords_for_nodes_bulk(array $nodeIds): array {
 }
 
 /**
+ * Normalize a stored asset URL for API output. Database rows commonly hold relative
+ * paths like "uploads/6/165/image.png" (the historical convention). Those work on
+ * single-segment visitor URLs but 404 on multi-segment ones like /{slug}/{node-id},
+ * because the browser resolves them against the current document path. Prepending
+ * "/" makes them site-absolute so they work from any URL depth. Already-absolute
+ * paths (leading "/") and full URLs (http://, https://, data:, blob:) pass through
+ * untouched.
+ */
+function db_normalize_asset_url(?string $url): ?string {
+    if ($url === null) return null;
+    $url = (string) $url;
+    if ($url === '') return null;
+    if ($url[0] === '/') return $url;
+    if (preg_match('#^(https?:)?//|^(data|blob):#i', $url)) return $url;
+    return '/' . $url;
+}
+
+/**
  * Format multiple node rows for API output, using a single bulk keyword query.
  * @param list<array<string, mixed>> $nodes Raw DB rows
  * @return list<array<string, mixed>> Formatted nodes
@@ -2714,16 +2821,16 @@ function db_format_nodes_bulk(array $nodes): array {
             'name' => $node['name'],
             'description' => $node['description'] ?? null,
             'url' => $node['url'] ?? null,
-            'image_url' => $node['image_url'] ?? null,
+            'image_url' => db_normalize_asset_url($node['image_url'] ?? null),
             'image_attribution' => isset($node['image_attribution']) && $node['image_attribution'] !== null && $node['image_attribution'] !== '' ? (string)$node['image_attribution'] : null,
-            'icon_url' => $node['icon_url'] ?? null,
+            'icon_url' => db_normalize_asset_url($node['icon_url'] ?? null),
             'embed_code' => $node['embed_code'] ?? null,
-            'audio_url' => $node['audio_url'] ?? null,
+            'audio_url' => db_normalize_asset_url($node['audio_url'] ?? null),
             'audio_autoplay' => (bool)($node['audio_autoplay'] ?? true),
             'audio_loop' => (bool)($node['audio_loop'] ?? false),
-            'video_url' => $node['video_url'] ?? null,
+            'video_url' => db_normalize_asset_url($node['video_url'] ?? null),
             'video_autoplay' => (bool)($node['video_autoplay'] ?? true),
-            'pdf_url' => $node['pdf_url'] ?? null,
+            'pdf_url' => db_normalize_asset_url($node['pdf_url'] ?? null),
             'keywords' => $keywords,
             'animation' => $animation,
             'created_at' => $createdAt,
@@ -2795,15 +2902,15 @@ function db_format_node(array $node): array {
         'name' => $node['name'],
         'description' => $node['description'] ?? null,
         'url' => $node['url'] ?? null,
-        'image_url' => $node['image_url'] ?? null,
-        'icon_url' => $node['icon_url'] ?? null,
+        'image_url' => db_normalize_asset_url($node['image_url'] ?? null),
+        'icon_url' => db_normalize_asset_url($node['icon_url'] ?? null),
         'embed_code' => $node['embed_code'] ?? null,
-        'audio_url' => $node['audio_url'] ?? null,
+        'audio_url' => db_normalize_asset_url($node['audio_url'] ?? null),
         'audio_autoplay' => (bool)($node['audio_autoplay'] ?? true),
         'audio_loop' => (bool)($node['audio_loop'] ?? false),
-        'video_url' => $node['video_url'] ?? null,
+        'video_url' => db_normalize_asset_url($node['video_url'] ?? null),
         'video_autoplay' => (bool)($node['video_autoplay'] ?? true),
-        'pdf_url' => $node['pdf_url'] ?? null,
+        'pdf_url' => db_normalize_asset_url($node['pdf_url'] ?? null),
         'keywords' => $keywords,
         'animation' => $animation,
         'created_at' => $createdAt,

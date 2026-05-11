@@ -69,6 +69,10 @@ function openInitialNodeWhenReady(app, nodeId) {
                 n && n.userData && (n.userData.id === nodeId || parseInt(n.userData.id, 10) === nodeId)
             );
             if (node) {
+                // Permalink loads should show the target instantly. Force-complete the load-fade
+                // so nodes aren't stuck at opacity 0 while the camera flies — observed reliably
+                // when the loading-torus warp + node fade-in animation race with the auto-open.
+                app._portalFadeInMultiplier = undefined;
                 // Small delay so the scene has settled visually before the card flies in.
                 setTimeout(() => {
                     if (app.networkManager?.setFocusedNode) app.networkManager.setFocusedNode(node);
