@@ -522,6 +522,463 @@ function db_ensure_nodes_node_type_index(): void {
     }
 }
 
+/**
+ * Ensure the keyword-canvas tables exist. See `Polivoxia/Projects/Telaris/Keyword canvas — design.md`
+ * in the user's vault for the full design rationale.
+ *
+ * Three tables:
+ *   - keyword_positions: latest x/y per keyword (continuous layer). moved_by = NULL means
+ *     the position is a neutral default from initial Poisson-disc placement, not an
+ *     authored claim.
+ *   - keyword_relations: discrete named lines between keyword pairs (with author + date
+ *     + optional note). Canonical ordering enforced via CHECK; one row per pair via
+ *     UNIQUE.
+ *   - keyword_position_history: append-only audit log for every position write.
+ */
+function db_ensure_keyword_canvas_tables(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+
+        // users.id is VARCHAR(255) on this schema, not INT — moved_by / created_by
+        // FK columns must match that exact type and collation to satisfy MySQL 8's
+        // strict FK type-equality check.
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS keyword_positions (
+                keyword_id INT PRIMARY KEY,
+                canvas_x FLOAT NOT NULL,
+                canvas_y FLOAT NOT NULL,
+                moved_by VARCHAR(255) NULL,
+                moved_at TIMESTAMP NULL,
+                FOREIGN KEY (keyword_id) REFERENCES keywords(id) ON DELETE CASCADE,
+                FOREIGN KEY (moved_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS keyword_relations (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                keyword_a_id INT NOT NULL,
+                keyword_b_id INT NOT NULL,
+                created_by VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                note TEXT NULL,
+                UNIQUE KEY uk_pair (keyword_a_id, keyword_b_id),
+                CONSTRAINT chk_canonical CHECK (keyword_a_id < keyword_b_id),
+                FOREIGN KEY (keyword_a_id) REFERENCES keywords(id) ON DELETE CASCADE,
+                FOREIGN KEY (keyword_b_id) REFERENCES keywords(id) ON DELETE CASCADE,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS keyword_position_history (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                keyword_id INT NOT NULL,
+                canvas_x FLOAT NOT NULL,
+                canvas_y FLOAT NOT NULL,
+                moved_by VARCHAR(255) NULL,
+                moved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_keyword (keyword_id),
+                FOREIGN KEY (keyword_id) REFERENCES keywords(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_keyword_canvas_tables: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Canvas coordinate-space constants. The SVG renderer uses these as its viewBox
+ * (d3-zoom then scales to fit the viewport). Fixed coordinate space keeps stored
+ * positions stable across resizes.
+ */
+const KEYWORD_CANVAS_WIDTH = 2000.0;
+const KEYWORD_CANVAS_HEIGHT = 2000.0;
+
+/**
+ * Place every keyword in a galaxy that doesn't yet have a position row.
+ *
+ * Initial placement is **truly uniform** — Mitchell's best-candidate sampling (a
+ * simple Poisson-disc-style algorithm) scatters keywords across the canvas with
+ * a minimum spacing constraint. No co-occurrence prior, no algorithmic clustering.
+ * The political point is in `Keyword canvas — design.md`: editors author from a
+ * neutral baseline, not from a model's guess.
+ *
+ * `moved_by` stays NULL on every seeded row. The position only counts as an
+ * authored claim once the editor actually drags it.
+ *
+ * Idempotent: keywords that already have a position row are left alone. Safe under
+ * concurrent calls because the PRIMARY KEY on keyword_positions.keyword_id makes
+ * INSERT IGNORE no-op on races.
+ *
+ * @return int Number of newly-seeded position rows.
+ */
+function db_seed_keyword_positions_for_galaxy(int $galaxyId): int {
+    db_ensure_keyword_canvas_tables();
+    $pdo = getDB();
+
+    // Find keywords in this galaxy without a position row.
+    $missing = $pdo->prepare("
+        SELECT k.id
+        FROM keywords k
+        LEFT JOIN keyword_positions p ON p.keyword_id = k.id
+        WHERE k.constellation_id = :cid AND p.keyword_id IS NULL
+    ");
+    $missing->execute([':cid' => $galaxyId]);
+    $missingIds = $missing->fetchAll(PDO::FETCH_COLUMN);
+    if (empty($missingIds)) return 0;
+
+    // Collect any existing positions in this galaxy — new placements should avoid
+    // them too so editor-authored positions don't get crowded by seeding.
+    $existing = $pdo->prepare("
+        SELECT p.canvas_x, p.canvas_y
+        FROM keyword_positions p
+        INNER JOIN keywords k ON k.id = p.keyword_id
+        WHERE k.constellation_id = :cid
+    ");
+    $existing->execute([':cid' => $galaxyId]);
+    $points = [];
+    while ($row = $existing->fetch()) {
+        $points[] = [(float)$row['canvas_x'], (float)$row['canvas_y']];
+    }
+
+    $w = KEYWORD_CANVAS_WIDTH;
+    $h = KEYWORD_CANVAS_HEIGHT;
+    $totalAfter = count($points) + count($missingIds);
+    // Heuristic minimum spacing: scales down as the canvas fills. Floor at 40 so
+    // very dense galaxies don't drift into pixel-overlap territory; ceiling at 180
+    // so very sparse galaxies don't end up needing huge zoom-out to see siblings.
+    $minDist = max(40.0, min(180.0, sqrt($w * $h / max(1, $totalAfter)) * 0.55));
+
+    $insert = $pdo->prepare("
+        INSERT IGNORE INTO keyword_positions (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
+        VALUES (:kid, :x, :y, NULL, NULL)
+    ");
+
+    $seeded = 0;
+    foreach ($missingIds as $kid) {
+        [$x, $y] = _poisson_disc_next_point($points, $w, $h, $minDist);
+        $insert->execute([':kid' => (int)$kid, ':x' => $x, ':y' => $y]);
+        $points[] = [$x, $y];
+        $seeded++;
+    }
+    return $seeded;
+}
+
+/**
+ * Hydrate the keyword canvas for a galaxy: returns keywords, positions, and
+ * relations in one payload. Triggers lazy seeding so keywords without a position
+ * get one before the response.
+ *
+ * @return array{
+ *   keywords: list<array{id:int,name:string}>,
+ *   positions: list<array{keyword_id:int,canvas_x:float,canvas_y:float,moved_by:?string,moved_at:?string}>,
+ *   relations: list<array{id:int,a:int,b:int,created_by:?string,created_at:?string,note:?string}>,
+ *   canvas_width:float,
+ *   canvas_height:float,
+ * }
+ */
+function db_get_keyword_canvas_hydration(int $galaxyId): array {
+    db_ensure_keyword_canvas_tables();
+    db_seed_keyword_positions_for_galaxy($galaxyId);
+    $pdo = getDB();
+
+    $kwStmt = $pdo->prepare("
+        SELECT k.id, k.keyword
+        FROM keywords k
+        WHERE k.constellation_id = :cid
+        ORDER BY k.keyword
+    ");
+    $kwStmt->execute([':cid' => $galaxyId]);
+    $keywords = array_map(fn(array $r) => [
+        'id' => (int)$r['id'],
+        'name' => (string)$r['keyword'],
+    ], $kwStmt->fetchAll());
+
+    $posStmt = $pdo->prepare("
+        SELECT p.keyword_id, p.canvas_x, p.canvas_y, p.moved_by, p.moved_at
+        FROM keyword_positions p
+        INNER JOIN keywords k ON k.id = p.keyword_id
+        WHERE k.constellation_id = :cid
+    ");
+    $posStmt->execute([':cid' => $galaxyId]);
+    $positions = array_map(fn(array $r) => [
+        'keyword_id' => (int)$r['keyword_id'],
+        'canvas_x' => (float)$r['canvas_x'],
+        'canvas_y' => (float)$r['canvas_y'],
+        'moved_by' => $r['moved_by'] !== null ? (string)$r['moved_by'] : null,
+        'moved_at' => $r['moved_at'] !== null ? (string)$r['moved_at'] : null,
+    ], $posStmt->fetchAll());
+
+    $relStmt = $pdo->prepare("
+        SELECT r.id, r.keyword_a_id, r.keyword_b_id, r.created_by, r.created_at, r.note
+        FROM keyword_relations r
+        INNER JOIN keywords ka ON ka.id = r.keyword_a_id
+        WHERE ka.constellation_id = :cid
+        ORDER BY r.id
+    ");
+    $relStmt->execute([':cid' => $galaxyId]);
+    $relations = array_map(fn(array $r) => [
+        'id' => (int)$r['id'],
+        'a' => (int)$r['keyword_a_id'],
+        'b' => (int)$r['keyword_b_id'],
+        'created_by' => $r['created_by'] !== null ? (string)$r['created_by'] : null,
+        'created_at' => $r['created_at'] !== null ? (string)$r['created_at'] : null,
+        'note' => $r['note'] !== null ? (string)$r['note'] : null,
+    ], $relStmt->fetchAll());
+
+    return [
+        'keywords' => $keywords,
+        'positions' => $positions,
+        'relations' => $relations,
+        'canvas_width' => KEYWORD_CANVAS_WIDTH,
+        'canvas_height' => KEYWORD_CANVAS_HEIGHT,
+    ];
+}
+
+/**
+ * Record a keyword's new position. Upserts the position row and appends to history.
+ * `moved_by` and `moved_at` carry the editor's authorship. Coordinates are clamped
+ * to the canvas bounds.
+ */
+function db_record_keyword_position(int $keywordId, float $x, float $y, ?string $userId): void {
+    db_ensure_keyword_canvas_tables();
+    $x = max(0.0, min(KEYWORD_CANVAS_WIDTH, $x));
+    $y = max(0.0, min(KEYWORD_CANVAS_HEIGHT, $y));
+    $pdo = getDB();
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("
+            INSERT INTO keyword_positions (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
+            VALUES (:kid, :x, :y, :uid, NOW())
+            ON DUPLICATE KEY UPDATE
+                canvas_x = VALUES(canvas_x),
+                canvas_y = VALUES(canvas_y),
+                moved_by = VALUES(moved_by),
+                moved_at = VALUES(moved_at)
+        ")->execute([':kid' => $keywordId, ':x' => $x, ':y' => $y, ':uid' => $userId]);
+        $pdo->prepare("
+            INSERT INTO keyword_position_history (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
+            VALUES (:kid, :x, :y, :uid, NOW())
+        ")->execute([':kid' => $keywordId, ':x' => $x, ':y' => $y, ':uid' => $userId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/**
+ * Reset a keyword's position to a fresh Poisson-disc placement and clear `moved_by`/
+ * `moved_at`. The pair distances involving this keyword revert to "neutral default."
+ * The reset itself is logged in history (moved_by = the user who requested the reset).
+ */
+function db_reset_keyword_position(int $keywordId, ?string $userId): void {
+    db_ensure_keyword_canvas_tables();
+    $pdo = getDB();
+    $galaxyId = db_get_keyword_constellation_id($keywordId);
+    if ($galaxyId === null) return;
+
+    // Collect existing positions in the galaxy (excluding this keyword) to inform spacing.
+    $stmt = $pdo->prepare("
+        SELECT p.canvas_x, p.canvas_y
+        FROM keyword_positions p
+        INNER JOIN keywords k ON k.id = p.keyword_id
+        WHERE k.constellation_id = :cid AND p.keyword_id != :kid
+    ");
+    $stmt->execute([':cid' => $galaxyId, ':kid' => $keywordId]);
+    $points = [];
+    while ($row = $stmt->fetch()) {
+        $points[] = [(float)$row['canvas_x'], (float)$row['canvas_y']];
+    }
+    $minDist = max(40.0, min(180.0,
+        sqrt(KEYWORD_CANVAS_WIDTH * KEYWORD_CANVAS_HEIGHT / max(1, count($points) + 1)) * 0.55
+    ));
+    [$x, $y] = _poisson_disc_next_point($points, KEYWORD_CANVAS_WIDTH, KEYWORD_CANVAS_HEIGHT, $minDist);
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("
+            INSERT INTO keyword_positions (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
+            VALUES (:kid, :x, :y, NULL, NULL)
+            ON DUPLICATE KEY UPDATE
+                canvas_x = VALUES(canvas_x),
+                canvas_y = VALUES(canvas_y),
+                moved_by = NULL,
+                moved_at = NULL
+        ")->execute([':kid' => $keywordId, ':x' => $x, ':y' => $y]);
+        // History row records who *initiated* the reset so the audit log isn't blind.
+        $pdo->prepare("
+            INSERT INTO keyword_position_history (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
+            VALUES (:kid, :x, :y, :uid, NOW())
+        ")->execute([':kid' => $keywordId, ':x' => $x, ':y' => $y, ':uid' => $userId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/**
+ * Reset every position in a galaxy to a fresh Poisson-disc cloud. Returns the
+ * number of rows reset. Each affected keyword gets a history entry attributing
+ * the reset to $userId.
+ */
+function db_reset_galaxy_positions(int $galaxyId, ?string $userId): int {
+    db_ensure_keyword_canvas_tables();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT id FROM keywords WHERE constellation_id = :cid ORDER BY id");
+    $stmt->execute([':cid' => $galaxyId]);
+    $keywordIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    if (empty($keywordIds)) return 0;
+
+    // Build a fresh cloud from scratch.
+    $points = [];
+    $w = KEYWORD_CANVAS_WIDTH;
+    $h = KEYWORD_CANVAS_HEIGHT;
+    $minDist = max(40.0, min(180.0, sqrt($w * $h / count($keywordIds)) * 0.55));
+    $coords = [];
+    foreach ($keywordIds as $_) {
+        [$x, $y] = _poisson_disc_next_point($points, $w, $h, $minDist);
+        $coords[] = [$x, $y];
+        $points[] = [$x, $y];
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $upsert = $pdo->prepare("
+            INSERT INTO keyword_positions (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
+            VALUES (:kid, :x, :y, NULL, NULL)
+            ON DUPLICATE KEY UPDATE
+                canvas_x = VALUES(canvas_x),
+                canvas_y = VALUES(canvas_y),
+                moved_by = NULL,
+                moved_at = NULL
+        ");
+        $hist = $pdo->prepare("
+            INSERT INTO keyword_position_history (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
+            VALUES (:kid, :x, :y, :uid, NOW())
+        ");
+        foreach ($keywordIds as $i => $kid) {
+            [$x, $y] = $coords[$i];
+            $upsert->execute([':kid' => $kid, ':x' => $x, ':y' => $y]);
+            $hist->execute([':kid' => $kid, ':x' => $x, ':y' => $y, ':uid' => $userId]);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+    return count($keywordIds);
+}
+
+/**
+ * Create a discrete named lateral relation between two keywords. Normalizes pair
+ * order (keyword_a < keyword_b) before insert. Rejects self-loops. Throws on
+ * duplicate pairs (caller catches and returns 409).
+ *
+ * Both keywords must be in the same galaxy — caller's job to verify the galaxy
+ * scope; this function only enforces id-canonicalization and non-self-loop.
+ *
+ * @return int The new relation's id.
+ */
+function db_create_keyword_relation(int $keywordAId, int $keywordBId, ?string $userId, ?string $note = null): int {
+    db_ensure_keyword_canvas_tables();
+    if ($keywordAId === $keywordBId) {
+        throw new InvalidArgumentException('Self-loop relations are not allowed.');
+    }
+    [$lo, $hi] = $keywordAId < $keywordBId
+        ? [$keywordAId, $keywordBId]
+        : [$keywordBId, $keywordAId];
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        INSERT INTO keyword_relations (keyword_a_id, keyword_b_id, created_by, note)
+        VALUES (:a, :b, :uid, :note)
+    ");
+    $stmt->execute([':a' => $lo, ':b' => $hi, ':uid' => $userId, ':note' => $note]);
+    return (int)$pdo->lastInsertId();
+}
+
+/**
+ * Update an existing relation's note. Auth (author-only or admin) is the caller's job.
+ */
+function db_update_keyword_relation(int $relationId, ?string $note): void {
+    db_ensure_keyword_canvas_tables();
+    $pdo = getDB();
+    $pdo->prepare("UPDATE keyword_relations SET note = :note WHERE id = :id")
+        ->execute([':note' => $note, ':id' => $relationId]);
+}
+
+/**
+ * Delete a relation. Auth (author-only or admin) is the caller's job.
+ */
+function db_delete_keyword_relation(int $relationId): void {
+    db_ensure_keyword_canvas_tables();
+    $pdo = getDB();
+    $pdo->prepare("DELETE FROM keyword_relations WHERE id = :id")->execute([':id' => $relationId]);
+}
+
+/**
+ * Read a relation row (for auth checks before update/delete).
+ * @return array{id:int,a:int,b:int,created_by:?string,created_at:?string,note:?string}|null
+ */
+function db_get_keyword_relation(int $relationId): ?array {
+    db_ensure_keyword_canvas_tables();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT id, keyword_a_id, keyword_b_id, created_by, created_at, note
+        FROM keyword_relations WHERE id = :id LIMIT 1
+    ");
+    $stmt->execute([':id' => $relationId]);
+    $row = $stmt->fetch();
+    if (!$row) return null;
+    return [
+        'id' => (int)$row['id'],
+        'a' => (int)$row['keyword_a_id'],
+        'b' => (int)$row['keyword_b_id'],
+        'created_by' => $row['created_by'] !== null ? (string)$row['created_by'] : null,
+        'created_at' => $row['created_at'] !== null ? (string)$row['created_at'] : null,
+        'note' => $row['note'] !== null ? (string)$row['note'] : null,
+    ];
+}
+
+/**
+ * Mitchell's best-candidate: generate K random candidates, pick the one whose
+ * nearest-existing-point distance is largest. If $minDist is satisfied, return
+ * any qualifying candidate; otherwise fall back to the best-of-K. Simple, fast,
+ * and visually indistinguishable from full Bridson at the scale Telaris cares
+ * about (10–500 keywords per galaxy).
+ *
+ * @param list<array{0: float, 1: float}> $existing
+ * @return array{0: float, 1: float}
+ */
+function _poisson_disc_next_point(array $existing, float $w, float $h, float $minDist): array {
+    $k = 30;
+    $bestPoint = null;
+    $bestMinDist = -1.0;
+    for ($i = 0; $i < $k; $i++) {
+        $x = mt_rand(0, (int)($w * 1000)) / 1000.0;
+        $y = mt_rand(0, (int)($h * 1000)) / 1000.0;
+        $nearest = PHP_FLOAT_MAX;
+        foreach ($existing as [$px, $py]) {
+            $d2 = ($px - $x) * ($px - $x) + ($py - $y) * ($py - $y);
+            if ($d2 < $nearest) $nearest = $d2;
+        }
+        // Empty canvas → any point is fine
+        if (empty($existing)) return [$x, $y];
+        $d = sqrt($nearest);
+        if ($d >= $minDist) return [$x, $y]; // satisfied — accept immediately
+        if ($d > $bestMinDist) {
+            $bestMinDist = $d;
+            $bestPoint = [$x, $y];
+        }
+    }
+    return $bestPoint ?? [mt_rand(0, (int)$w) * 1.0, mt_rand(0, (int)$h) * 1.0];
+}
+
 /** Ensure nodes clustering columns exist (mucua_name, media_type, source_created_at). */
 function db_ensure_nodes_clustering_columns(): void {
     static $checked = false;
@@ -2021,7 +2478,24 @@ function db_get_constellations_paginated(
     }
 
     $offset = ($page - 1) * $perPage;
-    $dataStmt = $pdo->prepare("SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.import_source, c.tour_enabled, c.created_at, c.updated_at, (SELECT COUNT(*) FROM nodes n WHERE n.constellation_id = c.id) AS node_count FROM constellations c {$whereClause} {$orderClause} LIMIT :limit OFFSET :offset");
+    // node_count comes from a derived table (one GROUP BY pass over nodes) instead of
+    // a correlated subquery (one COUNT per row, O(N×M)). On a 6000+ node DB the
+    // derived-table plan reads the constellation_id index once and is dramatically
+    // cheaper. Galaxies with zero nodes still appear thanks to LEFT JOIN + COALESCE.
+    $dataStmt = $pdo->prepare("
+        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.import_source, c.tour_enabled,
+               c.created_at, c.updated_at,
+               COALESCE(nc.node_count, 0) AS node_count
+        FROM constellations c
+        LEFT JOIN (
+            SELECT constellation_id, COUNT(*) AS node_count
+            FROM nodes
+            GROUP BY constellation_id
+        ) nc ON nc.constellation_id = c.id
+        {$whereClause}
+        {$orderClause}
+        LIMIT :limit OFFSET :offset
+    ");
     foreach ($params as $k => $v) {
         $dataStmt->bindValue($k, $v);
     }
@@ -2099,18 +2573,58 @@ function db_get_constellation_import_source(int $id): ?string {
 }
 
 function db_clear_constellation_nodes(int $constellationId): void {
-    $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT id FROM nodes WHERE constellation_id = :cid");
-    $stmt->execute([':cid' => $constellationId]);
-    while ($node = $stmt->fetch()) {
-        db_delete_node((int)$node['id']);
-    }
+    db_bulk_delete_nodes_by_constellation($constellationId);
     // Delete orphan keywords (keywords with no node_keywords references)
+    $pdo = getDB();
     $pdo->prepare("
         DELETE k FROM keywords k
         LEFT JOIN node_keywords nk ON nk.keyword_id = k.id
         WHERE k.constellation_id = :cid AND nk.id IS NULL
     ")->execute([':cid' => $constellationId]);
+}
+
+/**
+ * Bulk-delete every node in a constellation in one SQL round-trip, while preserving
+ * the on-disk file cleanup that db_delete_node() does per-node.
+ *
+ * The naive loop calls db_delete_node() once per row, which means N SELECTs + N DELETEs
+ * (and on a big import that's thousands of round-trips). Here we read all asset paths
+ * in one query, run a single DELETE, then unlink files after the DB succeeds.
+ * node_keywords rows are FK-cascaded on nodes.id.
+ */
+function db_bulk_delete_nodes_by_constellation(int $constellationId): void {
+    $pdo = getDB();
+    // 1. Pull every asset path in one query, so file cleanup matches per-row semantics.
+    $stmt = $pdo->prepare("
+        SELECT image_url, icon_url, audio_url, video_url, pdf_url
+        FROM nodes WHERE constellation_id = :cid
+    ");
+    $stmt->execute([':cid' => $constellationId]);
+    $rows = $stmt->fetchAll();
+    if (!$rows) return;
+
+    $uploadDir = UPLOAD_DIR;
+    $filesToDelete = [];
+    foreach ($rows as $row) {
+        foreach (['image_url', 'icon_url', 'audio_url', 'video_url', 'pdf_url'] as $col) {
+            $val = $row[$col] ?? null;
+            if ($val && str_starts_with((string)$val, 'uploads/')) {
+                $fullPath = str_replace('uploads/', $uploadDir . '/', (string)$val);
+                if (file_exists($fullPath)) {
+                    $filesToDelete[] = $fullPath;
+                }
+            }
+        }
+    }
+
+    // 2. Single batch DELETE. node_keywords rows cascade via FK.
+    $pdo->prepare("DELETE FROM nodes WHERE constellation_id = :cid")
+        ->execute([':cid' => $constellationId]);
+
+    // 3. Unlink files only after the DB delete succeeded.
+    foreach ($filesToDelete as $path) {
+        @unlink($path);
+    }
 }
 
 /**
@@ -2627,13 +3141,9 @@ function db_delete_constellation(int $id): void {
             db_delete_node((int)$ref['id']);
         }
 
-        // 2. Delete nodes in this constellation
-        // db_delete_node handles file deletion, so we should call it for each node
-        $stmt = $pdo->prepare("SELECT id FROM nodes WHERE constellation_id = :id");
-        $stmt->execute([':id' => $id]);
-        while ($node = $stmt->fetch()) {
-            db_delete_node((int)$node['id']);
-        }
+        // 2. Delete nodes in this constellation in a single batch (reads asset paths,
+        // batches the DELETE, then unlinks files — see db_bulk_delete_nodes_by_constellation).
+        db_bulk_delete_nodes_by_constellation($id);
 
         // 3. Delete keywords in this constellation
         $pdo->prepare("DELETE FROM keywords WHERE constellation_id = :id")->execute([':id' => $id]);
@@ -2980,16 +3490,8 @@ function db_format_nodes_bulk(array $nodes): array {
         $nodeId = (int)$node['id'];
         $keywords = $keywordsMap[$nodeId] ?? [];
         $animation = json_decode($node['animation'], true, 512, JSON_THROW_ON_ERROR);
-        $createdAt = $node['created_at'] ?? null;
-        $updatedAt = $node['updated_at'] ?? null;
-        if ($createdAt !== null && $createdAt !== '') {
-            $ts = strtotime($createdAt);
-            $createdAt = $ts !== false ? gmdate('c', $ts) : $createdAt;
-        }
-        if ($updatedAt !== null && $updatedAt !== '') {
-            $ts = strtotime($updatedAt);
-            $updatedAt = $ts !== false ? gmdate('c', $ts) : $updatedAt;
-        }
+        $createdAt = db_format_iso8601_utc($node['created_at'] ?? null);
+        $updatedAt = db_format_iso8601_utc($node['updated_at'] ?? null);
         $targetConstellationId = null;
         if (isset($node['target_constellation_id']) && $node['target_constellation_id'] !== null && $node['target_constellation_id'] !== '') {
             $targetConstellationId = (int)$node['target_constellation_id'];
@@ -3036,6 +3538,33 @@ function db_format_nodes_bulk(array $nodes): array {
 }
 
 /**
+ * Format a MySQL DATETIME (or anything strtotime can parse) as ISO 8601 UTC.
+ *
+ * Hot path: when the input is a standard MySQL DATETIME ('YYYY-MM-DD HH:MM:SS')
+ * and PHP's default timezone is UTC, we skip strtotime+gmdate entirely and do a
+ * direct string transform. That collapses two libc calls per row to two substring
+ * ops, which matters in node-formatting loops that run ~100x per request.
+ *
+ * Fallback: anything that doesn't match the fast-path shape (non-UTC PHP TZ,
+ * already-ISO strings, NULL, etc.) goes through the original strtotime+gmdate
+ * path so semantics are preserved.
+ */
+function db_format_iso8601_utc(?string $sqlDatetime): ?string {
+    if ($sqlDatetime === null || $sqlDatetime === '') return null;
+    static $tzIsUtc = null;
+    if ($tzIsUtc === null) {
+        $tzIsUtc = date_default_timezone_get() === 'UTC';
+    }
+    // Fast path matches gmdate('c', ...) byte-for-byte: 'Y-m-d\TH:i:s+00:00'.
+    // (Using 'Z' would be semantically equivalent but might surprise a strict client parser.)
+    if ($tzIsUtc && strlen($sqlDatetime) === 19 && $sqlDatetime[10] === ' ') {
+        return substr_replace($sqlDatetime, 'T', 10, 1) . '+00:00';
+    }
+    $ts = strtotime($sqlDatetime);
+    return $ts !== false ? gmdate('c', $ts) : $sqlDatetime;
+}
+
+/**
  * @return list<string>
  */
 function db_get_keywords_for_node(int $nodeId): array {
@@ -3060,17 +3589,9 @@ function db_get_keywords_for_node(int $nodeId): array {
 function db_format_node(array $node): array {
     $keywords = db_get_keywords_for_node((int)$node['id']);
     $animation = json_decode($node['animation'], true, 512, JSON_THROW_ON_ERROR);
-    $createdAt = $node['created_at'] ?? null;
-    $updatedAt = $node['updated_at'] ?? null;
     // Return timestamps as ISO 8601 UTC so the client can display in user's timezone
-    if ($createdAt !== null && $createdAt !== '') {
-        $ts = strtotime($createdAt);
-        $createdAt = $ts !== false ? gmdate('c', $ts) : $createdAt;
-    }
-    if ($updatedAt !== null && $updatedAt !== '') {
-        $ts = strtotime($updatedAt);
-        $updatedAt = $ts !== false ? gmdate('c', $ts) : $updatedAt;
-    }
+    $createdAt = db_format_iso8601_utc($node['created_at'] ?? null);
+    $updatedAt = db_format_iso8601_utc($node['updated_at'] ?? null);
     $targetConstellationId = null;
     if (isset($node['target_constellation_id']) && $node['target_constellation_id'] !== null && $node['target_constellation_id'] !== '') {
         $targetConstellationId = (int)$node['target_constellation_id'];
@@ -3117,35 +3638,60 @@ function db_save_node_keywords(int $nodeId, array $keywords): void {
     if ($keywords === []) {
         return;
     }
-    $keywordStmt = $pdo->prepare("
-        INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :constellation_id)
-        ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)
-    ");
-    $nodeKeywordStmt = $pdo->prepare("
-        INSERT INTO node_keywords (node_id, keyword_id)
-        VALUES (:node_id, :keyword_id)
-        ON DUPLICATE KEY UPDATE node_id=node_id, keyword_id=keyword_id
-    ");
+
+    // Dedupe + trim. We dedupe case-sensitively here; the DB's unique index uses
+    // utf8mb4_unicode_ci so case-variants will collapse to one row on INSERT IGNORE.
+    $namesSet = [];
     foreach ($keywords as $keyword) {
-        $keyword = trim($keyword);
-        if ($keyword === '') {
-            continue;
+        $keyword = trim((string)$keyword);
+        if ($keyword === '') continue;
+        $namesSet[$keyword] = true;
+    }
+    $names = array_keys($namesSet);
+    if ($names === []) return;
+
+    try {
+        // Step 1: upsert every keyword in a single statement. INSERT IGNORE relies on
+        // unique_keyword_constellation (keyword, constellation_id).
+        $kwPlaceholders = implode(',', array_fill(0, count($names), '(?, ?)'));
+        $kwStmt = $pdo->prepare("INSERT IGNORE INTO keywords (keyword, constellation_id) VALUES $kwPlaceholders");
+        $bind = [];
+        foreach ($names as $n) {
+            $bind[] = $n;
+            $bind[] = $constellationId;
         }
-        try {
-            $keywordStmt->execute([':keyword' => $keyword, ':constellation_id' => $constellationId]);
-            $keywordId = (int)$pdo->lastInsertId();
-            if ($keywordId === 0) {
-                $getIdStmt = $pdo->prepare("SELECT id FROM keywords WHERE keyword = :keyword AND constellation_id = :constellation_id LIMIT 1");
-                $getIdStmt->execute([':keyword' => $keyword, ':constellation_id' => $constellationId]);
-                $result = $getIdStmt->fetch();
-                $keywordId = $result ? (int)$result['id'] : 0;
-            }
-            if ($keywordId > 0) {
-                $nodeKeywordStmt->execute([':node_id' => $nodeId, ':keyword_id' => $keywordId]);
-            }
-        } catch (PDOException $e) {
-            error_log("db_save_node_keywords: failed to save keyword '{$keyword}' for node {$nodeId}: " . $e->getMessage());
+        $kwStmt->execute($bind);
+
+        // Step 2: pull the IDs back in one query. utf8mb4_unicode_ci matches case-insensitively,
+        // so map back by lowercase to find each keyword's resolved row.
+        $inPlaceholders = implode(',', array_fill(0, count($names), '?'));
+        $idStmt = $pdo->prepare(
+            "SELECT id, keyword FROM keywords WHERE constellation_id = ? AND keyword IN ($inPlaceholders)"
+        );
+        $idStmt->execute(array_merge([$constellationId], $names));
+        $idByLower = [];
+        while ($row = $idStmt->fetch()) {
+            $idByLower[mb_strtolower((string)$row['keyword'])] = (int)$row['id'];
         }
+
+        // Step 3: insert every junction row in a single statement. INSERT IGNORE relies on
+        // unique_node_keyword (node_id, keyword_id) to no-op on duplicates.
+        $keywordIds = [];
+        foreach ($names as $n) {
+            $kid = $idByLower[mb_strtolower($n)] ?? 0;
+            if ($kid > 0) $keywordIds[$kid] = true;
+        }
+        if ($keywordIds === []) return;
+        $jPlaceholders = implode(',', array_fill(0, count($keywordIds), '(?, ?)'));
+        $jStmt = $pdo->prepare("INSERT IGNORE INTO node_keywords (node_id, keyword_id) VALUES $jPlaceholders");
+        $jBind = [];
+        foreach (array_keys($keywordIds) as $kid) {
+            $jBind[] = $nodeId;
+            $jBind[] = $kid;
+        }
+        $jStmt->execute($jBind);
+    } catch (PDOException $e) {
+        error_log("db_save_node_keywords: failed to save keywords for node {$nodeId}: " . $e->getMessage());
     }
 }
 
