@@ -352,10 +352,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             // Two-step flow: 'preview' parses the textarea and renders a confirmation panel;
             // 'commit' re-parses and creates users + sends setup emails.
             'bulk_users_preview' => (function(): void {
-                global $message, $error, $activeTab, $bulkUsersPreview, $bulkUsersInput;
+                global $message, $error, $activeTab, $bulkUsersPreview, $bulkUsersInput, $bulkUsersDefaultCreateGalaxy;
                 require_once __DIR__ . '/../inc/bulk-users.php';
                 $bulkUsersInput = (string)($_POST['bulk_users_input'] ?? '');
-                $bulkUsersPreview = bulk_users_parse($bulkUsersInput);
+                $bulkUsersDefaultCreateGalaxy = !empty($_POST['default_create_galaxy']);
+                $bulkUsersPreview = bulk_users_parse($bulkUsersInput, $bulkUsersDefaultCreateGalaxy);
                 $activeTab = 'users';
             })(),
 
@@ -363,12 +364,15 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 global $message, $error, $activeTab, $bulkUsersResult;
                 require_once __DIR__ . '/../inc/bulk-users.php';
                 $input = (string)($_POST['bulk_users_input'] ?? '');
-                $rows = bulk_users_parse($input);
+                $defaultCreateGalaxy = !empty($_POST['default_create_galaxy']);
+                $rows = bulk_users_parse($input, $defaultCreateGalaxy);
                 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
                 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
                 $bulkUsersResult = bulk_users_apply($rows, $scheme . '://' . $host);
                 $created = $bulkUsersResult['created'];
+                $galaxies = $bulkUsersResult['galaxies_created'];
                 $message = "Bulk import: {$created} user" . ($created === 1 ? '' : 's') . ' created'
+                         . ($galaxies > 0 ? ", {$galaxies} galax" . ($galaxies === 1 ? 'y' : 'ies') . ' created' : '')
                          . ($bulkUsersResult['mail_failed'] > 0 ? " ({$bulkUsersResult['mail_failed']} mail send(s) failed — check error_log)" : '')
                          . ($bulkUsersResult['skipped_exists'] > 0 ? ", {$bulkUsersResult['skipped_exists']} skipped (already exists)" : '')
                          . ($bulkUsersResult['skipped_invalid'] > 0 ? ", {$bulkUsersResult['skipped_invalid']} skipped (invalid)" : '')
@@ -3370,10 +3374,17 @@ $fieldMeta = [
                 <h3 class="font-bold text-xl">Bulk import users</h3>
             </div>
             <div class="mt-4">
-                <?php $bulkUsersPreview = $bulkUsersPreview ?? null; $bulkUsersInput = $bulkUsersInput ?? ''; $bulkUsersResult = $bulkUsersResult ?? null; ?>
+                <?php
+                    $bulkUsersPreview = $bulkUsersPreview ?? null;
+                    $bulkUsersInput = $bulkUsersInput ?? '';
+                    $bulkUsersResult = $bulkUsersResult ?? null;
+                    $bulkUsersDefaultCreateGalaxy = $bulkUsersDefaultCreateGalaxy ?? true;
+                ?>
 
                 <?php if ($bulkUsersResult): ?>
                     <p class="text-sm text-gray-700 mb-4">Imported <strong><?php echo (int)$bulkUsersResult['created']; ?></strong> user<?php echo $bulkUsersResult['created'] === 1 ? '' : 's'; ?>.<?php
+                        $g = (int)($bulkUsersResult['galaxies_created'] ?? 0);
+                        if ($g > 0) echo ' Created <strong>' . $g . '</strong> galax' . ($g === 1 ? 'y' : 'ies') . '.';
                         if ($bulkUsersResult['skipped_exists'] > 0) echo ' Skipped <strong>' . (int)$bulkUsersResult['skipped_exists'] . '</strong> already-existing email' . ($bulkUsersResult['skipped_exists'] === 1 ? '' : 's') . '.';
                         if ($bulkUsersResult['skipped_invalid'] > 0) echo ' Skipped <strong>' . (int)$bulkUsersResult['skipped_invalid'] . '</strong> invalid row' . ($bulkUsersResult['skipped_invalid'] === 1 ? '' : 's') . '.';
                         if ($bulkUsersResult['mail_failed'] > 0) echo ' <strong>' . (int)$bulkUsersResult['mail_failed'] . '</strong> setup email' . ($bulkUsersResult['mail_failed'] === 1 ? '' : 's') . ' failed to send.';
@@ -3385,6 +3396,7 @@ $fieldMeta = [
                                     <th class="text-left py-2 px-3">Line</th>
                                     <th class="text-left py-2 px-3">Email</th>
                                     <th class="text-left py-2 px-3">Outcome</th>
+                                    <th class="text-left py-2 px-3">Galaxy</th>
                                     <th class="text-left py-2 px-3">Note</th>
                                 </tr>
                             </thead>
@@ -3406,6 +3418,16 @@ $fieldMeta = [
                                             ?>
                                             <span class="<?php echo $color; ?>"><?php echo htmlspecialchars($oc); ?></span>
                                         </td>
+                                        <td class="py-1 px-3 font-mono text-gray-700">
+                                            <?php
+                                                $gs = (string)($r['galaxy_slug'] ?? '');
+                                                if ($gs !== '') {
+                                                    echo '<a class="text-blue-700 hover:underline" target="_blank" href="/' . htmlspecialchars(rawurlencode($gs)) . '">' . htmlspecialchars($gs) . '</a>';
+                                                } else {
+                                                    echo '<span class="text-gray-400">—</span>';
+                                                }
+                                            ?>
+                                        </td>
                                         <td class="py-1 px-3 text-gray-600"><?php echo htmlspecialchars((string)($r['note'] ?? '')); ?></td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -3426,7 +3448,7 @@ $fieldMeta = [
                                     <th class="text-left py-2 px-3">Email</th>
                                     <th class="text-left py-2 px-3">Name</th>
                                     <th class="text-left py-2 px-3">Role</th>
-                                    <th class="text-left py-2 px-3">Galaxies</th>
+                                    <th class="text-left py-2 px-3">Galaxy</th>
                                     <th class="text-left py-2 px-3">Status</th>
                                     <th class="text-left py-2 px-3">Note</th>
                                 </tr>
@@ -3438,11 +3460,18 @@ $fieldMeta = [
                                         <td class="py-1 px-3 font-mono text-gray-800"><?php echo htmlspecialchars((string)$r['email']); ?></td>
                                         <td class="py-1 px-3"><?php echo htmlspecialchars(trim($r['firstname'] . ' ' . $r['lastname'])); ?></td>
                                         <td class="py-1 px-3 font-mono text-gray-600"><?php echo htmlspecialchars((string)$r['role']); ?></td>
-                                        <td class="py-1 px-3 text-gray-600">
-                                            <?php echo htmlspecialchars(implode(', ', (array)$r['galaxy_slugs'])); ?>
-                                            <?php if (!empty($r['unknown_galaxy_slugs'])): ?>
-                                                <span class="text-amber-700"> (unknown: <?php echo htmlspecialchars(implode(', ', $r['unknown_galaxy_slugs'])); ?>)</span>
-                                            <?php endif; ?>
+                                        <td class="py-1 px-3 font-mono text-gray-700">
+                                            <?php
+                                                $gp = (string)($r['galaxy_slug_preview'] ?? '');
+                                                if ($gp === '') {
+                                                    echo '<span class="text-gray-400">—</span>';
+                                                } else {
+                                                    echo htmlspecialchars($gp);
+                                                    if (!empty($r['creates_galaxy_overridden'])) {
+                                                        echo ' <span class="text-amber-700 not-italic">(row override)</span>';
+                                                    }
+                                                }
+                                            ?>
                                         </td>
                                         <td class="py-1 px-3">
                                             <?php
@@ -3464,23 +3493,37 @@ $fieldMeta = [
                     <form method="POST" action="" class="modal-action">
                         <input type="hidden" name="action" value="bulk_users_commit">
                         <input type="hidden" name="bulk_users_input" value="<?php echo htmlspecialchars($bulkUsersInput); ?>">
+                        <?php if ($bulkUsersDefaultCreateGalaxy): ?>
+                            <input type="hidden" name="default_create_galaxy" value="1">
+                        <?php endif; ?>
                         <button type="submit" class="btn btn-neutral">Confirm import</button>
                         <button type="button" class="btn" onclick="document.getElementById('bulk_users_modal').close(); window.location.href='?tab=users';">Cancel</button>
                     </form>
 
                 <?php else: ?>
-                    <p class="text-sm text-gray-600 mb-3">Paste a list of users — one per line. The simplest format is to paste columns from a spreadsheet (tab-separated). Columns:</p>
+                    <p class="text-sm text-gray-600 mb-3">Paste a list of users — one per line, columns comma-separated. Only the email is required; everything else is optional.</p>
                     <ol class="text-xs text-gray-600 mb-3 list-decimal pl-5 space-y-1">
                         <li><strong>email</strong> — required</li>
-                        <li><strong>firstname</strong> — optional</li>
-                        <li><strong>lastname</strong> — optional</li>
-                        <li><strong>role</strong> — optional, <code>editor</code> (default) or <code>admin</code></li>
-                        <li><strong>galaxies</strong> — optional, comma-separated galaxy slugs (TSV mode) or pipe-separated (CSV mode)</li>
+                        <li><strong>first name</strong></li>
+                        <li><strong>last name</strong></li>
+                        <li><strong>type</strong> — <code>Editor</code> (default) or <code>Admin</code></li>
+                        <li><strong>create galaxy?</strong> — <code>yes</code> / <code>no</code>. Empty inherits the checkbox below; a value here overrides it.</li>
                     </ol>
-                    <p class="text-xs text-gray-500 mb-3">Each new user gets a one-time setup email with a 7-day reset link. Existing emails are skipped. Lines starting with <code>#</code> are ignored.</p>
+                    <p class="text-xs text-gray-600 mb-1"><strong>Example:</strong></p>
+                    <pre class="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded p-2 mb-3 font-mono">elena.fernandez@example.org, Elena, Fernández
+m.silva@example.org
+roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
+                    <p class="text-xs text-gray-500 mb-3">Each new user gets a welcome email with a one-time setup link (7-day TTL) to set their password. When a galaxy is created for them, the email also includes the galaxy URL and the login link. Existing emails are skipped; lines starting with <code>#</code> are ignored.</p>
                     <form method="POST" action="">
                         <input type="hidden" name="action" value="bulk_users_preview">
-                        <textarea name="bulk_users_input" rows="10" class="w-full p-3 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:border-blue-500" placeholder="email[\tfirstname[\tlastname[\trole[\tgalaxies]]]]"></textarea>
+                        <textarea name="bulk_users_input" rows="10" class="w-full p-3 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:border-blue-500" placeholder="email, firstname, lastname, type, create-galaxy"></textarea>
+                        <label class="flex items-start gap-2 mt-3 text-sm text-gray-700 cursor-pointer">
+                            <input type="checkbox" name="default_create_galaxy" value="1" class="rounded border-gray-300 mt-0.5" checked>
+                            <span>
+                                <span class="font-medium">Create a galaxy for each new user</span>
+                                <span class="block text-xs text-gray-500">Slug taken from the email name (before the <code>@</code>); collisions get a short random suffix. Editors are assigned to their own galaxy; admins see every galaxy already. Override per row in the 5th column.</span>
+                            </span>
+                        </label>
                         <div class="modal-action">
                             <button type="submit" class="btn btn-neutral">Preview</button>
                             <button type="button" class="btn" onclick="document.getElementById('bulk_users_modal').close()">Cancel</button>
