@@ -500,6 +500,28 @@ function db_ensure_nodes_pdf_url_column(): void {
     }
 }
 
+/**
+ * Ensure an index covers nodes.node_type. Hot filters live in db_get_related_nodes
+ * (excludes node_type='cluster') and db_get_referencing_portals (where
+ * node_type='portal'); without an index those scan the whole table, which gets
+ * expensive once Mocambos imports push the row count past tens of thousands.
+ */
+function db_ensure_nodes_node_type_index(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->prepare("SHOW INDEX FROM nodes WHERE Key_name = :name");
+        $stmt->execute([':name' => 'idx_node_type']);
+        if (!$stmt->fetch()) {
+            $pdo->exec("ALTER TABLE nodes ADD INDEX idx_node_type (node_type)");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_nodes_node_type_index: ' . $e->getMessage());
+    }
+}
+
 /** Ensure nodes clustering columns exist (mucua_name, media_type, source_created_at). */
 function db_ensure_nodes_clustering_columns(): void {
     static $checked = false;
@@ -1665,6 +1687,7 @@ function db_get_group_galaxy_ids(int $constellationId): array {
  */
 function db_get_related_nodes(int $sourceNodeId, int $sourceGalaxyId, array $galaxyIds, int $limit = 5): array {
     if ($limit <= 0) return [];
+    db_ensure_nodes_node_type_index();
     $galaxyIds = array_values(array_unique(array_map('intval', $galaxyIds)));
     if ($galaxyIds === []) return [];
     $placeholders = implode(',', array_fill(0, count($galaxyIds), '?'));
@@ -2576,6 +2599,7 @@ function db_set_cluster_tour_keyword_names(int $clusterId, array $names): void {
  * @return list<array{id: int, name: string, constellation_id: int, constellation_name: string}>
  */
 function db_get_referencing_portals(int $constellationId): array {
+    db_ensure_nodes_node_type_index();
     $pdo = getDB();
     $stmt = $pdo->prepare("
         SELECT n.id, n.name, n.constellation_id, c.name AS constellation_name
