@@ -474,16 +474,32 @@ if (!empty($tourConfig['tour_keyword_ids']) && $tourConfig['tour_node_selection'
 }
 $tourConfig['tour_keyword_names'] = $tourKeywordNames;
 
-// In multigalaxy mode, the per-galaxy discovery features (auto-tour, idle spotlight,
-// keyword chips, related-nodes) don't have a meaningful single owner. Disable them for v1;
-// we can revisit per-feature once the Galaxy Cluster type lands.
+// In multigalaxy mode, most per-galaxy discovery features (auto-tour, idle spotlight,
+// related-nodes) don't have a meaningful single owner — disable them. The keyword
+// chip strip is the exception: it pools from every visible wormhole, so the scene's
+// content *is* the chip vocabulary and there are no dead chips. Stays an editorial
+// opt-in: enabled iff the current constellation (cluster row, when applicable) or
+// at least one member galaxy has keyword_chips_enabled.
 if (!empty($multiGalaxyIds)) {
     $tourConfig['tour_enabled'] = false;
-    $tourConfig['keyword_chips_enabled'] = false;
     $tourConfig['related_nodes_enabled'] = false;
-    $keywordChipsEnabled = false;
     $relatedNodesEnabled = false;
     $idleSpotlightConfig['enabled'] = false;
+
+    $chipsOn = !empty($tourConfig['keyword_chips_enabled']);
+    if (!$chipsOn) {
+        foreach ($multiGalaxyIds as $memberId) {
+            $mid = (int) $memberId;
+            if ($mid === (int) $constellationId) continue;
+            $memberCfg = db_get_constellation_tour_config($mid);
+            if ($memberCfg !== null && !empty($memberCfg['keyword_chips_enabled'])) {
+                $chipsOn = true;
+                break;
+            }
+        }
+    }
+    $tourConfig['keyword_chips_enabled'] = $chipsOn;
+    $keywordChipsEnabled = $chipsOn;
 }
 
 // Galaxy-list strip (visitor multigalaxy filter). Default ON for emergent unions
