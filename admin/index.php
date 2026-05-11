@@ -455,7 +455,6 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
 $apiKeys = db_get_api_keys();
 $users = db_get_users();
 $constellations = db_get_constellations();
-$clusters = db_get_clusters(); // Idea 2 — first-class galaxy unions
 
 // Group constellations by [Tag] prefix for visual grouping
 function extractConstellationGroup(string $name): ?string {
@@ -963,50 +962,28 @@ $fieldMeta = [
 
             <!-- ========== Clusters Tab (Idea 2) ========== -->
             <div id="content-clusters" class="p-6 <?php echo $activeTab !== 'clusters' ? 'hidden' : ''; ?>">
-                <div class="flex items-center justify-between mb-3">
-                    <div class="flex items-center gap-3">
-                        <h2 class="text-gray-800 text-base font-semibold">Galaxy Clusters (<?php echo count($clusters); ?>)</h2>
-                        <button type="button" onclick="openClusterCreate()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Cluster</button>
-                    </div>
-                </div>
-                <p class="text-sm text-gray-600 mb-4">A cluster is a curated union of galaxies with its own slug, title, theme, and permalink. Clusters have no native wormholes; they render the union of their members via the multigalaxy pipeline.</p>
+                <div>
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <h2 class="text-gray-800 text-base font-semibold">Galaxy Clusters (<span id="clusters-count">...</span>)</h2>
+                            <button type="button" onclick="openClusterCreate()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Cluster</button>
+                        </div>
 
-                <?php if (empty($clusters)): ?>
-                    <p class="text-sm text-gray-500 italic">No clusters yet.</p>
-                <?php else: ?>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead class="text-xs uppercase tracking-wider text-gray-500 border-b border-gray-200">
-                                <tr>
-                                    <th class="text-left py-2 px-2">Name</th>
-                                    <th class="text-left py-2 px-2">Slug</th>
-                                    <th class="text-left py-2 px-2">Theme</th>
-                                    <th class="text-left py-2 px-2">Members</th>
-                                    <th class="text-right py-2 px-2">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($clusters as $cl): ?>
-                                    <tr class="border-b border-gray-100 hover:bg-gray-50" data-cluster-id="<?php echo (int)$cl['id']; ?>">
-                                        <td class="py-2 px-2 font-medium text-gray-800"><?php echo htmlspecialchars($cl['name']); ?>
-                                            <?php if (!empty($cl['tagline'])): ?>
-                                                <div class="text-xs text-gray-500 italic"><?php echo htmlspecialchars($cl['tagline']); ?></div>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="py-2 px-2 font-mono text-xs"><a href="../<?php echo htmlspecialchars(rawurlencode((string)$cl['slug'])); ?>" target="_blank" rel="noopener" class="text-blue-600 hover:underline"><?php echo htmlspecialchars((string)$cl['slug']); ?></a></td>
-                                        <td class="py-2 px-2 font-mono text-xs"><?php echo htmlspecialchars($cl['theme']); ?></td>
-                                        <td class="py-2 px-2"><?php echo (int)$cl['member_count']; ?></td>
-                                        <td class="py-2 px-2 text-right">
-                                            <button type="button" onclick='openClusterEdit(<?php echo json_encode($cl, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)' class="text-blue-600 hover:text-blue-800 text-xs">Edit</button>
-                                            <span class="text-gray-300 mx-1">|</span>
-                                            <a onclick="triggerDelete('delete_cluster', '<?php echo (int)$cl['id']; ?>', 'Delete cluster &quot;<?php echo htmlspecialchars(addslashes($cl['name'])); ?>&quot;? Members are unaffected.', '<?php echo htmlspecialchars(addslashes($cl['name'])); ?>')" class="text-red-600 hover:text-red-800 text-xs cursor-pointer">Delete</a>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                        <!-- Top Pagination -->
+                        <div id="clusters-pagination-header" class="flex-1 flex justify-center"></div>
+
+                        <div class="flex items-center gap-2 min-w-[250px]">
+                            <label for="search-clusters" class="text-sm font-medium text-gray-700">Search:</label>
+                            <input type="text"
+                                   id="search-clusters"
+                                   placeholder="Search clusters..."
+                                   oninput="debouncedClusterSearch()"
+                                   class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        </div>
                     </div>
-                <?php endif; ?>
+                    <p class="text-sm text-gray-600 mb-4">A cluster is a curated union of galaxies with its own slug, title, theme, and permalink. Clusters have no native wormholes; they render the union of their members via the multigalaxy pipeline.</p>
+                    <div id="clusters-list-container"></div>
+                </div>
             </div>
 
             <!-- Global Settings Tab -->
@@ -2433,6 +2410,11 @@ $fieldMeta = [
             if (tabName === 'snapshots' && typeof snapshotsLoad === 'function') {
                 snapshotsLoad();
             }
+
+            // Lazy-load Clusters tab on first open
+            if (tabName === 'clusters' && typeof loadClusters === 'function' && !_clustersLoadedOnce) {
+                loadClusters();
+            }
             
             // Add active styling to selected tab
             const activeTabEl = document.getElementById('tab-' + tabName);
@@ -2490,6 +2472,11 @@ $fieldMeta = [
             // Initial pagination
             applyPagination('users');
             loadConstellations();
+            // If the page landed directly on the clusters tab, prime that list too.
+            // (showTab handles subsequent switches.)
+            if (document.getElementById('tab-clusters')?.classList.contains('tab-active')) {
+                loadClusters();
+            }
 
             // Hide loading overlay
             const overlay = document.getElementById('admin-loading-overlay');
@@ -2890,6 +2877,274 @@ $fieldMeta = [
             } catch (e) {
                 container.innerHTML = '<p class="text-red-600">Error loading galaxies: ' + escapeHtmlAdmin(e.message) + '</p>';
             }
+        }
+
+        // --- Clusters: server-side pagination (mirrors the galaxy list) ---
+        let clusterPage = 1;
+        const clusterPerPage = 20;
+        let clusterSortColumn = null;
+        let clusterSortOrder = 'asc';
+        let clusterFilter = '';
+        let clusterTotalPages = 0;
+        let _clustersLoadedOnce = false;
+
+        const debouncedClusterSearch = (() => {
+            let timer;
+            return () => {
+                clearTimeout(timer);
+                timer = setTimeout(() => {
+                    clusterFilter = document.getElementById('search-clusters').value.trim();
+                    clusterPage = 1;
+                    loadClusters();
+                }, 300);
+            };
+        })();
+
+        function sortClustersByColumn(column) {
+            if (clusterSortColumn === column) {
+                clusterSortOrder = clusterSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                clusterSortColumn = column;
+                clusterSortOrder = 'asc';
+            }
+            clusterPage = 1;
+            updateClusterSortIndicators();
+            loadClusters();
+        }
+
+        function updateClusterSortIndicators() {
+            ['id', 'name', 'slug', 'tagline', 'theme', 'member_count', 'created_at', 'updated_at'].forEach(col => {
+                const indicator = document.getElementById('sort-indicator-cluster-' + col);
+                if (indicator) indicator.innerHTML = '';
+            });
+            if (clusterSortColumn) {
+                const indicator = document.getElementById('sort-indicator-cluster-' + clusterSortColumn);
+                if (indicator) indicator.innerHTML = clusterSortOrder === 'asc' ? ' ↑' : ' ↓';
+            }
+        }
+
+        function clusterGoToPage(page) {
+            if (page < 1 || page > clusterTotalPages) return;
+            clusterPage = page;
+            loadClusters();
+        }
+
+        function updateClusterPagination() {
+            const headerContainer = document.getElementById('clusters-pagination-header');
+            if (headerContainer) headerContainer.innerHTML = '';
+
+            const oldBottom = document.getElementById('clusters-pagination-bottom');
+            if (oldBottom) oldBottom.remove();
+
+            if (clusterTotalPages <= 1) return;
+
+            const createHTML = (isTop) => {
+                let html = `<div id="clusters-pagination-${isTop ? 'top' : 'bottom'}" class="flex items-center gap-2 ${isTop ? '' : 'mt-6 pb-4 flex justify-center'}">`;
+                html += `<button type="button" onclick="clusterGoToPage(${clusterPage - 1})" class="btn btn-xs ${clusterPage === 1 ? 'btn-disabled' : ''}">«</button>`;
+                for (let i = 1; i <= clusterTotalPages; i++) {
+                    if (i === 1 || i === clusterTotalPages || (i >= clusterPage - 2 && i <= clusterPage + 2)) {
+                        html += `<button type="button" onclick="clusterGoToPage(${i})" class="btn btn-xs ${i === clusterPage ? 'btn-neutral' : ''}">${i}</button>`;
+                    } else if (i === clusterPage - 3 || i === clusterPage + 3) {
+                        html += `<span class="px-0.5 text-gray-400">...</span>`;
+                    }
+                }
+                html += `<button type="button" onclick="clusterGoToPage(${clusterPage + 1})" class="btn btn-xs ${clusterPage === clusterTotalPages ? 'btn-disabled' : ''}">»</button>`;
+                html += `</div>`;
+                return html;
+            };
+
+            if (headerContainer) headerContainer.innerHTML = createHTML(true);
+
+            const container = document.getElementById('clusters-list-container');
+            if (container) {
+                const bottom = document.createElement('div');
+                bottom.id = 'clusters-pagination-bottom';
+                bottom.innerHTML = createHTML(false);
+                container.appendChild(bottom);
+            }
+        }
+
+        async function loadClusters() {
+            _clustersLoadedOnce = true;
+            const container = document.getElementById('clusters-list-container');
+            if (!container) return;
+
+            const params = new URLSearchParams();
+            params.set('action', 'clusters_paginated');
+            params.set('page', clusterPage);
+            params.set('per_page', clusterPerPage);
+            if (clusterSortColumn) {
+                params.set('sort', clusterSortColumn);
+                params.set('order', clusterSortOrder);
+            }
+            if (clusterFilter) params.set('filter', clusterFilter);
+
+            try {
+                const response = await fetch(CONST_API + '?' + params.toString(), {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                if (!response.ok) throw new Error('Failed to load clusters');
+                const result = await response.json();
+
+                const clusters = result.clusters || [];
+                const total = result.total || 0;
+                clusterTotalPages = Math.ceil(total / clusterPerPage);
+
+                if (clusterPage > clusterTotalPages && clusterTotalPages > 0) {
+                    clusterPage = clusterTotalPages;
+                    return loadClusters();
+                }
+
+                const countEl = document.getElementById('clusters-count');
+                if (countEl) countEl.textContent = total;
+
+                if (clusters.length === 0) {
+                    container.innerHTML = clusterFilter
+                        ? '<p class="text-gray-600 py-4">No clusters match this search.</p>'
+                        : '<p class="text-sm text-gray-500 italic py-4">No clusters yet.</p>';
+                    updateClusterPagination();
+                    return;
+                }
+
+                let html = `<div class="border border-gray-300 rounded">
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr class="border-b-2 border-gray-400 bg-gray-100">
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('id')">ID<span id="sort-indicator-cluster-id"></span></span>
+                                </th>
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('name')">Name<span id="sort-indicator-cluster-name"></span></span>
+                                </th>
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('slug')">Slug<span id="sort-indicator-cluster-slug"></span></span>
+                                </th>
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('tagline')">Tagline<span id="sort-indicator-cluster-tagline"></span></span>
+                                </th>
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('theme')">Theme<span id="sort-indicator-cluster-theme"></span></span>
+                                </th>
+                                <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('member_count')">Members<span id="sort-indicator-cluster-member_count"></span></span>
+                                </th>
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('created_at')">Created<span id="sort-indicator-cluster-created_at"></span></span>
+                                </th>
+                                <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('updated_at')">Last Updated<span id="sort-indicator-cluster-updated_at"></span></span>
+                                </th>
+                                <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                clusters.forEach(cl => {
+                    const bgColor = getGroupColor(cl.name);
+                    const bgStyle = bgColor ? ` style="background-color: ${bgColor}"` : '';
+                    const hoverClass = bgColor ? '' : ' hover:bg-gray-50';
+                    const slug = cl.slug || '';
+                    const viewRel = slug ? '../' + encodeURIComponent(slug) : '../index.php?constellation_id=' + cl.id;
+                    const cJson = JSON.stringify({
+                        id: cl.id, name: cl.name, tagline: cl.tagline, slug: slug, theme: cl.theme,
+                        show_galaxy_list: !!cl.show_galaxy_list
+                    });
+                    const cJsonAttr = escapeHtmlAdmin(cJson);
+                    const clickEdit = `openClusterEdit(${cJsonAttr})`;
+
+                    const createdAt = cl.created_at ? new Date(cl.created_at) : null;
+                    const updatedAt = cl.updated_at ? new Date(cl.updated_at) : null;
+                    const fmtDate = (d) => d ? `${d.getFullYear().toString().slice(-2)}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}` : '—';
+
+                    const delMsg = JSON.stringify(`Delete cluster "${cl.name}"? Members (the galaxies inside) are unaffected — only the cluster itself is removed.`);
+                    const cNameJson = JSON.stringify(cl.name);
+
+                    const tourBadge = cl.tour_enabled
+                        ? '<span class="ml-2 inline-flex items-center text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded" title="Auto-tour enabled"><svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>'
+                        : '';
+                    const idleBadge = cl.idle_spotlight_enabled
+                        ? '<span class="ml-2 inline-flex items-center text-xs bg-blue-400 text-white px-1.5 py-0.5 rounded" title="Idle spotlight enabled"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2"/></svg></span>'
+                        : '';
+                    const galaxyListBadge = cl.show_galaxy_list
+                        ? '<span class="ml-2 text-xs bg-gray-500 text-white px-1.5 py-0.5 rounded" title="Galaxy list shown to visitors">Galaxy list</span>'
+                        : '';
+
+                    html += `<tr class="cluster-row border-b border-gray-300${hoverClass}"${bgStyle}>
+                        <td class="py-2 px-2 font-mono text-gray-800 cursor-pointer whitespace-nowrap" onclick="${clickEdit}">${cl.id}</td>
+                        <td class="py-2 px-2 font-semibold text-gray-800 cursor-pointer" onclick="${clickEdit}">
+                            ${escapeHtmlAdmin(cl.name)}
+                            ${tourBadge}
+                            ${idleBadge}
+                            ${galaxyListBadge}
+                        </td>
+                        <td class="py-2 px-2 font-mono text-xs"><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" class="text-blue-600 hover:underline">${escapeHtmlAdmin(slug)}</a></td>
+                        <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="${clickEdit}" title="${escapeHtmlAdmin(cl.tagline)}">${escapeHtmlAdmin(cl.tagline)}</td>
+                        <td class="py-2 px-2 font-mono text-xs text-gray-700 cursor-pointer" onclick="${clickEdit}">${escapeHtmlAdmin(cl.theme)}</td>
+                        <td class="py-2 px-2 text-right whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${cl.member_count}</td>
+                        <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(createdAt)}</td>
+                        <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(updatedAt)}</td>
+                        <td class="py-2 px-2 text-right">
+                            <div class="flex justify-end">
+                                <div class="dropdown dropdown-end">
+                                    <label tabindex="0" onclick="event.stopPropagation(); closeAllDropdowns(this)" class="btn btn-ghost btn-xs px-1.5">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
+                                    </label>
+                                    <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-40">
+                                        <li><a onclick="event.stopPropagation(); openClusterEdit(${cJsonAttr})" class="text-gray-700 text-xs">Edit</a></li>
+                                        <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">View</a></li>
+                                        <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">Copy URL</a></li>
+                                        <li><a onclick="event.stopPropagation(); duplicateCluster(${cJsonAttr})" class="text-gray-700 text-xs">Duplicate</a></li>
+                                        <li><a onclick="event.stopPropagation(); triggerDelete('delete_cluster', '${cl.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">Delete</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>`;
+                });
+
+                html += `</tbody></table></div>`;
+                container.innerHTML = html;
+
+                updateClusterPagination();
+                updateClusterSortIndicators();
+                formatLocalDatetimes();
+            } catch (e) {
+                container.innerHTML = '<p class="text-red-600">Error loading clusters: ' + escapeHtmlAdmin(e.message) + '</p>';
+            }
+        }
+
+        /**
+         * Duplicate flow: open the cluster create modal pre-filled with the source
+         * cluster's settings + a "(Copy)" name suffix. Slug is cleared so the server
+         * generates a fresh one on save. Members + discovery config are fetched
+         * fresh from the API.
+         */
+        async function duplicateCluster(cluster) {
+            openClusterCreate();
+            document.getElementById('cluster-modal-title').textContent = 'Duplicate Cluster';
+            document.getElementById('cluster-name').value = (cluster.name || '') + ' (Copy)';
+            document.getElementById('cluster-slug').value = '';
+            document.getElementById('cluster-tagline').value = cluster.tagline || '';
+            document.getElementById('cluster-theme').value = cluster.theme || 'cosmic';
+            const sgl = document.getElementById('cluster-show-galaxy-list');
+            if (sgl) sgl.checked = !!cluster.show_galaxy_list;
+            // Member checkboxes + discovery config in parallel.
+            try {
+                const [mr, _] = await Promise.all([
+                    fetch(`../api/constellations.php?action=cluster_members&id=${cluster.id}`, {
+                        headers: { 'X-API-Key': API_KEY }
+                    }),
+                    _loadClusterDiscoveryConfig(cluster.id),
+                ]);
+                if (mr && mr.ok) {
+                    const data = await mr.json();
+                    const ids = new Set((data.member_ids || []).map(Number));
+                    _clusterMemberCheckboxes().forEach(cb => {
+                        if (ids.has(parseInt(cb.value, 10))) cb.checked = true;
+                    });
+                }
+            } catch (e) { /* fall through with whatever loaded */ }
+            _refreshClusterMembersCount();
         }
 
         function applyUserSearch() {

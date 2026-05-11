@@ -1858,6 +1858,97 @@ function db_get_clusters(): array {
 }
 
 /**
+ * Server-side paginated, sorted, filtered cluster query — the cluster mirror of
+ * db_get_constellations_paginated(). Returns rows with member_count, theme,
+ * show_galaxy_list, and the visitor-facing discovery flags (tour_enabled,
+ * idle_spotlight_enabled) so the admin list can render the same kind of
+ * inline status badges the galaxy list does.
+ *
+ * @return array{clusters: list<array>, total: int, page: int, per_page: int}
+ */
+function db_get_clusters_paginated(
+    int $page = 1,
+    int $perPage = 20,
+    ?string $sort = null,
+    string $order = 'asc',
+    ?string $filter = null
+): array {
+    db_ensure_constellations_type_and_cluster_members();
+    db_ensure_constellations_tour_columns();
+    $pdo = getDB();
+
+    $where = ["c.`type` = 'cluster'"];
+    $params = [];
+    if ($filter !== null && $filter !== '') {
+        $filterVal = '%' . $filter . '%';
+        $where[] = "(c.name LIKE :filter1 OR c.tagline LIKE :filter2 OR c.slug LIKE :filter3 OR CAST(c.id AS CHAR) LIKE :filter4)";
+        $params[':filter1'] = $filterVal;
+        $params[':filter2'] = $filterVal;
+        $params[':filter3'] = $filterVal;
+        $params[':filter4'] = $filterVal;
+    }
+    $whereClause = 'WHERE ' . implode(' AND ', $where);
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM constellations c {$whereClause}");
+    $countStmt->execute($params);
+    $total = (int) $countStmt->fetchColumn();
+
+    $sortMap = [
+        'id' => 'c.id',
+        'name' => 'c.name',
+        'slug' => 'c.slug',
+        'tagline' => 'c.tagline',
+        'theme' => 'c.theme',
+        'member_count' => 'member_count',
+        'created_at' => 'c.created_at',
+        'updated_at' => 'c.updated_at',
+    ];
+    $orderDir = strtolower($order) === 'desc' ? 'DESC' : 'ASC';
+    $orderClause = 'ORDER BY c.id ASC';
+    if ($sort !== null && isset($sortMap[$sort])) {
+        $orderClause = "ORDER BY {$sortMap[$sort]} {$orderDir}, c.id ASC";
+    }
+
+    $offset = ($page - 1) * $perPage;
+    $dataStmt = $pdo->prepare("
+        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.show_galaxy_list,
+               c.tour_enabled, c.idle_spotlight_enabled,
+               c.created_at, c.updated_at,
+               (SELECT COUNT(*) FROM galaxy_cluster_members m WHERE m.cluster_id = c.id) AS member_count
+        FROM constellations c
+        {$whereClause}
+        {$orderClause}
+        LIMIT :limit OFFSET :offset
+    ");
+    foreach ($params as $k => $v) {
+        $dataStmt->bindValue($k, $v);
+    }
+    $dataStmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+    $dataStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $dataStmt->execute();
+    $rows = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $clusters = [];
+    foreach ($rows as $r) {
+        $clusters[] = [
+            'id' => (int) $r['id'],
+            'name' => (string) ($r['name'] ?? ''),
+            'tagline' => (string) ($r['tagline'] ?? ''),
+            'slug' => $r['slug'] ?? null,
+            'theme' => (string) ($r['theme'] ?? 'cosmic'),
+            'show_galaxy_list' => (bool) ($r['show_galaxy_list'] ?? false),
+            'tour_enabled' => (bool) ($r['tour_enabled'] ?? false),
+            'idle_spotlight_enabled' => (bool) ($r['idle_spotlight_enabled'] ?? false),
+            'member_count' => (int) $r['member_count'],
+            'created_at' => $r['created_at'] ?? null,
+            'updated_at' => $r['updated_at'] ?? null,
+        ];
+    }
+
+    return ['clusters' => $clusters, 'total' => $total, 'page' => $page, 'per_page' => $perPage];
+}
+
+/**
  * Server-side paginated, sorted, filtered constellation query.
  * @return array{constellations: list<array>, total: int, page: int, per_page: int}
  */

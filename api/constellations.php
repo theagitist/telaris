@@ -92,6 +92,21 @@ try {
                 return;
             }
 
+            // Server-side paginated cluster listing for the admin Clusters tab.
+            if (isset($_GET['action']) && $_GET['action'] === 'clusters_paginated') {
+                $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+                $perPage = isset($_GET['per_page']) ? min(max(1, (int)$_GET['per_page']), 100) : 20;
+                $sort = isset($_GET['sort']) && $_GET['sort'] !== '' ? (string)$_GET['sort'] : null;
+                $order = (isset($_GET['order']) && strtolower($_GET['order']) === 'desc') ? 'desc' : 'asc';
+                $filter = isset($_GET['filter']) ? trim((string)$_GET['filter']) : null;
+                if ($filter === '') $filter = null;
+                echo json_encode(
+                    db_get_clusters_paginated($page, $perPage, $sort, $order, $filter),
+                    JSON_THROW_ON_ERROR
+                );
+                return;
+            }
+
             // Server-side paginated mode (for admin)
             if (isset($_GET['page'])) {
                 $page = max(1, (int)$_GET['page']);
