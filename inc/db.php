@@ -2417,6 +2417,70 @@ function db_constellation_has_audio_nodes(int $constellationId): bool {
 }
 
 /**
+ * Cluster variant: is there any audio anywhere across the cluster's member galaxies?
+ * Powers the same immediate-start warning when the cluster's tour is configured.
+ */
+function db_cluster_has_audio_nodes(int $clusterId): bool {
+    $members = db_get_cluster_member_ids($clusterId);
+    if (empty($members)) return false;
+    $placeholders = implode(',', array_fill(0, count($members), '?'));
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT 1 FROM nodes
+        WHERE constellation_id IN ($placeholders)
+          AND audio_url IS NOT NULL AND audio_url != ''
+        LIMIT 1
+    ");
+    $stmt->execute(array_map('intval', $members));
+    return (bool)$stmt->fetchColumn();
+}
+
+/**
+ * Cluster-specific replacement for db_set_tour_keyword_ids().
+ *
+ * Clusters store tour-tag keywords as plain name strings (the same name can exist
+ * across many member galaxies, and the auto-tour matches by lowercased name, not by
+ * ID). We persist them by reusing the existing keywords + constellation_tour_keywords
+ * tables: each name becomes a keyword row owned by the cluster row, and the junction
+ * points at it. Clusters have no native nodes, so the cluster-owned keyword rows are
+ * never referenced by node_keywords — we can safely wipe and recreate on every save.
+ *
+ * @param list<string> $names
+ */
+function db_set_cluster_tour_keyword_names(int $clusterId, array $names): void {
+    $clean = [];
+    foreach ($names as $n) {
+        $n = trim((string)$n);
+        if ($n === '') continue;
+        $lc = mb_strtolower($n);
+        if (isset($clean[$lc])) continue;
+        $clean[$lc] = $n;
+    }
+
+    $pdo = getDB();
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("DELETE FROM constellation_tour_keywords WHERE constellation_id = :cid")
+            ->execute([':cid' => $clusterId]);
+        $pdo->prepare("DELETE FROM keywords WHERE constellation_id = :cid")
+            ->execute([':cid' => $clusterId]);
+        if (!empty($clean)) {
+            $insertKw = $pdo->prepare("INSERT INTO keywords (keyword, constellation_id) VALUES (:kw, :cid)");
+            $insertJunc = $pdo->prepare("INSERT INTO constellation_tour_keywords (constellation_id, keyword_id) VALUES (:cid, :kid)");
+            foreach ($clean as $name) {
+                $insertKw->execute([':kw' => $name, ':cid' => $clusterId]);
+                $kid = (int)$pdo->lastInsertId();
+                $insertJunc->execute([':cid' => $clusterId, ':kid' => $kid]);
+            }
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/**
  * Find all portal nodes that point to a specific constellation.
  * @return list<array{id: int, name: string, constellation_id: int, constellation_name: string}>
  */

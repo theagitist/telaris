@@ -474,32 +474,46 @@ if (!empty($tourConfig['tour_keyword_ids']) && $tourConfig['tour_node_selection'
 }
 $tourConfig['tour_keyword_names'] = $tourKeywordNames;
 
-// In multigalaxy mode, most per-galaxy discovery features (auto-tour, idle spotlight,
-// related-nodes) don't have a meaningful single owner — disable them. The keyword
-// chip strip is the exception: it pools from every visible wormhole, so the scene's
-// content *is* the chip vocabulary and there are no dead chips. Stays an editorial
-// opt-in: enabled iff the current constellation (cluster row, when applicable) or
-// at least one member galaxy has keyword_chips_enabled.
+// Multigalaxy mode splits two ways:
+//   - Emergent unions (?galaxies=, /[XX], /tag/) have no owning row. Per-galaxy
+//     discovery features can't attach to anything, so auto-tour / idle spotlight /
+//     related-wormholes are off. Keyword chips are the exception (see below).
+//   - Cluster unions are first-class rows in `constellations`; their own
+//     discovery config drives the visitor experience the same way a single
+//     galaxy's does. Tour/idle/related/chips all flow from the cluster row.
+//
+// Keyword chips, in either branch, pool from every visible wormhole — the scene's
+// content *is* the chip vocabulary, so there are no dead chips. For emergent
+// unions, opt-in is "any member galaxy has the flag"; for clusters, the cluster's
+// own flag is authoritative.
 if (!empty($multiGalaxyIds)) {
-    $tourConfig['tour_enabled'] = false;
-    $tourConfig['related_nodes_enabled'] = false;
-    $relatedNodesEnabled = false;
-    $idleSpotlightConfig['enabled'] = false;
+    $_currentInfoForUnion = db_get_constellation_by_id((int) $constellationId);
+    $_isClusterUnion = $_currentInfoForUnion && ($_currentInfoForUnion['type'] ?? 'galaxy') === 'cluster';
 
-    $chipsOn = !empty($tourConfig['keyword_chips_enabled']);
-    if (!$chipsOn) {
-        foreach ($multiGalaxyIds as $memberId) {
-            $mid = (int) $memberId;
-            if ($mid === (int) $constellationId) continue;
-            $memberCfg = db_get_constellation_tour_config($mid);
-            if ($memberCfg !== null && !empty($memberCfg['keyword_chips_enabled'])) {
-                $chipsOn = true;
-                break;
+    if (!$_isClusterUnion) {
+        // Emergent union: wipe per-galaxy discovery features.
+        $tourConfig['tour_enabled'] = false;
+        $tourConfig['related_nodes_enabled'] = false;
+        $relatedNodesEnabled = false;
+        $idleSpotlightConfig['enabled'] = false;
+
+        $chipsOn = !empty($tourConfig['keyword_chips_enabled']);
+        if (!$chipsOn) {
+            foreach ($multiGalaxyIds as $memberId) {
+                $mid = (int) $memberId;
+                if ($mid === (int) $constellationId) continue;
+                $memberCfg = db_get_constellation_tour_config($mid);
+                if ($memberCfg !== null && !empty($memberCfg['keyword_chips_enabled'])) {
+                    $chipsOn = true;
+                    break;
+                }
             }
         }
+        $tourConfig['keyword_chips_enabled'] = $chipsOn;
+        $keywordChipsEnabled = $chipsOn;
     }
-    $tourConfig['keyword_chips_enabled'] = $chipsOn;
-    $keywordChipsEnabled = $chipsOn;
+    // Cluster branch: keep $tourConfig, $idleSpotlightConfig, $relatedNodesEnabled,
+    // $keywordChipsEnabled as already loaded from the cluster's own row.
 }
 
 // Galaxy-list strip (visitor multigalaxy filter). Default ON for emergent unions

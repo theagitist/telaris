@@ -58,14 +58,37 @@ try {
                     echo json_encode(['error' => 'Galaxy not found'], JSON_THROW_ON_ERROR);
                     return;
                 }
+                $info = db_get_constellation_by_id($id);
+                $isCluster = $info && ($info['type'] ?? 'galaxy') === 'cluster';
                 $keywords = db_get_keywords_for_constellation($id);
-                echo json_encode($config + [
+                // For clusters: surface tour-tag keyword *names* (the cluster modal binds
+                // a comma-separated text input, not the per-galaxy checkbox list) and pool
+                // the audio-node check across member galaxies so the immediate-start
+                // autoplay warning fires when any union member has audio.
+                $extra = [
+                    'is_cluster' => $isCluster,
                     'available_keywords' => array_map(fn(array $k) => [
                         'id' => (int)$k['id'],
                         'keyword' => (string)$k['keyword'],
                     ], $keywords),
-                    'has_audio_nodes' => db_constellation_has_audio_nodes($id),
-                ], JSON_THROW_ON_ERROR);
+                    'has_audio_nodes' => $isCluster
+                        ? db_cluster_has_audio_nodes($id)
+                        : db_constellation_has_audio_nodes($id),
+                ];
+                if ($isCluster) {
+                    // Map the cluster's tour_keyword_ids back to names (the cluster owns
+                    // these keyword rows directly via db_set_cluster_tour_keyword_names).
+                    $selected = [];
+                    $idSet = array_flip(array_map('intval', $config['tour_keyword_ids'] ?? []));
+                    foreach ($keywords as $kw) {
+                        if (isset($idSet[(int)$kw['id']])) {
+                            $selected[] = (string)$kw['keyword'];
+                        }
+                    }
+                    sort($selected, SORT_NATURAL | SORT_FLAG_CASE);
+                    $extra['tour_keyword_names'] = $selected;
+                }
+                echo json_encode($config + $extra, JSON_THROW_ON_ERROR);
                 return;
             }
 

@@ -281,6 +281,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             // constellations table (type='cluster') so slug uniqueness is enforced by the same
             // db_constellation_exists() helper used for galaxies.
             'create_cluster' => (function(): void {
+                require_once __DIR__ . '/../inc/cluster-update.php';
                 global $message, $error, $activeTab;
                 $name = trim((string)($_POST['name'] ?? ''));
                 if ($name === '') throw new Exception('Cluster name is required');
@@ -300,11 +301,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $members = array_values(array_filter(array_map('intval', (array)($_POST['members'] ?? [])), fn($i) => $i > 0));
                 $showGalaxyList = !empty($_POST['show_galaxy_list']);
                 db_create_cluster($name, $tagline, $finalSlug, $theme, $members, $showGalaxyList);
+                $newClusterId = (int) db_get_constellation_id_by_slug($finalSlug);
+                if ($newClusterId > 0) {
+                    save_cluster_discovery_config_from_post($newClusterId, $_POST);
+                }
                 $message = 'Cluster created successfully.';
                 $activeTab = 'clusters';
             })(),
 
             'update_cluster' => (function(): void {
+                require_once __DIR__ . '/../inc/cluster-update.php';
                 global $message, $error, $activeTab;
                 $id = (int)($_POST['id'] ?? -1);
                 if ($id <= 0) throw new Exception('Missing cluster id.');
@@ -331,6 +337,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 db_update_cluster($id, $name, $tagline, $finalSlug, $theme, $showGalaxyList);
                 $members = array_values(array_filter(array_map('intval', (array)($_POST['members'] ?? [])), fn($i) => $i > 0));
                 db_set_cluster_members($id, $members);
+                save_cluster_discovery_config_from_post($id, $_POST);
                 $message = 'Cluster updated successfully.';
                 $activeTab = 'clusters';
             })(),
@@ -2159,6 +2166,76 @@ $fieldMeta = [
             const out = document.getElementById('cluster-members-count');
             if (out) out.textContent = checked === 1 ? '1 selected' : (checked + ' selected');
         }
+        function _resetClusterDiscoveryFields() {
+            // Discovery defaults — same shape as a brand-new tour_config row.
+            const set = (id, val) => { const el = document.getElementById(id); if (el) { if (el.type === 'checkbox') el.checked = !!val; else el.value = val; } };
+            set('cluster-keyword-chips-enabled', false);
+            set('cluster-related-nodes-enabled', false);
+            set('cluster-idle-spotlight-enabled', false);
+            set('cluster-idle-spotlight-idle-seconds', 30);
+            set('cluster-tour-enabled', false);
+            set('cluster-tour-idle-seconds', 30);
+            set('cluster-tour-random-count', 10);
+            set('cluster-tour-default-dwell', 8);
+            set('cluster-tour-loop', true);
+            set('cluster-tour-keyword-names', '');
+            document.querySelectorAll('#cluster_modal input[name="tour_start_mode"]').forEach(r => r.checked = (r.value === 'manual'));
+            document.querySelectorAll('#cluster_modal input[name="tour_node_selection"]').forEach(r => r.checked = (r.value === 'all'));
+            document.querySelectorAll('#cluster_modal input[name="idle_spotlight_selection"]').forEach(r => r.checked = (r.value === 'all'));
+            const warn = document.getElementById('cluster-tour-immediate-warning');
+            if (warn) warn.dataset.hasAudio = '0';
+            _updateClusterDiscoveryVisibility();
+        }
+
+        function _updateClusterDiscoveryVisibility() {
+            const tourEnabled = document.getElementById('cluster-tour-enabled');
+            if (tourEnabled) {
+                const enabled = tourEnabled.checked;
+                document.getElementById('cluster-tour-section').classList.toggle('hidden', !enabled);
+                if (enabled) {
+                    const startMode = document.querySelector('#cluster_modal input[name="tour_start_mode"]:checked')?.value || 'manual';
+                    document.getElementById('cluster-tour-idle-row').classList.toggle('hidden', startMode !== 'idle');
+                    const selection = document.querySelector('#cluster_modal input[name="tour_node_selection"]:checked')?.value || 'all';
+                    document.getElementById('cluster-tour-random-row').classList.toggle('hidden', selection !== 'random_n');
+                    document.getElementById('cluster-tour-tagged-row').classList.toggle('hidden', selection !== 'tagged');
+                    const warn = document.getElementById('cluster-tour-immediate-warning');
+                    const hasAudio = warn?.dataset.hasAudio === '1';
+                    if (warn) warn.classList.toggle('hidden', !(hasAudio && startMode === 'immediate'));
+                }
+            }
+            const idleEnabled = document.getElementById('cluster-idle-spotlight-enabled');
+            if (idleEnabled) {
+                document.getElementById('cluster-idle-spotlight-section').classList.toggle('hidden', !idleEnabled.checked);
+            }
+        }
+
+        async function _loadClusterDiscoveryConfig(clusterId) {
+            try {
+                const r = await fetch(`../api/constellations.php?action=tour_config&id=${clusterId}`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                if (!r.ok) return;
+                const cfg = await r.json();
+                const set = (id, val) => { const el = document.getElementById(id); if (el) { if (el.type === 'checkbox') el.checked = !!val; else el.value = val; } };
+                set('cluster-keyword-chips-enabled', !!cfg.keyword_chips_enabled);
+                set('cluster-related-nodes-enabled', !!cfg.related_nodes_enabled);
+                set('cluster-idle-spotlight-enabled', !!cfg.idle_spotlight_enabled);
+                set('cluster-idle-spotlight-idle-seconds', cfg.idle_spotlight_idle_seconds ?? 30);
+                set('cluster-tour-enabled', !!cfg.tour_enabled);
+                set('cluster-tour-idle-seconds', cfg.tour_idle_seconds ?? 30);
+                set('cluster-tour-random-count', cfg.tour_random_count ?? 10);
+                set('cluster-tour-default-dwell', cfg.tour_default_dwell ?? 8);
+                set('cluster-tour-loop', !!cfg.tour_loop);
+                set('cluster-tour-keyword-names', Array.isArray(cfg.tour_keyword_names) ? cfg.tour_keyword_names.join(', ') : '');
+                document.querySelectorAll('#cluster_modal input[name="tour_start_mode"]').forEach(r => r.checked = (r.value === (cfg.tour_start_mode || 'manual')));
+                document.querySelectorAll('#cluster_modal input[name="tour_node_selection"]').forEach(r => r.checked = (r.value === (cfg.tour_node_selection || 'all')));
+                document.querySelectorAll('#cluster_modal input[name="idle_spotlight_selection"]').forEach(r => r.checked = (r.value === (cfg.idle_spotlight_selection || 'all')));
+                const warn = document.getElementById('cluster-tour-immediate-warning');
+                if (warn) warn.dataset.hasAudio = cfg.has_audio_nodes ? '1' : '0';
+            } catch (e) { /* keep defaults on failure */ }
+            _updateClusterDiscoveryVisibility();
+        }
+
         function openClusterCreate() {
             document.getElementById('cluster-modal-title').textContent = 'Create Cluster';
             document.getElementById('cluster-modal-id-badge').textContent = '';
@@ -2171,6 +2248,7 @@ $fieldMeta = [
             const sgl = document.getElementById('cluster-show-galaxy-list');
             if (sgl) sgl.checked = false;
             _clusterMemberCheckboxes().forEach(cb => { cb.checked = false; });
+            _resetClusterDiscoveryFields();
             document.getElementById('cluster-submit-btn').textContent = 'Create Cluster';
             _refreshClusterMembersCount();
             document.getElementById('cluster_modal').showModal();
@@ -2186,20 +2264,21 @@ $fieldMeta = [
             document.getElementById('cluster-theme').value = cluster.theme || 'cosmic';
             const sgl = document.getElementById('cluster-show-galaxy-list');
             if (sgl) sgl.checked = !!cluster.show_galaxy_list;
-            // Fetch members and check the corresponding boxes.
             _clusterMemberCheckboxes().forEach(cb => { cb.checked = false; });
-            try {
-                const r = await fetch(`../api/constellations.php?action=cluster_members&id=${cluster.id}`, {
-                    headers: { 'X-API-Key': API_KEY }
+            _resetClusterDiscoveryFields();
+            // Fetch members + discovery config in parallel.
+            const membersP = fetch(`../api/constellations.php?action=cluster_members&id=${cluster.id}`, {
+                headers: { 'X-API-Key': API_KEY }
+            }).then(async r => {
+                if (!r.ok) return;
+                const data = await r.json();
+                const ids = new Set((data.member_ids || []).map(Number));
+                _clusterMemberCheckboxes().forEach(cb => {
+                    if (ids.has(parseInt(cb.value, 10))) cb.checked = true;
                 });
-                if (r.ok) {
-                    const data = await r.json();
-                    const ids = new Set((data.member_ids || []).map(Number));
-                    _clusterMemberCheckboxes().forEach(cb => {
-                        if (ids.has(parseInt(cb.value, 10))) cb.checked = true;
-                    });
-                }
-            } catch (e) { /* leave members empty if fetch failed */ }
+            }).catch(() => { /* leave members empty */ });
+            const discoveryP = _loadClusterDiscoveryConfig(cluster.id);
+            await Promise.all([membersP, discoveryP]);
             document.getElementById('cluster-submit-btn').textContent = 'Update Cluster';
             _refreshClusterMembersCount();
             document.getElementById('cluster_modal').showModal();
@@ -2208,6 +2287,26 @@ $fieldMeta = [
             if (ev.target && ev.target.matches && ev.target.matches('input[data-cluster-member]')) {
                 _refreshClusterMembersCount();
             }
+        });
+        // Live show/hide of discovery sub-sections inside cluster_modal.
+        document.addEventListener('change', (ev) => {
+            const t = ev.target;
+            if (!t || !t.matches) return;
+            if (t.matches('#cluster-tour-enabled, #cluster-idle-spotlight-enabled, .cluster-tour-start-mode, .cluster-tour-node-selection')) {
+                _updateClusterDiscoveryVisibility();
+            }
+        });
+        // "Preview tour" — opens the cluster's URL with ?tour=preview.
+        document.addEventListener('click', (ev) => {
+            if (!ev.target || !ev.target.closest) return;
+            const btn = ev.target.closest('#cluster-tour-preview');
+            if (!btn) return;
+            const id = parseInt(document.getElementById('cluster-form-id')?.value, 10);
+            if (!id || isNaN(id)) return;
+            const slug = document.getElementById('cluster-slug')?.value?.trim();
+            const path = slug ? ('../' + encodeURIComponent(slug)) : ('../index.php?constellation_id=' + id);
+            const sep = path.includes('?') ? '&' : '?';
+            window.open(path + sep + 'tour=preview', '_blank');
         });
 
         async function triggerDelete(action, id, message, confirmName = null) {
@@ -3796,6 +3895,134 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                         <?php endforeach; ?>
                     </div>
                     <p id="cluster-members-count" class="text-xs text-gray-500 mt-1">0 selected</p>
+                </div>
+
+                <!-- Discovery features (cluster-scoped) -->
+                <div class="mb-4 border-t border-gray-200 pt-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="cluster-keyword-chips-enabled" name="keyword_chips_enabled" value="1" class="toggle toggle-neutral toggle-sm">
+                        <span class="text-gray-800 font-medium">Keyword chips</span>
+                    </label>
+                    <p class="text-xs text-gray-500 mt-1">Pool the most-used keywords across all visible wormholes (every member galaxy) into a filter chip strip at the top of the cluster. Click a chip to dim non-matching wormholes.</p>
+                </div>
+
+                <div class="mb-4 border-t border-gray-200 pt-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="cluster-related-nodes-enabled" name="related_nodes_enabled" value="1" class="toggle toggle-neutral toggle-sm">
+                        <span class="text-gray-800 font-medium">Related wormholes</span>
+                    </label>
+                    <p class="text-xs text-gray-500 mt-1">When a wormhole's info card is open, dim unrelated ones and surface up to 5 related wormholes (sharing keywords) as click-to-jump chips at the bottom of the card. Pools across the whole cluster — chips can surface wormholes from any member galaxy.</p>
+                </div>
+
+                <div class="mb-4 border-t border-gray-200 pt-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="cluster-idle-spotlight-enabled" name="idle_spotlight_enabled" value="1" class="toggle toggle-neutral toggle-sm">
+                        <span class="text-gray-800 font-medium">Idle spotlight</span>
+                    </label>
+                    <p class="text-xs text-gray-500 mt-1">When the visitor is idle, fly the camera to one random wormhole anywhere in the cluster and open its info card. Closes when media ends or after the dwell timer.</p>
+
+                    <div id="cluster-idle-spotlight-section" class="mt-4 pl-6 border-l-2 border-gray-200 space-y-4 hidden">
+                        <div>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Pick from</label>
+                            <div class="space-y-1">
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="idle_spotlight_selection" value="all" class="radio radio-neutral radio-sm cluster-idle-spotlight-selection">
+                                    <span>All wormholes (across every member galaxy)</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="idle_spotlight_selection" value="accentuated" class="radio radio-neutral radio-sm cluster-idle-spotlight-selection">
+                                    <span>Only accentuated wormholes</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="cluster-idle-spotlight-idle-seconds" class="block mb-1.5 text-gray-800 font-medium text-sm">Trigger after (seconds idle)</label>
+                            <input type="number" id="cluster-idle-spotlight-idle-seconds" name="idle_spotlight_idle_seconds" min="1" value="30" class="input input-bordered input-sm w-32 bg-white">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4 border-t border-gray-200 pt-4">
+                    <div class="flex items-center justify-between gap-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="cluster-tour-enabled" name="tour_enabled" value="1" class="toggle toggle-neutral toggle-sm">
+                            <span class="text-gray-800 font-medium">Auto-tour</span>
+                        </label>
+                        <button type="button" id="cluster-tour-preview" class="btn btn-xs btn-outline" title="Save first, then preview the tour in a new tab">Preview tour</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Automatically navigate visitors through wormholes across the cluster, opening each card and playing media. Desktop and iPad only.</p>
+
+                    <div id="cluster-tour-section" class="mt-4 pl-6 border-l-2 border-gray-200 space-y-4 hidden">
+                        <div>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Start Mode</label>
+                            <div class="space-y-1">
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_start_mode" value="manual" class="radio radio-neutral radio-sm cluster-tour-start-mode">
+                                    <span>Manual. Visitor clicks a Play button to start.</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_start_mode" value="idle" class="radio radio-neutral radio-sm cluster-tour-start-mode">
+                                    <span>Idle. Start after visitor is inactive for a while.</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_start_mode" value="immediate" class="radio radio-neutral radio-sm cluster-tour-start-mode">
+                                    <span>Immediate. Start a few seconds after the cluster loads.</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="cluster-tour-idle-row" class="hidden">
+                            <label for="cluster-tour-idle-seconds" class="block mb-1.5 text-gray-800 font-medium text-sm">Idle threshold (seconds)</label>
+                            <input type="number" id="cluster-tour-idle-seconds" name="tour_idle_seconds" min="1" value="30" class="input input-bordered input-sm w-32 bg-white">
+                        </div>
+
+                        <div id="cluster-tour-immediate-warning" class="hidden alert alert-warning text-sm py-2">
+                            <span>One or more member galaxies contain audio wormholes. Browsers block autoplay-with-sound until the visitor interacts with the page, so the first audio in an immediate-start tour may stay silent or stall.</span>
+                        </div>
+
+                        <div>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Which wormholes to tour</label>
+                            <div class="space-y-1">
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_node_selection" value="all" class="radio radio-neutral radio-sm cluster-tour-node-selection">
+                                    <span>All wormholes (random order each run)</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_node_selection" value="accentuated" class="radio radio-neutral radio-sm cluster-tour-node-selection">
+                                    <span>Only accentuated wormholes</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_node_selection" value="random_n" class="radio radio-neutral radio-sm cluster-tour-node-selection">
+                                    <span>A random sample of N wormholes</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="tour_node_selection" value="tagged" class="radio radio-neutral radio-sm cluster-tour-node-selection">
+                                    <span>Wormholes tagged with one of these keywords</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="cluster-tour-random-row" class="hidden">
+                            <label for="cluster-tour-random-count" class="block mb-1.5 text-gray-800 font-medium text-sm">How many wormholes per tour</label>
+                            <input type="number" id="cluster-tour-random-count" name="tour_random_count" min="1" value="10" class="input input-bordered input-sm w-32 bg-white">
+                        </div>
+
+                        <div id="cluster-tour-tagged-row" class="hidden">
+                            <label for="cluster-tour-keyword-names" class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords (any match, comma-separated)</label>
+                            <input type="text" id="cluster-tour-keyword-names" name="tour_keyword_names" placeholder="e.g. Ideology, Resistance, Land" class="w-full p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            <span class="text-xs text-gray-500 mt-1 block">Matches by keyword name (case-insensitive) across every member galaxy. Useful when the same tag — e.g. <code>Ideology</code> — exists in several galaxies but with different keyword IDs.</span>
+                        </div>
+
+                        <div>
+                            <label for="cluster-tour-default-dwell" class="block mb-1.5 text-gray-800 font-medium text-sm">Pause on wormholes without media (seconds)</label>
+                            <input type="number" id="cluster-tour-default-dwell" name="tour_default_dwell" min="1" value="8" class="input input-bordered input-sm w-32 bg-white">
+                        </div>
+
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="cluster-tour-loop" name="tour_loop" value="1" class="toggle toggle-neutral toggle-sm">
+                            <span class="text-gray-800 font-medium text-sm">Loop the tour when it finishes</span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="modal-action">
