@@ -108,6 +108,7 @@ All code uses `declare(strict_types=1)`.
 
 **Notable endpoints / query-string modes:**
 - `nodes.php?galaxies=1,5,7&no_cluster=1` — multigalaxy union (visitor view)
+- `nodes.php?related_to=NODE_ID&limit=N` — group-wide related wormholes for the info-card chip row (see "Related wormholes" below)
 - `keywords.php?constellation_id=N&autocomplete=1` — bucketed `{current, siblings, global}` for editor autocomplete (frontend merges + dedupes + sorts alphabetically; pill-styled in the dropdown)
 - `tags.php?galaxy_id=N` — same bucketed shape for galaxy-tag autocomplete; `?galaxy_id=N&assigned=1` returns only the tags currently on that galaxy
 - `constellations.php?action=cluster_members&id=N` — member galaxy IDs for the admin cluster edit modal
@@ -205,6 +206,10 @@ Each cluster appears as a special 3D node. Clicking drills in; back button and b
 
 **Storage:** snapshot files live in `SNAPSHOTS_DIR` (defined in `config_default.php`, defaults to `<UPLOAD_DIR>/../snapshots` if undefined). Admin endpoints under `admin/backup/` and `admin/snapshots/` are session-auth gated; CSRF token validated on every mutation.
 
+**Memory and timeout:** `snapshot_create()` in `inc/snapshots.php` calls `ini_set('memory_limit', '512M')` + `set_time_limit(0)` at entry. `backup_build_dump` holds the whole DB + embedded media in memory before gzipping (~44 MB for a moderate install), which OOMs against PHP-FPM's default 128 M. The bump is a no-op for CLI (already unlimited) and necessary for the admin UI / cron paths.
+
+**Scheduler cron** (`inc/cron.php`). When the admin enables the daily snapshot toggle, the app installs a `*/15 * * * *` entry into the PHP user's (`www-data`) own crontab — no sysadmin step needed. The block is bracketed by **site-tagged markers** (`# >>> telaris snapshot scheduler: <hostname> >>>`) so multiple Telaris instances on the same host coexist in one crontab; each install only touches its own block. Pre-site-tag legacy blocks are migrated on next install only if their body references the current site's script path (`cron_strip_block` checks). `admin/snapshots/list.php` self-heals on every load: if the schedule is enabled but the cron entry is missing, it reinstalls.
+
 **Imported constellations** are read-only in the editor.
 
 **Node URLs:** Built using slug aliases from the Mocambos API: `{mucua_public_uri}/pt-BR/midia/{galaxia_slug}/{mucua_slug}/{item_slug}`. Each mucua can have its own `public_uri` (e.g. `oya.mocambos.net`, `baobaxia.net`); falls back to the API host when not set.
@@ -242,6 +247,19 @@ The search bar queries all nodes in the constellation (not just visible ones) vi
 
 Uploaded files are stored at `UPLOAD_DIR` (defined in `config.php`, external to the app directory). Nginx serves them via an alias at `/uploads/`. Nodes can have an image, video, audio, and/or embed code.
 
+### Asset URL absolution
+
+**Visitor URLs come in multiple shapes** — `/`, `/{slug}`, `/{slug}/{node-id}` (permalink), `/[XX]` (prefix union), `/tag/foo`, etc. Relative URLs resolve against the current document path, so a path like `js/v6.9.21/foo.js` works on `/{slug}` but resolves to `/{slug}/js/...` on `/{slug}/{node-id}` and 404s. **Everything that ends up in the browser must therefore be site-absolute** (leading `/`) or a full URL.
+
+Chokepoints to use, never bypass:
+
+- **PHP API output for stored URLs**: `db_normalize_asset_url(?string $url): ?string` in `inc/db.php` prepends `/` to relative paths; passes through paths that already start with `/`, `http(s)://`, `data:`, or `blob:`. Applied to `image_url`, `icon_url`, `audio_url`, `video_url`, `pdf_url` in both `db_format_node` and `db_format_nodes_bulk`.
+- **Versioned JS**: `asset_versioned_js_url($appVersion, $rel)` in `inc/bootstrap.php` returns `/js/vX.Y.Z/<rel>`. Used by `<script src=>` and importmap values in `inc/main-view.php` (importmap keys keep their `./` form; *values* are absolute).
+- **Theme sprite paths**: `js/themes.js` lists icons as `/img/themes/<theme>/icon_NNN.png` — absolute.
+- **API calls from JS**: `js/telaris-3d.js` and friends use `/api/...` — never `api/...`.
+
+When adding a new visitor-facing asset reference, route it through `db_normalize_asset_url` (for stored URLs) or hardcode the absolute path. Symptoms of a missed one: the feature works on `/{slug}` but breaks on a permalink. Common failure modes — invisible sprite textures (silent texture-load failure), 404 chains during bootstrap that leave the scene blank.
+
 ### Discovery features (per-galaxy opt-in)
 
 A family of per-galaxy toggles in the admin/editor's "Discovery" section of the galaxy edit modal. Every flag is off by default — existing galaxies look identical until an editor opts in. All settings live on the `constellations` table and are managed by `db_get_constellation_tour_config` / `db_set_constellation_tour_config`. New columns auto-migrate via `db_ensure_constellations_tour_columns()`. The shared form handler is `inc/galaxy-update.php`'s `handle_galaxy_update_post()`, used by both `admin/index.php` and `edit/index.php`.
@@ -252,11 +270,11 @@ A family of per-galaxy toggles in the admin/editor's "Discovery" section of the 
 
 **Keyword chip strip** (`keyword_chips_enabled`). Top-N most-used keywords for the current galaxy as text-only filter chips at the bottom of the visitor view; click to dim non-matching wormholes (OR-match across active chips). Up to 40 chips emitted in random order, CSS-clipped to two lines, so a different sample surfaces each load.
 
-**Related wormholes** (`related_nodes_enabled`). When an info card opens, dim everything except the current node + nodes sharing keywords; show up to 5 click-to-jump chips at the bottom of the card. Click → tour-style camera fly to the target.
+**Related wormholes** (`related_nodes_enabled`). When an info card opens, dim everything except the current node + nodes sharing keywords; show up to 5 click-to-jump chips at the bottom of the card. Click → tour-style camera fly to the target. **The chip pool spans the galaxy's *group*** (prefix-family siblings ∪ tag-shared galaxies ∪ cluster co-members ∪ self), so a wormhole's chips can surface related wormholes from sibling galaxies even when the visitor is browsing a single galaxy. Cross-galaxy candidates get a stochastic order boost (~70% chance of outranking same-galaxy candidates within each shared-keyword tier) so the chip row doesn't look parochial. Backed by `db_get_group_galaxy_ids()` and `db_get_related_nodes()` in `inc/db.php`, served via `api/nodes.php?related_to=NODE_ID&limit=N`. Keyword matching is by lowercased name (not `keyword_id`) so it works across galaxies where each galaxy has its own copy of e.g. "Ideology". Clicking a chip whose target is in a sibling galaxy navigates to `/{slug}/{node-id}` (the visitor permalink); same-scene clicks reuse the existing fly-to flow.
 
 **Per-node use-image-as-icon** (`nodes.use_image_as_node`, default off). Renders the node's `image_url` as the 3D icon instead of the theme icon. The Discovery section has a bulk action that flips it on/off for every wormhole in the galaxy in one POST.
 
-**Visitor permalinks.** `/{galaxy-slug-or-id}/{wormhole-id}` opens that wormhole's card on load (with camera fly). `?node=ID` is a query-string fallback. The card has a "share" icon next to the close button that copies the permalink.
+**Visitor permalinks.** `/{galaxy-slug-or-id}/{wormhole-id}` opens that wormhole's card on load (with camera fly). `?node=ID` is a query-string fallback. The card has a "share" icon next to the close button that copies the permalink. The portal-back button (top-left) is also shown when `document.referrer` is same-origin; clicking it falls back to `history.back()` when the portal/cluster navigation stack is empty — so cross-galaxy chip clicks are reversible. On permalink loads, the load fade-in animation is **skipped entirely** (both the initial `_portalFadeInMultiplier=0` in `loadData` and the post-warp fade in `showBeginButton`) so the target scene appears instantly rather than fading up over ~3s while the auto-open camera fly fights with the multiplier.
 
 **Frontend modules.** Each lives in its own file: `js/auto-tour.js` (`TourController`), `js/idle-spotlight.js` (`IdleSpotlightController`), `js/keyword-chips.js` (`KeywordChipsController`). Per-card behaviors (related row, dim, halo, label, ease-in) are in `js/telaris-3d.js`. The shared edit modal is the partial at `inc/partials/galaxy-edit-modal.php` plus `js/galaxy-edit-modal.js`. All discovery configs are injected into `window.TELARIS_*` globals by `inc/bootstrap.php` + `inc/main-view.php`. Backup/restore preserves all tour fields + keyword selections via `inc/backup.php`.
 

@@ -303,6 +303,17 @@ tests/
 
 ## Version History
 
+### Version 6.9.x — Multigalaxy, PDFs, mail, snapshots polish
+
+- **Multigalaxy views** — visitors can see wormholes from multiple galaxies in one 3D scene through four mechanisms: `?galaxies=a,b,c` query-string union, `/[XXX]` name-prefix family union, `/tag/<slug>` tag union, and a first-class **Galaxy Cluster** type with its own slug, theme, and admin-only management UI. Cross-galaxy connections render as dashed bridges. Each wormhole keeps its source galaxy's theme so icons stay recognizable across themes. Bottom-right slide-up strip lists the union members and lets visitors dim non-selected galaxies.
+- **Cross-galaxy related wormholes** — the info-card "related wormholes" chip row now draws from the source galaxy's *group* (prefix-family siblings ∪ tag-shared galaxies ∪ cluster co-members), so chips can surface wormholes from sibling galaxies. Cross-galaxy chips navigate to the target's permalink; same-scene chips reuse the existing fly-to.
+- **PDF wormhole media** — wormholes can carry a PDF as their primary visual, rendered in the info card via vendored Mozilla PDF.js. Admin-configurable max size (default 25 MB). Three-way mutex with image and video; audio remains independent.
+- **Outbound mail** — SMTP via Mailgun (PHPMailer 7). Powers a single-use, no-enumeration password reset flow and the bulk-user-creation email-invite stream.
+- **Bulk user creation** — paste TSV/CSV in the admin Users tab; preview before commit; existing emails skipped per-row; new users get a 7-day setup link via email.
+- **Editor productivity** — touched-today filter, bulk-by-keyword (delete or move to galaxy), `/edit/?slug=foo` routing, and keyboard shortcuts (`n`, `/`, `t`, `g`, `?`).
+- **Path-versioned JS, site-absolute everywhere** — `/js/vX.Y.Z/foo.js` busts Safari's ES module cache reliably. All asset URLs (theme sprites, API calls, DB-stored upload URLs) are emitted absolute, so visitor permalinks like `/{slug}/{node-id}` don't break on relative-path resolution.
+- **Snapshot scheduler is multi-tenant** — the daily-snapshot cron entry is installed transparently by the admin toggle (no sysadmin step) and tagged per-site, so multiple Telaris instances on one host coexist in the same crontab without overwriting each other's entry.
+
 ### Version 6.7.x — Discovery & editor productivity
 
 Per-galaxy "Discovery" features that turn the same scene into a more inviting experience without changing the underlying data. Every flag is off by default. All settings sit on the `constellations` table and are managed through the Discovery section of the galaxy edit modal in admin and the editor (the modal is shared via `inc/partials/galaxy-edit-modal.php` + `inc/galaxy-update.php`).
