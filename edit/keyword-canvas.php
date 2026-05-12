@@ -176,6 +176,32 @@ $kcStrings = [
         .kc-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-family: ui-sans-serif, system-ui, sans-serif; }
         .kc-status { font-size: 0.75rem; color: #9ca3af; margin-left: auto; }
         .kc-mobile-block { display: none; }
+
+        /* Anchor pulse during a line draw. When the SVG carries .kc-drawing,
+           every anchor dot that isn't on the source chip pulses slowly to
+           advertise "you can drop here". The source chip is tagged with
+           data-kc-draw-source so its anchors are explicitly excluded. */
+        svg.kc-drawing [data-kc-node]:not([data-kc-draw-source="1"]) circle[pointer-events="none"] {
+            animation: kc-anchor-pulse 1.4s ease-in-out infinite;
+        }
+        @keyframes kc-anchor-pulse {
+            0%   { opacity: 0.4; }
+            50%  { opacity: 1; }
+            100% { opacity: 0.4; }
+        }
+
+        /* New-line creation flash. The kc-flash class is added to the visible
+           line right after the relation lands in state, then removed after the
+           animation completes. Uses width/opacity not the colour itself so the
+           per-line glow colour keeps reading consistently. */
+        line.kc-flash {
+            animation: kc-line-flash 720ms ease-out;
+        }
+        @keyframes kc-line-flash {
+            0%   { stroke-opacity: 1; stroke-width: 4; filter: drop-shadow(0 0 10px currentColor); }
+            100% { stroke-opacity: 0.6; stroke-width: 1.25; }
+        }
+
         @media (max-width: 767px) {
             .kc-stage { display: none; }
             .kc-mobile-block { display: flex; align-items: center; justify-content: center; padding: 2rem; font-family: ui-sans-serif, system-ui, sans-serif; color: #d1d5db; text-align: center; }

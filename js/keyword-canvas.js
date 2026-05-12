@@ -44,7 +44,7 @@
     // chip never reads below CHIP_MIN_PX (unreadable on zoom-out) or above
     // CHIP_MAX_PX (oversized + unprofessional on zoom-in). Within the band the
     // chip scales naturally with the zoom.
-    const CHIP_MIN_PX = 14;
+    const CHIP_MIN_PX = 20;
     const CHIP_MAX_PX = 22;
 
     // Pastel palette + per-keyword hash, ported verbatim from js/keyword-chips.js
@@ -97,6 +97,67 @@
 
     // Current chip extra-scale factor (kept up to date by updateChipScale).
     let chipScale = 1;
+
+    // ---------------------------------------------------------------------
+    // Idle float — tiny orbital offset per chip, like the 3D wormhole scene's
+    // floating nodes. Updated every animation frame from `performance.now()`,
+    // applied at render time only (does NOT touch state.positions, so saves +
+    // physics integration stay clean). Phase + per-axis radii / frequencies are
+    // deterministic from the keyword name so reloads reproduce the same idle
+    // motion.
+    // ---------------------------------------------------------------------
+    const IDLE_RADIUS_MIN = 3;   // canvas units
+    const IDLE_RADIUS_MAX = 5;
+    const IDLE_PERIOD_MIN = 6;   // seconds per full orbit
+    const IDLE_PERIOD_MAX = 10;
+    const idleOffsets = new Map(); // kwId -> { dx, dy }
+
+    /** Deterministic 0-1 value from a string, for per-chip phase + tuning. */
+    function hashPhase(s) {
+        let h = 0;
+        for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+        // bring into [0, 1)
+        return ((h >>> 0) % 10000) / 10000;
+    }
+
+    function idleOffsetFor(kwId) {
+        // Skip the idle drift for chips the user is actively dragging — having
+        // the chip oscillate around the cursor would feel jittery and wrong.
+        // isDragLocked is defined further down (hoisted at run time).
+        if (isDragLocked(kwId)) return { dx: 0, dy: 0 };
+        return idleOffsets.get(kwId) || { dx: 0, dy: 0 };
+    }
+
+    function updateIdleOffsets(timestampMs) {
+        const t = timestampMs / 1000;
+        state.keywords.forEach((kw, id) => {
+            const p1 = hashPhase(kw.name);
+            const p2 = hashPhase(kw.name + '·y');
+            const rx = IDLE_RADIUS_MIN + (IDLE_RADIUS_MAX - IDLE_RADIUS_MIN) * p1;
+            const ry = IDLE_RADIUS_MIN + (IDLE_RADIUS_MAX - IDLE_RADIUS_MIN) * p2;
+            const periodX = IDLE_PERIOD_MIN + (IDLE_PERIOD_MAX - IDLE_PERIOD_MIN) * p1;
+            const periodY = IDLE_PERIOD_MIN + (IDLE_PERIOD_MAX - IDLE_PERIOD_MIN) * p2;
+            const phaseX = p1 * Math.PI * 2;
+            const phaseY = p2 * Math.PI * 2;
+            const dx = Math.cos(t * (2 * Math.PI / periodX) + phaseX) * rx;
+            const dy = Math.sin(t * (2 * Math.PI / periodY) + phaseY) * ry;
+            let off = idleOffsets.get(id);
+            if (!off) { off = { dx: 0, dy: 0 }; idleOffsets.set(id, off); }
+            off.dx = dx; off.dy = dy;
+        });
+    }
+
+    // Hover state — which chip or relation the pointer is currently over, used
+    // to dim non-connected chips/lines so the editor sees the local structure
+    // at a glance. Updated by mouseenter/mouseleave handlers; consumed by the
+    // render functions when assigning per-element opacity.
+    const hoverState = { kwId: null, relId: null };
+
+    // Physics ease-in — when kickPhysics() fires, the spring/repulsion forces
+    // are scaled by a smoothstep over the first PHYSICS_EASE_IN_MS so the
+    // motion blooms instead of jolting. Re-armed on every kick.
+    let physicsKickedAt = 0;
+    const PHYSICS_EASE_IN_MS = 320;
 
     // ---------------------------------------------------------------------
     // Util
@@ -158,16 +219,27 @@
         return true;
     }
 
-    /** Apply translate + chipScale transform to a single node group. */
-    function setNodeTransform(g, x, y) {
+    /**
+     * Apply translate + chipScale transform to a single node group. Reads the
+     * logical position from state and adds the per-chip idle-float offset so
+     * the chip oscillates gently around its position. Drag-locked chips skip
+     * the idle offset (see idleOffsetFor).
+     */
+    function setNodeTransform(g, kwId) {
+        const pos = state.positions.get(kwId);
+        if (!pos) return;
+        const off = idleOffsetFor(kwId);
+        const x = pos.x + off.dx;
+        const y = pos.y + off.dy;
         g.setAttribute('transform', `translate(${x}, ${y}) scale(${chipScale})`);
     }
 
-    /** Walk all node groups and re-apply transforms (used after a zoom change). */
+    /** Walk all node groups and re-apply transforms (used after a zoom change
+     *  or any time the idle offsets advance — i.e. every animation frame). */
     function reapplyAllNodeTransforms() {
-        state.positions.forEach((pos, kwId) => {
+        state.positions.forEach((_pos, kwId) => {
             const g = layerNodes.querySelector(`[data-kc-node="${kwId}"]`);
-            if (g) setNodeTransform(g, pos.x, pos.y);
+            if (g) setNodeTransform(g, kwId);
         });
     }
 
@@ -191,6 +263,198 @@
         state.view.y = minY - padY;
         state.view.w = dataW + padX * 2;
         state.view.h = dataH + padY * 2;
+    }
+
+    // ---------------------------------------------------------------------
+    // Physics — Stage 1: lines-as-springs only.
+    //
+    // Each keyword_relations line acts as a soft spring between its two
+    // endpoint chips with a target rest distance. Chips with moved_by != null
+    // are kinematic — they contribute spring force to their neighbours but
+    // are not moved by it (editorial placement is sacred). Chips currently
+    // being dragged are also exempt for the duration of the drag.
+    //
+    // No global repulsion, no co-occurrence attraction. Those are Stage 2/3
+    // and live in the keyword-canvas project memory note. The political
+    // argument for keeping it this minimal: lines are the only explicit
+    // editorial signal of "these are related" — physics that responds to
+    // anything else would silently encode statistical claims as if they were
+    // editorial decisions.
+    //
+    // Physics state is NEVER persisted. Each page load runs the loop from
+    // the saved (authored + Poisson-seeded) state to a settled layout. The
+    // algorithm is deterministic so the same inputs produce the same output.
+    // ---------------------------------------------------------------------
+    const PHYSICS_REST_DISTANCE = 240;    // canvas units; target spring length
+    const PHYSICS_SPRING_K = 0.012;       // stiffness per frame (soft)
+    const PHYSICS_DAMPING = 0.82;         // velocity multiplier per frame
+    const PHYSICS_SETTLE_VELOCITY = 0.15; // canvas units/frame; below = at rest
+    const PHYSICS_MAX_STEPS = 600;        // safety cap (~10s @ 60fps)
+    // Stage 2: light global repulsion. Every pair of chips pushes each other
+    // away with a Coulomb-style 1/r² falloff, but only within REPULSION_CUTOFF
+    // — beyond that distance the force is zero, which keeps the layout from
+    // expanding indefinitely to the canvas boundaries. REPULSION_K is tuned
+    // weak enough that springs at rest length dominate; repulsion mostly
+    // matters for chips that aren't bound by a line, and for breaking up
+    // tight clusters of co-located chips.
+    const PHYSICS_REPULSION_K = 600;      // Coulomb constant
+    const PHYSICS_REPULSION_CUTOFF = 360; // canvas units; no repulsion beyond
+    const PHYSICS_REPULSION_MIN_DIST = 30; // clamp r below this to avoid blow-up
+
+    const physicsVelocities = new Map(); // kwId -> { vx, vy }
+    let physicsActive = false;
+    let physicsStepsRun = 0;
+
+    // Single continuous animation loop. Always running while the canvas is
+    // visible. Each frame:
+    //   1. Advance idle-float offsets (so chips drift around their positions)
+    //   2. Run one physics step (if active) with smoothstep-eased forces
+    //   3. Apply all node transforms + line endpoint updates
+    // Switching from a "physics-only RAF that stops on settle" to a continuous
+    // loop is what lets idle motion be ambient — it runs even when the layout
+    // is at rest.
+    let animationRafId = null;
+
+    function isPinned(kwId) {
+        const p = state.positions.get(kwId);
+        return !!(p && p.moved_by != null);
+    }
+
+    function isDragLocked(kwId) {
+        if (dragCtx && dragCtx.kwId === kwId) return true;
+        if (state.groupDrag && state.groupDrag.startPositions.has(kwId)) return true;
+        return false;
+    }
+
+    /**
+     * One physics tick. `easeFactor` (0..1) scales the applied forces — used
+     * to smoothstep the ramp-up after a kick so motion blooms instead of
+     * jolting. Does NOT directly render: the animation loop handles that
+     * after the step. Returns the max chip velocity for settle detection.
+     */
+    function physicsStep(easeFactor) {
+        const forces = new Map();
+
+        // Pass 1: spring forces from each editorial relation (lines drawn).
+        // This is the only attraction signal — Stage 3 (co-occurrence) is
+        // explicitly off; see project_keyword_canvas.md for the rationale.
+        state.relations.forEach(rel => {
+            const pa = state.positions.get(rel.a);
+            const pb = state.positions.get(rel.b);
+            if (!pa || !pb) return;
+            const dx = pb.x - pa.x;
+            const dy = pb.y - pa.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
+            const stretch = dist - PHYSICS_REST_DISTANCE;
+            const mag = PHYSICS_SPRING_K * stretch * easeFactor;
+            const fx = (dx / dist) * mag;
+            const fy = (dy / dist) * mag;
+            let fa = forces.get(rel.a); if (!fa) { fa = { fx: 0, fy: 0 }; forces.set(rel.a, fa); }
+            let fb = forces.get(rel.b); if (!fb) { fb = { fx: 0, fy: 0 }; forces.set(rel.b, fb); }
+            fa.fx += fx; fa.fy += fy;
+            fb.fx -= fx; fb.fy -= fy;
+        });
+
+        // Pass 2: global Coulomb-style repulsion between every pair of chips.
+        // Only chips within REPULSION_CUTOFF interact, which keeps the cost
+        // bounded and the layout from expanding indefinitely. Pinned chips
+        // still apply force to their neighbours but don't receive it (the
+        // velocity integration below ignores them entirely).
+        const positionsArr = Array.from(state.positions.entries());
+        for (let i = 0; i < positionsArr.length; i++) {
+            const [idA, posA] = positionsArr[i];
+            for (let j = i + 1; j < positionsArr.length; j++) {
+                const [idB, posB] = positionsArr[j];
+                const dx = posB.x - posA.x;
+                const dy = posB.y - posA.y;
+                let dist2 = dx * dx + dy * dy;
+                if (dist2 > PHYSICS_REPULSION_CUTOFF * PHYSICS_REPULSION_CUTOFF) continue;
+                let dist = Math.sqrt(dist2) || 0.001;
+                if (dist < PHYSICS_REPULSION_MIN_DIST) dist = PHYSICS_REPULSION_MIN_DIST;
+                const mag = (PHYSICS_REPULSION_K / (dist * dist)) * easeFactor;
+                const fx = (dx / dist) * mag;
+                const fy = (dy / dist) * mag;
+                let fa = forces.get(idA); if (!fa) { fa = { fx: 0, fy: 0 }; forces.set(idA, fa); }
+                let fb = forces.get(idB); if (!fb) { fb = { fx: 0, fy: 0 }; forces.set(idB, fb); }
+                fa.fx -= fx; fa.fy -= fy;
+                fb.fx += fx; fb.fy += fy;
+            }
+        }
+
+        let maxV = 0;
+        state.positions.forEach((pos, kwId) => {
+            if (isPinned(kwId) || isDragLocked(kwId)) {
+                physicsVelocities.delete(kwId);
+                return;
+            }
+            const f = forces.get(kwId);
+            if (!f) {
+                physicsVelocities.delete(kwId);
+                return;
+            }
+            let v = physicsVelocities.get(kwId);
+            if (!v) { v = { vx: 0, vy: 0 }; physicsVelocities.set(kwId, v); }
+            v.vx = (v.vx + f.fx) * PHYSICS_DAMPING;
+            v.vy = (v.vy + f.fy) * PHYSICS_DAMPING;
+            const speed = Math.sqrt(v.vx * v.vx + v.vy * v.vy);
+            if (speed > maxV) maxV = speed;
+            if (speed > 0.01) {
+                pos.x = Math.max(0, Math.min(CANVAS_W, pos.x + v.vx));
+                pos.y = Math.max(0, Math.min(CANVAS_H, pos.y + v.vy));
+            }
+        });
+        return maxV;
+    }
+
+    function startAnimationLoop() {
+        if (animationRafId) return;
+        const tick = (timestampMs) => {
+            updateIdleOffsets(timestampMs);
+            if (physicsActive) {
+                physicsStepsRun++;
+                const elapsed = timestampMs - physicsKickedAt;
+                const e = Math.max(0, Math.min(1, elapsed / PHYSICS_EASE_IN_MS));
+                const easeFactor = e * e * (3 - 2 * e); // smoothstep
+                const maxV = physicsStep(easeFactor);
+                if (maxV < PHYSICS_SETTLE_VELOCITY && elapsed > PHYSICS_EASE_IN_MS) {
+                    physicsActive = false;
+                    physicsVelocities.clear();
+                } else if (physicsStepsRun >= PHYSICS_MAX_STEPS) {
+                    physicsActive = false;
+                    physicsVelocities.clear();
+                }
+            }
+            // Render every frame: idle offsets advance even when physics is at
+            // rest, so chip transforms + line endpoints must follow.
+            reapplyAllNodeTransforms();
+            updateLinePositions();
+            animationRafId = requestAnimationFrame(tick);
+        };
+        animationRafId = requestAnimationFrame(tick);
+    }
+
+    function startPhysicsLoop() {
+        physicsActive = true;
+        physicsStepsRun = 0;
+        physicsKickedAt = performance.now();
+    }
+
+    function stopPhysicsLoop() {
+        physicsActive = false;
+        physicsVelocities.clear();
+    }
+
+    /**
+     * Re-energize the simulation. Call this after any change that could shift
+     * the equilibrium: new relation, deleted relation, chip released after
+     * drag (so connected chips can adapt to the new pin position). Re-arms the
+     * ease-in so the new motion blooms instead of jolting.
+     */
+    function kickPhysics() {
+        physicsVelocities.clear();
+        physicsActive = true;
+        physicsStepsRun = 0;
+        physicsKickedAt = performance.now();
     }
 
     // ---------------------------------------------------------------------
@@ -221,6 +485,12 @@
             fitViewToData();
             updateChipScale();
             renderAll();
+            // Physics: settle the layout from saved positions; chips with
+            // line attachments drift toward spring equilibrium, others get
+            // mild global repulsion. Pinned chips stay put. The animation
+            // loop also drives idle float (continuous, runs forever).
+            startPhysicsLoop();
+            startAnimationLoop();
             setStatus('Ready', 'saved');
         } catch (err) {
             setStatus(`Load failed: ${err.message}`, 'error');
@@ -231,12 +501,48 @@
     // ---------------------------------------------------------------------
     // Rendering
     // ---------------------------------------------------------------------
-    let layerLines, layerNodes, layerPreview, layerPopup;
+    let layerBg, layerLines, layerNodes, layerPreview, layerPopup;
 
     function ensureLayers() {
-        // Idempotent: build the three z-layered groups exactly once.
+        // Idempotent: build the z-layered groups exactly once.
         if (svg.querySelector('[data-kc-layer="lines"]')) return;
         svg.innerHTML = '';
+
+        // <defs> with the dot-grid pattern. Static, non-animated background
+        // texture — gives the canvas the "design tool" feel of a Figma /
+        // Miro board without claiming any semantic content of its own.
+        // Sized for visibility at default zoom (~0.7 px/canvas-unit): dots
+        // at 4-unit radius render as ~3 px circles, spaced every 60 units.
+        const defs = document.createElementNS(SVG_NS, 'defs');
+        const pat = document.createElementNS(SVG_NS, 'pattern');
+        pat.setAttribute('id', 'kc-dot-grid');
+        pat.setAttribute('width', '60');
+        pat.setAttribute('height', '60');
+        pat.setAttribute('patternUnits', 'userSpaceOnUse');
+        const dot = document.createElementNS(SVG_NS, 'circle');
+        dot.setAttribute('cx', '30');
+        dot.setAttribute('cy', '30');
+        dot.setAttribute('r', '4');
+        dot.setAttribute('fill', '#71717a');
+        dot.setAttribute('fill-opacity', '0.45');
+        pat.appendChild(dot);
+        defs.appendChild(pat);
+        svg.appendChild(defs);
+
+        layerBg = document.createElementNS(SVG_NS, 'g');
+        layerBg.setAttribute('data-kc-layer', 'bg');
+        const bgRect = document.createElementNS(SVG_NS, 'rect');
+        // Oversize so the grid stays present even when panned outside the
+        // canonical [0,CANVAS_W]×[0,CANVAS_H] box.
+        bgRect.setAttribute('x', String(-CANVAS_W));
+        bgRect.setAttribute('y', String(-CANVAS_H));
+        bgRect.setAttribute('width', String(CANVAS_W * 3));
+        bgRect.setAttribute('height', String(CANVAS_H * 3));
+        bgRect.setAttribute('fill', 'url(#kc-dot-grid)');
+        bgRect.setAttribute('pointer-events', 'none');
+        layerBg.appendChild(bgRect);
+        svg.appendChild(layerBg);
+
         layerLines = document.createElementNS(SVG_NS, 'g');
         layerLines.setAttribute('data-kc-layer', 'lines');
         svg.appendChild(layerLines);
@@ -290,27 +596,33 @@
 
             const g = document.createElementNS(SVG_NS, 'g');
             g.setAttribute('data-kc-node', String(id));
-            setNodeTransform(g, pos.x, pos.y);
+            setNodeTransform(g, id);
             g.style.cursor = 'grab';
 
-            // Pill background — pastel fill keyed by keyword name. Sized after
-            // text is measured. Rounded corners (rx >= h/2) make it a true pill.
+            // Pill — match the chip style used everywhere else in Telaris
+            // (edit/index.php preview, keyword-chips visitor strip): pastel
+            // background at 25% opacity, pastel border at 25% opacity, pastel
+            // text at full opacity. Authoritative palette + hash in
+            // js/keyword-chips.js. Sized after text is measured.
             const pastel = CHIP_FG[colorIndexFor(kw.name)];
             const rect = document.createElementNS(SVG_NS, 'rect');
             rect.setAttribute('fill', pastel);
+            rect.setAttribute('fill-opacity', '0.25');
             const isSelected = state.selectedNodeIds.has(id);
-            // Selection outline: pixel-pinned thickness via non-scaling-stroke,
-            // bright white + dashed so it pops against any pastel fill. This
-            // outline persists across drags (state.selectedNodeIds is preserved
-            // through group-drag-release, so the same chips can be dragged again).
-            rect.setAttribute('stroke', isSelected ? '#ffffff' : 'none');
-            rect.setAttribute('stroke-width', isSelected ? '2.5' : '0');
-            rect.setAttribute('vector-effect', 'non-scaling-stroke');
+            // Selection outline replaces the resting pastel border. White +
+            // dashed, pixel-pinned thickness via non-scaling-stroke, persists
+            // across drags (selectedNodeIds isn't cleared on drag-release).
             if (isSelected) {
+                rect.setAttribute('stroke', '#ffffff');
+                rect.setAttribute('stroke-width', '2.5');
                 rect.setAttribute('stroke-dasharray', '4,3');
             } else {
+                rect.setAttribute('stroke', pastel);
+                rect.setAttribute('stroke-opacity', '0.4');
+                rect.setAttribute('stroke-width', '1');
                 rect.removeAttribute('stroke-dasharray');
             }
+            rect.setAttribute('vector-effect', 'non-scaling-stroke');
             g.appendChild(rect);
 
             const text = document.createElementNS(SVG_NS, 'text');
@@ -319,7 +631,7 @@
             text.setAttribute('font-family', 'ui-sans-serif, system-ui, sans-serif');
             text.setAttribute('font-size', String(NODE_FONT_SIZE));
             text.setAttribute('font-weight', '500');
-            text.setAttribute('fill', '#1f2937');
+            text.setAttribute('fill', pastel);
             text.setAttribute('pointer-events', 'none');
             text.textContent = `#${kw.name}`;
             g.appendChild(text);
@@ -390,35 +702,59 @@
             case 'left':   dx = -size.w / 2; break;
             default:       dx = size.w / 2;  break;
         }
-        return { x: pos.x + dx * chipScale, y: pos.y + dy * chipScale };
+        // Include the idle-float offset so the line endpoint travels with the
+        // visible anchor as the chip oscillates around its logical position.
+        const off = idleOffsetFor(kwId);
+        return { x: pos.x + off.dx + dx * chipScale, y: pos.y + off.dy + dy * chipScale };
     }
 
+    /**
+     * Rebuild every line element from scratch. Called when the set of
+     * relations changes (create / delete / select toggle) or on full
+     * renderAll. For per-frame position updates (idle drift, physics), the
+     * animation loop calls the cheaper updateLinePositions() helper.
+     */
     function renderLines() {
         layerLines.innerHTML = '';
         state.relations.forEach((rel, id) => {
             // Each relation renders as two stacked <line>s:
-            //  1. Visible line — thin (1.25 / 2 px), pointer-events disabled.
-            //  2. Hit line — transparent stroke ~14 px wide on top, pointer-events
-            //     enabled. Catches clicks anywhere within a band around the
-            //     visible stroke so selecting a 1.25 px line isn't finicky.
+            //  1. Visible line — thin (1.25 / 2 px), pointer-events disabled,
+            //     with a soft drop-shadow glow keyed to the average of the two
+            //     endpoint chips' colours (so the line reads as a connection
+            //     with presence, not a flat stroke).
+            //  2. Hit line — transparent stroke ~14 px wide on top, pointer-
+            //     events enabled. Catches clicks anywhere in a band around
+            //     the visible stroke so selecting a 1.25 px line isn't finicky.
             //
-            // Line endpoints are computed from each keyword's *anchor* (where
-            // the editor dropped the line) — not the chip center. Legacy rows
-            // without anchor info default to 'right'/'left'.
+            // Both lines carry data-kc-relation so updateLinePositions and the
+            // hover handlers can find them.
             const ptA = anchorWorldPoint(rel.a, rel.anchor_a || 'right');
             const ptB = anchorWorldPoint(rel.b, rel.anchor_b || 'left');
             if (!ptA || !ptB) return;
+
+            // Per-line glow colour from the average of the two endpoint
+            // chips' pastel colours. Cheap blend via parsing the two hex codes.
+            const kwA = state.keywords.get(rel.a);
+            const kwB = state.keywords.get(rel.b);
+            const glowHex = kwA && kwB
+                ? blendHex(CHIP_FG[colorIndexFor(kwA.name)], CHIP_FG[colorIndexFor(kwB.name)])
+                : '#cbd5e1';
 
             const visible = document.createElementNS(SVG_NS, 'line');
             visible.setAttribute('x1', String(ptA.x));
             visible.setAttribute('y1', String(ptA.y));
             visible.setAttribute('x2', String(ptB.x));
             visible.setAttribute('y2', String(ptB.y));
-            visible.setAttribute('stroke', state.selectedRelId === id ? '#93c5fd' : '#cbd5e1');
+            visible.setAttribute('stroke', state.selectedRelId === id ? '#93c5fd' : glowHex);
             visible.setAttribute('vector-effect', 'non-scaling-stroke');
             visible.setAttribute('stroke-width', state.selectedRelId === id ? '2' : '1.25');
-            visible.setAttribute('stroke-opacity', state.selectedRelId === id ? '0.95' : '0.55');
+            visible.setAttribute('stroke-opacity', state.selectedRelId === id ? '0.95' : '0.6');
             visible.setAttribute('pointer-events', 'none');
+            visible.setAttribute('data-kc-relation', String(id));
+            visible.setAttribute('data-kc-line-visible', '1');
+            visible.setAttribute('data-kc-glow', glowHex);
+            visible.style.filter = `drop-shadow(0 0 3px ${glowHex})`;
+            visible.style.transition = 'stroke-opacity 160ms ease-out, stroke-width 160ms ease-out, filter 160ms ease-out';
             layerLines.appendChild(visible);
 
             const hit = document.createElementNS(SVG_NS, 'line');
@@ -431,6 +767,7 @@
             hit.setAttribute('stroke-width', '14');
             hit.setAttribute('pointer-events', 'stroke');
             hit.setAttribute('data-kc-relation', String(id));
+            hit.setAttribute('data-kc-line-hit', '1');
             hit.style.cursor = 'pointer';
             const title = document.createElementNS(SVG_NS, 'title');
             const auth = rel.created_by ? `${rel.created_by}` : '(no author)';
@@ -440,6 +777,79 @@
             hit.appendChild(title);
             layerLines.appendChild(hit);
         });
+        applyHoverStyles();
+    }
+
+    /**
+     * Per-frame update for line endpoints: walk the existing DOM elements and
+     * rewrite x1/y1/x2/y2 only. Much cheaper than the full innerHTML='…' +
+     * rebuild that renderLines does. Used by the animation loop.
+     */
+    function updateLinePositions() {
+        if (!layerLines || state.relations.size === 0) return;
+        const lines = layerLines.querySelectorAll('line[data-kc-relation]');
+        for (const el of lines) {
+            const id = parseInt(el.getAttribute('data-kc-relation'), 10);
+            const rel = state.relations.get(id);
+            if (!rel) continue;
+            const ptA = anchorWorldPoint(rel.a, rel.anchor_a || 'right');
+            const ptB = anchorWorldPoint(rel.b, rel.anchor_b || 'left');
+            if (!ptA || !ptB) continue;
+            el.setAttribute('x1', String(ptA.x));
+            el.setAttribute('y1', String(ptA.y));
+            el.setAttribute('x2', String(ptB.x));
+            el.setAttribute('y2', String(ptB.y));
+        }
+    }
+
+    /** Average two #rrggbb colours into a single hex string. */
+    function blendHex(a, b) {
+        const pa = parseInt(a.slice(1), 16);
+        const pb = parseInt(b.slice(1), 16);
+        const r = Math.round((((pa >> 16) & 0xff) + ((pb >> 16) & 0xff)) / 2);
+        const g = Math.round((((pa >> 8) & 0xff) + ((pb >> 8) & 0xff)) / 2);
+        const bl = Math.round(((pa & 0xff) + (pb & 0xff)) / 2);
+        return '#' + [r, g, bl].map(v => v.toString(16).padStart(2, '0')).join('');
+    }
+
+    /**
+     * Hover-reveals-structure. Hovering a chip thickens + brightens the lines
+     * connecting it to its neighbours; hovering a line does the same for that
+     * single line. No chip dimming, no opacity changes on non-connected
+     * lines — the highlight is purely additive, the canvas stays readable.
+     *
+     * Each line's resting glow colour is stored on `data-kc-glow` by
+     * renderLines; on highlight we layer a second drop-shadow with a wider
+     * blur to thicken the bloom. The transition declarations on the line's
+     * inline style (set in renderLines) animate stroke-width, opacity, and
+     * filter smoothly.
+     */
+    function applyHoverStyles() {
+        if (!layerLines) return;
+        let activeRels = new Set();
+        if (hoverState.kwId != null) {
+            state.relations.forEach((rel, id) => {
+                if (rel.a === hoverState.kwId || rel.b === hoverState.kwId) {
+                    activeRels.add(id);
+                }
+            });
+        } else if (hoverState.relId != null) {
+            activeRels.add(hoverState.relId);
+        }
+        const visibles = layerLines.querySelectorAll('line[data-kc-line-visible]');
+        for (const el of visibles) {
+            const id = parseInt(el.getAttribute('data-kc-relation'), 10);
+            const glow = el.getAttribute('data-kc-glow') || '#cbd5e1';
+            if (activeRels.has(id)) {
+                el.style.strokeWidth = '2.5';
+                el.style.strokeOpacity = '1';
+                el.style.filter = `drop-shadow(0 0 6px ${glow}) drop-shadow(0 0 14px ${glow})`;
+            } else {
+                el.style.strokeWidth = '';
+                el.style.strokeOpacity = '';
+                el.style.filter = `drop-shadow(0 0 3px ${glow})`;
+            }
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -582,7 +992,7 @@
             const pos = state.positions.get(dragCtx.kwId);
             if (pos) {
                 pos.x = newX; pos.y = newY;
-                setNodeTransform(dragCtx.gEl, newX, newY);
+                setNodeTransform(dragCtx.gEl, dragCtx.kwId);
                 renderLines(); // lines glued to centers
             }
             return;
@@ -597,7 +1007,7 @@
                 pos.x = Math.max(0, Math.min(CANVAS_W, startPos.x + dx));
                 pos.y = Math.max(0, Math.min(CANVAS_H, startPos.y + dy));
                 const g = layerNodes.querySelector(`[data-kc-node="${kwId}"]`);
-                if (g) setNodeTransform(g, pos.x, pos.y);
+                if (g) setNodeTransform(g, kwId);
             });
             renderLines();
             return;
@@ -641,6 +1051,9 @@
             gEl.style.cursor = 'grab';
             try { svg.releasePointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
             dragCtx = null;
+            // The dragged chip now has a fresh pinned position. Re-energize
+            // physics so connected chips can settle around the new anchor.
+            kickPhysics();
             return;
         }
         if (state.groupDrag && ev.pointerId === state.groupDrag.pointerId) {
@@ -651,6 +1064,7 @@
             });
             try { svg.releasePointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
             state.groupDrag = null;
+            kickPhysics();
             return;
         }
         if (state.rubberBand && ev.pointerId === state.rubberBand.pointerId) {
@@ -814,6 +1228,13 @@
         state.drawStartAnchor = side;
         state.drawClientStart = { x: ev.clientX, y: ev.clientY };
         state.drawIsDragging = false;
+        // Pulse the anchor dots on every chip OTHER than the source chip to
+        // advertise "you can drop here." The svg-level kc-drawing class drives
+        // the CSS animation; the source chip is tagged so the CSS can exclude
+        // its anchors from the pulse.
+        svg.classList.add('kc-drawing');
+        const sourceG = layerNodes.querySelector(`[data-kc-node="${kwId}"]`);
+        if (sourceG) sourceG.setAttribute('data-kc-draw-source', '1');
         const pt = clientToCanvas(ev.clientX, ev.clientY);
         state.previewLine = document.createElementNS(SVG_NS, 'line');
         state.previewLine.setAttribute('x1', String(pt.x));
@@ -854,6 +1275,10 @@
             state.previewLine.remove();
             state.previewLine = null;
         }
+        // Stop the anchor pulse and clear the source-chip tag.
+        svg.classList.remove('kc-drawing');
+        const tagged = layerNodes && layerNodes.querySelector('[data-kc-draw-source="1"]');
+        if (tagged) tagged.removeAttribute('data-kc-draw-source');
         setStatus('Ready', 'saved');
     }
     async function finalizeLineDraw(targetKwId, targetSide) {
@@ -899,6 +1324,18 @@
                 note: data.note,
             });
             renderLines();
+            // Brief flash on the new line — pure CSS animation triggered by
+            // toggling the kc-flash class for ~720ms. Pairs with the spring
+            // pull-together from kickPhysics() to give the editorial act a
+            // visible heartbeat.
+            const newLine = layerLines.querySelector(
+                `line[data-kc-line-visible][data-kc-relation="${data.id}"]`
+            );
+            if (newLine) {
+                newLine.classList.add('kc-flash');
+                setTimeout(() => newLine.classList.remove('kc-flash'), 720);
+            }
+            kickPhysics();
             setStatus('Saved', 'saved');
         } catch (err) {
             setStatus(`Create failed: ${err.message}`, 'error');
@@ -1023,6 +1460,12 @@
     // ---------------------------------------------------------------------
     async function selectRelation(relId, ev) {
         state.selectedRelId = relId;
+        // Modal will steal focus from the SVG, so no pointerout fires when
+        // the dialog closes and the cursor is no longer on the line. Clear
+        // hover state now so the line doesn't read as "still hovered" once
+        // the user dismisses the modal.
+        hoverState.kwId = null;
+        hoverState.relId = null;
         renderLines();
         const rel = state.relations.get(relId);
         if (!rel) { state.selectedRelId = null; return; }
@@ -1077,6 +1520,7 @@
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 state.relations.delete(relId);
                 renderLines();
+                kickPhysics();
                 setStatus('Deleted', 'saved');
             } catch (err) {
                 setStatus(`Delete failed: ${err.message}`, 'error');
@@ -1085,13 +1529,39 @@
     }
 
     // ---------------------------------------------------------------------
-    // Anchor hover (purely visual)
+    // Hover — anchor pulse (existing) + reveals-structure for chips & lines.
     // ---------------------------------------------------------------------
     svg.addEventListener('pointerover', (ev) => {
         const t = ev.target;
+        // Anchor dot hover: enlarge + brighten the visible dot via the JS-
+        // attached reference set in renderNodes.
         if (t && t.getAttribute && t.getAttribute('data-kc-anchor') && t._kcVisibleDot) {
             t._kcVisibleDot.setAttribute('opacity', '1');
             t._kcVisibleDot.setAttribute('r', String(ANCHOR_RADIUS_HOVER));
+        }
+        // Chip hover: dim non-connected chips + non-connected lines. While
+        // drawing, suppress hover-reveal so the anchor pulse stays the focus.
+        if (state.drawState !== 'drawing') {
+            const nodeG = t && t.closest && t.closest('[data-kc-node]');
+            if (nodeG) {
+                const id = parseInt(nodeG.getAttribute('data-kc-node'), 10);
+                if (hoverState.kwId !== id) {
+                    hoverState.kwId = id;
+                    hoverState.relId = null;
+                    applyHoverStyles();
+                }
+                return;
+            }
+            // Line hover: highlight the two endpoint chips.
+            const relAttr = t && t.getAttribute && t.getAttribute('data-kc-relation');
+            if (relAttr) {
+                const id = parseInt(relAttr, 10);
+                if (hoverState.relId !== id) {
+                    hoverState.relId = id;
+                    hoverState.kwId = null;
+                    applyHoverStyles();
+                }
+            }
         }
     });
     svg.addEventListener('pointerout', (ev) => {
@@ -1099,6 +1569,19 @@
         if (t && t.getAttribute && t.getAttribute('data-kc-anchor') && t._kcVisibleDot) {
             t._kcVisibleDot.setAttribute('opacity', '0.4');
             t._kcVisibleDot.setAttribute('r', String(ANCHOR_RADIUS_REST));
+        }
+        // For chip/line hover, only clear when leaving the SVG to the
+        // outside, or to a different chip/line (handled by the subsequent
+        // pointerover). Walking via relatedTarget keeps the dim from
+        // flickering as the pointer crosses inner SVG geometry.
+        const rt = ev.relatedTarget;
+        const stillInside = rt && rt.closest && (
+            rt.closest('[data-kc-node]') || rt.closest('[data-kc-relation]')
+        );
+        if (!stillInside && (hoverState.kwId != null || hoverState.relId != null)) {
+            hoverState.kwId = null;
+            hoverState.relId = null;
+            applyHoverStyles();
         }
     });
 
