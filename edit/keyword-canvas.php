@@ -71,9 +71,20 @@ $galaxySlug = (string)($galaxyInfo['slug'] ?? '');
 // referrer is same-origin — so admin entry → admin, editor entry → editor,
 // and any other origin path "just works." This PHP fallback only matters when
 // referrer is empty (direct URL, refresh after a long time, privacy mode).
-$backUrl = $galaxySlug !== ''
-    ? '/edit/?slug=' . rawurlencode($galaxySlug)
-    : '/edit/?constellation_id=' . $galaxyId;
+//
+// `?back=visitor` flips the fallback to the visitor wormhole view, so the
+// burger-menu "Keyword view" item resolves back to where the visitor came
+// from even if their browser drops the Referer header.
+$backToVisitor = (($_GET['back'] ?? '') === 'visitor');
+if ($backToVisitor) {
+    $backUrl = $galaxySlug !== ''
+        ? '/' . rawurlencode($galaxySlug)
+        : '/?constellation_id=' . $galaxyId;
+} else {
+    $backUrl = $galaxySlug !== ''
+        ? '/edit/?slug=' . rawurlencode($galaxySlug)
+        : '/edit/?constellation_id=' . $galaxyId;
+}
 
 // Locale detection — mirrors the bootstrap.php logic but lighter, since the
 // canvas only needs its own help strings localized (editor pages otherwise stay

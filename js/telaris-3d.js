@@ -8,6 +8,7 @@ import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { apiFetch } from './api.js';
+import { CHIP_FG, colorIndexFor } from './keyword-chips.js';
 import { createNodeIcon } from './telaris-node-icons.js';
 import { renderPdf, clearPdf } from './pdf-viewer.js';
 import { NetworkManager } from './network-manager.js';
@@ -398,8 +399,20 @@ class TelarisNetwork {
         const startX = (projected.x * 0.5 + 0.5) * rect.width;
         const startY = (0.5 - projected.y * 0.5) * rect.height;
 
-        // Apply Color Glow to Window
-        const r = d.colorR || 0, g = d.colorG || 255, b = d.colorB || 204;
+        // Apply Color Glow to Window. Pull the pastel from CHIP_FG using the
+        // wormhole's name so the info window's accent matches the chip color
+        // shown in the 2D grid, the keyword strip, and anywhere else this
+        // wormhole appears as a chip. Falls back to the legacy theme color
+        // (colorR/G/B) if no name.
+        let r = d.colorR || 0, g = d.colorG || 255, b = d.colorB || 204;
+        const nameForColor = d.name || ('#' + (d.id || ''));
+        if (nameForColor) {
+            const pastel = CHIP_FG[colorIndexFor(nameForColor)];
+            const p = parseInt(pastel.slice(1), 16);
+            r = (p >> 16) & 0xff;
+            g = (p >> 8) & 0xff;
+            b = p & 0xff;
+        }
         win.style.setProperty('--node-accent', `rgb(${r}, ${g}, ${b})`);
         win.style.setProperty('--node-accent-muted', `rgba(${r}, ${g}, ${b}, 0.3)`);
         win.style.boxShadow = `0 0 80px -20px rgba(${r}, ${g}, ${b}, 0.5), inset 0 0 20px rgba(${r}, ${g}, ${b}, 0.1)`;

@@ -14,13 +14,13 @@ const MAX_CHIPS = 40;
 
 // Pastel palette (same set used in the card's keyword chips and the related
 // row), so the strip reads as on-brand without coupling to per-node colors.
-const CHIP_FG = [
+export const CHIP_FG = [
     '#fca5a5', '#fdba74', '#fcd34d', '#fde047', '#bef264', '#86efac',
     '#6ee7b7', '#5eead4', '#67e8f9', '#7dd3fc', '#93c5fd', '#a5b4fc',
     '#c4b5fd', '#d8b4fe', '#f0abfc', '#f9a8d4', '#fda4af',
 ];
 
-function colorIndexFor(keyword) {
+export function colorIndexFor(keyword) {
     let hash = 0;
     for (let i = 0; i < keyword.length; i++) {
         hash = keyword.charCodeAt(i) + ((hash << 5) - hash);

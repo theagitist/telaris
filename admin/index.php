@@ -2150,6 +2150,7 @@ $fieldMeta = [
             const set = (id, val) => { const el = document.getElementById(id); if (el) { if (el.type === 'checkbox') el.checked = !!val; else el.value = val; } };
             set('cluster-keyword-chips-enabled', false);
             set('cluster-related-nodes-enabled', false);
+            set('cluster-show-2d-view', false);
             set('cluster-idle-spotlight-enabled', false);
             set('cluster-idle-spotlight-idle-seconds', 30);
             set('cluster-tour-enabled', false);
@@ -2198,6 +2199,7 @@ $fieldMeta = [
                 const set = (id, val) => { const el = document.getElementById(id); if (el) { if (el.type === 'checkbox') el.checked = !!val; else el.value = val; } };
                 set('cluster-keyword-chips-enabled', !!cfg.keyword_chips_enabled);
                 set('cluster-related-nodes-enabled', !!cfg.related_nodes_enabled);
+                set('cluster-show-2d-view', !!cfg.show_2d_view);
                 set('cluster-idle-spotlight-enabled', !!cfg.idle_spotlight_enabled);
                 set('cluster-idle-spotlight-idle-seconds', cfg.idle_spotlight_idle_seconds ?? 30);
                 set('cluster-tour-enabled', !!cfg.tour_enabled);
@@ -4170,6 +4172,14 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                         <span class="text-gray-800 font-medium">Related wormholes</span>
                     </label>
                     <p class="text-xs text-gray-500 mt-1">When a wormhole's info card is open, dim unrelated ones and surface up to 5 related wormholes (sharing keywords) as click-to-jump chips at the bottom of the card. Pools across the whole cluster — chips can surface wormholes from any member galaxy.</p>
+                </div>
+
+                <div class="mb-4 border-t border-gray-200 pt-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="cluster-show-2d-view" name="show_2d_view" value="1" class="toggle toggle-neutral toggle-sm">
+                        <span class="text-gray-800 font-medium">2D view switch</span>
+                    </label>
+                    <p class="text-xs text-gray-500 mt-1">Show a top-center "3D / 2D" toggle so visitors can flip from the 3D scene to a flat grid of wormhole chips. Visitor's preference persists in their browser.</p>
                 </div>
 
                 <div class="mb-4 border-t border-gray-200 pt-4">

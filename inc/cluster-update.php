@@ -26,6 +26,7 @@ function save_cluster_discovery_config_from_post(int $clusterId, array $post): v
         'idle_spotlight_selection' => (string)($post['idle_spotlight_selection'] ?? 'all'),
         'idle_spotlight_idle_seconds' => (int)($post['idle_spotlight_idle_seconds'] ?? 30),
         'related_nodes_enabled' => !empty($post['related_nodes_enabled']),
+        'show_2d_view' => !empty($post['show_2d_view']),
     ]);
 
     $raw = (string)($post['tour_keyword_names'] ?? '');

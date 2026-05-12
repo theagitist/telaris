@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS constellations (
     idle_spotlight_selection ENUM('all','accentuated') NOT NULL DEFAULT 'all',
     idle_spotlight_idle_seconds INT UNSIGNED NOT NULL DEFAULT 30,
     related_nodes_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    show_2d_view BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(255) NULL DEFAULT NULL,

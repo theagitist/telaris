@@ -184,6 +184,56 @@ header("X-Content-Type-Options: nosniff");
             ← <?php echo htmlspecialchars($projectBackButtonText ?? 'Back'); ?>
         </button>
         <div id="webgl-canvas-wrapper" class="absolute inset-0" style="z-index: 1;"></div>
+
+        <!-- 2D grid view: an alternative wormhole layout. Hidden by default;
+             toggled visible via the top-center view switch. Populated by
+             js/wormhole-grid-2d.js. Background is a dim dot grid (same design-
+             tool feel the keyword canvas uses). -->
+        <div id="wormhole-grid-2d" class="absolute inset-0 hidden"
+             style="z-index: 1; background-color: #000; background-image: radial-gradient(circle, rgba(113,113,122,0.45) 1.5px, transparent 2px); background-size: 28px 28px; overflow: auto;">
+            <svg id="wormhole-grid-2d-lines" class="absolute inset-0 pointer-events-none" style="width: 100%; height: 100%;"></svg>
+            <div id="wormhole-grid-2d-cards" class="absolute inset-0"></div>
+        </div>
+
+        <?php if (!empty($show2dView)): ?>
+        <!-- View-mode switch (top-center). Per-galaxy opt-in (constellations.
+             show_2d_view). Visitor preference persists in localStorage. -->
+        <div id="view-mode-switch" class="fixed top-3 left-1/2 -translate-x-1/2 z-[220] flex items-center gap-0 bg-black/50 border border-white/20 rounded-full backdrop-blur-sm" style="padding: 2px;">
+            <button type="button" id="view-mode-3d" data-mode="3d"
+                    class="text-xs uppercase tracking-wider px-3 py-1 rounded-full transition-colors"
+                    aria-pressed="true"
+                    style="color: #000; background: #fff;">
+                3D
+            </button>
+            <button type="button" id="view-mode-2d" data-mode="2d"
+                    class="text-xs uppercase tracking-wider px-3 py-1 rounded-full transition-colors"
+                    aria-pressed="false"
+                    style="color: #fff; background: transparent;">
+                2D
+            </button>
+        </div>
+        <!-- Synchronously paint the switch in its restored state BEFORE main.js
+             runs, so visitors with a '2d' localStorage preference don't see the
+             switch hydrate from 3D-selected to 2D-selected. main.js still does
+             the full setMode() after init; this just prevents the flash. -->
+        <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
+        (function () {
+            try {
+                if (localStorage.getItem('telaris.viewMode') !== '2d') return;
+                var b3 = document.getElementById('view-mode-3d');
+                var b2 = document.getElementById('view-mode-2d');
+                if (!b3 || !b2) return;
+                b3.setAttribute('aria-pressed', 'false');
+                b2.setAttribute('aria-pressed', 'true');
+                b3.style.color = '#fff';
+                b3.style.background = 'transparent';
+                b2.style.color = '#000';
+                b2.style.background = '#fff';
+            } catch (e) { /* private mode etc. */ }
+        })();
+        </script>
+        <?php endif; ?>
+
         <div id="persistent-tooltips" class="absolute inset-0 pointer-events-none z-[150]"></div>
         <svg id="tooltip-line-svg" style="opacity: 0;" aria-hidden="true"><polyline id="tooltip-line" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>
         <div id="node-tooltip" class="px-3 py-2 rounded text-base pointer-events-none z-[200]" style="opacity: 0; visibility: hidden;"></div>
@@ -392,6 +442,20 @@ header("X-Content-Type-Options: nosniff");
             </div>
         </div>
 
+        <?php if ($isEditorOrAdmin && !empty($keywordViewGalaxyId)): ?>
+        <!-- Keyword view: the per-galaxy keyword canvas. In multi-galaxy
+             contexts (clusters or emergent unions) we route to the FIRST
+             member galaxy — the canvas is strictly per-galaxy. Editor-only:
+             the canvas page requires a login + galaxy seat; non-editors
+             would just bounce to /utils/login.php. -->
+        <div class="mt-4 text-xs uppercase">
+            <a href="edit/keyword-canvas.php?galaxy_id=<?php echo (int)$keywordViewGalaxyId; ?>&amp;back=visitor"
+               class="font-bold hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1">
+                Keyword view
+            </a>
+        </div>
+        <?php endif; ?>
+
         <div class="flex gap-6 mt-4 font-bold text-xs uppercase">
             <?php if ($isEditorOrAdmin): ?>
                 <a href="edit/index.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectEditButtonText ?? 'Edit'); ?></a>
@@ -443,6 +507,7 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_MULTI_GALAXY_TITLE = <?php echo json_encode($multiGalaxyTitle ?? null); ?>;
         window.TELARIS_GALAXY_LIST_ENABLED = <?php echo !empty($galaxyListEnabled) ? 'true' : 'false'; ?>;
         window.TELARIS_GALAXY_LIST = <?php echo json_encode(!empty($galaxyListMembers) ? $galaxyListMembers : null); ?>;
+        window.TELARIS_2D_VIEW_ENABLED = <?php echo !empty($show2dView) ? 'true' : 'false'; ?>;
         window.TELARIS_GALAXIES_LABEL = <?php echo json_encode($projectGalaxiesLabelText ?? 'Galaxies'); ?>;
         window.TELARIS_PDF_LOADING_TEXT = <?php echo json_encode($projectPdfLoadingText ?? 'Loading PDF…'); ?>;
         window.TELARIS_PDF_RENDERING_TEXT = <?php echo json_encode($projectPdfRenderingText ?? 'Rendering pages…'); ?>;
@@ -550,7 +615,8 @@ header("X-Content-Type-Options: nosniff");
                 "./auto-tour.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'auto-tour.js')); ?>",
                 "./keyword-chips.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'keyword-chips.js')); ?>",
                 "./idle-spotlight.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'idle-spotlight.js')); ?>",
-                "./galaxy-list-strip.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'galaxy-list-strip.js')); ?>"
+                "./galaxy-list-strip.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'galaxy-list-strip.js')); ?>",
+                "./wormhole-grid-2d.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'wormhole-grid-2d.js')); ?>"
             }
         }
     </script>

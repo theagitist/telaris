@@ -10,6 +10,31 @@
  * window and binds DOM listeners on DOMContentLoaded.
  */
 (function () {
+    // Pastel palette + per-keyword hash — duplicated from js/keyword-chips.js
+    // (authoritative copy) because this script can't `import`. Used to style
+    // the per-keyword tour selectors as pastel pills, matching the chip look
+    // everywhere else (visitor chip strip, keyword canvas, 2D wormhole grid).
+    const KW_PALETTE = [
+        '#fca5a5', '#fdba74', '#fcd34d', '#fde047', '#bef264', '#86efac',
+        '#6ee7b7', '#5eead4', '#67e8f9', '#7dd3fc', '#93c5fd', '#a5b4fc',
+        '#c4b5fd', '#d8b4fe', '#f0abfc', '#f9a8d4', '#fda4af',
+    ];
+    function kwColorIndex(s) {
+        let h = 0;
+        for (let i = 0; i < s.length; i++) h = s.charCodeAt(i) + ((h << 5) - h);
+        return Math.abs(h) % KW_PALETTE.length;
+    }
+    function kwPastel(s) { return KW_PALETTE[kwColorIndex(s)]; }
+    function kwPastelBg(s) {
+        const p = parseInt(kwPastel(s).slice(1), 16);
+        const r = (p >> 16) & 0xff, g = (p >> 8) & 0xff, b = p & 0xff;
+        return `rgba(${r},${g},${b},0.18)`;
+    }
+    function kwPastelBorder(s) {
+        const p = parseInt(kwPastel(s).slice(1), 16);
+        const r = (p >> 16) & 0xff, g = (p >> 8) & 0xff, b = p & 0xff;
+        return `rgba(${r},${g},${b},0.5)`;
+    }
     'use strict';
 
     function getApiUrl() {
@@ -228,6 +253,8 @@
         if (chipsEnabled) chipsEnabled.checked = false;
         const relatedEnabled = document.getElementById('modal-related-nodes-enabled');
         if (relatedEnabled) relatedEnabled.checked = false;
+        const show2dView = document.getElementById('modal-show-2d-view');
+        if (show2dView) show2dView.checked = false;
         if (idleSpotlightEnabled) idleSpotlightEnabled.checked = false;
         if (idleSpotlightSeconds) idleSpotlightSeconds.value = 30;
         idleSeconds.value = 30;
@@ -250,6 +277,7 @@
             enabled.checked = !!cfg.tour_enabled;
             if (chipsEnabled) chipsEnabled.checked = !!cfg.keyword_chips_enabled;
             if (relatedEnabled) relatedEnabled.checked = !!cfg.related_nodes_enabled;
+            if (show2dView) show2dView.checked = !!cfg.show_2d_view;
             if (idleSpotlightEnabled) idleSpotlightEnabled.checked = !!cfg.idle_spotlight_enabled;
             if (idleSpotlightSeconds) idleSpotlightSeconds.value = cfg.idle_spotlight_idle_seconds ?? 30;
             idleSeconds.value = cfg.tour_idle_seconds ?? 30;
@@ -265,13 +293,21 @@
             if (!cfg.available_keywords || cfg.available_keywords.length === 0) {
                 keywordsBox.innerHTML = '<span class="text-xs text-gray-500">No keywords yet for this galaxy.</span>';
             } else {
-                keywordsBox.innerHTML = cfg.available_keywords.map(kw => {
+                // Render each keyword as a pastel pill (background + border +
+                // text from the canonical palette, hashed on the keyword) so
+                // the same chip aesthetic carries from the visitor strip and
+                // the 2D grid into the editorial UI.
+                keywordsBox.innerHTML = '<div class="flex flex-wrap gap-1.5">' + cfg.available_keywords.map(kw => {
                     const checked = selectedKwIds.has(kw.id) ? 'checked' : '';
-                    return `<label class="flex items-center gap-2 py-0.5 cursor-pointer">
-                        <input type="checkbox" name="tour_keyword_ids[]" value="${kw.id}" ${checked} class="checkbox checkbox-neutral checkbox-xs">
-                        <span class="text-gray-800">${escape(kw.keyword)}</span>
+                    const pastel = kwPastel(kw.keyword);
+                    const bg = kwPastelBg(kw.keyword);
+                    const border = kwPastelBorder(kw.keyword);
+                    const pillStyle = `background:${bg};color:${pastel};border:1px solid ${border};padding:2px 10px;border-radius:9999px;font-size:0.75rem;font-weight:500;line-height:1.4;cursor:pointer;display:inline-flex;align-items:center;gap:6px;`;
+                    return `<label style="${pillStyle}">
+                        <input type="checkbox" name="tour_keyword_ids[]" value="${kw.id}" ${checked} class="checkbox checkbox-neutral" style="width:0.9rem;height:0.9rem;">
+                        <span>#${escape(kw.keyword)}</span>
                     </label>`;
-                }).join('');
+                }).join('') + '</div>';
             }
 
             document.getElementById('modal-tour-immediate-warning').dataset.hasAudio = cfg.has_audio_nodes ? '1' : '0';

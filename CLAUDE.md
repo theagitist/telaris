@@ -341,9 +341,67 @@ A dedicated editor route — `/edit/keyword-canvas.php?galaxy_id=N` — that ope
 - *Back link.* `document.referrer` (same-origin) is promoted to the back-link `href` on page load. Empty referrer falls back to the editor's galaxy view.
 - *No delete confirmation.* Deleting a relation is one click in the line inspector modal; recreating is cheap. Confirmation was removed as cumbersome.
 
-**Chip styling**: all chip surfaces across Telaris share one pastel palette (`CHIP_FG`) and one deterministic per-keyword hash (`colorIndexFor`) — authoritative copy in `js/keyword-chips.js`. The canvas reproduces both inline with a comment pointing at the source. Filled-pill variant: pastel fill + dark text + `rx = h/2`.
+**Chip styling**: all chip surfaces across Telaris share one pastel palette (`CHIP_FG`) and one deterministic per-keyword hash (`colorIndexFor`). **Now exported** from `js/keyword-chips.js` (`export const CHIP_FG`, `export function colorIndexFor`) so the canvas, the 2D wormhole grid, and `telaris-3d.js` all import the same instances. `galaxy-edit-modal.js` and `keyword-canvas.js` still inline their own copies because they aren't loaded as ES modules.
 
-**Design note** in the Polivoxia vault at `Projects/Telaris/Keyword canvas — design.md` carries the political/decolonial rationale (why uniform initial placement, why physics pins moved nodes, why visitor surfaces are deferred, anti-patterns the design explicitly refuses).
+**Stage 1 + 2 physics shipped** (v6.9.39 + v6.9.41 + v6.9.42). The canvas now feels alive:
+- Lines-as-springs (each `keyword_relations` line pulls its endpoints toward a target rest distance).
+- Light global Coulomb repulsion (K=600, cutoff=360, min-dist clamp 30) so unconnected chips space themselves and tight clusters break up on load.
+- Always on, no toggle. Physics moves do NOT persist — deterministic algorithm + same inputs = same settled layout. Re-runs on every load.
+- Per-chip idle float: every chip oscillates in a tiny 3-5 unit orbit (6-10s period, deterministic phase from `hashPhase(name)`). Render-time offset only; doesn't touch `state.positions`.
+- Continuous animation loop replaces the physics-only RAF — idle motion runs forever even after physics settles.
+- Smoothstep ease-in over 320 ms on every `kickPhysics()` so motion blooms instead of jolting.
+- Stage 3 (co-occurrence attraction) explicitly **not shipped** — the design note rejects "data speaks for itself" framing on the editing surface.
+
+**Visual layer (v6.9.42):**
+- Line glow: `filter: drop-shadow` keyed to the blended pastel of the two endpoint chips' colors (`blendHex` helper). Stored on `data-kc-glow`.
+- Hover reveals structure: hovering a chip thickens + brightens the lines connecting it; hovering a line brightens that line. Smooth 160 ms transition. **No chip dimming, no opacity changes on non-connected lines** — additive only. Suppressed during a line draw (the anchor pulse owns the attention then). The `selectRelation` helper clears `hoverState` before opening the line-inspector modal so the line doesn't read as still-hovered after dismissal.
+- New-line creation flash: 720 ms CSS animation on the newly drawn line.
+- Anchor pulse during draw: `svg.kc-drawing` class drives a CSS pulse on every anchor dot except inside the source chip (marked `data-kc-draw-source="1"`).
+- Dot grid background: static SVG `<pattern>` in a new `layerBg` (60-unit spacing, 4-unit dim gray dots).
+
+**Keyword rename / delete / merge (v6.9.45).** Clicking a chip (release without moving more than ~5 px) opens an inspector modal with a rename input + delete button. Drag detection lives on `dragCtx.moved` / `state.groupDrag.moved`, set by pointermove crossing `LINE_DRAG_THRESHOLD_PX`; release with `!moved` calls `openKeywordModal(kwId)` instead of saving the drag position. Same modal handles both single-chip and group-drag cases — multi-selection stays intact.
+
+Rename flow:
+- Client checks `state.keywords` for a case-insensitive collision in the current galaxy.
+- No collision → `POST { action: 'rename_keyword' }`; UPDATE on `keywords.keyword`.
+- Collision → opens the conflict modal: "Change name" reopens the rename input pre-filled with an error flag, "Merge" sends `POST { action: 'merge_keywords' }` which repoints every reference from source to target then deletes source. Server returns 409 with `existing_id` if the client missed the conflict (race).
+
+Merge semantics: `node_keywords` rewritten via INSERT IGNORE (dupes silently skipped); `keyword_relations` rewritten preserving canonical pair order and swapping anchor sides when the canonical order flips, self-loops skipped, collisions with existing target-rooted relations skipped; remaining source-rooted relations + `keyword_positions` + `keyword_position_history` cleanup via `ON DELETE CASCADE`. Delete uses the same cascade — no separate cleanup needed.
+
+API additions: `delete_keyword`, `rename_keyword` (returns 409 on conflict), `merge_keywords`. DB helpers: `db_find_keyword_in_galaxy`, `db_rename_keyword`, `db_merge_keywords` in `inc/db.php`.
+
+**Design note** in the Polivoxia vault at `Projects/Telaris/Keyword canvas — design.md` carries the political/decolonial rationale (why uniform initial placement, why physics is editor-controlled, why visitor surfaces are deferred, anti-patterns the design explicitly refuses). Project memory at `~/.claude/.../memory/project_keyword_canvas.md` tracks ship state of each stage.
+
+### 2D wormhole view (per-galaxy opt-in)
+
+A visitor-side alternative layout to the 3D scene: every wormhole renders as a small pastel chip on a dot-grid background, distributed via Poisson-disc seeding inside the viewport. Same `app.nodes` data the 3D scene uses; the 2D module just renders it flat. Toggle is a segmented "3D / 2D" control at top-center, per-galaxy opt-in.
+
+**Per-galaxy gate.** New column `constellations.show_2d_view BOOLEAN NOT NULL DEFAULT FALSE`. Set via the "2D view switch" toggle in the Discovery section of the galaxy edit modal (`inc/partials/galaxy-edit-modal.php`) and the cluster modal (`admin/index.php`). Added to `db_ensure_constellations_tour_columns`, `db_get_constellation_tour_config`, `db_set_constellation_tour_config`, `SCHEMA.sql`, `galaxy-update.php`, `cluster-update.php`, `galaxy-edit-modal.js`. Multi-galaxy: emergent unions (`?galaxies=`, `/[XX]`, `/tag/`) inherit from the **first** galaxy in `$multiGalaxyIds`; clusters use their own row. Frontend gate is `window.TELARIS_2D_VIEW_ENABLED`.
+
+**localStorage preference.** When the switch is rendered, the visitor's last choice persists in `localStorage.telaris.viewMode` (`'2d'` or `'3d'`). To prevent a visible hydration flip from "3D selected" to "2D selected" on pages where the visitor's last visit ended in 2D, `main-view.php` includes a tiny synchronous inline script right after the switch markup that reads the preference and applies the "active" button styles **before** main.js runs.
+
+**Frontend module** `js/wormhole-grid-2d.js` (ES module, imported by `main.js`):
+- Cards: pastel pills sized ~12 px font, max-width 160 px, deterministic pastel from `CHIP_FG[colorIndexFor(name)]` (background 18% opacity, border 55% opacity, text 100%). Optional 14 px circular thumbnail if the wormhole has an image. Cluster cards get a cyan ring via `box-shadow`; portals get amber.
+- **Strict no-overlap layout pipeline:** `_buildCards` measures sizes → `_seedPositions` (Poisson best-candidate with **axis-aligned-rectangle overlap rejection** — every candidate checked, overlapping ones thrown out, 40 attempts then a 200-attempt retry pass) → `_buildLines` → `_presettle` (160 invisible repulsion steps) → `_resolveOverlaps` (rectangle-math pass that pushes any remaining overlaps apart along the smaller-overlap axis, iterates until clean, clamps to viewport). The user explicitly: **"always check for overlapping nodes, that is a huge no-no."** All three guarantees run before the container fades in.
+- **Seed region scales with node count.** `SEED_AREA_PER_CHIP = 19000` × N, aspect from viewport, centered. Clamped to `[SEED_REGION_MIN_W=520, SEED_REGION_MIN_H=340]` and `[viewport - chrome margins]`. A 10-chip galaxy gets ~640×300 instead of the full 1500×700.
+- **Repulsion** (`PHYS_REPULSION_K=1000`, cutoff 180, min-dist 30) handles only post-seed corrections. No springs — they pulled connected chips into a knot.
+- **Idle float**: every chip oscillates in a 2-4 px orbit, deterministic phase from `hashPhase(String(id))`. Continuous animation loop runs forever while 2D is active.
+- **Lines**: pastel glow blended from endpoint colors, thickness scales with shared-keyword count (`1 + 0.6 × (shared-1)`, capped at 4 px), **invisible by default** (`LINE_BASE_OPACITY = 0`) — only appear on hover. Endpoints **clipped to chip rect boundaries** via `_clipToRect` so they don't shine through the cards.
+- **Hover reveal** (`_onCardHover`): brightens the lines connecting the hovered card to its neighbours (no card dimming, additive only). Plus a top-right info panel that reuses the 3D scene's `#node-tooltip` element (pinned at `top: 3.5rem; right: 3rem`, pastel border + glow keyed to the card color) with a stepped orthogonal connector line drawn in the reused `#tooltip-line-svg`. Both clear on mouseleave and on mode switch.
+- **Keyword chip filter integration** (`_syncActiveKeywordDim`): reads `app.activeKeywords` every frame; diffs against a snapshot to avoid per-frame DOM work; when filtered, dims non-matching cards to 0.18 and connecting lines to 0.15. Chip clicks in the bottom strip "just work" in 2D — same Set the 3D scene reads.
+- **Clicks**: cluster → `app.transitionToCluster(constellationId, cluster_key)` (same nav stack as 3D); portal → page-navigates to the target galaxy URL (mode resets to 3D since localStorage isn't 2D for that destination unless explicitly set); regular wormhole → `app.showRichMediaWindow(mesh)` opens the same info card as 3D.
+- **Crossfade in/out.** No "springing from elsewhere" — `setActive(true)` paints the container at opacity 0, seeds + presettles + resolves overlaps invisibly, then crossfades to opacity 1 over 280 ms. Cards appear already laid out.
+
+**Mode-switch wiring** (`wireViewModeSwitch` in `js/main.js`):
+- Hides 3D-side overlays (`#persistent-tooltips`, `#cluster-breadcrumb`) when 2D is active. `#node-tooltip` and `#tooltip-line-svg` are NOT hidden — 2D reuses them.
+- Hides the WebGL wrapper via `visibility: hidden` (preserves layout).
+- Patches `app.loadDataForConstellation` once at init so cluster drill-downs refresh the grid automatically.
+
+**Info window accent matches the chip color.** `telaris-3d.js`'s `showRichMediaWindow` now derives its accent (`--node-accent`, `--node-accent-muted`, border, ambient glow) from `CHIP_FG[colorIndexFor(name)]` instead of the legacy `colorR/G/B` theme palette. Works in both 3D and 2D — single source of color truth across the app.
+
+**Burger menu "Keyword view" item.** Visible to logged-in editors/admins only. Routes to `/edit/keyword-canvas.php?galaxy_id={first}&back=visitor`; the canvas resolves `?back=visitor` to a visitor-URL fallback (`/{slug}` or `/?constellation_id=N`) when `document.referrer` isn't usable. Multi-galaxy contexts (cluster, emergent union) route to `$keywordViewGalaxyId = $multiGalaxyIds[0] ?? $constellationId`.
+
+**Galaxy Edit modal — keyword chips now pastel.** The per-keyword tour selectors inside `#modal-tour-keywords` (`galaxy-edit-modal.js`) render as pastel pills (`background: rgba(pastel, 0.18); color: pastel; border: 1px solid rgba(pastel, 0.5)`) with the checkbox inline + `#keyword` prefix. Wraps via flex-wrap. Palette + hash duplicated inline because the modal isn't an ES module.
 
 ### PDF wormhole media
 

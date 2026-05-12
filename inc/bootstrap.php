@@ -444,10 +444,12 @@ if ($tourConfig === null) {
         'idle_spotlight_selection' => 'all',
         'idle_spotlight_idle_seconds' => 30,
         'related_nodes_enabled' => false,
+        'show_2d_view' => false,
     ];
 }
 $keywordChipsEnabled = !empty($tourConfig['keyword_chips_enabled']);
 $relatedNodesEnabled = !empty($tourConfig['related_nodes_enabled']);
+$show2dView = !empty($tourConfig['show_2d_view']);
 
 // ?node=ID query-string fallback for permalinks (when path-based form isn't usable).
 if ($initialNodeId === null && isset($_GET['node']) && ctype_digit((string)$_GET['node'])) {
@@ -511,9 +513,20 @@ if (!empty($multiGalaxyIds)) {
         }
         $tourConfig['keyword_chips_enabled'] = $chipsOn;
         $keywordChipsEnabled = $chipsOn;
+
+        // show_2d_view: use the FIRST member galaxy's setting (per Adri's
+        // spec). The "first" galaxy is the head of $multiGalaxyIds, which
+        // reflects whatever order the route resolved (prefix lookup, tag
+        // join order, explicit ?galaxies=).
+        $firstId = (int)($multiGalaxyIds[0] ?? 0);
+        if ($firstId > 0) {
+            $firstCfg = db_get_constellation_tour_config($firstId);
+            $show2dView = $firstCfg !== null && !empty($firstCfg['show_2d_view']);
+            $tourConfig['show_2d_view'] = $show2dView;
+        }
     }
     // Cluster branch: keep $tourConfig, $idleSpotlightConfig, $relatedNodesEnabled,
-    // $keywordChipsEnabled as already loaded from the cluster's own row.
+    // $keywordChipsEnabled, $show2dView as already loaded from the cluster's own row.
 }
 
 // Galaxy-list strip (visitor multigalaxy filter). Default ON for emergent unions
@@ -541,4 +554,12 @@ if (!empty($multiGalaxyIds)) {
         }
     }
 }
+
+// Keyword view: which galaxy's canvas should the "Keyword view" menu item
+// open? The keyword canvas is strictly per-galaxy (clusters reject with 400),
+// so in any multi-galaxy context we route to the FIRST member galaxy — same
+// rule as show_2d_view above.
+$keywordViewGalaxyId = !empty($multiGalaxyIds)
+    ? (int) $multiGalaxyIds[0]
+    : (int) $constellationId;
 

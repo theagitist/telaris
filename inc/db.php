@@ -335,6 +335,13 @@ function db_ensure_constellations_tour_columns(): void {
         if (!$row4) {
             $pdo->exec("ALTER TABLE constellations ADD COLUMN related_nodes_enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER idle_spotlight_idle_seconds");
         }
+        // show_2d_view: opt-in per galaxy / cluster. When TRUE, the visitor
+        // view shows a top-center "3D / 2D" segmented switch (and remembers
+        // the visitor's choice in localStorage).
+        $row5 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'show_2d_view'")->fetch();
+        if (!$row5) {
+            $pdo->exec("ALTER TABLE constellations ADD COLUMN show_2d_view BOOLEAN NOT NULL DEFAULT FALSE AFTER related_nodes_enabled");
+        }
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS constellation_tour_keywords (
                 constellation_id INT NOT NULL,
@@ -3019,7 +3026,7 @@ function db_get_constellation_tour_config(int $id): ?array {
         SELECT tour_enabled, tour_start_mode, tour_idle_seconds, tour_node_selection,
                tour_random_count, tour_default_dwell, tour_loop, keyword_chips_enabled,
                idle_spotlight_enabled, idle_spotlight_selection, idle_spotlight_idle_seconds,
-               related_nodes_enabled
+               related_nodes_enabled, show_2d_view
         FROM constellations WHERE id = :id LIMIT 1
     ");
     $stmt->execute([':id' => $id]);
@@ -3041,6 +3048,7 @@ function db_get_constellation_tour_config(int $id): ?array {
         'idle_spotlight_selection' => (string)$row['idle_spotlight_selection'],
         'idle_spotlight_idle_seconds' => (int)$row['idle_spotlight_idle_seconds'],
         'related_nodes_enabled' => (bool)$row['related_nodes_enabled'],
+        'show_2d_view' => (bool)$row['show_2d_view'],
     ];
 }
 
@@ -3085,7 +3093,8 @@ function db_set_constellation_tour_config(int $id, array $config): void {
             idle_spotlight_enabled = :idle_spotlight_enabled,
             idle_spotlight_selection = :idle_spotlight_selection,
             idle_spotlight_idle_seconds = :idle_spotlight_idle_seconds,
-            related_nodes_enabled = :related_nodes_enabled
+            related_nodes_enabled = :related_nodes_enabled,
+            show_2d_view = :show_2d_view
         WHERE id = :id
     ")->execute([
         ':tour_enabled' => !empty($config['tour_enabled']) ? 1 : 0,
@@ -3100,6 +3109,7 @@ function db_set_constellation_tour_config(int $id, array $config): void {
         ':idle_spotlight_selection' => $idleSpotlightSelection,
         ':idle_spotlight_idle_seconds' => $idleSpotlightIdleSeconds,
         ':related_nodes_enabled' => !empty($config['related_nodes_enabled']) ? 1 : 0,
+        ':show_2d_view' => !empty($config['show_2d_view']) ? 1 : 0,
         ':id' => $id,
     ]);
 }
