@@ -254,6 +254,52 @@ $kcStrings = [
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <!-- Keyword inspector modal: opens when an editor clicks (not drags) a
+         chip. Offers rename and delete. Rename detects a same-galaxy name
+         collision and opens the conflict modal to choose "change my input"
+         vs. "merge into the existing keyword". -->
+    <dialog id="kc-keyword-modal" class="modal">
+        <div class="modal-box bg-white text-gray-800 max-w-md">
+            <h3 class="font-bold text-lg">Keyword</h3>
+            <p id="kc-keyword-modal-current" class="text-base font-semibold mt-1 font-mono"></p>
+            <p class="text-xs text-gray-500 mt-3">Rename or delete this keyword. Renaming applies everywhere the keyword is used — every wormhole tagged with it, every line on this canvas. Deleting removes the keyword from this galaxy and untags every wormhole that carries it.</p>
+            <label for="kc-keyword-modal-input" class="text-xs text-gray-500 mt-3 block">New name</label>
+            <input type="text" id="kc-keyword-modal-input"
+                   class="input input-bordered w-full mt-1 bg-white font-mono"
+                   maxlength="100" autocomplete="off" />
+            <p id="kc-keyword-modal-error" class="text-xs text-red-600 mt-2" hidden></p>
+            <div class="modal-action">
+                <button type="button" id="kc-keyword-modal-cancel" class="btn btn-ghost">Cancel</button>
+                <button type="button" id="kc-keyword-modal-delete" class="btn btn-error">Delete</button>
+                <button type="button" id="kc-keyword-modal-rename" class="btn btn-success">Rename</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Rename-conflict modal: opens when the target name is already taken by
+         another keyword in the same galaxy. Two paths: change the typed name,
+         or merge the source keyword into the existing target (every reference
+         to source gets repointed at target; source is deleted). -->
+    <dialog id="kc-conflict-modal" class="modal">
+        <div class="modal-box bg-white text-gray-800 max-w-md">
+            <h3 class="font-bold text-lg">Keyword already exists</h3>
+            <p class="text-sm mt-2">
+                <span id="kc-conflict-modal-target" class="font-mono font-semibold"></span>
+                already exists in this galaxy.
+            </p>
+            <p class="text-xs text-gray-500 mt-3">
+                <strong>Change name</strong>: keep this keyword separate and pick a different name.<br>
+                <strong>Merge</strong>: fold this keyword into the existing one — every wormhole tagged with it, every line on the canvas, gets repointed at the existing keyword. This one will be deleted. No undo.
+            </p>
+            <div class="modal-action">
+                <button type="button" id="kc-conflict-modal-change" class="btn btn-ghost">Change name</button>
+                <button type="button" id="kc-conflict-modal-merge" class="btn btn-warning">Merge</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <!-- Existing-relation inspector modal: shows pair, author, date, note, and
          (when the user can edit) Edit / Delete actions. -->
     <dialog id="kc-line-modal" class="modal">

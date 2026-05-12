@@ -963,6 +963,15 @@
                 pointerId: ev.pointerId,
                 anchorStart: start,
                 startPositions,
+                // Track click-vs-drag: clientStart for the threshold check,
+                // moved flips to true the first time pointermove crosses it.
+                // initiatorKwId is the chip the editor actually clicked on, so
+                // a "release-without-move" opens the modal for that one chip
+                // (not the whole selection).
+                clientStartX: ev.clientX,
+                clientStartY: ev.clientY,
+                moved: false,
+                initiatorKwId: kwId,
             };
             svg.setPointerCapture(ev.pointerId);
             gEl.style.cursor = 'grabbing';
@@ -979,6 +988,9 @@
             kwId, pointerId: ev.pointerId, gEl,
             offsetX: start.x - pos.x,
             offsetY: start.y - pos.y,
+            clientStartX: ev.clientX,
+            clientStartY: ev.clientY,
+            moved: false,
         };
         svg.setPointerCapture(ev.pointerId);
         gEl.style.cursor = 'grabbing';
@@ -986,6 +998,14 @@
 
     svg.addEventListener('pointermove', (ev) => {
         if (dragCtx && ev.pointerId === dragCtx.pointerId) {
+            // Flip the click→drag bit once the pointer crosses the threshold.
+            if (!dragCtx.moved) {
+                const dx = ev.clientX - dragCtx.clientStartX;
+                const dy = ev.clientY - dragCtx.clientStartY;
+                if (dx * dx + dy * dy > LINE_DRAG_THRESHOLD_PX * LINE_DRAG_THRESHOLD_PX) {
+                    dragCtx.moved = true;
+                }
+            }
             const pt = clientToCanvas(ev.clientX, ev.clientY);
             const newX = Math.max(0, Math.min(CANVAS_W, pt.x - dragCtx.offsetX));
             const newY = Math.max(0, Math.min(CANVAS_H, pt.y - dragCtx.offsetY));
@@ -998,6 +1018,13 @@
             return;
         }
         if (state.groupDrag && ev.pointerId === state.groupDrag.pointerId) {
+            if (!state.groupDrag.moved) {
+                const dx = ev.clientX - state.groupDrag.clientStartX;
+                const dy = ev.clientY - state.groupDrag.clientStartY;
+                if (dx * dx + dy * dy > LINE_DRAG_THRESHOLD_PX * LINE_DRAG_THRESHOLD_PX) {
+                    state.groupDrag.moved = true;
+                }
+            }
             const pt = clientToCanvas(ev.clientX, ev.clientY);
             const dx = pt.x - state.groupDrag.anchorStart.x;
             const dy = pt.y - state.groupDrag.anchorStart.y;
@@ -1045,26 +1072,37 @@
             return;
         }
         if (dragCtx && ev.pointerId === dragCtx.pointerId) {
-            const { kwId, gEl } = dragCtx;
-            const pos = state.positions.get(kwId);
-            if (pos) queueSavePosition(kwId, pos.x, pos.y);
+            const { kwId, gEl, moved } = dragCtx;
             gEl.style.cursor = 'grab';
             try { svg.releasePointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
             dragCtx = null;
-            // The dragged chip now has a fresh pinned position. Re-energize
-            // physics so connected chips can settle around the new anchor.
-            kickPhysics();
+            if (moved) {
+                // Real drag: save the new pinned position + re-energize physics.
+                const pos = state.positions.get(kwId);
+                if (pos) queueSavePosition(kwId, pos.x, pos.y);
+                kickPhysics();
+            } else {
+                // Click without drag: open the keyword inspector for this chip.
+                openKeywordModal(kwId);
+            }
             return;
         }
         if (state.groupDrag && ev.pointerId === state.groupDrag.pointerId) {
-            // Save the new position of every group-dragged node.
-            state.groupDrag.startPositions.forEach((_, kwId) => {
-                const pos = state.positions.get(kwId);
-                if (pos) queueSavePosition(kwId, pos.x, pos.y);
-            });
+            const { moved, initiatorKwId } = state.groupDrag;
             try { svg.releasePointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
-            state.groupDrag = null;
-            kickPhysics();
+            if (moved) {
+                state.groupDrag.startPositions.forEach((_, kwId) => {
+                    const pos = state.positions.get(kwId);
+                    if (pos) queueSavePosition(kwId, pos.x, pos.y);
+                });
+                state.groupDrag = null;
+                kickPhysics();
+            } else {
+                state.groupDrag = null;
+                // Open the modal for the chip the editor actually clicked,
+                // not the whole selection — selection stays as-is.
+                if (initiatorKwId != null) openKeywordModal(initiatorKwId);
+            }
             return;
         }
         if (state.rubberBand && ev.pointerId === state.rubberBand.pointerId) {
@@ -1453,6 +1491,208 @@
             pair: `#${aName} ↔ #${bName}`,
             initialNote: '',
         });
+    }
+
+    // ---------------------------------------------------------------------
+    // Keyword chip click → inspector modal (rename / delete).
+    //
+    // openKeywordModal walks the user through the rename/delete actions,
+    // handing off to openConflictModal when the new name collides with an
+    // existing keyword in the same galaxy. All three actions hit the API,
+    // mutate state in place on success, and re-render so the canvas keeps
+    // moving — no full hydrate-reload needed.
+    // ---------------------------------------------------------------------
+    function openKeywordModal(kwId) {
+        const kw = state.keywords.get(kwId);
+        if (!kw) return;
+        // Clear any hover state so the chip doesn't read as still-hovered
+        // when the modal closes and the cursor is somewhere else (same fix
+        // we needed for the line inspector).
+        hoverState.kwId = null;
+        hoverState.relId = null;
+        applyHoverStyles();
+
+        const dlg = document.getElementById('kc-keyword-modal');
+        const currentEl = document.getElementById('kc-keyword-modal-current');
+        const input = document.getElementById('kc-keyword-modal-input');
+        const err = document.getElementById('kc-keyword-modal-error');
+        const cancelBtn = document.getElementById('kc-keyword-modal-cancel');
+        const deleteBtn = document.getElementById('kc-keyword-modal-delete');
+        const renameBtn = document.getElementById('kc-keyword-modal-rename');
+        if (!dlg || !currentEl || !input || !renameBtn || !deleteBtn || !cancelBtn) return;
+
+        currentEl.textContent = `#${kw.name}`;
+        input.value = kw.name;
+        err.hidden = true;
+        err.textContent = '';
+
+        const cleanup = () => {
+            cancelBtn.onclick = null;
+            deleteBtn.onclick = null;
+            renameBtn.onclick = null;
+            input.onkeydown = null;
+        };
+        const close = () => { try { dlg.close(); } catch (e) { /* ignore */ } cleanup(); };
+
+        cancelBtn.onclick = close;
+
+        deleteBtn.onclick = async () => {
+            // No native confirm() — the canvas convention since Adri's earlier
+            // feedback is to make destructive actions one-click with no
+            // intermediate dialog. Recreating is cheap; the keyword's
+            // metadata lives in node_keywords and gets cascade-removed.
+            close();
+            setStatus('Deleting…', 'saving');
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ action: 'delete_keyword', keyword_id: kwId }),
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                purgeKeywordFromState(kwId);
+                const g = layerNodes.querySelector(`[data-kc-node="${kwId}"]`);
+                if (g) g.remove();
+                renderLines();
+                kickPhysics();
+                setStatus('Deleted', 'saved');
+            } catch (e) {
+                setStatus(`Delete failed: ${e.message}`, 'error');
+            }
+        };
+
+        renameBtn.onclick = async () => {
+            const newName = input.value.trim();
+            if (!newName) {
+                err.textContent = 'Pick a non-empty name.';
+                err.hidden = false;
+                input.focus();
+                return;
+            }
+            if (newName === kw.name) { close(); return; } // no-op
+            // Client-side conflict check (state.keywords is authoritative for
+            // the current galaxy; server re-checks under a transaction).
+            let conflictId = null;
+            const lower = newName.toLowerCase();
+            for (const [id, k] of state.keywords) {
+                if (id !== kwId && k.name.toLowerCase() === lower) { conflictId = id; break; }
+            }
+            if (conflictId !== null) {
+                close();
+                openConflictModal(kwId, conflictId, newName);
+                return;
+            }
+            // No conflict — send the rename.
+            close();
+            setStatus('Saving…', 'saving');
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ action: 'rename_keyword', keyword_id: kwId, new_name: newName }),
+                });
+                if (res.status === 409) {
+                    // Server-side conflict (state was stale). Re-open with conflict.
+                    const data = await res.json().catch(() => ({}));
+                    if (data && data.existing_id) {
+                        openConflictModal(kwId, parseInt(data.existing_id, 10), newName);
+                        return;
+                    }
+                    setStatus('That name is already taken in this galaxy', 'error');
+                    return;
+                }
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                state.keywords.set(kwId, { ...kw, name: newName });
+                renderNodes();
+                renderLines();
+                setStatus('Renamed', 'saved');
+            } catch (e) {
+                setStatus(`Rename failed: ${e.message}`, 'error');
+            }
+        };
+
+        input.onkeydown = (ev) => {
+            if (ev.key === 'Enter') { ev.preventDefault(); renameBtn.click(); }
+            else if (ev.key === 'Escape') { ev.preventDefault(); close(); }
+        };
+
+        dlg.showModal();
+        // Focus + select the input so the editor can immediately type a new
+        // name; the existing name stays selected so a quick re-type replaces it.
+        setTimeout(() => { input.focus(); input.select(); }, 0);
+    }
+
+    function openConflictModal(sourceId, targetId, attemptedName) {
+        const dlg = document.getElementById('kc-conflict-modal');
+        const targetEl = document.getElementById('kc-conflict-modal-target');
+        const changeBtn = document.getElementById('kc-conflict-modal-change');
+        const mergeBtn = document.getElementById('kc-conflict-modal-merge');
+        if (!dlg || !targetEl || !changeBtn || !mergeBtn) return;
+
+        const targetKw = state.keywords.get(targetId);
+        targetEl.textContent = `#${targetKw ? targetKw.name : attemptedName}`;
+
+        const cleanup = () => { changeBtn.onclick = null; mergeBtn.onclick = null; };
+        const close = () => { try { dlg.close(); } catch (e) { /* ignore */ } cleanup(); };
+
+        changeBtn.onclick = () => {
+            close();
+            // Re-open the source keyword modal so the editor can pick a
+            // different name. The attempted name stays in the field as a
+            // starting point, error-flagged so they know why we came back.
+            openKeywordModal(sourceId);
+            const input = document.getElementById('kc-keyword-modal-input');
+            const err = document.getElementById('kc-keyword-modal-error');
+            if (input) { input.value = attemptedName; input.select(); }
+            if (err) { err.textContent = 'That name is already taken — change it or merge.'; err.hidden = false; }
+        };
+
+        mergeBtn.onclick = async () => {
+            close();
+            setStatus('Merging…', 'saving');
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        action: 'merge_keywords',
+                        source_id: sourceId,
+                        target_id: targetId,
+                    }),
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                // Merge had wide-ranging effects (relations rewritten, junction
+                // rows folded, source deleted) — easiest correct path is a
+                // full hydrate + re-render.
+                state.keywords.clear();
+                state.positions.clear();
+                state.relations.clear();
+                physicsVelocities.clear();
+                await hydrate();
+                setStatus('Merged', 'saved');
+            } catch (e) {
+                setStatus(`Merge failed: ${e.message}`, 'error');
+            }
+        };
+
+        dlg.showModal();
+    }
+
+    /** Drop every trace of a keyword from local state after a delete. */
+    function purgeKeywordFromState(kwId) {
+        state.keywords.delete(kwId);
+        state.positions.delete(kwId);
+        nodeSizes.delete(kwId);
+        idleOffsets.delete(kwId);
+        physicsVelocities.delete(kwId);
+        state.selectedNodeIds.delete(kwId);
+        // Drop any relation that mentions this keyword on either side.
+        for (const [id, rel] of state.relations) {
+            if (rel.a === kwId || rel.b === kwId) state.relations.delete(id);
+        }
     }
 
     // ---------------------------------------------------------------------

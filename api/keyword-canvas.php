@@ -238,6 +238,82 @@ switch ($action) {
         exit();
     }
 
+    case 'delete_keyword': {
+        // Deletes the keyword row. ON DELETE CASCADE drops every reference:
+        // node_keywords junctions, keyword_positions, keyword_position_history,
+        // keyword_relations on either side.
+        $keywordId = (int)($input['keyword_id'] ?? 0);
+        if ($keywordId <= 0) kc_fail(400, 'delete_keyword requires keyword_id');
+        $galaxyId = db_get_keyword_constellation_id($keywordId);
+        if ($galaxyId === null) kc_fail(404, 'Keyword not found');
+        if (!kc_can_edit_galaxy($galaxyId)) kc_fail(403, 'No edit access to this galaxy');
+
+        db_delete_keyword($keywordId);
+        echo json_encode(['ok' => true, 'keyword_id' => $keywordId], JSON_THROW_ON_ERROR);
+        exit();
+    }
+
+    case 'rename_keyword': {
+        $keywordId = (int)($input['keyword_id'] ?? 0);
+        $newName = isset($input['new_name']) ? trim((string)$input['new_name']) : '';
+        if ($keywordId <= 0) kc_fail(400, 'rename_keyword requires keyword_id');
+        if ($newName === '') kc_fail(400, 'rename_keyword requires a non-empty new_name');
+        if (mb_strlen($newName) > 100) kc_fail(400, 'Keyword name is too long (max 100 chars)');
+
+        $galaxyId = db_get_keyword_constellation_id($keywordId);
+        if ($galaxyId === null) kc_fail(404, 'Keyword not found');
+        if (!kc_can_edit_galaxy($galaxyId)) kc_fail(403, 'No edit access to this galaxy');
+
+        $existingId = db_find_keyword_in_galaxy($newName, $galaxyId);
+        if ($existingId !== null && $existingId !== $keywordId) {
+            // 409 + the existing id so the client can offer merge.
+            http_response_code(409);
+            echo json_encode([
+                'error' => 'A keyword with that name already exists',
+                'existing_id' => $existingId,
+                'existing_name' => $newName,
+            ], JSON_THROW_ON_ERROR);
+            exit();
+        }
+        try {
+            db_rename_keyword($keywordId, $newName);
+        } catch (PDOException $e) {
+            // Defensive: the unique index could still bite under a race.
+            if ((int)($e->errorInfo[1] ?? 0) === 1062) {
+                kc_fail(409, 'A keyword with that name already exists');
+            }
+            throw $e;
+        }
+        echo json_encode([
+            'ok' => true,
+            'keyword_id' => $keywordId,
+            'new_name' => $newName,
+        ], JSON_THROW_ON_ERROR);
+        exit();
+    }
+
+    case 'merge_keywords': {
+        // Repoints every reference to source onto target, then deletes source.
+        // Both keywords must live in the same galaxy.
+        $sourceId = (int)($input['source_id'] ?? 0);
+        $targetId = (int)($input['target_id'] ?? 0);
+        if ($sourceId <= 0 || $targetId <= 0) kc_fail(400, 'merge_keywords requires source_id and target_id');
+        if ($sourceId === $targetId) kc_fail(400, 'Cannot merge a keyword into itself');
+        $sourceGalaxy = db_get_keyword_constellation_id($sourceId);
+        $targetGalaxy = db_get_keyword_constellation_id($targetId);
+        if ($sourceGalaxy === null || $targetGalaxy === null) kc_fail(404, 'Keyword not found');
+        if ($sourceGalaxy !== $targetGalaxy) kc_fail(400, 'Both keywords must belong to the same galaxy');
+        if (!kc_can_edit_galaxy($sourceGalaxy)) kc_fail(403, 'No edit access to this galaxy');
+
+        db_merge_keywords($sourceId, $targetId);
+        echo json_encode([
+            'ok' => true,
+            'source_id' => $sourceId,
+            'target_id' => $targetId,
+        ], JSON_THROW_ON_ERROR);
+        exit();
+    }
+
     default:
         kc_fail(400, 'Unknown action: ' . htmlspecialchars($action));
 }

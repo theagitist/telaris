@@ -4203,6 +4203,114 @@ function db_delete_keyword(int $id): void {
     $stmt->execute([':id' => $id]);
 }
 
+/**
+ * Case-insensitive lookup of a keyword by name within a galaxy. Returns the
+ * row id if it exists, null otherwise. Used by the canvas rename flow to
+ * detect a "this name already taken" conflict before issuing an UPDATE.
+ */
+function db_find_keyword_in_galaxy(string $name, int $constellationId): ?int {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT id FROM keywords
+        WHERE constellation_id = :cid AND LOWER(keyword) = LOWER(:name)
+        LIMIT 1
+    ");
+    $stmt->execute([':cid' => $constellationId, ':name' => $name]);
+    $row = $stmt->fetch();
+    return $row ? (int)$row['id'] : null;
+}
+
+/**
+ * Rename a keyword. Caller is responsible for conflict-checking first (see
+ * db_find_keyword_in_galaxy). If the UPDATE collides with the unique index on
+ * (keyword, constellation_id), the PDOException propagates.
+ */
+function db_rename_keyword(int $id, string $newName): void {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE keywords SET keyword = :name WHERE id = :id");
+    $stmt->execute([':name' => $newName, ':id' => $id]);
+}
+
+/**
+ * Merge a source keyword into a target keyword: every reference to source
+ * is repointed at target, then source is deleted. Both keywords must live
+ * in the same galaxy (caller checks). Idempotent on no-op (source == target).
+ *
+ * The merge folds:
+ *  - node_keywords junction rows (INSERT IGNORE so a wormhole that already
+ *    carries the target keyword doesn't get a duplicate row; the source
+ *    row gets cascaded away below).
+ *  - keyword_relations: rewrite the source-endpoint to target, preserving
+ *    canonical (keyword_a_id < keyword_b_id) order and swapping anchor sides
+ *    if the canonical order flipped. Relations that would become self-loops
+ *    (source-target pair) are skipped — the source row gets cascaded away.
+ *    Relations that would collide with an existing target-pair are skipped
+ *    via INSERT IGNORE; the older target row wins.
+ *  - keyword_positions / keyword_position_history: cascade-deleted with the
+ *    source keyword (target keeps its own position).
+ */
+function db_merge_keywords(int $sourceId, int $targetId): void {
+    if ($sourceId === $targetId) return;
+    db_ensure_keyword_canvas_tables();
+    $pdo = getDB();
+    $pdo->beginTransaction();
+    try {
+        // 1. Move junction rows.
+        $pdo->prepare("
+            INSERT IGNORE INTO node_keywords (node_id, keyword_id, created_by)
+            SELECT node_id, :target, created_by
+            FROM node_keywords
+            WHERE keyword_id = :source
+        ")->execute([':target' => $targetId, ':source' => $sourceId]);
+        $pdo->prepare("DELETE FROM node_keywords WHERE keyword_id = :source")
+            ->execute([':source' => $sourceId]);
+
+        // 2. Move relations. Fetch + rewrite + INSERT IGNORE; remaining
+        //    source-rooted rows are cascade-dropped with the keyword DELETE.
+        $stmt = $pdo->prepare("
+            SELECT id, keyword_a_id, keyword_b_id, anchor_a, anchor_b, note, created_by, created_at
+            FROM keyword_relations
+            WHERE keyword_a_id = :source OR keyword_b_id = :source
+        ");
+        $stmt->execute([':source' => $sourceId]);
+        $ins = $pdo->prepare("
+            INSERT IGNORE INTO keyword_relations
+                (keyword_a_id, keyword_b_id, anchor_a, anchor_b, note, created_by, created_at)
+            VALUES (:a, :b, :aa, :ab, :n, :c, :ts)
+        ");
+        while ($r = $stmt->fetch()) {
+            $aId = (int)$r['keyword_a_id'];
+            $bId = (int)$r['keyword_b_id'];
+            $otherId = ($aId === $sourceId) ? $bId : $aId;
+            if ($otherId === $targetId) continue; // would become a self-loop
+            $sourceWasA = ($aId === $sourceId);
+            $sourceAnchor = $sourceWasA ? $r['anchor_a'] : $r['anchor_b'];
+            $otherAnchor = $sourceWasA ? $r['anchor_b'] : $r['anchor_a'];
+            $newA = min($targetId, $otherId);
+            $newB = max($targetId, $otherId);
+            $targetIsA = ($targetId === $newA);
+            $ins->execute([
+                ':a' => $newA, ':b' => $newB,
+                ':aa' => $targetIsA ? $sourceAnchor : $otherAnchor,
+                ':ab' => $targetIsA ? $otherAnchor : $sourceAnchor,
+                ':n' => $r['note'],
+                ':c' => $r['created_by'],
+                ':ts' => $r['created_at'],
+            ]);
+        }
+
+        // 3. Delete source. ON DELETE CASCADE handles remaining junction rows,
+        //    relations, positions, position history.
+        $pdo->prepare("DELETE FROM keywords WHERE id = :id")
+            ->execute([':id' => $sourceId]);
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Connections (derived from nodes + node_keywords)
 // ---------------------------------------------------------------------------
