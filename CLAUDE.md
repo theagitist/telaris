@@ -168,22 +168,11 @@ Key relationships:
 
 **Other tables added since v6.5:** `password_reset_tokens(token_hash, user_id, expires_at, used_at)` (single-use, SHA-256 hashed, 24h TTL by default). `project_info.pdf_max_bytes` global setting (default 25 MB; configurable via admin Global Settings).
 
-**Editorial provenance.** Every editorial table records *who* (and where missing, *when*): `nodes.created_by`, `keywords.created_by`, `node_keywords.created_by` (per-tag-application — "who tagged this wormhole with this keyword", distinct from who first created the keyword itself), `galaxy_tags.created_by` + `galaxy_tags.created_at`, `constellations.created_by`. Plus the canvas pair: `keyword_positions.moved_by` + `keyword_relations.created_by`. All `_by` columns are `VARCHAR(255)` (matches `users.id`), FK with `ON DELETE SET NULL`, indexed. Legacy rows are NULL meaning "pre-provenance era" — do **not** backfill; the absence is itself attribution-honest. Migrations are second-pass `db_ensure_*_created_by_column` / `db_ensure_*_provenance_columns` helpers in `inc/db.php`. Write paths: every `db_create_*` and `db_save_*` and `db_set_*` for editorial data accepts an optional `?string $createdBy = null` parameter; the API/admin/galaxy-update boundaries pull `$_SESSION['admin_user_id']` and pass it through. System contexts (Mocambos imports, backup restores, bulk-user provisioning) pass nothing — that's the explicit "system-attributed" semantics. Surfacing the data to humans is tracked in TODOs.md under `^provenance-ui`; the canvas line inspector is the only place provenance is visible to a user right now.
+**Editorial provenance.** Every editorial table records *who* via a `created_by VARCHAR(255)` column (FK to `users.id` with `ON DELETE SET NULL`, indexed): `nodes`, `keywords`, `node_keywords` (per-tag-application — distinct from who created the keyword itself), `galaxy_tags` (+ `created_at`), `constellations`, plus the canvas pair `keyword_positions.moved_by` + `keyword_relations.created_by`. Auto-migrated via `db_ensure_*_created_by_column` / `db_ensure_*_provenance_columns` in `inc/db.php`. Write paths accept optional `?string $createdBy = null`; the API/admin/galaxy-update boundaries pull `$_SESSION['admin_user_id']` and pass it through. System contexts (Mocambos imports, backup restores, bulk-user provisioning) pass nothing — explicit "system-attributed" semantics. Legacy rows stay NULL ("pre-provenance era") — do not backfill; the absence is itself attribution-honest. Surfacing to humans is queued at `~/apps/obsidian/Polivoxia/Projects/Telaris/Documentation/ROADMAP.md` `^provenance-ui`; the canvas line inspector is the only place it's visible right now.
 
 ### Auto-Clustering
 
-Constellations with many nodes are dynamically grouped into navigable clusters. The clustering engine (`inc/clustering.php`) uses adaptive logic: the base threshold is 80 nodes, but clustering is only applied if the result is meaningful. Quality checks skip clustering when:
-- Fewer than 3 groups would be produced
-- One dominant group contains >80% of all nodes
-- More than half the items are single-node promotions (too fragmented)
-
-When clustering does apply, it uses a cascade:
-1. **Mucua** (origin community) — for Mocambos imports
-2. **Media type** (imagem, video, audio, arquivo, blog)
-3. **Date** (year, then year-month)
-4. **Alphabetical** (A-F, G-L, M-R, S-Z)
-
-Each cluster appears as a special 3D node. Clicking drills in; back button and breadcrumb navigate the hierarchy. The API supports `&cluster=KEY` and `&no_cluster=1` params.
+Constellations with many nodes are dynamically grouped into navigable clusters by `inc/clustering.php`. Adaptive logic: base threshold 80 nodes; skip when the result would be fewer than 3 groups, one dominant group >80%, or more than half single-node promotions. Cascade: **Mucua** (Mocambos) → **Media type** (imagem/video/audio/arquivo/blog) → **Date** (year, then year-month) → **Alphabetical** (A-F, G-L, M-R, S-Z). Each cluster is a special 3D node; clicking drills in (back button + breadcrumb navigate the hierarchy). API: `&cluster=KEY`, `&no_cluster=1`.
 
 ### Mocambos Integration
 
@@ -208,9 +197,9 @@ Each cluster appears as a special 3D node. Clicking drills in; back button and b
 
 **Storage:** snapshot files live in `SNAPSHOTS_DIR` (defined in `config_default.php`, defaults to `<UPLOAD_DIR>/../snapshots` if undefined). Admin endpoints under `admin/backup/` and `admin/snapshots/` are session-auth gated; CSRF token validated on every mutation.
 
-**Memory and timeout:** `snapshot_create()` in `inc/snapshots.php` calls `ini_set('memory_limit', '512M')` + `set_time_limit(0)` at entry. `backup_build_dump` holds the whole DB + embedded media in memory before gzipping (~44 MB for a moderate install), which OOMs against PHP-FPM's default 128 M. The bump is a no-op for CLI (already unlimited) and necessary for the admin UI / cron paths.
+**Memory and timeout:** `snapshot_create()` calls `ini_set('memory_limit', '512M')` + `set_time_limit(0)` at entry — `backup_build_dump` holds the whole DB + embedded media in memory before gzipping, which OOMs against PHP-FPM's default 128 M.
 
-**Scheduler cron** (`inc/cron.php`). When the admin enables the daily snapshot toggle, the app installs a `*/15 * * * *` entry into the PHP user's (`www-data`) own crontab — no sysadmin step needed. The block is bracketed by **site-tagged markers** (`# >>> telaris snapshot scheduler: <hostname> >>>`) so multiple Telaris instances on the same host coexist in one crontab; each install only touches its own block. Pre-site-tag legacy blocks are migrated on next install only if their body references the current site's script path (`cron_strip_block` checks). `admin/snapshots/list.php` self-heals on every load: if the schedule is enabled but the cron entry is missing, it reinstalls.
+**Scheduler cron** (`inc/cron.php`). When the admin enables the daily snapshot toggle, the app installs a `*/15 * * * *` entry into `www-data`'s own crontab — no sysadmin step. The block is bracketed by **site-tagged markers** (`# >>> telaris snapshot scheduler: <hostname> >>>`) so multiple Telaris instances on the same host coexist in one crontab. `admin/snapshots/list.php` self-heals on every load: if the schedule is enabled but the cron entry is missing, it reinstalls.
 
 **Imported constellations** are read-only in the editor.
 
@@ -237,9 +226,7 @@ The editor and admin console use server-side pagination for large datasets:
 
 ### Performance Optimizations
 
-- `db_format_nodes_bulk()` / `db_get_keywords_for_nodes_bulk()` — batch keyword loading in a single query instead of one per node (N+1 fix)
-- `db_get_connections()` uses an inverted index algorithm (keyword→nodes map) instead of O(n²) pairwise comparison
-- `db_get_nodes_by_import_slug()` uses bulk keyword loading for import diff computation
+`db_format_nodes_bulk()` / `db_get_keywords_for_nodes_bulk()` batch keyword loading (N+1 fix). `db_get_connections()` uses an inverted index (keyword→nodes map) instead of O(n²) pairwise. `db_get_nodes_by_import_slug()` uses bulk keyword loading for import diff.
 
 ### Global Search
 
@@ -266,7 +253,7 @@ When adding a new visitor-facing asset reference, route it through `db_normalize
 
 A family of per-galaxy toggles in the admin/editor's "Discovery" section of the galaxy edit modal. Every flag is off by default — existing galaxies look identical until an editor opts in. All settings live on the `constellations` table and are managed by `db_get_constellation_tour_config` / `db_set_constellation_tour_config`. New columns auto-migrate via `db_ensure_constellations_tour_columns()`. The shared form handler is `inc/galaxy-update.php`'s `handle_galaxy_update_post()`, used by both `admin/index.php` and `edit/index.php`.
 
-**Clusters share the same columns** (since they're rows in the same `constellations` table) and expose the same toggles via the cluster modal in `admin/index.php`. The cluster save path is `inc/cluster-update.php`'s `save_cluster_discovery_config_from_post()`. The "tagged" tour-selection mode on a cluster takes a comma-separated free-text keyword names field instead of the per-galaxy checkbox list, because a cluster has no native keywords of its own. Those names are persisted as cluster-owned `keywords` rows via `db_set_cluster_tour_keyword_names()` and matched at tour time by lowercased name against each visible wormhole's keyword set (cross-galaxy by definition). The immediate-start audio-autoplay warning on a cluster checks for audio across member galaxies via `db_cluster_has_audio_nodes()`. See "Discovery features in union views" under Multigalaxy for the bootstrap fork.
+**Clusters** share the same columns (same `constellations` table) and surface the same toggles via the cluster modal in `admin/index.php`; cluster save path is `inc/cluster-update.php`'s `save_cluster_discovery_config_from_post()`. "Tagged" tour-selection on a cluster is a free-text keyword-names field (clusters have no native keywords); names are persisted as cluster-owned `keywords` rows via `db_set_cluster_tour_keyword_names()`. See "Discovery features in union views" under Multigalaxy for the bootstrap fork.
 
 **Auto-tour** (`tour_enabled` + `tour_start_mode` / `tour_idle_seconds` / `tour_node_selection` / `tour_random_count` / `tour_default_dwell` / `tour_loop`, plus the `constellation_tour_keywords` junction for `node_selection = tagged`). Auto-navigates visitors through nodes, opening each rich-media card and playing audio/video to its `ended` event (or for the dwell duration, scaled by description reading time at 180 wpm). Bezier camera arc with random perpendicular swing; spotlight halo + floating label that ease in over ~600ms; non-spotlight wormholes dim to 30% opacity/emissive. Three start modes: `manual` (Play button), `idle` (after N seconds inactive), `immediate` (3s grace then start). Four node selections: `all`, `accentuated`, `random_n`, `tagged`. The Discovery section also has a "Preview tour" button that opens `?tour=preview` to audition without saving the start mode. Mobile (viewport < 768px) is excluded.
 
@@ -291,7 +278,7 @@ A family of per-galaxy toggles in the admin/editor's "Discovery" section of the 
 
 ### Multigalaxy (cross-constellation views)
 
-Visitors can see wormholes from multiple galaxies in a single 3D scene through four mechanisms (full design + history in `docs/multigalaxy.md`):
+Visitors can see wormholes from multiple galaxies in a single 3D scene through four mechanisms (full design + history in `~/apps/obsidian/Polivoxia/Projects/Telaris/Multigalaxy.md`):
 
 1. **Query string** — `?galaxies=slug-or-id,slug-or-id,...` unions the listed galaxies. Cheapest entry, no editorial step.
 2. **Name prefix** — `/[XXX]` (also `/%5BXXX%5D`) unions every galaxy whose name starts with the literal `[XXX]` token. Case-insensitive.
@@ -304,104 +291,37 @@ All four converge on the same downstream pipeline. `inc/bootstrap.php` populates
 
 **Cross-galaxy bridges.** When two wormholes from different galaxies share a keyword text, they're connected with a subtle dashed line (`THREE.LineDashedMaterial`) instead of the cylinder used for intra-galaxy connections. Detection is client-side (`n1.userData.constellation_id !== n2.userData.constellation_id` in `createConnections`).
 
-**Discovery features in union views.** Splits two ways:
-- *Emergent unions* (`?galaxies=`, `/[XX]`, `/tag/`) have no owning row, so auto-tour, idle spotlight, and related-wormholes can't attach to anything — they're force-disabled. Keyword chips are the exception: they pool from every visible wormhole (no dead-chip problem), enabled iff at least one member galaxy has `keyword_chips_enabled`.
-- *Clusters* are first-class rows in `constellations`; the cluster's own discovery columns drive the visitor experience the same way a single galaxy's do. All four features (chips, related-wormholes, idle spotlight, auto-tour) are per-cluster opt-in in the admin's cluster modal. The "tagged" tour-selection mode uses a comma-separated keyword-name field on the cluster (clusters have no native keywords, so names are stored as cluster-owned keyword rows by `db_set_cluster_tour_keyword_names()` and matched across the union by lowercased name). The immediate-start audio-autoplay warning is computed across member galaxies (`db_cluster_has_audio_nodes`). The bootstrap branch lives in `inc/bootstrap.php` (cluster vs. emergent fork after `$multiGalaxyIds` is populated); the cluster modal's Discovery section is in `admin/index.php` and its save logic is in `inc/cluster-update.php`.
+**Discovery features in union views.** *Emergent unions* (`?galaxies=`, `/[XX]`, `/tag/`) force-disable auto-tour, idle spotlight, and related-wormholes (no owning row to attach to); keyword chips remain — pooled across every visible wormhole, enabled iff at least one member galaxy has `keyword_chips_enabled`. *Clusters* are first-class rows; their own discovery columns drive the visitor experience, all four features per-cluster opt-in in the cluster modal. "Tagged" tour selection on a cluster uses a free-text keyword-names field (stored as cluster-owned keyword rows via `db_set_cluster_tour_keyword_names()`, matched across the union by lowercased name). Audio-autoplay warning computed across members via `db_cluster_has_audio_nodes`. Bootstrap fork in `inc/bootstrap.php`; cluster modal save logic in `inc/cluster-update.php`.
 
 **Galaxy list strip.** Bottom-right slide-up button labelled "Galaxies · N" reveals a chip column for the active members. Click a galaxy chip to dim wormholes from other galaxies (multi-select OR-match). Default ON for emergent unions (`?galaxies=`, `/[XX]`, `/tag/`); per-cluster toggle in admin (default OFF). Implemented in `js/galaxy-list-strip.js`; dim multiplier added to `updateNodes` in `js/telaris-3d.js`.
 
 ### Keyword canvas (editor surface, per-galaxy)
 
-A dedicated editor route — `/edit/keyword-canvas.php?galaxy_id=N` — that opens a full-viewport SVG canvas where every keyword in a galaxy is a draggable pastel chip on a black background. Entry points: admin galaxy-list three-dots menu ("Keyword canvas"), editor toolbar "Canvas" button. Back link uses `document.referrer` to return wherever the editor came from. Editors with a galaxy seat (or any admin) can edit; clusters reject with 400 (no native keywords). Mobile shows a "open on desktop" message.
+Full-viewport SVG canvas at `/edit/keyword-canvas.php?galaxy_id=N`: every keyword in the galaxy renders as a draggable pastel chip; editors draw named, attributed relation lines between chips. Two authoring layers — chip *positions* (continuous, drag, `keyword_positions.moved_by` per-edit attributed) and *relations* (discrete, click-click or drag-release between anchor dots, optional note, glued anchor sides). Clusters reject (no native keywords); mobile shows "open on desktop".
 
-**Two authoring layers.**
+**Schema** (auto-migrated via `db_ensure_keyword_canvas_tables()`): `keyword_positions(keyword_id PK, canvas_x, canvas_y, moved_by VARCHAR(255) NULL, moved_at)`, `keyword_relations(id, keyword_a_id, keyword_b_id, created_by, created_at, note, anchor_a, anchor_b)` with `UNIQUE(a,b)` + `CHECK (a < b)`, and `keyword_position_history(...)` append-only.
 
-1. *Positions* (continuous). Drag a chip to move it. Per-edit attributed (`keyword_positions.moved_by`/`moved_at`). Append-only audit log in `keyword_position_history`. Initial placement: Mitchell's best-candidate Poisson-disc sampling — truly uniform, no co-occurrence prior. `moved_by` stays `NULL` until the editor actively drags.
-2. *Discrete named lines.* Click an anchor dot on chip A, then click or drag-release on an anchor on chip B → relation row in `keyword_relations` with `created_by` + `created_at` + optional `note`, plus `anchor_a` / `anchor_b` (which side of which chip the line is glued to). Pair canonicalized as `keyword_a_id < keyword_b_id`; anchors swap with the pair if needed. Lines render from the actual anchor position (not chip center), updating on zoom because anchor world-points multiply chip-local offsets by `chipScale`.
+**API** at `/api/keyword-canvas.php`: session-auth + galaxy-seat-gated + author-or-admin on relation edits. GET hydrates `{keywords, positions, relations}` (lazy Poisson-disc seeds missing positions). POST actions: `move_keyword`, `create_relation`, `update_relation`, `delete_relation`, `reset_keyword`, `reset_galaxy`, `delete_keyword`, `rename_keyword` (409 on case-insensitive collision), `merge_keywords`.
 
-**Schema** (all auto-migrated via `db_ensure_keyword_canvas_tables()`):
+**Frontend** `js/keyword-canvas.js` — vanilla SVG, no deps. Always-on physics (line-springs + Coulomb repulsion) settles deterministically per load and does not persist. Ambient layer: idle float, hover-reveals-structure, line glow keyed to endpoint chip colors, new-line flash, anchor pulse during draw, dot-grid background. Stage 3 (co-occurrence attraction) explicitly not shipped.
 
-- `keyword_positions(keyword_id PK, canvas_x, canvas_y, moved_by VARCHAR(255) NULL, moved_at)`. `moved_by` is `VARCHAR(255)` not `INT` because `users.id` is `VARCHAR(255)`.
-- `keyword_relations(id, keyword_a_id, keyword_b_id, created_by, created_at, note, anchor_a VARCHAR(8) DEFAULT 'right', anchor_b VARCHAR(8) DEFAULT 'left')`. `UNIQUE(keyword_a_id, keyword_b_id)` + `CHECK (keyword_a_id < keyword_b_id)`. Anchor columns added by a separate `SHOW COLUMNS` / `ALTER` block inside the ensure (second-pass migration); legacy rows get the defaults.
-- `keyword_position_history(id, keyword_id, canvas_x, canvas_y, moved_by, moved_at)` — append-only.
+**Chip styling**: shared with the rest of the app — pastel palette + per-keyword hash exported from `js/keyword-chips.js` (`CHIP_FG`, `colorIndexFor`). Inline copies in `galaxy-edit-modal.js` and `keyword-canvas.js` (not ES modules).
 
-**API** at `/api/keyword-canvas.php`, session-auth gated + galaxy-seat checked + author-or-admin on relation edits:
-
-- `GET ?galaxy_id=N` — hydration: `{ keywords, positions, relations, canvas_width, canvas_height }`. Triggers lazy Poisson-disc seeding for keywords without a position.
-- `POST { action }` for six actions: `move_keyword`, `create_relation`, `update_relation`, `delete_relation`, `reset_keyword`, `reset_galaxy`. `create_relation` accepts `anchor_a` / `anchor_b` and returns canonicalized.
-
-**Frontend**: `js/keyword-canvas.js` is vanilla SVG, no external dependencies. Versioned via query-string (`?v=$appVersion`). Key UX choices, with the gotchas that surfaced during initial shipping:
-
-- *Render order matters.* `renderAll()` must call `renderNodes()` **before** `renderLines()`, because `renderLines` reads chip dimensions from `nodeSizes` (populated when `renderNodes` measures each chip's text bbox). Wrong order produces invisible lines plus silent "already exists" rejections on attempts to create them.
-- *Pixel-pinned strokes.* All lines (visible + invisible hit zone + preview) use `vector-effect="non-scaling-stroke"` so thickness is constant across zoom.
-- *Hit zones.* Anchors and lines render as stacked SVG elements: a thin visible element (`pointer-events="none"`) below a fat invisible element (`pointer-events="stroke"` for lines, `"all"` for anchor circles) carrying the `data-kc-*` attributes. Anchors store a JS reference (`hit._kcVisibleDot = dot`) so the hover handler can enlarge the visible dot while detecting on the wide hit circle.
-- *Chip size clamp.* `CHIP_MIN_PX = 14`, `CHIP_MAX_PX = 22`. Computed via `pxPerUnit × NODE_FONT_SIZE`; out-of-band sizes get an extra per-chip `scale(...)`. Lines re-render after every zoom/resize so anchor world-points stay glued to the visible anchors.
-- *Pan vs. rubber-band.* Standard graph-editor convention: plain drag on empty space = rubber-band multi-select; **Space + drag** or middle-click = pan; mouse wheel = zoom around cursor. Group drag works on any selected chip; selection persists across drags (white dashed outline, non-scaling stroke).
-- *Two ways to draw a line.* Click an anchor → click another anchor (click-click), OR pointerdown on an anchor → drag → release on another anchor (drag-release). Distinguished by a 5px movement threshold. Both work.
-- *Back link.* `document.referrer` (same-origin) is promoted to the back-link `href` on page load. Empty referrer falls back to the editor's galaxy view.
-- *No delete confirmation.* Deleting a relation is one click in the line inspector modal; recreating is cheap. Confirmation was removed as cumbersome.
-
-**Chip styling**: all chip surfaces across Telaris share one pastel palette (`CHIP_FG`) and one deterministic per-keyword hash (`colorIndexFor`). **Now exported** from `js/keyword-chips.js` (`export const CHIP_FG`, `export function colorIndexFor`) so the canvas, the 2D wormhole grid, and `telaris-3d.js` all import the same instances. `galaxy-edit-modal.js` and `keyword-canvas.js` still inline their own copies because they aren't loaded as ES modules.
-
-**Stage 1 + 2 physics shipped** (v6.9.39 + v6.9.41 + v6.9.42). The canvas now feels alive:
-- Lines-as-springs (each `keyword_relations` line pulls its endpoints toward a target rest distance).
-- Light global Coulomb repulsion (K=600, cutoff=360, min-dist clamp 30) so unconnected chips space themselves and tight clusters break up on load.
-- Always on, no toggle. Physics moves do NOT persist — deterministic algorithm + same inputs = same settled layout. Re-runs on every load.
-- Per-chip idle float: every chip oscillates in a tiny 3-5 unit orbit (6-10s period, deterministic phase from `hashPhase(name)`). Render-time offset only; doesn't touch `state.positions`.
-- Continuous animation loop replaces the physics-only RAF — idle motion runs forever even after physics settles.
-- Smoothstep ease-in over 320 ms on every `kickPhysics()` so motion blooms instead of jolting.
-- Stage 3 (co-occurrence attraction) explicitly **not shipped** — the design note rejects "data speaks for itself" framing on the editing surface.
-
-**Visual layer (v6.9.42):**
-- Line glow: `filter: drop-shadow` keyed to the blended pastel of the two endpoint chips' colors (`blendHex` helper). Stored on `data-kc-glow`.
-- Hover reveals structure: hovering a chip thickens + brightens the lines connecting it; hovering a line brightens that line. Smooth 160 ms transition. **No chip dimming, no opacity changes on non-connected lines** — additive only. Suppressed during a line draw (the anchor pulse owns the attention then). The `selectRelation` helper clears `hoverState` before opening the line-inspector modal so the line doesn't read as still-hovered after dismissal.
-- New-line creation flash: 720 ms CSS animation on the newly drawn line.
-- Anchor pulse during draw: `svg.kc-drawing` class drives a CSS pulse on every anchor dot except inside the source chip (marked `data-kc-draw-source="1"`).
-- Dot grid background: static SVG `<pattern>` in a new `layerBg` (60-unit spacing, 4-unit dim gray dots).
-
-**Keyword rename / delete / merge (v6.9.45).** Clicking a chip (release without moving more than ~5 px) opens an inspector modal with a rename input + delete button. Drag detection lives on `dragCtx.moved` / `state.groupDrag.moved`, set by pointermove crossing `LINE_DRAG_THRESHOLD_PX`; release with `!moved` calls `openKeywordModal(kwId)` instead of saving the drag position. Same modal handles both single-chip and group-drag cases — multi-selection stays intact.
-
-Rename flow:
-- Client checks `state.keywords` for a case-insensitive collision in the current galaxy.
-- No collision → `POST { action: 'rename_keyword' }`; UPDATE on `keywords.keyword`.
-- Collision → opens the conflict modal: "Change name" reopens the rename input pre-filled with an error flag, "Merge" sends `POST { action: 'merge_keywords' }` which repoints every reference from source to target then deletes source. Server returns 409 with `existing_id` if the client missed the conflict (race).
-
-Merge semantics: `node_keywords` rewritten via INSERT IGNORE (dupes silently skipped); `keyword_relations` rewritten preserving canonical pair order and swapping anchor sides when the canonical order flips, self-loops skipped, collisions with existing target-rooted relations skipped; remaining source-rooted relations + `keyword_positions` + `keyword_position_history` cleanup via `ON DELETE CASCADE`. Delete uses the same cascade — no separate cleanup needed.
-
-API additions: `delete_keyword`, `rename_keyword` (returns 409 on conflict), `merge_keywords`. DB helpers: `db_find_keyword_in_galaxy`, `db_rename_keyword`, `db_merge_keywords` in `inc/db.php`.
-
-**Design note** in the Polivoxia vault at `Projects/Telaris/Keyword canvas — design.md` carries the political/decolonial rationale (why uniform initial placement, why physics is editor-controlled, why visitor surfaces are deferred, anti-patterns the design explicitly refuses). Project memory at `~/.claude/.../memory/project_keyword_canvas.md` tracks ship state of each stage.
+Implementation details, layout-pipeline gotchas, merge semantics, and stage-by-stage history in `~/apps/obsidian/Polivoxia/Projects/Telaris/Keyword canvas — implementation.md`. Political/decolonial rationale in `~/apps/obsidian/Polivoxia/Projects/Telaris/Keyword canvas — design.md`.
 
 ### 2D wormhole view (per-galaxy opt-in)
 
-A visitor-side alternative layout to the 3D scene: every wormhole renders as a small pastel chip on a dot-grid background, distributed via Poisson-disc seeding inside the viewport. Same `app.nodes` data the 3D scene uses; the 2D module just renders it flat. Toggle is a segmented "3D / 2D" control at top-center, per-galaxy opt-in.
+Visitor-side alternative to the 3D scene: every wormhole renders as a pastel chip on a dot-grid background, distributed via Poisson-disc seeding. Same `app.nodes` data; the 2D module just renders it flat. Toggle is a segmented "3D / 2D" control at top-center.
 
-**Per-galaxy gate.** New column `constellations.show_2d_view BOOLEAN NOT NULL DEFAULT FALSE`. Set via the "2D view switch" toggle in the Discovery section of the galaxy edit modal (`inc/partials/galaxy-edit-modal.php`) and the cluster modal (`admin/index.php`). Added to `db_ensure_constellations_tour_columns`, `db_get_constellation_tour_config`, `db_set_constellation_tour_config`, `SCHEMA.sql`, `galaxy-update.php`, `cluster-update.php`, `galaxy-edit-modal.js`. Multi-galaxy: emergent unions (`?galaxies=`, `/[XX]`, `/tag/`) inherit from the **first** galaxy in `$multiGalaxyIds`; clusters use their own row. Frontend gate is `window.TELARIS_2D_VIEW_ENABLED`.
+**Per-galaxy gate** `constellations.show_2d_view BOOLEAN NOT NULL DEFAULT FALSE` (auto-migrated by `db_ensure_constellations_tour_columns`; threaded through `db_get_constellation_tour_config` / `db_set_constellation_tour_config` / `galaxy-update.php` / `cluster-update.php` / `galaxy-edit-modal.js`). Surfaced in the galaxy + cluster edit modals. Emergent unions inherit from the first member; clusters use their own row. Frontend gate is `window.TELARIS_2D_VIEW_ENABLED`. Last choice persists in `localStorage.telaris.viewMode`; `main-view.php` runs a synchronous inline script to set the correct button styling before main.js loads (avoids a visible hydration flip).
 
-**localStorage preference.** When the switch is rendered, the visitor's last choice persists in `localStorage.telaris.viewMode` (`'2d'` or `'3d'`). To prevent a visible hydration flip from "3D selected" to "2D selected" on pages where the visitor's last visit ended in 2D, `main-view.php` includes a tiny synchronous inline script right after the switch markup that reads the preference and applies the "active" button styles **before** main.js runs.
+**Frontend module** `js/wormhole-grid-2d.js` (ES module). Strict no-overlap layout pipeline: Poisson seed with axis-aligned-rect rejection → invisible presettle → overlap resolver. Lines invisible by default, only appear on hover, clipped to chip rect boundaries. The 3D scene's `#node-tooltip` + `#tooltip-line-svg` are reused for the hover info panel (not hidden when 2D is active). Keyword chip filter composes via `app.activeKeywords`. Cluster clicks drill into the same nav stack as 3D; portal clicks page-navigate; regular wormholes open `app.showRichMediaWindow`. Crossfade in/out — cards appear already laid out, never "spring from elsewhere".
 
-**Frontend module** `js/wormhole-grid-2d.js` (ES module, imported by `main.js`):
-- Cards: pastel pills sized ~12 px font, max-width 160 px, deterministic pastel from `CHIP_FG[colorIndexFor(name)]` (background 18% opacity, border 55% opacity, text 100%). Optional 14 px circular thumbnail if the wormhole has an image. Cluster cards get a cyan ring via `box-shadow`; portals get amber.
-- **Strict no-overlap layout pipeline:** `_buildCards` measures sizes → `_seedPositions` (Poisson best-candidate with **axis-aligned-rectangle overlap rejection** — every candidate checked, overlapping ones thrown out, 40 attempts then a 200-attempt retry pass) → `_buildLines` → `_presettle` (160 invisible repulsion steps) → `_resolveOverlaps` (rectangle-math pass that pushes any remaining overlaps apart along the smaller-overlap axis, iterates until clean, clamps to viewport). The user explicitly: **"always check for overlapping nodes, that is a huge no-no."** All three guarantees run before the container fades in.
-- **Seed region scales with node count.** `SEED_AREA_PER_CHIP = 19000` × N, aspect from viewport, centered. Clamped to `[SEED_REGION_MIN_W=520, SEED_REGION_MIN_H=340]` and `[viewport - chrome margins]`. A 10-chip galaxy gets ~640×300 instead of the full 1500×700.
-- **Repulsion** (`PHYS_REPULSION_K=1000`, cutoff 180, min-dist 30) handles only post-seed corrections. No springs — they pulled connected chips into a knot.
-- **Idle float**: every chip oscillates in a 2-4 px orbit, deterministic phase from `hashPhase(String(id))`. Continuous animation loop runs forever while 2D is active.
-- **Lines**: pastel glow blended from endpoint colors, thickness scales with shared-keyword count (`1 + 0.6 × (shared-1)`, capped at 4 px), **invisible by default** (`LINE_BASE_OPACITY = 0`) — only appear on hover. Endpoints **clipped to chip rect boundaries** via `_clipToRect` so they don't shine through the cards.
-- **Hover reveal** (`_onCardHover`): brightens the lines connecting the hovered card to its neighbours (no card dimming, additive only). Plus a top-right info panel that reuses the 3D scene's `#node-tooltip` element (pinned at `top: 3.5rem; right: 3rem`, pastel border + glow keyed to the card color) with a stepped orthogonal connector line drawn in the reused `#tooltip-line-svg`. Both clear on mouseleave and on mode switch.
-- **Keyword chip filter integration** (`_syncActiveKeywordDim`): reads `app.activeKeywords` every frame; diffs against a snapshot to avoid per-frame DOM work; when filtered, dims non-matching cards to 0.18 and connecting lines to 0.15. Chip clicks in the bottom strip "just work" in 2D — same Set the 3D scene reads.
-- **Clicks**: cluster → `app.transitionToCluster(constellationId, cluster_key)` (same nav stack as 3D); portal → page-navigates to the target galaxy URL (mode resets to 3D since localStorage isn't 2D for that destination unless explicitly set); regular wormhole → `app.showRichMediaWindow(mesh)` opens the same info card as 3D.
-- **Crossfade in/out.** No "springing from elsewhere" — `setActive(true)` paints the container at opacity 0, seeds + presettles + resolves overlaps invisibly, then crossfades to opacity 1 over 280 ms. Cards appear already laid out.
+**Info window accent** is now sourced from `CHIP_FG[colorIndexFor(name)]` for both 3D and 2D — single source of color truth across the app.
 
-**Mode-switch wiring** (`wireViewModeSwitch` in `js/main.js`):
-- Hides 3D-side overlays (`#persistent-tooltips`, `#cluster-breadcrumb`) when 2D is active. `#node-tooltip` and `#tooltip-line-svg` are NOT hidden — 2D reuses them.
-- Hides the WebGL wrapper via `visibility: hidden` (preserves layout).
-- Patches `app.loadDataForConstellation` once at init so cluster drill-downs refresh the grid automatically.
+**Burger menu "Keyword view"** (editor/admin only) routes to the canvas; `?back=visitor` falls back to the visitor URL when `document.referrer` isn't usable.
 
-**Info window accent matches the chip color.** `telaris-3d.js`'s `showRichMediaWindow` now derives its accent (`--node-accent`, `--node-accent-muted`, border, ambient glow) from `CHIP_FG[colorIndexFor(name)]` instead of the legacy `colorR/G/B` theme palette. Works in both 3D and 2D — single source of color truth across the app.
-
-**Burger menu "Keyword view" item.** Visible to logged-in editors/admins only. Routes to `/edit/keyword-canvas.php?galaxy_id={first}&back=visitor`; the canvas resolves `?back=visitor` to a visitor-URL fallback (`/{slug}` or `/?constellation_id=N`) when `document.referrer` isn't usable. Multi-galaxy contexts (cluster, emergent union) route to `$keywordViewGalaxyId = $multiGalaxyIds[0] ?? $constellationId`.
-
-**Galaxy Edit modal — keyword chips now pastel.** The per-keyword tour selectors inside `#modal-tour-keywords` (`galaxy-edit-modal.js`) render as pastel pills (`background: rgba(pastel, 0.18); color: pastel; border: 1px solid rgba(pastel, 0.5)`) with the checkbox inline + `#keyword` prefix. Wraps via flex-wrap. Palette + hash duplicated inline because the modal isn't an ES module.
+Implementation details, layout pipeline math, and the "always check for overlapping nodes" guarantee in `~/apps/obsidian/Polivoxia/Projects/Telaris/2D wormhole view — implementation.md`.
 
 ### PDF wormhole media
 
@@ -419,7 +339,7 @@ Visitor renderer: `js/pdf-viewer.js` lazy-loads Mozilla **PDF.js** (vendored at 
 
 ### Bulk user creation (admin)
 
-`inc/bulk-users.php` exports `bulk_users_parse(string $input, bool $defaultCreateGalaxy = true): list<row>` and `bulk_users_apply(list<row>, string $baseUrl): array<report>`. CSV-only format with columns `email[, firstname, lastname, type, creates_galaxy]`. Only the email is required; `type` defaults to `Editor` (case-insensitive `Admin` to override); `creates_galaxy` (yes/no/true/false/1/0) is a per-row override of the GUI checkbox. When the GUI checkbox or row override is true, each new user gets a personal galaxy: slug from the email local-part (with a 3-digit suffix on collision), name from "First Last" (fallback to local-part), `cosmic` theme. Editors are attached to their new galaxy via `user_constellations`; admins skip the junction row since they see every galaxy already. The welcome email tells the user their username (the email), gives them the one-time setup link (7-day TTL, single-use, same token flow as forgot-password), the galaxy URL when one was created, and the login URL. Admin UI: dialog `#bulk_users_modal` with two-step preview→commit, opened via the "Bulk import" button on the Users tab.
+`inc/bulk-users.php` exports `bulk_users_parse` and `bulk_users_apply`. CSV format `email[, firstname, lastname, type, creates_galaxy]`; only email required; `type` defaults to `Editor` (case-insensitive `Admin` to override); `creates_galaxy` is a per-row override of the GUI checkbox. When on, each new user gets a personal galaxy (slug from email local-part with 3-digit suffix on collision, name from "First Last", `cosmic` theme); editors are attached via `user_constellations`, admins skip the junction. Welcome email carries the one-time setup link (7-day TTL, single-use, same token flow as forgot-password) plus galaxy + login URLs. Admin UI: dialog `#bulk_users_modal` with two-step preview→commit on the Users tab.
 
 ### Localization
 
