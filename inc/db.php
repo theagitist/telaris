@@ -616,7 +616,7 @@ function db_ensure_nodes_node_type_index(): void {
 }
 
 /**
- * Ensure the keyword-canvas tables exist. See `Polivoxia/Projects/Telaris/Keyword canvas — design.md`
+ * Ensure the keyword-canvas tables exist. See `Academia/Projects/Telaris/Features/Keyword canvas/design.md`
  * in the user's vault for the full design rationale.
  *
  * Three tables:

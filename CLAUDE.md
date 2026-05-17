@@ -168,7 +168,7 @@ Key relationships:
 
 **Other tables added since v6.5:** `password_reset_tokens(token_hash, user_id, expires_at, used_at)` (single-use, SHA-256 hashed, 24h TTL by default). `project_info.pdf_max_bytes` global setting (default 25 MB; configurable via admin Global Settings).
 
-**Editorial provenance.** Every editorial table records *who* via a `created_by VARCHAR(255)` column (FK to `users.id` with `ON DELETE SET NULL`, indexed): `nodes`, `keywords`, `node_keywords` (per-tag-application — distinct from who created the keyword itself), `galaxy_tags` (+ `created_at`), `constellations`, plus the canvas pair `keyword_positions.moved_by` + `keyword_relations.created_by`. Auto-migrated via `db_ensure_*_created_by_column` / `db_ensure_*_provenance_columns` in `inc/db.php`. Write paths accept optional `?string $createdBy = null`; the API/admin/galaxy-update boundaries pull `$_SESSION['admin_user_id']` and pass it through. System contexts (Mocambos imports, backup restores, bulk-user provisioning) pass nothing — explicit "system-attributed" semantics. Legacy rows stay NULL ("pre-provenance era") — do not backfill; the absence is itself attribution-honest. Surfacing to humans is queued at `~/apps/obsidian/Polivoxia/Projects/Telaris/Documentation/ROADMAP.md` `^provenance-ui`; the canvas line inspector is the only place it's visible right now.
+**Editorial provenance.** Every editorial table records *who* via a `created_by VARCHAR(255)` column (FK to `users.id` with `ON DELETE SET NULL`, indexed): `nodes`, `keywords`, `node_keywords` (per-tag-application — distinct from who created the keyword itself), `galaxy_tags` (+ `created_at`), `constellations`, plus the canvas pair `keyword_positions.moved_by` + `keyword_relations.created_by`. Auto-migrated via `db_ensure_*_created_by_column` / `db_ensure_*_provenance_columns` in `inc/db.php`. Write paths accept optional `?string $createdBy = null`; the API/admin/galaxy-update boundaries pull `$_SESSION['admin_user_id']` and pass it through. System contexts (Mocambos imports, backup restores, bulk-user provisioning) pass nothing — explicit "system-attributed" semantics. Legacy rows stay NULL ("pre-provenance era") — do not backfill; the absence is itself attribution-honest. Surfacing to humans is queued at `~/apps/obsidian/Academia/Projects/Telaris/Documentation/ROADMAP.md` `^provenance-ui`; the canvas line inspector is the only place it's visible right now.
 
 ### Auto-Clustering
 
@@ -278,7 +278,7 @@ A family of per-galaxy toggles in the admin/editor's "Discovery" section of the 
 
 ### Multigalaxy (cross-constellation views)
 
-Visitors can see wormholes from multiple galaxies in a single 3D scene through four mechanisms (full design + history in `~/apps/obsidian/Polivoxia/Projects/Telaris/Multigalaxy.md`):
+Visitors can see wormholes from multiple galaxies in a single 3D scene through four mechanisms (full design + history in `~/apps/obsidian/Academia/Projects/Telaris/Features/Multigalaxy.md`):
 
 1. **Query string** — `?galaxies=slug-or-id,slug-or-id,...` unions the listed galaxies. Cheapest entry, no editorial step.
 2. **Name prefix** — `/[XXX]` (also `/%5BXXX%5D`) unions every galaxy whose name starts with the literal `[XXX]` token. Case-insensitive.
@@ -307,7 +307,7 @@ Full-viewport SVG canvas at `/edit/keyword-canvas.php?galaxy_id=N`: every keywor
 
 **Chip styling**: shared with the rest of the app — pastel palette + per-keyword hash exported from `js/keyword-chips.js` (`CHIP_FG`, `colorIndexFor`). Inline copies in `galaxy-edit-modal.js` and `keyword-canvas.js` (not ES modules).
 
-Implementation details, layout-pipeline gotchas, merge semantics, and stage-by-stage history in `~/apps/obsidian/Polivoxia/Projects/Telaris/Keyword canvas — implementation.md`. Political/decolonial rationale in `~/apps/obsidian/Polivoxia/Projects/Telaris/Keyword canvas — design.md`.
+Implementation details, layout-pipeline gotchas, merge semantics, and stage-by-stage history in `~/apps/obsidian/Academia/Projects/Telaris/Features/Keyword canvas/implementation.md`. Political/decolonial rationale in `~/apps/obsidian/Academia/Projects/Telaris/Features/Keyword canvas/design.md`.
 
 ### 2D wormhole view (per-galaxy opt-in)
 
@@ -321,7 +321,7 @@ Visitor-side alternative to the 3D scene: every wormhole renders as a pastel chi
 
 **Burger menu "Keyword view"** (editor/admin only) routes to the canvas; `?back=visitor` falls back to the visitor URL when `document.referrer` isn't usable.
 
-Implementation details, layout pipeline math, and the "always check for overlapping nodes" guarantee in `~/apps/obsidian/Polivoxia/Projects/Telaris/2D wormhole view — implementation.md`.
+Implementation details, layout pipeline math, and the "always check for overlapping nodes" guarantee in `~/apps/obsidian/Academia/Projects/Telaris/Features/2D wormhole view — implementation.md`.
 
 ### PDF wormhole media
 

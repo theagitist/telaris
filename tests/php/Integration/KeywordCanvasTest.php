@@ -7,7 +7,7 @@ use PHPUnit\Framework\TestCase;
  * Integration tests for the keyword-canvas schema and Poisson-disc seeding.
  *
  * Covers Chunk A of the keyword-canvas feature (see the design note
- * `Polivoxia/Projects/Telaris/Keyword canvas — design.md`):
+ * `Academia/Projects/Telaris/Features/Keyword canvas/design.md`):
  *  - db_ensure_keyword_canvas_tables() creates all three tables idempotently
  *  - db_seed_keyword_positions_for_galaxy() places only missing keywords
  *  - moved_by stays NULL on seeded rows (neutral default, not an authored claim)

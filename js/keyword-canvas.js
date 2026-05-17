@@ -5,7 +5,7 @@
  * { API_KEY, GALAXY_ID, GALAXY_NAME, GALAXY_SLUG, IS_ADMIN, CURRENT_USER_ID,
  *   BACK_URL, APP_VERSION }.
  *
- * Two authoring layers (see Polivoxia/Projects/Telaris/Keyword canvas — design.md):
+ * Two authoring layers (see Academia/Projects/Telaris/Features/Keyword canvas/design.md):
  *   1. Positions — drag a keyword node to reposition. Saved with author + timestamp.
  *      Initial placement is server-side Poisson-disc; moved_by stays NULL until the
  *      editor actively drags. Force-directed physics is deferred to a follow-up;

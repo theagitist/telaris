@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Keyword canvas API — hydration + write actions for the per-galaxy keyword
  * relationship editor.
  *
- * See `Polivoxia/Projects/Telaris/Keyword canvas — design.md` in the user's
+ * See `Academia/Projects/Telaris/Features/Keyword canvas/design.md` in the user's
  * vault for the political/decolonial rationale and the full design.
  *
  * Auth:

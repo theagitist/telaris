@@ -9,7 +9,7 @@ declare(strict_types=1);
  * galaxy seat) and admins can use it. The convention "anything in /admin/
  * is admin-only" stays clean this way.
  *
- * See `Polivoxia/Projects/Telaris/Keyword canvas — design.md` for the full
+ * See `Academia/Projects/Telaris/Features/Keyword canvas/design.md` for the full
  * design rationale.
  */
 
