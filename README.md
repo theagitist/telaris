@@ -208,4 +208,4 @@ This split is load-bearing. It is part of how Telaris refuses the platform patte
 
 ---
 
-Built by Adri M. (UBC GRSJ) at Polivoxia, in dialogue with the Mocambos / Baobáxia quilombola archive tradition and the body of decolonial theory cited in the [Manifest](https://www.telaris.ca/docs/manifest.pdf).
+Built by Adri M. and Manuel Piña at UBC, in dialogue with the Mocambos / Baobáxia quilombola archive tradition and the body of decolonial theory cited in the [Manifest](https://www.telaris.ca/docs/manifest.pdf).
