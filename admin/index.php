@@ -931,7 +931,9 @@ $fieldMeta = [
                         <div class="flex items-center gap-3">
                             <h2 class="text-gray-800 text-base font-semibold">Galaxies (<span id="constellations-count">...</span>)</h2>
                             <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Galaxy</button>
-                            <button type="button" onclick="openMocambosImportModal()" class="text-purple-600 hover:text-purple-800 font-medium text-base">Import from Mocambos</button>
+                            <?php if (defined('TELARIS_BRIDGES') && in_array('mocambos', TELARIS_BRIDGES, true)): ?>
+                                <button type="button" onclick="openMocambosImportModal()" class="text-purple-600 hover:text-purple-800 font-medium text-base">Import from Mocambos</button>
+                            <?php endif; ?>
                         </div>
 
                         <!-- Top Pagination -->
@@ -1309,7 +1311,7 @@ $fieldMeta = [
         const API_KEY = <?php echo json_encode(getDefaultApiKey()); ?>;
         const CSRF_TOKEN = <?php echo json_encode($csrfToken); ?>;
         const API_URL = '../api/validate.php';
-        const MOCAMBOS_API = '../api/mocambos.php';
+        const MOCAMBOS_API = '../api/bridge.php?name=mocambos';
         let mocambosApiBase = '';
 
         function closeAllDropdowns(except) {
@@ -1382,7 +1384,7 @@ $fieldMeta = [
 
             // Step 1: Validate
             try {
-                const valResp = await fetch(`${MOCAMBOS_API}?action=validate&api_base=${encodeURIComponent(mocambosApiBase)}`, {
+                const valResp = await fetch(`${MOCAMBOS_API}&action=validate&api_base=${encodeURIComponent(mocambosApiBase)}`, {
                     headers: { 'X-API-Key': API_KEY }
                 });
                 const valData = await valResp.json();
@@ -1425,7 +1427,7 @@ $fieldMeta = [
             // Step 2: Fetch galaxias
             loading.querySelector('p').textContent = 'Fetching available galaxias...';
             try {
-                const resp = await fetch(`${MOCAMBOS_API}?action=galaxias&api_base=${encodeURIComponent(mocambosApiBase)}`, {
+                const resp = await fetch(`${MOCAMBOS_API}&action=galaxias&api_base=${encodeURIComponent(mocambosApiBase)}`, {
                     headers: { 'X-API-Key': API_KEY }
                 });
                 if (!resp.ok) {
@@ -1522,7 +1524,7 @@ $fieldMeta = [
             }
 
             try {
-                const resp = await fetch(`${MOCAMBOS_API}?action=import`, {
+                const resp = await fetch(`${MOCAMBOS_API}&action=import`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2066,7 +2068,7 @@ $fieldMeta = [
             }
 
             try {
-                const resp = await fetch(`${MOCAMBOS_API}?action=import`, {
+                const resp = await fetch(`${MOCAMBOS_API}&action=import`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
                     body: JSON.stringify({

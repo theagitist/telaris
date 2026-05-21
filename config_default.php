@@ -23,4 +23,9 @@ define('MAIL_FROM_NAME', '');           // e.g. Telaris
 // MAIL_SMTP_SECURE: 'tls' (STARTTLS), 'ssl' (implicit SSL), or '' (no encryption — not recommended).
 define('MAIL_SMTP_SECURE', 'tls');
 
+// Bridges. Each entry is the name of a handler in inc/bridges/{name}.php and
+// enables the matching "Import from..." surface in admin. Default empty.
+// Example: ['mocambos'] on telaris.baobaxia.net.
+define('TELARIS_BRIDGES', []);
+
 require_once __DIR__ . '/inc/db.php';
