@@ -3510,8 +3510,13 @@ function db_get_nodes_paginated(
             }
         }
     } elseif (!$isAdmin && $userId !== null) {
-        // Editor "all" — restrict to assigned constellations
-        $from = "FROM nodes n INNER JOIN user_constellations uc ON n.constellation_id = uc.constellation_id AND uc.user_id = :uid LEFT JOIN constellations c ON c.id = n.constellation_id";
+        // Editor "all" — restrict to assigned constellations. The `tc` join mirrors the
+        // admin branch and is required because the SELECT below pulls tc.slug for portal
+        // target resolution; without it, the query fails with "Unknown column tc.slug".
+        $from = "FROM nodes n"
+            . " INNER JOIN user_constellations uc ON n.constellation_id = uc.constellation_id AND uc.user_id = :uid"
+            . " LEFT JOIN constellations c ON c.id = n.constellation_id"
+            . " LEFT JOIN constellations tc ON tc.id = n.target_constellation_id";
         $params[':uid'] = $userId;
     } elseif (!$isAdmin) {
         return ['nodes' => [], 'total' => 0, 'page' => $page, 'per_page' => $perPage];
