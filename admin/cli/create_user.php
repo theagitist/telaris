@@ -15,31 +15,36 @@ require_once __DIR__ . '/cli_auth.php';
 
 // Load configuration and auth functions
 require_once __DIR__ . '/../../config.php';
-require_once __DIR__ . '/../../auth.php';
+require_once __DIR__ . '/../../utils/auth.php';
 
 /**
- * Read input from stdin
+ * Read one line from stdin.
+ *
+ * Uses the persistent STDIN handle (predefined in PHP CLI). Earlier versions
+ * opened php://stdin per call and closed it, which silently breaks under
+ * piped input (the second fgets returns false on EOF). STDIN survives across
+ * calls in both interactive and piped modes.
  */
 function readInput(string $prompt): string {
     echo $prompt;
-    $handle = fopen("php://stdin", "r");
-    $line = trim(fgets($handle) ?? '');
-    fclose($handle);
-    return $line;
+    $line = fgets(STDIN);
+    return trim($line === false ? '' : $line);
 }
 
 /**
- * Read password from stdin (hidden input)
+ * Read a password from stdin without echoing it back to the terminal.
+ *
+ * stty toggles are silenced (with @) because they raise a warning when
+ * stdin is not a TTY (e.g., piped input); in that case the toggle is a
+ * no-op and the read still works.
  */
 function readPassword(string $prompt): string {
     echo $prompt;
-    system('stty -echo');
-    $handle = fopen("php://stdin", "r");
-    $password = trim(fgets($handle) ?? '');
-    fclose($handle);
-    system('stty echo');
+    @system('stty -echo');
+    $line = fgets(STDIN);
+    @system('stty echo');
     echo "\n";
-    return $password;
+    return trim($line === false ? '' : $line);
 }
 
 // Main execution
