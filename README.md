@@ -1,325 +1,211 @@
-# Telaris - Weaving memory
+# Telaris
 
-A 3D interactive node network visualization.
+*weaving memory*
 
-## Setup Instructions
+A decolonial knowledge archive project. Relational, peer-to-peer, non-hierarchical, threaded by meaning. Content lives in **galaxies**: clusters of small content units called **wormholes** (a passage, an image, a sound, a film clip, a document) that connect through shared **keywords**. There are no folders, no parents, no breadcrumbs, no algorithm; the structure is a rhizome maintained by editors and read by visitors as a three-dimensional scene.
 
-### 1. Web Server Requirements
+Telaris is a graduate research project at the University of British Columbia's Institute for Gender, Race, Sexuality and Social Justice. It is open-source software run by independent operators across countries and communities, not a platform run by a single owner.
 
-The application requires:
+The public-facing project page is at <https://www.telaris.ca>. This repository is the **Telaris instance software**: what an operator deploys to run a Telaris node.
+
+## What Telaris is
+
+A decolonial archive in method, not metaphor. The practice has concrete consequences in how the software is designed and operated:
+
+- **Refusal of imposed categorical reductions.** No central vocabulary, no required ontology, no editor-in-chief. Each instance carries the keyword graph its editors and source communities build, not a tree imposed from above.
+- **Data sovereignty for source communities.** The people whose material is hosted on a Telaris instance retain authority over it. Withdrawal of consent is final and is acted on by the operator without negotiation.
+- **Editorial sovereignty for editors.** Editors decide what to publish in the galaxies they tend. There is no review queue, no centrally-approved vocabulary, no "wrong" keyword. The software does not police editorial choice.
+- **Operator sovereignty for instance operators.** Each Telaris instance is run by an independent operator under their own rules. There is no central authority over operators. They agree to a small set of cross-network commitments (cryptographic identity, honouring federation withdrawals, abiding by these principles) but otherwise govern their instances independently.
+
+These are method choices, not slogans. They show up in the code (no review-queue feature, no central-vocabulary table, no platform-administrator override) as readily as in the documentation.
+
+## What Telaris is not
+
+A clear refusal is a clearer position than a long manifesto.
+
+- **Not a platform.** No single owner. No central catalogue. No advertising. No tracking. No data sold or shared for commercial purposes.
+- **Not an AI training corpus.** Telaris content is not used to train AI models, internally or externally. The corpus is not piped to language-model providers for moderation, classification, summarisation, or any other purpose.
+- **Not a hierarchy.** No tree structure on the content. No editorial review queue. No "best content" promoted by an algorithm.
+- **Not extractive.** Content contributed by source communities does not become Telaris's property. Editors do not lose authorship by publishing on Telaris. Operators do not have rights over editors' content beyond what each instance's contract makes explicit.
+
+The full position statement is the [Manifest](https://www.telaris.ca/docs/manifest.pdf), kept short on purpose.
+
+## Documentation
+
+The documentation set is published at <https://www.telaris.ca/docs/> in English, Spanish, and Portuguese. Source markdown lives in a separate repository at [theagitist/telaris-documentation](https://github.com/theagitist/telaris-documentation).
+
+| Document | Audience |
+|---|---|
+| [Manifest](https://www.telaris.ca/docs/manifest.pdf) | Anyone reading the project from outside |
+| [Editor Quick Start](https://www.telaris.ca/docs/editor-quick-start.pdf) | New editors who want the shortest path to a first wormhole |
+| [Editor Manual](https://www.telaris.ca/docs/editor-manual.pdf) | Editors authoring galaxies, wormholes, keywords, portals, tours |
+| Admin Manual | Operators running a Telaris instance. Draft pending |
+| [Privacy](https://www.telaris.ca/docs/privacy.pdf), [Terms](https://www.telaris.ca/docs/tos.pdf) | Public-facing legal posture (draft) |
+
+Every public document is available in three sibling editions: `<slug>.pdf` (English), `<slug>-es.pdf` (Spanish), `<slug>-pt.pdf` (Portuguese). The three languages are sibling phrasings of the same voice, not translations of the English.
+
+## Concepts
+
+| Concept | Code identifier | What it is |
+|---|---|---|
+| **Galaxy** | `constellation` | A cluster of wormholes. Each galaxy is a tended space, with its own editors, theme, and editorial framing. |
+| **Wormhole** | `node` | The smallest unit of content. A wormhole carries a name, a description, optional media (image, audio, video, PDF), and a set of keywords. |
+| **Keyword** | `keyword` | A short tag attached to wormholes. Two wormholes that share a keyword are connected in the visualization; there is no other connection mechanism. |
+| **Portal** | `portal` (wormhole type) | A doorway between galaxies. A portal wormhole points at another galaxy; visitors can travel through it. |
+| **Keyword canvas** | `/edit/keyword-canvas.php` | The editor surface for sketching keyword-to-keyword relationships within a galaxy. |
+| **Tour** | (per-galaxy setting) | A curated path through a galaxy that visitors can replay. |
+
+The code uses the internal identifiers (`constellation`, `node`, `portal`); user-facing strings use the public vocabulary (Galaxy, Wormhole, Portal). The mapping is documented in the [brand book](https://github.com/theagitist/telaris-documentation/tree/main/src/brand-book) and enforced in `inc/locale/`.
+
+## Current state
+
+Latest version: **v6.9.x** on the deployed instances.
+
+Active design and implementation threads (May 2026):
+
+- **Federation, peer-to-peer.** Implementation-ready design (the "Pluriverse" coordination layer). Bilateral, consent-based federation between independent operators; cryptographic identity per peer; consent withdrawal honoured network-wide. The Pluriverse is the central coordination layer that hosts operator registry, key rotation, and consent-withdrawal propagation; the application proper lands at <https://www.telaris.ca> when federation ships.
+- **Documentation set.** Editor Manual v0.1 first draft, fifteen chapters, available in English / Spanish / Portuguese.
+- **Brand book v1.** Visual identity, voice canon, naming conventions, typography (monospace throughout), palette.
+
+Active deployed instances are listed at <https://www.telaris.ca/instances/>.
+
+## Install
+
+For operators who want to run a Telaris instance. The Admin Manual will carry the depth; this section is enough to get a development install running.
+
+### Requirements
+
 - **PHP 8.3+** with PDO MySQL extension
 - **MySQL 8+**
 - **Nginx** (or Apache with mod_rewrite)
-- Web server with SSL support (recommended)
-
-### 2. Configuration
-
-Access the setup script in your browser:
-```
-https://your-domain.com/admin/setup.php
-```
-
-Alternatively, accessing `/admin` without configuration will automatically redirect to the setup script.
-
-**Note**: The setup script can only be accessed via web browser, not from the command line.
-
-The setup script follows this 4-step process:
-
-1. **Configure Database Connection**: Prompt for database credentials
-   - Database Host (default: localhost)
-   - Database Port (default: 3306)
-   - Database Name (default: telaris)
-   - Database User (default: telaris)
-   - Database Password
-   - **PHP Requirements**: PHP version and required extensions are displayed on this screen
-
-2. **Create Database Schema**: Automatically creates all required tables
-   - Project info table (initialized with default values)
-   - Users table
-   - Constellations table (default constellation id=0 created by setup and cannot be erased)
-   - Nodes table (with JSON column for animation; each node belongs to a constellation)
-   - Keywords table (scoped per constellation)
-   - Node-keywords junction table
-   - API keys table
-
-3. **Configure Website Information**: Prompt for website name and tagline
-   - Website Name (default: Telaris)
-   - Tagline (default: Weaving memory)
-   - Updates the project_info table with your custom values
-
-4. **Create Admin User**: After website configuration, you'll be prompted to create an admin user
-   - First Name
-   - Last Name
-   - Email (used for login)
-   - Password (minimum 8 characters)
-
-**Note**: If the setup script cannot write `config.php` due to file permissions, it will display the configuration content in a textarea for manual creation.
-
-### 3. Access Points
-
-After setup, you can access:
-
-- **Main Visualization**: `https://your-domain.com/` or `https://your-domain.com/index.php` — shows the default constellation (id 0). To open a specific constellation by id, use `https://your-domain.com/{id}` (e.g. `/5`) or `?constellation_id={id}`; the path form may require a rewrite rule so `/{number}` is handled by `index.php`. To deep-link a specific wormhole, use `https://your-domain.com/{slug-or-id}/{wormhole-id}` (or `?node={wormhole-id}` as a fallback) — the wormhole's info card opens automatically with a camera fly. The card's share icon copies that permalink.
-- **Login Page**: `https://your-domain.com/utils/login.php`
-- **Admin Console**: `https://your-domain.com/admin/` (requires admin login)
-- **Node Editor**: `https://your-domain.com/edit/` (requires editor or admin login)
-
-## User Types
-
-The application supports three user types:
-
-- **Regular User** (type 0): No special access
-- **Editor** (type 1): Can edit nodes through the `/edit/` interface but cannot access admin console
-- **Admin** (type 2): Full access to admin console and node editor
-
-### Creating Users
-
-Users can be created:
-1. **During Setup**: Admin user is created via `admin/setup.php`
-2. **Via Admin Console**: Logged-in admins can create new users through `/admin` interface
-3. **Via CLI Script**: Use `admin/cli/create_user.php` to create admin or editor users
-4. **Via Database**: Direct SQL insertion (passwords must be hashed using `password_hash()`)
-
-**Important**: All passwords are automatically hashed and salted using PHP's `password_hash()` function with bcrypt.
-
-### CLI Scripts
-
-The application includes CLI scripts in `admin/cli/` for administrative tasks:
-
-- **create_user.php**: Create new admin or editor users interactively
-- **hard_reset.php**: Complete reset - drops all database tables and deletes config.php
-
-See `admin/cli/README.md` for detailed documentation on CLI scripts.
-
-## Database Structure
-
-The application uses MySQL 8+ with the following tables:
-
-### constellations
-Lists all constellations (each constellation is a set of nodes and keywords). The default constellation has id=0 and is created by setup; it cannot be erased. The main view shows the current constellation’s name and tagline in the top-left info area.
-- `id` INT NOT NULL PRIMARY KEY - Constellation identifier (immutable; 0 = default)
-- `name` VARCHAR(255) NOT NULL DEFAULT '' - Display name
-- `tagline` VARCHAR(500) NOT NULL DEFAULT '' - Short tagline shown in the main view with the constellation name
-- `theme` VARCHAR(50) NOT NULL DEFAULT 'cosmic' - Visual theme identifier (cosmic, abstract, rectangles, stripes, tech)
-
-### users
-Stores user accounts with authentication information.
-- `id` VARCHAR(255) PRIMARY KEY - Unique user identifier
-- `email` VARCHAR(255) NOT NULL UNIQUE - User email (used for login)
-- `password` VARCHAR(255) NOT NULL - Hashed password (bcrypt)
-- `firstname` VARCHAR(100) NOT NULL - User's first name
-- `lastname` VARCHAR(100) NOT NULL - User's last name
-- `type` INT NOT NULL DEFAULT 0 - User type (0=regular, 1=editor, 2=admin)
-- `date_created` TIMESTAMP - Account creation timestamp
-- `date_last_login` TIMESTAMP NULL - Last login timestamp
-
-### nodes
-Stores 3D network nodes with JSON columns for structured data (MySQL 8 feature). Each node belongs to one constellation.
-- `id` INT AUTO_INCREMENT PRIMARY KEY - Node identifier
-- `constellation_id` INT NOT NULL DEFAULT 0 - Constellation (FK → constellations.id)
-- `name` VARCHAR(255) NOT NULL - Node name
-- `description` TEXT - Node description
-- `url` VARCHAR(500) NULL - Optional URL for the node (opens in new window when clicked)
-- `created_by` VARCHAR(255) NULL - User ID who created the node (FK → users.id)
-- `animation` JSON NOT NULL - Animation parameters: `{"radius": float, "theta": float, "phi": float, "speed": float, "phase": float}`
-- `created_at` TIMESTAMP - Creation timestamp
-- `updated_at` TIMESTAMP - Last update timestamp
-
-### keywords
-Stores keywords/tags that can be associated with nodes; each keyword belongs to one constellation (unique per constellation).
-- `id` INT AUTO_INCREMENT PRIMARY KEY - Keyword identifier
-- `constellation_id` INT NOT NULL DEFAULT 0 - Constellation (FK → constellations.id)
-- `keyword` VARCHAR(100) NOT NULL - Keyword text (UNIQUE with constellation_id)
-- `created_at` TIMESTAMP - Creation timestamp
-
-### node_keywords
-Junction table for many-to-many relationship between nodes and keywords.
-- `id` INT AUTO_INCREMENT PRIMARY KEY
-- `node_id` INT NOT NULL - Node ID (FK → nodes.id, CASCADE DELETE)
-- `keyword_id` INT NOT NULL - Keyword ID (FK → keywords.id, CASCADE DELETE)
-- `created_at` TIMESTAMP - Creation timestamp
-- UNIQUE constraint on (node_id, keyword_id)
-
-**Note**: Connections between nodes are calculated automatically based on shared keywords. Nodes that share one or more keywords will be connected in the visualization.
-
-### project_info
-Stores project metadata with one row per locale (en, es, pt).
-- `locale` VARCHAR(10) NOT NULL PRIMARY KEY - Locale code (en, es, pt)
-- `name` VARCHAR(2000) NOT NULL DEFAULT '' - Project name
-- `description` VARCHAR(2000) NOT NULL DEFAULT '' - Project description / tagline
-- `iframe_back_text` VARCHAR(2000) NOT NULL DEFAULT '' - Button text for iframe back link
-- `alert_message` VARCHAR(2000) NOT NULL DEFAULT '' - Message shown when closing node link window
-- `edit_button_text` VARCHAR(200) NOT NULL DEFAULT 'Edit' - Label for Edit button
-- `loading_text` VARCHAR(200) NOT NULL DEFAULT 'Loading' - Loading indicator text
-
-### api_keys
-Stores API keys for authentication.
-- `id` INT AUTO_INCREMENT PRIMARY KEY - API key identifier
-- `api_key` VARCHAR(64) NOT NULL UNIQUE - The API key string
-- `name` VARCHAR(255) NOT NULL - Descriptive name for the key
-- `description` TEXT - Optional description
-- `created_at` TIMESTAMP - Creation timestamp
-- `last_used_at` TIMESTAMP NULL - Last usage timestamp
-- `is_active` BOOLEAN NOT NULL DEFAULT TRUE - Whether the key is active
-
-### snapshots
-Tracks local on-disk full-system snapshots. Excluded from backup dumps (instance-local state).
-- `id` INT AUTO_INCREMENT PRIMARY KEY
-- `filename` VARCHAR(255) NOT NULL UNIQUE - Snapshot filename inside SNAPSHOTS_DIR
-- `created_at` TIMESTAMP - When the snapshot was taken
-- `size_bytes` BIGINT - On-disk size
-- `created_by` VARCHAR(255) NULL - User ID (FK → users.id, ON DELETE SET NULL)
-- `trigger_type` ENUM('manual','scheduled') - How the snapshot was created
-- `note` VARCHAR(500) NULL - Optional human-readable note
-
-### snapshot_schedule
-Single-row table holding the snapshot scheduler settings.
-- `id` TINYINT NOT NULL PRIMARY KEY DEFAULT 1 (always 1)
-- `enabled` BOOLEAN NOT NULL DEFAULT FALSE - Master on/off for the daily scheduler
-- `hour` TINYINT NOT NULL DEFAULT 3 - Hour of day (0-23, UTC) the daily snapshot should run
-- `keep_days` INT NOT NULL DEFAULT 7 - Age-based retention: scheduled snapshots older than this many days are deleted after each scheduled run. Manual snapshots are kept forever.
-- `last_run_at` TIMESTAMP NULL - Most recent scheduled run
-
-**Note**: All tables use InnoDB engine with utf8mb4 charset and utf8mb4_unicode_ci collation.
-
-## Testing
-
-The project has a unit and integration test suite covering PHP backend logic and JavaScript frontend modules.
-
-### Prerequisites
-
-- **PHP**: PHPUnit 11 (installed via Composer)
-- **JS**: Node.js 22+ built-in test runner (zero dependencies)
+- Web server with SSL (recommended for any non-development use)
 
 ### Setup
 
-```bash
-# Install PHPUnit (one-time)
-php composer install
+```sh
+git clone git@github.com:theagitist/telaris.git
+# Configure your web server to point at the repo root with PHP-FPM enabled.
 ```
 
-No `npm install` is needed — the JS tests use Node's built-in test runner with no dependencies.
+Then open the setup script in a browser at `https://your-domain.com/admin/setup.php` (or visit `/admin/` and follow the redirect). The setup script is web-only; it cannot run from the command line. Four steps:
 
-### Running Tests
+1. **Database connection.** Host, port, database name, user, password. The script lists PHP version and required extensions on this screen.
+2. **Schema.** Tables are created automatically. The default galaxy (id 0) is created here and cannot be deleted.
+3. **Site identity.** Name, tagline.
+4. **First admin user.** Email, password, name.
 
-```bash
-# Run everything
-npm run test:all
+If the setup script cannot write `config.php` due to filesystem permissions, it displays the configuration content in a text area for manual creation.
 
-# PHP tests only
-php vendor/bin/phpunit
+### Access points
 
-# PHP unit tests only
+After setup:
+
+- **Main view (visitor):** `/` shows the default galaxy. A specific galaxy: `/{id}` or `?constellation_id={id}`. A specific wormhole: `/{slug-or-id}/{wormhole-id}` opens the wormhole's info card.
+- **Login:** `/utils/login.php`
+- **Editor surface:** `/edit/` (editor or admin login required)
+- **Admin console:** `/admin/` (admin login required)
+
+### CLI scripts
+
+Administrative scripts live in `admin/cli/`:
+
+- `create_user.php`: create new admin or editor users interactively
+- `hard_reset.php`: complete reset, drops all tables and deletes `config.php`
+
+See `admin/cli/README.md` for detail.
+
+## Roles
+
+Three roles, defined by the editorial sovereignty principle (not by privilege tier):
+
+- **Visitor.** Reads the work editors have published. No account required.
+- **Editor.** Tends one or more galaxies. Adds wormholes, assigns keywords, draws keyword-canvas relations, places portals, designs tours. Editorial decisions are final within the galaxies they tend; no review queue, no approval flow.
+- **Admin.** Operates the instance. Manages galaxies, users, themes, backups, snapshots, federation peers (when federation ships). Per the operator-sovereignty principle, each admin governs their instance under their own rules.
+
+The data column `users.type` stores `0` (regular / visitor), `1` (editor), `2` (admin). Passwords are bcrypt-hashed via `password_hash()`.
+
+## Architecture
+
+The schema is authoritative in `SCHEMA.sql`; the runtime helpers in `inc/db.php` ensure every table and column exists on startup (idempotent `db_ensure_*` patterns). Major tables:
+
+- `constellations` (galaxies): name, tagline, theme, editorial framing
+- `nodes` (wormholes): name, description, URL, media references, animation parameters, the galaxy they belong to
+- `keywords`: scoped per galaxy, unique within their galaxy
+- `node_keywords`: many-to-many between wormholes and keywords; connections in the 3D scene are computed from shared keywords (inverted index)
+- `users`, `api_keys`, `project_info` (multilingual: one row per locale), `snapshots`, `snapshot_schedule`
+
+For the rhizome-vs-tree design choice and how that lands in the schema, see [`Architecture/Rhizomatic database.md`](https://github.com/theagitist/telaris-documentation) in the documentation working notes.
+
+## Testing
+
+```sh
+php composer install              # one-time, installs PHPUnit
+npm run test:all                  # PHP + JS
+
+php vendor/bin/phpunit            # PHP only
 php vendor/bin/phpunit --testsuite unit
-
-# PHP integration tests only
 php vendor/bin/phpunit --testsuite integration
-
-# JS tests only
-node --test tests/js/*.test.js
+node --test tests/js/*.test.js    # JS only (Node 22+, no npm deps)
 ```
 
-### Test Structure
+PHP unit tests validate pure functions in `inc/validation.php`, `inc/media-optimize.php`, and `utils/auth.php`: URL validation, embed-code sanitization, wormhole-type handling, password hashing, slug generation, media optimization, API output format. The CSP compatibility test scans public-facing HTML templates for inline event handlers that break the nonce-based Content Security Policy.
 
-```
-tests/
-  php/
-    bootstrap.php                          # Loads config, db, validation, auth, media-optimize
-    Unit/
-      DbSlugifyTest.php                    # db_slugify() edge cases
-      ValidateSafeUrlTest.php              # URL scheme validation
-      SanitizeNodeTypeTest.php             # Node type sanitization
-      SanitizeEmbedCodeTest.php            # iframe allowlist, XSS filtering
-      HashPasswordTest.php                 # Hash/verify round-trip
-      CspCompatibilityTest.php             # Scans templates for inline event handlers
-      ClusteringTest.php                   # Adaptive clustering, quality checks, hierarchy
-      MocambosSyncTest.php                 # Incremental diff detection for imports
-      MediaOptimizeTest.php                # Image/audio/video optimization, frame extraction
-      FormatNodesBulkTest.php              # Node API output format, field presence
-      CronStripBlockTest.php               # cron_strip_block() preserves unrelated lines
-    Integration/
-      MigrationAutoIncrementTest.php       # AUTO_INCREMENT + FK migration
-      MigrationApiKeysActiveTest.php       # is_active column migration
-      BackupRoundTripTest.php              # Export -> file -> import preserves galaxies/keywords/links
-  js/
-    themes.test.js                         # THEMES structure, getTheme() fallback
-    network-manager.test.js                # Focus state, opacity, visibility
-```
+PHP integration tests exercise runtime database migrations against a real MySQL connection using temporary tables suffixed `_aitest` / `_test`. The critical test reproduces the `AUTO_INCREMENT` migration that must drop and re-add foreign keys (the scenario that broke production once).
 
-### What the Tests Cover
+JS tests validate the theme registry and the `NetworkManager`'s focus / opacity / visibility behaviour. They use Node's built-in test runner; no `npm install` is needed.
 
-**PHP Unit Tests** validate pure functions extracted into `inc/validation.php`, `inc/media-optimize.php`, and `utils/auth.php` — URL validation, embed code sanitization, node type handling, password hashing, slug generation, media optimization (image resize, audio re-encoding, video downscaling, video frame extraction), and node API output format validation. The CSP compatibility test scans public-facing HTML templates for inline event handlers (`onclick=`, `onload=`, etc.) that break nonce-based Content Security Policy.
+## Features (current)
 
-**PHP Integration Tests** exercise runtime database migrations against a real MySQL connection using temporary test tables (suffixed `_aitest` / `_test`) that are created and dropped per test. The critical test reproduces the AUTO_INCREMENT migration that must drop and re-add foreign keys — the exact scenario that broke production.
+The application carries the following editor-facing and visitor-facing surfaces. See the [Editor Manual](https://www.telaris.ca/docs/editor-manual.pdf) for in-depth coverage; what follows is an inventory.
 
-**JS Tests** validate the theme registry (`THEMES` object structure, `getTheme()` lookup and fallback) and `NetworkManager` (focus state, opacity lerping, visibility thresholds, fade multiplier).
+**Visitor side:**
 
-### Configuration
+- 3D scene with organic animation, pastel wormhole icons, semi-transparent connections drawn from shared-keyword inverted index
+- 2D wormhole view as an alternative layout (Poisson-disc placement, opt-in per galaxy)
+- Theme system (cosmic, abstract, rectangles, stripes, tech) per galaxy
+- Multigalaxy views: prefix-family unions (`/[XXX]`), tag unions (`/tag/<slug>`), explicit Galaxy Cluster type, query-string ad-hoc unions
+- Cross-galaxy related-wormholes panel in the info card
+- Auto-rotation when idle, fuzzy search, keyword-chip filter strip
+- Permalinks to galaxies and to individual wormholes
+- Tactile launch animation when navigating to external URLs
+- PDF wormhole media via PDF.js
 
-- `phpunit.xml` — PHPUnit configuration at project root
-- `package.json` — npm test scripts (no runtime dependencies)
-- Integration tests use the same database connection as the application (from `config.php`)
+**Editor side:**
 
-## Features
+- `/edit/` console with paginated, sortable, searchable wormhole and galaxy lists
+- New / edit modal with image, audio, video, PDF fields; in-place media optimization (image resize 1344 px, audio 128 kbps mono, video 720p H.264)
+- Video frame extraction (first frame becomes JPEG thumbnail)
+- Keyword canvas (`/edit/keyword-canvas.php`): drag chips, draw attributed relations, physics-based settling, click-to-rename / merge / delete
+- Bulk operations by keyword (move, delete) and by selection (move, duplicate, delete)
+- Wormhole duplication, within or across galaxies
+- Bracket-prefix selection (`[TE]`, `[FT]`) for bulk operations across galaxy families
 
-### Frontend
-- **Visual Themes Support**: Extensible theme system allowing each network to have a unique look and feel.
-- **Stripes Theme**: A duplicate of the Abstract theme featuring custom stripe icons.
-- **Rectangles Theme**: A duplicate of the Abstract theme featuring custom rectangle icons from a specific asset set.
-- **Abstract Theme**: A glitchy, geometric theme using animated icons and a 3D grid background.
-- **Cosmic Theme**: The classic starfield aesthetic with planets, rockets, and UFO animations.
-- **Tactical HUD Navigation**: Semitransparent cockpit-style interface with system status and real-time filtering.
-- **Fuzzy Search**: Real-time filtering of nodes and connections by name or keyword.
-- **Dynamic Launch Sequence**: Simplified, immersive rocket launch animation when transitioning to external node links.
-- **Monospace Typography**: Unified system-wide "NASA-style" typography for all UI elements and 3D labels.
-- 3D visualization with organic animations and vivid pastel-colored node icons.
-- Light, semi-transparent vivid pastel connections between nodes based on shared keywords.
-- Interactive hover labels and clickable nodes with URL support.
-- Orbit controls for camera navigation (drag to rotate, scroll to zoom).
-- Idle auto-rotation - the scene slowly rotates when the user is inactive.
-- Real-time data loading from API.
-- **Image Attribution Overlay**: Optional text overlay on node images in the info view, showing source credits at the bottom-right corner.
-- **Node Preview**: View Node action in the editor shows a full info box preview (matching the main view's look and feel) with image, audio, video, description, and keywords.
-- **View Constellation**: Quick action to open a node's constellation in the main view from the editor.
-- **Editor**: Server-side paginated node list with sortable columns, debounced search, kebab dropdown action menus (View Node, View Constellation, Edit, Duplicate, Delete), and bulk operations (Move, Duplicate, Delete).
-- **Admin Console**: Server-side paginated constellation list with sortable node count column, kebab dropdown action menus (Edit, View, Copy URL, Duplicate, Refresh, Delete).
+**Admin side:**
 
-### Backend
-- Database-driven node management.
-- **Node Duplication**: Duplicate nodes (single or bulk) to the same or a different constellation, copying all content and keyword associations.
-- Keywords system for tagging and categorizing nodes.
-- Many-to-many relationship between nodes and keywords.
-- Automatic connection calculation based on shared keywords (using inverted index algorithm).
-- **Server-Side Pagination**: Nodes and constellations APIs support paginated, sorted, and filtered queries for efficient handling of large datasets (10K+ nodes).
-- **Media Optimization**: Uploaded images are resized to 1344px (2x retina), icons to 256px; audio is re-encoded to mono 128kbps; video is downscaled to 720p H.264 CRF 28. All optimization is in-place and silent on failure.
-- **Video Frame Extraction**: Uploading a video file in the image field automatically extracts the first frame as a JPEG thumbnail (supports MP4, MOV, AVI, MKV, WebM, and other formats).
-- **Uploaded File Serving**: Media files stored outside the document root are served via a PHP proxy (`serve-upload.php`) with MIME detection, HTTP Range support for audio/video seeking, and directory traversal protection.
-- **Bulk Keyword Loading**: Optimized database access with batch queries to eliminate N+1 performance issues.
-- **Constellation Refresh**: Imported constellations can be refreshed directly from the admin dropdown with in-modal confirmation.
-- **Backup & Restore**: Admins can download a portable `.telaris-backup` file (gzipped JSON, optional embedded media) of selected galaxies and/or all users, then re-import on the same or a different instance. Two-phase upload wizard inspects the file before any changes are written, with per-galaxy overwrite-or-rename conflict modes and bracket-prefix bulk selection (`[TE]`, `[FT]`, etc.). Live upload progress and server-parse status reduce the perceived "frozen" wait on large files.
-- **Snapshots**: Local on-disk full-system backups stored in `SNAPSHOTS_DIR` (recommended: a site-prefixed path outside the app dir such as `/var/backups/starmaps-snapshots`). The Snapshots admin tab supports manual creation, deletion, download, and restore (with `RESTORE` confirmation phrase). Restoring wipes the system back to the snapshot's state and deletes any snapshots created after that point (linear-timeline semantics). Manual snapshot creation shows an indeterminate progress bar with an elapsed-seconds counter so the page doesn't look frozen on large instances. A single daily scheduler (on/off, chosen UTC hour) drives automatic snapshots with age-based retention (default: keep 7 days of scheduled snapshots; manual snapshots kept forever). Enabling the scheduler transparently installs a crontab entry for the PHP user; disabling removes it. The panel shows an aggregate Active / Disabled / Needs-attention status, last-run timestamp, and recent scheduler log output.
-- User authentication and authorization with secure password hashing (bcrypt).
-- API key authentication for API endpoints.
-
-## Recent changes
-
-### Version 6.9.x — Multigalaxy, PDFs, mail, snapshots polish, keyword canvas, 2D wormhole view
-
-- **2D wormhole view** — alternative visitor-side layout to the 3D scene: every wormhole renders as a small pastel chip on a dot-grid background, distributed via Poisson-disc seeding with strict axis-aligned-rectangle overlap guarantees (Poisson rejects overlapping candidates, a post-settle resolver iterates until clean). Top-center segmented "3D / 2D" switch, per-galaxy opt-in via the Discovery section's new "2D view switch" toggle. Visitor preference persists in `localStorage` (with an inline pre-state script that prevents the switch from flashing on load). Multi-galaxy contexts inherit from the first galaxy in emergent unions or the cluster's own setting. Cards carry their pastel from the canonical palette (`CHIP_FG[colorIndexFor(name)]`); connection lines blend the two endpoints' pastels, scale thickness by shared-keyword count, invisible by default + brighten on hover with endpoints clipped to chip rect edges. Hover panel reuses the 3D scene's `#node-tooltip` (pinned top-right) with a stepped orthogonal connector line. Keyword-chip filter at the bottom works in 2D too (reads `app.activeKeywords`). Clicks: cluster drills in, portal navigates, wormhole opens the info card.
-- **Keyword canvas (editor surface)** — per-galaxy `/edit/keyword-canvas.php?galaxy_id=N` route: every keyword renders as a draggable pastel chip on a dim dot-grid SVG. Two authoring layers — continuous positions (drag chips, per-edit attributed via `keyword_positions.moved_by`, append-only history) and discrete named lines (click/drag anchor dots between chips to record an attributed `keyword_relations` row with optional editorial note; lines glue to specific anchor sides). Physics (Stage 1 + 2): springs from `keyword_relations` lines, Coulomb repulsion globally, smoothstep ease-in on every kick; idle float gives every chip a tiny deterministic orbit. Hover thickens + brightens connected lines; new-line flash + anchor pulse during draw. Clicking a chip opens an inspector modal — rename or delete a keyword (with a conflict modal that offers "Change name" or "Merge" when the new name already exists in the galaxy; merge repoints every reference and deletes source).
-- **Info window matches the chip color** — `showRichMediaWindow` derives its accent (`--node-accent`, border, ambient glow) from the same `CHIP_FG[colorIndexFor(name)]` pastel everywhere else uses, so opening a wormhole feels like its chip "expanding" into the panel.
-- **Editorial provenance data layer** — every editorial table records `created_by` going forward: `nodes`, `keywords`, `node_keywords` (per-tag-application), `galaxy_tags`, `constellations`. All `_by` columns are `VARCHAR(255)` to match `users.id`, FK `ON DELETE SET NULL`, indexed. Legacy rows stay NULL by design ("pre-provenance era" — don't backfill). UI surfacing tracked separately in TODOs.
-- **Multigalaxy views** — visitors can see wormholes from multiple galaxies in one 3D scene through four mechanisms: `?galaxies=a,b,c` query-string union, `/[XXX]` name-prefix family union, `/tag/<slug>` tag union, and a first-class **Galaxy Cluster** type with its own slug, theme, and admin-only management UI. Cross-galaxy connections render as dashed bridges. Each wormhole keeps its source galaxy's theme so icons stay recognizable across themes. Bottom-right slide-up strip lists the union members and lets visitors dim non-selected galaxies. The keyword chip strip works in union views too, pooling keywords from every visible wormhole.
-- **Cross-galaxy related wormholes** — the info-card "related wormholes" chip row now draws from the source galaxy's *group* (prefix-family siblings ∪ tag-shared galaxies ∪ cluster co-members), so chips can surface wormholes from sibling galaxies. Cross-galaxy chips navigate to the target's permalink; same-scene chips reuse the existing fly-to.
-- **PDF wormhole media** — wormholes can carry a PDF as their primary visual, rendered in the info card via vendored Mozilla PDF.js. Admin-configurable max size (default 25 MB). Three-way mutex with image and video; audio remains independent.
-- **Outbound mail** — SMTP via Mailgun (PHPMailer 7). Powers a single-use, no-enumeration password reset flow and the bulk-user-creation email-invite stream.
-- **Bulk user creation with auto-galaxy** — paste a CSV list of users in the admin Users tab (`email[, firstname, lastname, type, creates_galaxy]`); preview before commit; each new user can be auto-assigned their own galaxy (slug from the email name, collision-safe) and gets a welcome email with their username, the password-setup link, the galaxy URL, and the login URL.
-- **Editor productivity** — touched-today filter, bulk-by-keyword (delete or move to galaxy), `/edit/?slug=foo` routing, and keyboard shortcuts (`n`, `/`, `t`, `g`, `?`).
-- **Path-versioned JS, site-absolute everywhere** — `/js/vX.Y.Z/foo.js` busts Safari's ES module cache reliably. All asset URLs (theme sprites, API calls, DB-stored upload URLs) are emitted absolute, so visitor permalinks like `/{slug}/{node-id}` don't break on relative-path resolution.
-- **Snapshot scheduler is multi-tenant** — the daily-snapshot cron entry is installed transparently by the admin toggle (no sysadmin step) and tagged per-site, so multiple Telaris instances on one host coexist in the same crontab without overwriting each other's entry.
-
-_Older version history (6.7.x and earlier, back to v1.0.7) is maintained in the project's internal notes._
+- `/admin/` console with paginated galaxy list, theme management, user management, bulk user creation
+- Backup and restore: `.telaris-backup` portable archive (gzipped JSON, optional embedded media), per-galaxy conflict resolution
+- Snapshot system: local on-disk full-system backups with daily scheduler, age-based retention, manual + scheduled triggers
+- Outbound mail via SMTP (Mailgun + PHPMailer): password reset, bulk-user welcome emails
 
 ## License
 
-See LICENSE file for details.
+Telaris is released under a tiered license per the manifest's sixth principle.
+
+- **The Telaris instance software in this repository** is licensed under **GPL v3**. See `LICENSE` for the full text.
+- **The Pluriverse coordination layer** (when the [`telaris-portal`](https://github.com/theagitist/telaris) repository is published) will be licensed under **AGPL v3**. The stronger license reflects the network-coordination role of the Pluriverse: source modifications served over the network must be made available to users.
+- **Editorial content** carried by Telaris instances (wormholes, descriptions, media, keyword relations, tours) is licensed by the editor or source community who publishes it, attached to each piece of content. The software is given away; the content is not annexed to give-away.
+
+This split is load-bearing. It is part of how Telaris refuses the platform pattern: the means of presenting knowledge is open, the knowledge itself stays with its editors and source communities.
+
+## See also
+
+- [Manifest (PDF)](https://www.telaris.ca/docs/manifest.pdf): position statement
+- [Editor Manual (PDF)](https://www.telaris.ca/docs/editor-manual.pdf): complete editor-side reference
+- [Editor Quick Start (PDF)](https://www.telaris.ca/docs/editor-quick-start.pdf): five-step walkthrough
+- [theagitist/telaris-documentation](https://github.com/theagitist/telaris-documentation): canonical home for all Telaris documentation that ships as a PDF, including the brand book and the documentation source markdown
+- [theagitist/telaris_website](https://github.com/theagitist/telaris_website): source for <https://www.telaris.ca>
+- Federation design lives in the documentation working notes (private until v1 ships); the implementation-ready version is plan v10, around 1800 lines of OpenAPI 3.1 + RFC 9421 HTTP Signatures + RFC 7515 JWS + libsodium + push-and-pull key-event propagation.
+
+---
+
+Built by Adri M. (UBC GRSJ) at Polivoxia, in dialogue with the Mocambos / Baobáxia quilombola archive tradition and the body of decolonial theory cited in the [Manifest](https://www.telaris.ca/docs/manifest.pdf).
