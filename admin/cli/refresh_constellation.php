@@ -23,7 +23,6 @@ require_once __DIR__ . '/cli_auth.php';
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../inc/db.php';
 require_once __DIR__ . '/../../inc/clustering.php';
-require_once __DIR__ . '/../../inc/mocambos-download.php';
 
 set_time_limit(0);
 ini_set('memory_limit', '512M');
@@ -90,7 +89,7 @@ if ($constellationId === 0 && $interactive) {
     echo "\n\033[1mRefresh Mocambos Constellation\033[0m\n";
 
     if (empty($importedConstellations)) {
-        echo "\nNo Mocambos-imported constellations found. Use import_mocambos.php first.\n\n";
+        echo "\nNo Mocambos-imported constellations found. Use 'import_bridge.php mocambos' first.\n\n";
         exit(0);
     }
 
@@ -175,7 +174,8 @@ if ($interactive) {
 
 // ── Delegate to import script ────────────────────────────────────────────────
 
-$cmd = PHP_BINARY . ' ' . escapeshellarg(__DIR__ . '/import_mocambos.php')
+$cmd = PHP_BINARY . ' ' . escapeshellarg(__DIR__ . '/import_bridge.php')
+    . ' mocambos'
     . ' --api-base=' . escapeshellarg($apiBase)
     . ' --galaxia=' . escapeshellarg($galaxiaSlug);
 if ($noMedia) $cmd .= ' --no-media';

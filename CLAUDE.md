@@ -49,10 +49,11 @@ php admin/cli/hard_reset.php [--force]
 # Initial setup is browser-only — navigate to /admin/setup.php
 
 # Import a Mocambos galaxia (interactive — prompts for URL, galaxia, options)
-php admin/cli/import_mocambos.php
+# Requires 'mocambos' in TELARIS_BRIDGES in config.php.
+php admin/cli/import_bridge.php mocambos
 
 # Import a Mocambos galaxia (non-interactive — for automation/cron)
-php admin/cli/import_mocambos.php --api-base=https://oya.mocambos.net/api/v2 --galaxia=SLUG
+php admin/cli/import_bridge.php mocambos --api-base=https://oya.mocambos.net/api/v2 --galaxia=SLUG
 #   --list        List available galaxias and exit
 #   --no-media    Skip media downloads (faster, nodes still created)
 #   --limit=N     Import only the first N items
@@ -103,7 +104,7 @@ All code uses `declare(strict_types=1)`.
 - `apikey.php` — public endpoint that returns the default API key (no auth required)
 - `auth.php` — validates `X-API-Key` header (or `Authorization: Bearer` or `?api_key=`)
 - `validate.php` — shared input validation helpers
-- `mocambos.php` — Mocambos import (web UI)
+- `bridge.php` — generic bridge dispatcher (`?name=<bridge>&action=<action>`); see "Bridges" below
 - All API endpoints (except `apikey.php`) require API key authentication via `requireApiKey()`
 
 **Notable endpoints / query-string modes:**
@@ -174,14 +175,20 @@ Key relationships:
 
 Constellations with many nodes are dynamically grouped into navigable clusters by `inc/clustering.php`. Adaptive logic: base threshold 80 nodes; skip when the result would be fewer than 3 groups, one dominant group >80%, or more than half single-node promotions. Cascade: **Mucua** (Mocambos) → **Media type** (imagem/video/audio/arquivo/blog) → **Date** (year, then year-month) → **Alphabetical** (A-F, G-L, M-R, S-Z). Each cluster is a special 3D node; clicking drills in (back button + breadcrumb navigate the hierarchy). API: `&cluster=KEY`, `&no_cluster=1`.
 
-### Mocambos Integration
+### Bridges (Mocambos is the first one)
 
-**Import files:**
-- `api/mocambos.php` — web UI import (validate, list galaxias, import)
-- `admin/cli/import_mocambos.php` — CLI import (interactive or non-interactive)
-- `admin/cli/refresh_constellation.php` — CLI refresh (delegates to import)
-- `inc/mocambos-sync.php` — shared incremental diff logic
-- `inc/mocambos-download.php` — shared media download function
+A **Bridge** pulls content from a non-Telaris source into a local constellation. Bridges run on a single instance and are not federation. Each bridge is a handler at `inc/bridges/{name}.php` exporting `{name}_handle_request()` (HTTP) and `{name}_run_cli($opts, $interactive)` (CLI). Enabled bridges are listed in `TELARIS_BRIDGES` in `config.php` (default `[]`); the admin "Import from..." surface and the CLI dispatcher both gate on this list.
+
+**Framework files:**
+- `inc/bridges/_lib.php` — `bridges_active()`, `bridges_is_active()`, `bridges_name_is_valid()`, `bridges_load()`
+- `api/bridge.php` — generic HTTP dispatcher: `?name=<bridge>&action=<action>`
+- `admin/cli/import_bridge.php` — generic CLI dispatcher: first positional arg is bridge name
+
+**Mocambos handler files:**
+- `inc/bridges/mocambos.php` — HTTP and CLI orchestrators plus shared `_mocambos_import_galaxia()` core
+- `inc/bridges/mocambos-sync.php` — incremental diff logic (`mocambos_compute_diff`, apply_*)
+- `inc/bridges/mocambos-download.php` — streaming media download helper
+- `admin/cli/refresh_constellation.php` — CLI re-import for a known constellation (shells out to `import_bridge.php mocambos`)
 
 **Incremental refresh:** Re-imports compute a diff by matching nodes on `import_slug`. Only additions, modifications, and deletions are applied. Use `--full` flag (CLI) or `full_refresh: true` (API) to force a full re-import.
 

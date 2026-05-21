@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Incremental sync logic for Mocambos imports.
- * Shared between api/mocambos.php (web) and admin/cli/import_mocambos.php (CLI).
+ * Incremental sync logic for the Mocambos bridge.
+ * Used by the orchestrator at inc/bridges/mocambos.php.
  */
 
 /**

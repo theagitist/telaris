@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Download a file from a Mocambos API URL to local disk using streaming.
  * Returns the local file path on success, null on failure.
  *
- * Shared between api/mocambos.php and admin/cli/import_mocambos.php.
+ * Used by the orchestrator at inc/bridges/mocambos.php.
  */
 function mocambos_download_file(string $url, string $destDir, string $prefix, ?Closure $log = null): ?string {
     $log ??= function(string $level, string $msg) {};
