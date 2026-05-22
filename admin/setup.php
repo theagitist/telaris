@@ -62,6 +62,190 @@ if (file_exists($configPath) && !isset($_GET['reconfigure'])) {
     }
 }
 
+// --- Pre-DB localization ---
+// Strings rendered before the project_info table exists. The t() helper in
+// inc/db.php reads from the database, which is precisely what setup builds, so
+// pre-DB chrome (PHP-requirements panel, DB-config form, manual-config fallback)
+// can't use t(). Once schema creation runs, post-DB strings use the standard
+// t() / t_attr() helpers. Locale is detected once from Accept-Language and
+// cached for the lifetime of the request.
+
+function setup_pre_db_strings(): array {
+    static $strings = null;
+    if ($strings !== null) return $strings;
+    $strings = [
+        'en' => [
+            'setup_page_title' => 'Telaris - Setup',
+            'setup_h1' => 'Telaris Setup',
+            'db_form_subtitle' => 'Configure your database connection',
+            'db_form_version_label' => 'Version',
+            'php_requirements_heading' => 'PHP Requirements',
+            'php_version_label' => 'PHP Version:',
+            'php_warning_prefix' => 'Warning:',
+            'php_warning_text' => 'Some required PHP extensions are missing. Install them before proceeding.',
+            'db_error_prefix' => 'Error:',
+            'manual_config_heading' => 'Manual Configuration Required',
+            'manual_config_intro_html' => 'The setup script could not create <code class="bg-yellow-100 px-2 py-1 rounded">config.php</code> automatically. Create this file manually on the server with the following content:',
+            'manual_config_copy_intro_html' => 'Copy the content below and save it as <code class="bg-gray-100 px-2 py-1 rounded">config.php</code> in the root directory:',
+            'manual_config_instructions_heading' => 'Instructions:',
+            'manual_config_step_1' => 'Click the textarea above to select all the content',
+            'manual_config_step_2' => 'Copy the content (Ctrl+C or Cmd+C)',
+            'manual_config_step_3_html' => 'Create a new file named <code class="bg-blue-100 px-1 rounded">config.php</code> in the root directory of the application',
+            'manual_config_step_4' => 'Paste the copied content into the file',
+            'manual_config_step_5' => 'Save the file',
+            'manual_config_step_6' => 'Click the "Proceed" button below once the file is created',
+            'btn_copy_clipboard' => 'Copy to Clipboard',
+            'js_copy_alert' => 'Content copied to clipboard.',
+            'btn_proceed' => 'Proceed',
+            'btn_checking' => 'Checking...',
+            'manual_config_checking' => 'Checking if config.php exists...',
+            'manual_config_found' => '✓ config.php found. Continuing setup...',
+            'manual_config_not_found' => '✗ config.php not found. Create the file first.',
+            'manual_config_error' => 'Error checking file. Refresh the page manually.',
+            'db_form_intro' => 'Enter the database connection details. Defaults are suggested; leave password empty if the MySQL user has none.',
+            'db_host_label' => 'Database Host',
+            'db_host_help_html' => 'Usually <code>localhost</code> or an IP address. Default: localhost',
+            'db_port_label' => 'Database Port',
+            'db_port_help' => 'Default MySQL port: 3306',
+            'db_name_label' => 'Database Name',
+            'db_name_help' => 'Name of the MySQL database. Default: telaris (created if missing)',
+            'db_user_label' => 'Database User',
+            'db_user_help' => 'MySQL username. Default: telaris',
+            'db_password_label' => 'Database Password',
+            'db_password_placeholder_keep' => '(Leave empty to keep current)',
+            'db_password_placeholder_optional' => '(optional)',
+            'db_password_help_keep' => 'Leave empty to keep the current password, or enter a new one.',
+            'db_password_help_optional' => 'Leave empty if the MySQL user has no password.',
+            'btn_create_config' => 'Create Configuration',
+            'btn_update_config' => 'Update Configuration',
+        ],
+        'es' => [
+            'setup_page_title' => 'Telaris - Instalación',
+            'setup_h1' => 'Instalación de Telaris',
+            'db_form_subtitle' => 'Configura la conexión a la base de datos',
+            'db_form_version_label' => 'Versión',
+            'php_requirements_heading' => 'Requisitos de PHP',
+            'php_version_label' => 'Versión de PHP:',
+            'php_warning_prefix' => 'Advertencia:',
+            'php_warning_text' => 'Faltan algunas extensiones de PHP requeridas. Instálalas antes de continuar.',
+            'db_error_prefix' => 'Error:',
+            'manual_config_heading' => 'Se requiere configuración manual',
+            'manual_config_intro_html' => 'El script de instalación no pudo crear <code class="bg-yellow-100 px-2 py-1 rounded">config.php</code> automáticamente. Crea este archivo manualmente en el servidor con el siguiente contenido:',
+            'manual_config_copy_intro_html' => 'Copia el contenido de abajo y guárdalo como <code class="bg-gray-100 px-2 py-1 rounded">config.php</code> en el directorio raíz:',
+            'manual_config_instructions_heading' => 'Instrucciones:',
+            'manual_config_step_1' => 'Haz clic en el cuadro de texto de arriba para seleccionar todo el contenido',
+            'manual_config_step_2' => 'Copia el contenido (Ctrl+C o Cmd+C)',
+            'manual_config_step_3_html' => 'Crea un nuevo archivo llamado <code class="bg-blue-100 px-1 rounded">config.php</code> en el directorio raíz de la aplicación',
+            'manual_config_step_4' => 'Pega el contenido copiado en el archivo',
+            'manual_config_step_5' => 'Guarda el archivo',
+            'manual_config_step_6' => 'Haz clic en el botón "Continuar" de abajo una vez creado el archivo',
+            'btn_copy_clipboard' => 'Copiar al portapapeles',
+            'js_copy_alert' => 'Contenido copiado al portapapeles.',
+            'btn_proceed' => 'Continuar',
+            'btn_checking' => 'Verificando...',
+            'manual_config_checking' => 'Verificando si existe config.php...',
+            'manual_config_found' => '✓ config.php encontrado. Continuando con la instalación...',
+            'manual_config_not_found' => '✗ config.php no encontrado. Crea el archivo primero.',
+            'manual_config_error' => 'Error al verificar el archivo. Recarga la página manualmente.',
+            'db_form_intro' => 'Introduce los datos de conexión a la base de datos. Se sugieren valores por defecto; deja la contraseña vacía si el usuario de MySQL no tiene contraseña.',
+            'db_host_label' => 'Servidor de base de datos',
+            'db_host_help_html' => 'Habitualmente <code>localhost</code> o una dirección IP. Por defecto: localhost',
+            'db_port_label' => 'Puerto de base de datos',
+            'db_port_help' => 'Puerto MySQL por defecto: 3306',
+            'db_name_label' => 'Nombre de la base de datos',
+            'db_name_help' => 'Nombre de la base de datos MySQL. Por defecto: telaris (se crea si no existe)',
+            'db_user_label' => 'Usuario de base de datos',
+            'db_user_help' => 'Nombre de usuario de MySQL. Por defecto: telaris',
+            'db_password_label' => 'Contraseña de base de datos',
+            'db_password_placeholder_keep' => '(Deja vacío para conservar la actual)',
+            'db_password_placeholder_optional' => '(opcional)',
+            'db_password_help_keep' => 'Deja vacío para conservar la contraseña actual, o introduce una nueva.',
+            'db_password_help_optional' => 'Deja vacío si el usuario de MySQL no tiene contraseña.',
+            'btn_create_config' => 'Crear configuración',
+            'btn_update_config' => 'Actualizar configuración',
+        ],
+        'pt' => [
+            'setup_page_title' => 'Telaris - Instalação',
+            'setup_h1' => 'Instalação do Telaris',
+            'db_form_subtitle' => 'Configure a conexão com o banco de dados',
+            'db_form_version_label' => 'Versão',
+            'php_requirements_heading' => 'Requisitos do PHP',
+            'php_version_label' => 'Versão do PHP:',
+            'php_warning_prefix' => 'Aviso:',
+            'php_warning_text' => 'Faltam algumas extensões do PHP necessárias. Instale-as antes de continuar.',
+            'db_error_prefix' => 'Erro:',
+            'manual_config_heading' => 'Configuração manual necessária',
+            'manual_config_intro_html' => 'O script de instalação não conseguiu criar <code class="bg-yellow-100 px-2 py-1 rounded">config.php</code> automaticamente. Crie este arquivo manualmente no servidor com o seguinte conteúdo:',
+            'manual_config_copy_intro_html' => 'Copie o conteúdo abaixo e salve-o como <code class="bg-gray-100 px-2 py-1 rounded">config.php</code> no diretório raiz:',
+            'manual_config_instructions_heading' => 'Instruções:',
+            'manual_config_step_1' => 'Clique na área de texto acima para selecionar todo o conteúdo',
+            'manual_config_step_2' => 'Copie o conteúdo (Ctrl+C ou Cmd+C)',
+            'manual_config_step_3_html' => 'Crie um novo arquivo chamado <code class="bg-blue-100 px-1 rounded">config.php</code> no diretório raiz da aplicação',
+            'manual_config_step_4' => 'Cole o conteúdo copiado no arquivo',
+            'manual_config_step_5' => 'Salve o arquivo',
+            'manual_config_step_6' => 'Clique no botão "Continuar" abaixo após criar o arquivo',
+            'btn_copy_clipboard' => 'Copiar para a área de transferência',
+            'js_copy_alert' => 'Conteúdo copiado para a área de transferência.',
+            'btn_proceed' => 'Continuar',
+            'btn_checking' => 'Verificando...',
+            'manual_config_checking' => 'Verificando se config.php existe...',
+            'manual_config_found' => '✓ config.php encontrado. Continuando com a instalação...',
+            'manual_config_not_found' => '✗ config.php não encontrado. Crie o arquivo primeiro.',
+            'manual_config_error' => 'Erro ao verificar o arquivo. Recarregue a página manualmente.',
+            'db_form_intro' => 'Insira os dados de conexão com o banco de dados. Os valores padrão são sugeridos; deixe a senha em branco se a usuária do MySQL não tiver senha definida.',
+            'db_host_label' => 'Servidor do banco de dados',
+            'db_host_help_html' => 'Geralmente <code>localhost</code> ou um endereço IP. Padrão: localhost',
+            'db_port_label' => 'Porta do banco de dados',
+            'db_port_help' => 'Porta padrão do MySQL: 3306',
+            'db_name_label' => 'Nome do banco de dados',
+            'db_name_help' => 'Nome do banco de dados MySQL. Padrão: telaris (criado se não existir)',
+            'db_user_label' => 'Usuário do banco de dados',
+            'db_user_help' => 'Nome de usuário do MySQL. Padrão: telaris',
+            'db_password_label' => 'Senha do banco de dados',
+            'db_password_placeholder_keep' => '(Deixe vazio para manter a atual)',
+            'db_password_placeholder_optional' => '(opcional)',
+            'db_password_help_keep' => 'Deixe vazio para manter a senha atual, ou digite uma nova.',
+            'db_password_help_optional' => 'Deixe vazio se o usuário do MySQL não tiver senha.',
+            'btn_create_config' => 'Criar configuração',
+            'btn_update_config' => 'Atualizar configuração',
+        ],
+    ];
+    return $strings;
+}
+
+function setup_detect_locale(): string {
+    static $locale = null;
+    if ($locale !== null) return $locale;
+    $supported = ['en', 'es', 'pt'];
+    $accept = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '';
+    foreach (explode(',', $accept) as $entry) {
+        $entry = trim($entry);
+        if ($entry === '') continue;
+        $code = strtolower(explode(';', $entry, 2)[0]);
+        $primary = substr($code, 0, 2);
+        if (in_array($primary, $supported, true)) {
+            $locale = $primary;
+            return $locale;
+        }
+    }
+    $locale = 'en';
+    return $locale;
+}
+
+function t_setup(string $key, string $fallback = ''): string {
+    $strings = setup_pre_db_strings();
+    $locale = setup_detect_locale();
+    $val = $strings[$locale][$key] ?? '';
+    if ($val === '') {
+        $val = $strings['en'][$key] ?? '';
+    }
+    return $val !== '' ? (string)$val : $fallback;
+}
+
+function t_setup_attr(string $key, string $fallback = ''): string {
+    return htmlspecialchars(t_setup($key, $fallback), ENT_QUOTES, 'UTF-8');
+}
+
 // Required PHP extensions for Telaris
 $requiredExtensions = [
     'pdo' => 'PDO (Database abstraction)',
@@ -567,50 +751,54 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
 
 // Show website info form if needed (step 2 - after tables created)
 if ($showWebsiteForm) {
+    // project_info has been seeded by executeSchema → switch to t() / t_attr().
+    require_once dirname(__DIR__) . '/config.php';
+    require_once dirname(__DIR__) . '/inc/db.php';
+    $postLocale = locale_init_strings()['__locale'] ?? 'en';
     ?>
     <!DOCTYPE html>
-    <html lang="en" data-theme="light">
+    <html lang="<?php echo htmlspecialchars($postLocale); ?>" data-theme="light">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="icon" href="/favicon.png" type="image/png">
-        <title>Telaris - Setup</title>
+        <title><?php echo t_setup_attr('setup_page_title', 'Telaris - Setup'); ?></title>
         <script src="../js/tailwind.min.js"></script>
         <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
     </head>
     <body class="font-sans max-w-2xl mx-auto my-12 px-5 bg-gray-100">
         <div class="bg-white p-8 rounded-lg shadow-md">
-            <h1 class="text-gray-800 mb-2 text-2xl font-semibold">Telaris Setup</h1>
+            <h1 class="text-gray-800 mb-2 text-2xl font-semibold"><?php echo t_setup_attr('setup_h1', 'Telaris Setup'); ?></h1>
             <div class="flex justify-between items-center mb-8">
-                <p class="text-gray-600">Configure your website information</p>
+                <p class="text-gray-600"><?php echo t_attr('admin_setup_website_info_subtitle', 'Configure your website information'); ?></p>
                 <div class="bg-gray-100 px-3 py-1 rounded-md border border-gray-200">
-                    <span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Version</span>
+                    <span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider"><?php echo t_setup_attr('db_form_version_label', 'Version'); ?></span>
                     <span class="ml-1.5 font-mono text-xs font-bold text-gray-700"><?php echo htmlspecialchars($systemVersion); ?></span>
                 </div>
             </div>
-            
+
             <?php if (isset($_SESSION['schema_details']) && $_SESSION['schema_details']['success']): ?>
                 <div class="bg-green-50 text-green-600 p-4 rounded mb-5">
-                    ✓ Database tables created successfully!
+                    <?php echo t_attr('admin_setup_db_tables_created', '✓ Database tables created successfully!'); ?>
                 </div>
             <?php endif; ?>
-            
+
             <form method="POST" action="">
                 <input type="hidden" name="website_info" value="1">
-                <p class="text-sm text-gray-600 mb-5">These values are used for the default constellation and project info. You can change them later in Admin → Global Settings and Constellations.</p>
+                <p class="text-sm text-gray-600 mb-5"><?php echo t_attr('admin_setup_website_info_footer_help', 'These values are used for the default galaxy and project info. They can be changed later in Admin → Global Settings and Galaxies.'); ?></p>
                 <div class="mb-5">
-                    <label for="website_name" class="block mb-1.5 text-gray-800 font-medium">Website Name</label>
+                    <label for="website_name" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_attr('admin_setup_website_name_label', 'Website Name'); ?></label>
                     <input type="text" id="website_name" name="website_name" value="<?php echo htmlspecialchars($websiteName); ?>" placeholder="Telaris" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">The name of your website/project. Default: Telaris</span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?php echo t_attr('admin_setup_website_name_help', 'The name of your website or project. Default: Telaris'); ?></span>
                 </div>
-                
+
                 <div class="mb-5">
-                    <label for="website_tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
+                    <label for="website_tagline" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_attr('admin_setup_tagline_label', 'Tagline'); ?></label>
                     <input type="text" id="website_tagline" name="website_tagline" value="<?php echo htmlspecialchars($websiteTagline); ?>" placeholder="Weaving memory" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">A short description or tagline. Default: Weaving memory</span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?php echo t_attr('admin_setup_tagline_help', 'A short description or tagline. Default: Weaving memory'); ?></span>
                 </div>
-                
-                <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-3 px-8 rounded text-base cursor-pointer w-full">Continue</button>
+
+                <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-3 px-8 rounded text-base cursor-pointer w-full"><?php echo t_attr('admin_setup_website_info_continue', 'Continue'); ?></button>
             </form>
         </div>
     </body>
@@ -621,32 +809,33 @@ if ($showWebsiteForm) {
 
 // Show database configuration form if needed (step 2)
 if ($showForm) {
+    $setupLocale = setup_detect_locale();
     ?>
     <!DOCTYPE html>
-    <html lang="en" data-theme="light">
+    <html lang="<?php echo htmlspecialchars($setupLocale); ?>" data-theme="light">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="icon" href="/favicon.png" type="image/png">
-        <title>Telaris - Setup</title>
+        <title><?php echo t_setup_attr('setup_page_title', 'Telaris - Setup'); ?></title>
         <script src="../js/tailwind.min.js"></script>
         <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
     </head>
     <body class="font-sans max-w-2xl mx-auto my-12 px-5 bg-gray-100">
         <div class="bg-white p-8 rounded-lg shadow-md">
-            <h1 class="text-gray-800 mb-2 text-2xl font-semibold">Telaris Setup</h1>
+            <h1 class="text-gray-800 mb-2 text-2xl font-semibold"><?php echo t_setup_attr('setup_h1', 'Telaris Setup'); ?></h1>
             <div class="flex justify-between items-center mb-8">
-                <p class="text-gray-600">Configure your database connection</p>
+                <p class="text-gray-600"><?php echo t_setup_attr('db_form_subtitle', 'Configure your database connection'); ?></p>
                 <div class="bg-gray-100 px-3 py-1 rounded-md border border-gray-200">
-                    <span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Version</span>
+                    <span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider"><?php echo t_setup_attr('db_form_version_label', 'Version'); ?></span>
                     <span class="ml-1.5 font-mono text-xs font-bold text-gray-700"><?php echo htmlspecialchars($systemVersion); ?></span>
                 </div>
             </div>
-            
+
             <!-- PHP Requirements Check -->
             <div class="mb-8 p-4 bg-gray-50 rounded">
-                <h3 class="mb-2.5 text-gray-800 text-lg font-semibold">PHP Requirements</h3>
-                <p class="mb-2.5 text-gray-600">PHP Version: <strong><?php echo PHP_VERSION; ?></strong></p>
+                <h3 class="mb-2.5 text-gray-800 text-lg font-semibold"><?php echo t_setup_attr('php_requirements_heading', 'PHP Requirements'); ?></h3>
+                <p class="mb-2.5 text-gray-600"><?php echo t_setup_attr('php_version_label', 'PHP Version:'); ?> <strong><?php echo PHP_VERSION; ?></strong></p>
                 <div class="mt-4">
                     <?php foreach ($extensionStatus as $name => $installed): ?>
                         <div class="flex items-center gap-2.5 py-2 <?php echo $installed ? 'text-green-600' : 'text-red-600 font-semibold'; ?>">
@@ -657,134 +846,141 @@ if ($showForm) {
                 </div>
                 <?php if (!$allExtensionsLoaded): ?>
                     <div class="bg-yellow-50 text-yellow-800 p-4 rounded mt-4 border-l-4 border-yellow-400">
-                        <strong>Warning:</strong> Some required PHP extensions are missing. Please install them before proceeding.
+                        <strong><?php echo t_setup_attr('php_warning_prefix', 'Warning:'); ?></strong> <?php echo t_setup_attr('php_warning_text', 'Some required PHP extensions are missing. Install them before proceeding.'); ?>
                     </div>
                 <?php endif; ?>
             </div>
-            
+
             <?php if ($connectionError): ?>
                 <div class="bg-red-50 text-red-700 p-4 rounded mb-5">
-                    <strong>Error:</strong><br>
+                    <strong><?php echo t_setup_attr('db_error_prefix', 'Error:'); ?></strong><br>
                     <?php echo htmlspecialchars($connectionError); ?>
                 </div>
             <?php endif; ?>
-            
+
             <?php if (isset($configContentToShow) && !empty($configContentToShow)): ?>
                 <div class="bg-yellow-50 border-2 border-yellow-400 rounded p-6 mb-5">
-                    <h3 class="text-yellow-800 text-lg font-semibold mb-3">Manual Configuration Required</h3>
+                    <h3 class="text-yellow-800 text-lg font-semibold mb-3"><?php echo t_setup_attr('manual_config_heading', 'Manual Configuration Required'); ?></h3>
                     <p class="text-yellow-700 mb-4">
-                        The setup script could not create <code class="bg-yellow-100 px-2 py-1 rounded">config.php</code> automatically. 
-                        Please create this file manually on your server with the following content:
+                        <?php echo t_setup('manual_config_intro_html', 'The setup script could not create <code class="bg-yellow-100 px-2 py-1 rounded">config.php</code> automatically. Create this file manually on the server with the following content:'); ?>
                     </p>
                     <div class="mb-4">
                         <label for="config_content" class="block mb-2 text-sm font-medium text-gray-700">
-                            Copy the content below and save it as <code class="bg-gray-100 px-2 py-1 rounded">config.php</code> in the root directory:
+                            <?php echo t_setup('manual_config_copy_intro_html', 'Copy the content below and save it as <code class="bg-gray-100 px-2 py-1 rounded">config.php</code> in the root directory:'); ?>
                         </label>
-                        <textarea 
-                            id="config_content" 
-                            readonly 
+                        <textarea
+                            id="config_content"
+                            readonly
                             class="w-full h-96 p-3 border border-gray-300 rounded font-mono text-sm bg-gray-50"
                             onclick="this.select(); document.execCommand('copy');"
                         ><?php echo htmlspecialchars($configContentToShow); ?></textarea>
                     </div>
                     <div class="bg-blue-50 border border-blue-200 rounded p-4">
-                        <p class="text-blue-800 text-sm font-medium mb-2">Instructions:</p>
+                        <p class="text-blue-800 text-sm font-medium mb-2"><?php echo t_setup_attr('manual_config_instructions_heading', 'Instructions:'); ?></p>
                         <ol class="list-decimal list-inside text-blue-700 text-sm space-y-1">
-                            <li>Click on the textarea above to select all the content</li>
-                            <li>Copy the content (Ctrl+C or Cmd+C)</li>
-                            <li>Create a new file named <code class="bg-blue-100 px-1 rounded">config.php</code> in the root directory of your application</li>
-                            <li>Paste the copied content into the file</li>
-                            <li>Save the file</li>
-                            <li>Click the "Proceed" button below once the file is created</li>
+                            <li><?php echo t_setup_attr('manual_config_step_1', 'Click the textarea above to select all the content'); ?></li>
+                            <li><?php echo t_setup_attr('manual_config_step_2', 'Copy the content (Ctrl+C or Cmd+C)'); ?></li>
+                            <li><?php echo t_setup('manual_config_step_3_html', 'Create a new file named <code class="bg-blue-100 px-1 rounded">config.php</code> in the root directory of the application'); ?></li>
+                            <li><?php echo t_setup_attr('manual_config_step_4', 'Paste the copied content into the file'); ?></li>
+                            <li><?php echo t_setup_attr('manual_config_step_5', 'Save the file'); ?></li>
+                            <li><?php echo t_setup_attr('manual_config_step_6', 'Click the "Proceed" button below once the file is created'); ?></li>
                         </ol>
                     </div>
                     <div class="mt-4 flex gap-3">
-                        <button 
-                            type="button" 
-                            onclick="document.getElementById('config_content').select(); document.execCommand('copy'); alert('Content copied to clipboard!');"
+                        <button
+                            type="button"
+                            onclick="document.getElementById('config_content').select(); document.execCommand('copy'); alert(<?php echo json_encode(t_setup('js_copy_alert', 'Content copied to clipboard.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>);"
                             class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded text-sm"
                         >
-                            Copy to Clipboard
+                            <?php echo t_setup_attr('btn_copy_clipboard', 'Copy to Clipboard'); ?>
                         </button>
-                        <button 
-                            type="button" 
+                        <button
+                            type="button"
                             id="proceed_btn"
                             onclick="checkConfigAndProceed()"
                             class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded text-sm font-medium"
                         >
-                            Proceed
+                            <?php echo t_setup_attr('btn_proceed', 'Proceed'); ?>
                         </button>
                     </div>
                     <div id="proceed_status" class="mt-3 text-sm"></div>
                 </div>
                 <script>
+                    const SETUP_JS_STRINGS = <?php echo json_encode([
+                        'btn_proceed' => t_setup('btn_proceed', 'Proceed'),
+                        'btn_checking' => t_setup('btn_checking', 'Checking...'),
+                        'manual_config_checking' => t_setup('manual_config_checking', 'Checking if config.php exists...'),
+                        'manual_config_found' => t_setup('manual_config_found', '✓ config.php found. Continuing setup...'),
+                        'manual_config_not_found' => t_setup('manual_config_not_found', '✗ config.php not found. Create the file first.'),
+                        'manual_config_error' => t_setup('manual_config_error', 'Error checking file. Refresh the page manually.'),
+                    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
                     function checkConfigAndProceed() {
                         const btn = document.getElementById('proceed_btn');
                         const status = document.getElementById('proceed_status');
                         btn.disabled = true;
-                        btn.textContent = 'Checking...';
-                        status.innerHTML = '<span class="text-blue-600">Checking if config.php exists...</span>';
-                        
+                        btn.textContent = SETUP_JS_STRINGS.btn_checking;
+                        status.innerHTML = '<span class="text-blue-600">' + SETUP_JS_STRINGS.manual_config_checking + '</span>';
+
                         // Check if config.php exists
                         fetch('setup.php?check_config=1')
                             .then(response => response.json())
                             .then(data => {
                                 if (data.exists) {
-                                    status.innerHTML = '<span class="text-green-600">✓ config.php found! Continuing setup...</span>';
+                                    status.innerHTML = '<span class="text-green-600">' + SETUP_JS_STRINGS.manual_config_found + '</span>';
                                     // Redirect to continue setup
                                     setTimeout(() => {
                                         window.location.href = 'setup.php?continue_setup=1';
                                     }, 1000);
                                 } else {
                                     btn.disabled = false;
-                                    btn.textContent = 'Proceed';
-                                    status.innerHTML = '<span class="text-red-600">✗ config.php not found. Please create the file first.</span>';
+                                    btn.textContent = SETUP_JS_STRINGS.btn_proceed;
+                                    status.innerHTML = '<span class="text-red-600">' + SETUP_JS_STRINGS.manual_config_not_found + '</span>';
                                 }
                             })
                             .catch(error => {
                                 btn.disabled = false;
-                                btn.textContent = 'Proceed';
-                                status.innerHTML = '<span class="text-red-600">Error checking file. Please refresh the page manually.</span>';
+                                btn.textContent = SETUP_JS_STRINGS.btn_proceed;
+                                status.innerHTML = '<span class="text-red-600">' + SETUP_JS_STRINGS.manual_config_error + '</span>';
                             });
                     }
                 </script>
             <?php endif; ?>
-            
+
             <?php if (!isset($configContentToShow) || empty($configContentToShow)): ?>
             <form method="POST" action="">
                 <input type="hidden" name="db_config" value="1">
-                <p class="text-sm text-gray-600 mb-5">Enter your database connection details. Defaults are suggested; leave password empty if your MySQL user has none.</p>
+                <p class="text-sm text-gray-600 mb-5"><?php echo t_setup_attr('db_form_intro', 'Enter the database connection details. Defaults are suggested; leave password empty if the MySQL user has none.'); ?></p>
                 <div class="mb-5">
-                    <label for="db_host" class="block mb-1.5 text-gray-800 font-medium">Database Host</label>
+                    <label for="db_host" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_setup_attr('db_host_label', 'Database Host'); ?></label>
                     <input type="text" id="db_host" name="db_host" value="<?php echo htmlspecialchars($dbHost); ?>" placeholder="localhost" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">Usually <code>localhost</code> or an IP address. Default: localhost</span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?php echo t_setup('db_host_help_html', 'Usually <code>localhost</code> or an IP address. Default: localhost'); ?></span>
                 </div>
-                
+
                 <div class="mb-5">
-                    <label for="db_port" class="block mb-1.5 text-gray-800 font-medium">Database Port</label>
+                    <label for="db_port" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_setup_attr('db_port_label', 'Database Port'); ?></label>
                     <input type="number" id="db_port" name="db_port" value="<?php echo htmlspecialchars($dbPort); ?>" placeholder="3306" min="1" max="65535" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">Default MySQL port: 3306</span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?php echo t_setup_attr('db_port_help', 'Default MySQL port: 3306'); ?></span>
                 </div>
-                
+
                 <div class="mb-5">
-                    <label for="db_name" class="block mb-1.5 text-gray-800 font-medium">Database Name</label>
+                    <label for="db_name" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_setup_attr('db_name_label', 'Database Name'); ?></label>
                     <input type="text" id="db_name" name="db_name" value="<?php echo htmlspecialchars($dbName); ?>" placeholder="telaris" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">Name of your MySQL database. Default: telaris (created if missing)</span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?php echo t_setup_attr('db_name_help', 'Name of the MySQL database. Default: telaris (created if missing)'); ?></span>
                 </div>
-                
+
                 <div class="mb-5">
-                    <label for="db_user" class="block mb-1.5 text-gray-800 font-medium">Database User</label>
+                    <label for="db_user" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_setup_attr('db_user_label', 'Database User'); ?></label>
                     <input type="text" id="db_user" name="db_user" value="<?php echo htmlspecialchars($dbUser); ?>" placeholder="telaris" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">MySQL username. Default: telaris</span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?php echo t_setup_attr('db_user_help', 'MySQL username. Default: telaris'); ?></span>
                 </div>
-                
+
                 <div class="mb-5">
-                    <label for="db_pass" class="block mb-1.5 text-gray-800 font-medium">Database Password</label>
-                    <input type="password" id="db_pass" name="db_pass" value="" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500" placeholder="<?php $configPath = dirname(__DIR__) . '/config.php'; echo file_exists($configPath) && $dbPass !== '' ? '(Leave empty to keep current)' : '(optional)'; ?>">
-                    <span class="text-xs text-gray-500 mt-1 block"><?php $configPath = dirname(__DIR__) . '/config.php'; echo file_exists($configPath) ? 'Leave empty to keep current password, or enter a new one.' : 'Leave empty if your MySQL user has no password.'; ?></span>
+                    <label for="db_pass" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_setup_attr('db_password_label', 'Database Password'); ?></label>
+                    <input type="password" id="db_pass" name="db_pass" value="" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500" placeholder="<?php $configPath = dirname(__DIR__) . '/config.php'; echo file_exists($configPath) && $dbPass !== '' ? t_setup_attr('db_password_placeholder_keep', '(Leave empty to keep current)') : t_setup_attr('db_password_placeholder_optional', '(optional)'); ?>">
+                    <span class="text-xs text-gray-500 mt-1 block"><?php $configPath = dirname(__DIR__) . '/config.php'; echo file_exists($configPath) ? t_setup_attr('db_password_help_keep', 'Leave empty to keep the current password, or enter a new one.') : t_setup_attr('db_password_help_optional', 'Leave empty if the MySQL user has no password.'); ?></span>
                 </div>
-                
-                <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-3 px-8 rounded text-base cursor-pointer w-full"><?php $configPath = dirname(__DIR__) . '/config.php'; echo file_exists($configPath) ? 'Update Configuration' : 'Create Configuration'; ?></button>
+
+                <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-3 px-8 rounded text-base cursor-pointer w-full"><?php $configPath = dirname(__DIR__) . '/config.php'; echo file_exists($configPath) ? t_setup_attr('btn_update_config', 'Update Configuration') : t_setup_attr('btn_create_config', 'Create Configuration'); ?></button>
             </form>
             <?php endif; ?>
         </div>
@@ -847,7 +1043,7 @@ if (!$showForm && !$showWebsiteForm && file_exists($configPath)) {
                 if (!$schemaDetails['success']) {
                     throw new Exception("Failed to create database schema: " . ($schemaDetails['error'] ?? 'Unknown error'));
                 }
-                $message = "Setup complete! Database schema created and project information initialized.";
+                $message = t('admin_setup_complete_with_schema', 'Setup complete. Database schema created and project information initialized.');
             } else {
                 // Tables exist, check if default API key exists, if not create it
                 // Use getDefaultApiKey() from config.php if available, otherwise direct query
@@ -873,7 +1069,7 @@ if (!$showForm && !$showWebsiteForm && file_exists($configPath)) {
                     }
                 }
                 // Tables exist, just ensure project_info has default values
-                $message = "Setup complete! Project information initialized.";
+                $message = t('admin_setup_complete_no_schema', 'Setup complete. Project information initialized.');
             }
             
             // Ensure project_info table has values (use session values if available, otherwise defaults)
@@ -887,13 +1083,13 @@ if (!$showForm && !$showWebsiteForm && file_exists($configPath)) {
             db_ensure_project_info_columns();
             
             if (!isset($message)) {
-                $message = "Setup complete! Project information initialized.";
+                $message = t('admin_setup_complete_no_schema', 'Setup complete. Project information initialized.');
             }
         }
     } catch (PDOException $e) {
-        $error = "Database Error: " . $e->getMessage();
+        $error = t('admin_setup_db_error_prefix', 'Database Error:') . ' ' . $e->getMessage();
     } catch (Exception $e) {
-        $error = "Error: " . $e->getMessage();
+        $error = t('admin_setup_error_prefix', 'Error:') . ' ' . $e->getMessage();
     }
 }
 
@@ -917,22 +1113,22 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
         $lastname = trim($_POST['admin_lastname'] ?? '');
         
         if (empty($email) || empty($password) || empty($firstname) || empty($lastname)) {
-            $adminUserError = 'All fields are required';
+            $adminUserError = t('admin_setup_validation_all_fields_required', 'All fields are required.');
         } elseif ($password !== $passwordConfirm) {
-            $adminUserError = 'Passwords do not match';
+            $adminUserError = t('admin_setup_validation_passwords_mismatch', 'Passwords do not match.');
         } elseif (strlen($password) < 8) {
-            $adminUserError = 'Password must be at least 8 characters long';
+            $adminUserError = t('admin_setup_validation_password_too_short', 'Password must be at least 8 characters long.');
         } else {
             $result = createAdminUser($pdo, $email, $password, $firstname, $lastname);
             if ($result === null) {
                 $adminUserCreated = true;
-                $message = "Admin user created successfully! You can now login at the admin console.";
+                $message = t('admin_setup_admin_user_created', '✓ Admin user created successfully!');
             } else {
                 $adminUserError = $result;
             }
         }
     } else {
-        $adminUserError = 'Database connection not available';
+        $adminUserError = t('admin_setup_validation_db_unavailable', 'Database connection not available.');
     }
 }
 
@@ -942,59 +1138,64 @@ if ($pdo && !$adminUserCreated) {
 }
 
 // Show results page
+$postLocale = function_exists('locale_init_strings') ? (locale_init_strings()['__locale'] ?? 'en') : setup_detect_locale();
+$tablesCreatedCount = isset($schemaDetails['tables_created']) ? count($schemaDetails['tables_created']) : 0;
+$tablesSkippedCount = isset($schemaDetails['tables_skipped']) ? count($schemaDetails['tables_skipped']) : 0;
+$tablesCreatedKey = $tablesCreatedCount === 1 ? 'admin_setup_schema_tables_created_one' : 'admin_setup_schema_tables_created_many';
+$tablesSkippedKey = $tablesSkippedCount === 1 ? 'admin_setup_schema_tables_existed_one' : 'admin_setup_schema_tables_existed_many';
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="<?php echo htmlspecialchars($postLocale); ?>" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.png" type="image/png">
-    <title>Telaris - Setup</title>
+    <title><?php echo t_setup_attr('setup_page_title', 'Telaris - Setup'); ?></title>
     <script src="js/tailwind.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
 </head>
 <body class="font-sans max-w-2xl mx-auto my-12 px-5 bg-gray-100">
     <div class="bg-white p-8 rounded-lg shadow-md">
-        <h1 class="text-gray-800 mb-2 text-2xl font-semibold">Telaris Setup</h1>
+        <h1 class="text-gray-800 mb-2 text-2xl font-semibold"><?php echo t_setup_attr('setup_h1', 'Telaris Setup'); ?></h1>
         <div class="flex justify-end items-center mb-4">
             <div class="bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
                 <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">v</span>
                 <span class="font-mono text-[10px] font-bold text-gray-500"><?php echo htmlspecialchars($systemVersion); ?></span>
             </div>
         </div>
-        
+
         <?php if ($success): ?>
-            <div class="bg-green-50 text-green-600 p-4 rounded mb-5">✓ Configuration file created successfully!</div>
+            <div class="bg-green-50 text-green-600 p-4 rounded mb-5"><?php echo t_attr('admin_setup_config_created_flash', '✓ Configuration file created successfully!'); ?></div>
         <?php endif; ?>
-        
+
         <?php if ($message): ?>
             <div class="bg-green-50 text-green-600 p-4 rounded mb-5"><?php echo htmlspecialchars($message); ?></div>
         <?php endif; ?>
-        
+
         <?php if ($error): ?>
             <div class="bg-red-50 text-red-700 p-4 rounded mb-5"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
-        
+
         <!-- Database Schema Creation Details -->
         <?php if ($schemaDetails !== null && $schemaDetails['success']): ?>
             <div class="mb-5 p-4 bg-blue-50 border border-blue-200 rounded">
-                <h3 class="mb-3 text-blue-800 text-lg font-semibold">Database Schema Creation Details</h3>
-                
+                <h3 class="mb-3 text-blue-800 text-lg font-semibold"><?php echo t_attr('admin_setup_schema_details_heading', 'Database Schema Creation Details'); ?></h3>
+
                 <?php if ($schemaDetails['database_created']): ?>
                     <div class="mb-3">
                         <span class="text-green-600 font-semibold">✓</span>
-                        <span class="text-gray-700">Database <strong><?php echo htmlspecialchars(DB_NAME); ?></strong> created successfully</span>
+                        <span class="text-gray-700"><?php echo sprintf(t('admin_setup_schema_db_created', 'Database <strong>%s</strong> created successfully'), htmlspecialchars(DB_NAME)); ?></span>
                     </div>
                 <?php else: ?>
                     <div class="mb-3">
                         <span class="text-gray-500">ℹ</span>
-                        <span class="text-gray-700">Database <strong><?php echo htmlspecialchars(DB_NAME); ?></strong> already exists</span>
+                        <span class="text-gray-700"><?php echo sprintf(t('admin_setup_schema_db_exists', 'Database <strong>%s</strong> already exists'), htmlspecialchars(DB_NAME)); ?></span>
                     </div>
                 <?php endif; ?>
-                
+
                 <?php if (!empty($schemaDetails['tables_created'])): ?>
                     <div class="mb-3">
-                        <p class="text-gray-700 font-medium mb-2">Tables Created (<?php echo count($schemaDetails['tables_created']); ?>):</p>
+                        <p class="text-gray-700 font-medium mb-2"><?php echo sprintf(htmlspecialchars(t($tablesCreatedKey, 'Tables Created (%d):')), $tablesCreatedCount); ?></p>
                         <ul class="list-disc list-inside ml-2 space-y-1">
                             <?php foreach ($schemaDetails['tables_created'] as $table): ?>
                                 <li class="text-green-600">
@@ -1005,10 +1206,10 @@ if ($pdo && !$adminUserCreated) {
                         </ul>
                     </div>
                 <?php endif; ?>
-                
+
                 <?php if (!empty($schemaDetails['tables_skipped'])): ?>
                     <div class="mb-3">
-                        <p class="text-gray-700 font-medium mb-2">Tables Already Existed (<?php echo count($schemaDetails['tables_skipped']); ?>):</p>
+                        <p class="text-gray-700 font-medium mb-2"><?php echo sprintf(htmlspecialchars(t($tablesSkippedKey, 'Tables Already Existed (%d):')), $tablesSkippedCount); ?></p>
                         <ul class="list-disc list-inside ml-2 space-y-1">
                             <?php foreach ($schemaDetails['tables_skipped'] as $table): ?>
                                 <li class="text-gray-500">
@@ -1019,111 +1220,114 @@ if ($pdo && !$adminUserCreated) {
                         </ul>
                     </div>
                 <?php endif; ?>
-                
+
                 <?php if (empty($schemaDetails['tables_created']) && empty($schemaDetails['tables_skipped'])): ?>
-                    <div class="text-gray-600 text-sm">No tables were created or skipped.</div>
+                    <div class="text-gray-600 text-sm"><?php echo t_attr('admin_setup_schema_no_tables', 'No tables were created or skipped.'); ?></div>
                 <?php endif; ?>
-                
+
                 <?php if (!empty($schemaDetails['default_api_key'])): ?>
                     <div class="mt-4 pt-4 border-t border-blue-300">
-                        <p class="text-gray-700 font-medium mb-2">✓ Default API Key Generated</p>
-                        <p class="text-sm text-gray-600 mb-2">A default API key has been automatically generated and is being used by the application. You can manage API keys in the API Key Management page.</p>
+                        <p class="text-gray-700 font-medium mb-2"><?php echo t_attr('admin_setup_schema_api_key_heading', '✓ Default API Key Generated'); ?></p>
+                        <p class="text-sm text-gray-600 mb-2"><?php echo t_attr('admin_setup_schema_api_key_help', 'A default API key has been automatically generated and is being used by the application. API keys can be managed in the API Key Management page.'); ?></p>
                     </div>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
-        
+
         <!-- Admin User Creation Form -->
         <?php if ($showAdminForm && !$adminUserCreated): ?>
             <div class="mb-5 p-6 bg-yellow-50 border-2 border-yellow-400 rounded">
-                <h3 class="mb-3 text-yellow-800 text-lg font-semibold">Create Admin User</h3>
-                <p class="mb-4 text-yellow-700 text-sm">No admin user exists yet. Please create an admin user to access the admin console.</p>
-                
+                <h3 class="mb-3 text-yellow-800 text-lg font-semibold"><?php echo t_attr('admin_setup_admin_user_heading', 'Create Admin User'); ?></h3>
+                <p class="mb-4 text-yellow-700 text-sm"><?php echo t_attr('admin_setup_admin_user_intro', 'No admin user exists yet. Create one to access the admin console.'); ?></p>
+
                 <?php if ($adminUserError): ?>
                     <div class="bg-red-50 text-red-700 p-3 rounded mb-4">
                         <?php echo htmlspecialchars($adminUserError); ?>
                     </div>
                 <?php endif; ?>
-                
+
                 <form method="POST" action="" class="space-y-4">
                     <input type="hidden" name="create_admin" value="1">
-                    
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label for="admin_firstname" class="block mb-1.5 text-gray-800 font-medium">First Name *</label>
-                            <input type="text" 
-                                   id="admin_firstname" 
-                                   name="admin_firstname" 
-                                   required 
+                            <label for="admin_firstname" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_attr('admin_setup_first_name_label', 'First Name *'); ?></label>
+                            <input type="text"
+                                   id="admin_firstname"
+                                   name="admin_firstname"
+                                   required
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
-                        
+
                         <div>
-                            <label for="admin_lastname" class="block mb-1.5 text-gray-800 font-medium">Last Name *</label>
-                            <input type="text" 
-                                   id="admin_lastname" 
-                                   name="admin_lastname" 
-                                   required 
+                            <label for="admin_lastname" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_attr('admin_setup_last_name_label', 'Last Name *'); ?></label>
+                            <input type="text"
+                                   id="admin_lastname"
+                                   name="admin_lastname"
+                                   required
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
                     </div>
-                    
+
                     <div>
-                        <label for="admin_email" class="block mb-1.5 text-gray-800 font-medium">Email *</label>
-                        <input type="email" 
-                               id="admin_email" 
-                               name="admin_email" 
-                               required 
+                        <label for="admin_email" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_attr('admin_setup_email_label', 'Email *'); ?></label>
+                        <input type="email"
+                               id="admin_email"
+                               name="admin_email"
+                               required
                                class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span class="text-xs text-gray-500 mt-1 block">This will be your login email</span>
+                        <span class="text-xs text-gray-500 mt-1 block"><?php echo t_attr('admin_setup_email_help', 'This will be the login email.'); ?></span>
                     </div>
-                    
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label for="admin_password" class="block mb-1.5 text-gray-800 font-medium">Password *</label>
-                            <input type="password" 
-                                   id="admin_password" 
-                                   name="admin_password" 
-                                   required 
+                            <label for="admin_password" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_attr('admin_setup_password_label', 'Password *'); ?></label>
+                            <input type="password"
+                                   id="admin_password"
+                                   name="admin_password"
+                                   required
                                    minlength="8"
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            <span class="text-xs text-gray-500 mt-1 block">Minimum 8 characters</span>
+                            <span class="text-xs text-gray-500 mt-1 block"><?php echo t_attr('admin_setup_password_help', 'Minimum 8 characters'); ?></span>
                         </div>
-                        
+
                         <div>
-                            <label for="admin_password_confirm" class="block mb-1.5 text-gray-800 font-medium">Confirm Password *</label>
-                            <input type="password" 
-                                   id="admin_password_confirm" 
-                                   name="admin_password_confirm" 
-                                   required 
+                            <label for="admin_password_confirm" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_attr('admin_setup_confirm_password_label', 'Confirm Password *'); ?></label>
+                            <input type="password"
+                                   id="admin_password_confirm"
+                                   name="admin_password_confirm"
+                                   required
                                    minlength="8"
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
                     </div>
-                    
+
                     <button type="submit" class="bg-yellow-600 hover:bg-yellow-700 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                        Create Admin User
+                        <?php echo t_attr('admin_setup_create_admin_btn', 'Create Admin User'); ?>
                     </button>
                 </form>
             </div>
         <?php elseif ($adminUserCreated): ?>
             <div class="mb-5 p-4 bg-green-50 border-2 border-green-500 rounded">
-                <p class="text-green-800 font-semibold">✓ Admin user created successfully!</p>
-                <p class="text-green-700 text-sm mt-2">You can now login at the <a href="../utils/login.php" class="underline font-medium">login page</a>.</p>
+                <p class="text-green-800 font-semibold"><?php echo t_attr('admin_setup_admin_user_created', '✓ Admin user created successfully!'); ?></p>
+                <p class="text-green-700 text-sm mt-2"><?php
+                    $loginLink = '<a href="../utils/login.php" class="underline font-medium">' . t_attr('admin_setup_admin_user_login_link', 'login page') . '</a>';
+                    echo sprintf(t('admin_setup_admin_user_can_login', 'You can now login at the %s.'), $loginLink);
+                ?></p>
             </div>
         <?php endif; ?>
-        
+
         <div class="mt-5 p-4 bg-gray-50 rounded text-gray-600">
-            <p class="font-semibold mb-2">Setup Status:</p>
+            <p class="font-semibold mb-2"><?php echo t_attr('admin_setup_status_heading', 'Setup Status:'); ?></p>
             <ul class="my-2.5 pl-5">
-                <li class="my-1.5">Configuration file: <?php $configPath = dirname(__DIR__) . '/config.php'; echo file_exists($configPath) ? '✓ Created' : '✗ Missing'; ?></li>
-                <li class="my-1.5">Database connection: <?php echo isset($pdo) ? '✓ Connected' : '✗ Failed'; ?></li>
-                <li class="my-1.5">Project info: <?php echo $message ? '✓ Initialized' : '✗ Not initialized'; ?></li>
+                <li class="my-1.5"><?php echo t_attr('admin_setup_config_file_label', 'Configuration file:'); ?> <?php $configPath = dirname(__DIR__) . '/config.php'; echo file_exists($configPath) ? t_attr('admin_setup_config_file_created', '✓ Created') : t_attr('admin_setup_config_file_missing', '✗ Missing'); ?></li>
+                <li class="my-1.5"><?php echo t_attr('admin_setup_db_connection_label', 'Database connection:'); ?> <?php echo isset($pdo) ? t_attr('admin_setup_db_connection_connected', '✓ Connected') : t_attr('admin_setup_db_connection_failed', '✗ Failed'); ?></li>
+                <li class="my-1.5"><?php echo t_attr('admin_setup_project_info_label', 'Project info:'); ?> <?php echo $message ? t_attr('admin_setup_project_info_initialized', '✓ Initialized') : t_attr('admin_setup_project_info_not_initialized', '✗ Not initialized'); ?></li>
             </ul>
             <p class="mt-5">
-                <a href="../index.php" class="text-blue-500 hover:underline">Go to Telaris →</a> | 
-                <a href="index.php" class="text-blue-500 hover:underline">Admin Console</a> | 
-                <a href="setup.php?reconfigure=1" class="text-blue-500 hover:underline">Reconfigure Database</a>
+                <a href="../index.php" class="text-blue-500 hover:underline"><?php echo t_attr('admin_setup_link_go_to_telaris', 'Go to Telaris →'); ?></a> |
+                <a href="index.php" class="text-blue-500 hover:underline"><?php echo t_attr('admin_setup_link_admin_console', 'Admin Console'); ?></a> |
+                <a href="setup.php?reconfigure=1" class="text-blue-500 hover:underline"><?php echo t_attr('admin_setup_link_reconfigure_db', 'Reconfigure Database'); ?></a>
             </p>
         </div>
     </div>
