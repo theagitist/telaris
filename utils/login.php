@@ -53,13 +53,20 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
     } else {
         $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
+        $ip = auth_client_ip();
 
         if (empty($email) || empty($password)) {
             $error = t('auth_login_error_required', 'Email and password are required');
+        } elseif (
+            db_count_recent_auth_attempts('login', $email, $ip, AUTH_LOGIN_WINDOW_SECONDS, false) >= AUTH_LOGIN_MAX_FAILURES
+        ) {
+            $error = t('auth_error_throttled', 'Too many attempts. Please try again later.');
+            db_record_auth_attempt('login', $email, $ip, false);
         } else {
             $user = authenticateUser($email, $password);
 
             if ($user) {
+                db_record_auth_attempt('login', $email, $ip, true);
                 // Regenerate session ID to prevent session fixation
                 session_regenerate_id(true);
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -73,6 +80,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                 // Redirect based on user type
                 redirectUser((int)$user['type'], $requestedTarget);
             } else {
+                db_record_auth_attempt('login', $email, $ip, false);
                 $error = t('auth_login_error_invalid', 'Invalid email or password. Only editor and admin users can login here.');
             }
         }

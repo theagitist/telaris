@@ -31,7 +31,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error = t('auth_forgot_error_invalid_email', 'Please enter a valid email address.');
         } else {
-            $user = db_get_user_by_email($email);
+            $ip = auth_client_ip();
+            // Throttle by IP (not email — that would also be an existence
+            // side channel) using a null successFilter so all attempts count.
+            if (db_count_recent_auth_attempts('forgot', null, $ip, AUTH_FORGOT_WINDOW_SECONDS, null) >= AUTH_FORGOT_MAX_ATTEMPTS) {
+                db_record_auth_attempt('forgot', $email, $ip, false);
+                // Show the same generic notice so the throttle itself doesn't
+                // signal whether the address exists. The legitimate user sees
+                // the success message; the attacker stops getting mail sent.
+                $notice = $genericNotice;
+            } else {
+                $user = db_get_user_by_email($email);
             if ($user) {
                 $token = db_create_password_reset_token((string)$user['id'], 86400); // 24h
                 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -58,8 +68,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 // (we don't want to leak whether the email exists or whether mail is broken).
                 @mail_send($email, $subject, $html, $text, $name !== '' ? $name : null);
             }
+            db_record_auth_attempt('forgot', $email, $ip, $user !== null);
             // Show the generic notice whether or not the user existed / mail succeeded.
             $notice = $genericNotice;
+            }
         }
     }
 }

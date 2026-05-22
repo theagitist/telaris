@@ -286,6 +286,7 @@ const PROJECT_INFO_KEYS = [
     'auth_email_label', 'auth_password_label',
     'auth_login_submit', 'auth_login_forgot_link', 'auth_login_back_link',
     'auth_error_invalid_request',
+    'auth_error_throttled',
     'auth_login_error_required', 'auth_login_error_invalid',
     'auth_forgot_page_title', 'auth_forgot_heading', 'auth_forgot_subtitle',
     'auth_forgot_generic_notice', 'auth_forgot_error_invalid_email',
@@ -1372,6 +1373,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'auth_login_forgot_link' => 'Forgot your password?',
             'auth_login_back_link' => '← Back to Constellation',
             'auth_error_invalid_request' => 'Invalid request. Please reload the page and try again.',
+            'auth_error_throttled' => 'Too many attempts. Please try again later.',
             'auth_login_error_required' => 'Email and password are required',
             'auth_login_error_invalid' => 'Invalid email or password. Only editor and admin users can login here.',
             'auth_forgot_page_title' => 'Reset Password - Telaris',
@@ -2475,6 +2477,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'auth_login_forgot_link' => '¿Olvidaste la contraseña?',
             'auth_login_back_link' => '← Volver a la constelación',
             'auth_error_invalid_request' => 'Solicitud no válida. Recarga la página e inténtalo de nuevo.',
+            'auth_error_throttled' => 'Demasiados intentos. Inténtalo de nuevo más tarde.',
             'auth_login_error_required' => 'El correo y la contraseña son obligatorios',
             'auth_login_error_invalid' => 'Correo o contraseña no válidos. Solo las cuentas de edición y de administración pueden iniciar sesión aquí.',
             'auth_forgot_page_title' => 'Restablecer contraseña - Telaris',
@@ -3574,6 +3577,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'auth_login_forgot_link' => 'Esqueceu a senha?',
             'auth_login_back_link' => '← Voltar à constelação',
             'auth_error_invalid_request' => 'Requisição inválida. Recarregue a página e tente de novo.',
+            'auth_error_throttled' => 'Muitas tentativas. Tente novamente mais tarde.',
             'auth_login_error_required' => 'O e-mail e a senha são obrigatórios',
             'auth_login_error_invalid' => 'E-mail ou senha inválidos. Apenas contas de edição e de administração podem entrar aqui.',
             'auth_forgot_page_title' => 'Redefinir senha - Telaris',
@@ -4673,6 +4677,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'auth_login_forgot_link' => 'Mot de passe oublié ?',
             'auth_login_back_link' => '← Retour à la constellation',
             'auth_error_invalid_request' => 'Requête invalide. Recharge la page et réessaie.',
+            'auth_error_throttled' => 'Trop de tentatives. Réessaie plus tard.',
             'auth_login_error_required' => 'Le courriel et le mot de passe sont obligatoires',
             'auth_login_error_invalid' => 'Courriel ou mot de passe invalide. Seuls les comptes d\'édition et d\'administration peuvent se connecter ici.',
             'auth_forgot_page_title' => 'Réinitialiser le mot de passe - Telaris',
@@ -6591,6 +6596,86 @@ function db_user_email_exists(string $email, ?string $excludeId = null): bool {
         $stmt->execute([':email' => $email]);
     }
     return $stmt->fetch() !== false;
+}
+
+// ── Auth attempt throttling ──────────────────────────────────────────────────
+//
+// Sliding-window counters for login / forgot / reset. Pre-fix the auth
+// surfaces accepted unlimited attempts. The auth_attempts table records each
+// try (action + email + IP + success) and the count helpers below feed the
+// gate at each entry point. Window and limit constants live next to the
+// callers (utils/auth.php).
+
+function db_ensure_auth_attempts_table(): void {
+    $pdo = getDB();
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS auth_attempts (
+            id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            action VARCHAR(16) NOT NULL,
+            email VARCHAR(255) NULL,
+            ip VARCHAR(45) NOT NULL,
+            success TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_lookup (action, email, ip, created_at),
+            INDEX idx_ip_window (ip, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+}
+
+function db_record_auth_attempt(string $action, ?string $email, string $ip, bool $success): void {
+    db_ensure_auth_attempts_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        INSERT INTO auth_attempts (action, email, ip, success) VALUES (:action, :email, :ip, :success)
+    ");
+    $stmt->execute([
+        ':action' => $action,
+        ':email' => ($email !== null && $email !== '') ? mb_substr($email, 0, 255) : null,
+        ':ip' => $ip !== '' ? mb_substr($ip, 0, 45) : '-',
+        ':success' => $success ? 1 : 0,
+    ]);
+    // Opportunistic prune once per process: drop rows older than 30 days.
+    static $pruned = false;
+    if (!$pruned) {
+        $pruned = true;
+        try {
+            $pdo->exec("DELETE FROM auth_attempts WHERE created_at < (NOW() - INTERVAL 30 DAY)");
+        } catch (Throwable $_) {
+            // Best-effort.
+        }
+    }
+}
+
+/**
+ * Count attempts in the recent window. Pass null for $email or $ip to skip
+ * that axis. $successFilter null counts everything, true counts only
+ * successes, false counts only failures.
+ */
+function db_count_recent_auth_attempts(
+    string $action,
+    ?string $email,
+    ?string $ip,
+    int $windowSeconds,
+    ?bool $successFilter = false
+): int {
+    db_ensure_auth_attempts_table();
+    $pdo = getDB();
+    $sql = "SELECT COUNT(*) FROM auth_attempts WHERE action = :action AND created_at >= (NOW() - INTERVAL " . max(1, (int)$windowSeconds) . " SECOND)";
+    $params = [':action' => $action];
+    if ($email !== null && $email !== '') {
+        $sql .= " AND email = :email";
+        $params[':email'] = $email;
+    }
+    if ($ip !== null && $ip !== '') {
+        $sql .= " AND ip = :ip";
+        $params[':ip'] = $ip;
+    }
+    if ($successFilter !== null) {
+        $sql .= " AND success = " . ($successFilter ? '1' : '0');
+    }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return (int)$stmt->fetchColumn();
 }
 
 /**

@@ -27,6 +27,38 @@ define('USER_TYPE_REGULAR', 0);
 define('USER_TYPE_EDITOR', 1);
 define('USER_TYPE_ADMIN', 2);
 
+// Auth-throttle constants (Fix 6: rate-limit login / forgot / reset).
+// Window in seconds, max-attempts cap. Tuned conservatively; an honest user
+// should never hit these.
+define('AUTH_LOGIN_MAX_FAILURES', 5);
+define('AUTH_LOGIN_WINDOW_SECONDS', 300);
+define('AUTH_FORGOT_MAX_ATTEMPTS', 5);
+define('AUTH_FORGOT_WINDOW_SECONDS', 300);
+define('AUTH_RESET_MAX_ATTEMPTS', 10);
+define('AUTH_RESET_WINDOW_SECONDS', 600);
+
+/**
+ * Best-effort client IP for throttling. Trusts CF-Connecting-IP and
+ * X-Forwarded-For when present; the Polivoxia instances sit behind
+ * Cloudflare so REMOTE_ADDR by itself is the proxy IP and would
+ * over-throttle. Headers can be forged when an attacker hits the origin
+ * directly, but the email-axis throttle still applies in that case.
+ */
+function auth_client_ip(): string {
+    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'] as $key) {
+        if (!empty($_SERVER[$key])) {
+            $value = (string)$_SERVER[$key];
+            if ($key === 'HTTP_X_FORWARDED_FOR') {
+                $value = trim(explode(',', $value)[0]);
+            }
+            if (filter_var($value, FILTER_VALIDATE_IP) !== false) {
+                return $value;
+            }
+        }
+    }
+    return '-';
+}
+
 /**
  * Check if user is logged in as admin (type 2 only)
  */

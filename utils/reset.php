@@ -23,23 +23,34 @@ $success = false;
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $submittedCsrf = $_POST['csrf_token'] ?? '';
-    if (!hash_equals($_SESSION['csrf_token'], $submittedCsrf)) {
+    $ip = auth_client_ip();
+    $emailForRecord = $tokenUser['email'] ?? null;
+    if (db_count_recent_auth_attempts('reset', null, $ip, AUTH_RESET_WINDOW_SECONDS, null) >= AUTH_RESET_MAX_ATTEMPTS) {
+        db_record_auth_attempt('reset', $emailForRecord, $ip, false);
+        $error = t('auth_error_throttled', 'Too many attempts. Please try again later.');
+    } elseif (!hash_equals($_SESSION['csrf_token'], $submittedCsrf)) {
+        db_record_auth_attempt('reset', $emailForRecord, $ip, false);
         $error = t('auth_error_invalid_request', 'Invalid request. Please reload the page and try again.');
     } elseif (!$tokenUser) {
+        db_record_auth_attempt('reset', $emailForRecord, $ip, false);
         $error = t('auth_reset_invalid_token_message', 'This reset link is invalid or has expired. Please request a new one.');
     } else {
         $pw1 = (string)($_POST['password'] ?? '');
         $pw2 = (string)($_POST['password_confirm'] ?? '');
         if (strlen($pw1) < 8) {
+            db_record_auth_attempt('reset', $emailForRecord, $ip, false);
             $error = t('auth_reset_error_password_too_short', 'Password must be at least 8 characters.');
         } elseif ($pw1 !== $pw2) {
+            db_record_auth_attempt('reset', $emailForRecord, $ip, false);
             $error = t('auth_reset_error_password_mismatch', 'Passwords do not match.');
         } else {
             $hash = password_hash($pw1, PASSWORD_DEFAULT);
             $ok = db_consume_password_reset_token($token, $hash);
             if (!$ok) {
+                db_record_auth_attempt('reset', $emailForRecord, $ip, false);
                 $error = t('auth_reset_invalid_token_message', 'This reset link is invalid or has expired. Please request a new one.');
             } else {
+                db_record_auth_attempt('reset', $emailForRecord, $ip, true);
                 $success = true;
                 // Rotate the CSRF token now that we've completed a sensitive action.
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
