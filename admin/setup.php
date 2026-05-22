@@ -209,6 +209,51 @@ function setup_pre_db_strings(): array {
             'btn_create_config' => 'Criar configuração',
             'btn_update_config' => 'Atualizar configuração',
         ],
+        'fr' => [
+            'setup_page_title' => 'Telaris - Installation',
+            'setup_h1' => 'Installation de Telaris',
+            'db_form_subtitle' => 'Configure la connexion à la base de données',
+            'db_form_version_label' => 'Version',
+            'php_requirements_heading' => 'Exigences PHP',
+            'php_version_label' => 'Version de PHP :',
+            'php_warning_prefix' => 'Avertissement :',
+            'php_warning_text' => 'Des extensions PHP requises sont manquantes. Installe-les avant de continuer.',
+            'db_error_prefix' => 'Erreur :',
+            'manual_config_heading' => 'Configuration manuelle requise',
+            'manual_config_intro_html' => 'Le script d\'installation n\'a pas pu créer <code class="bg-yellow-100 px-2 py-1 rounded">config.php</code> automatiquement. Crée ce fichier à la main sur le serveur avec le contenu suivant :',
+            'manual_config_copy_intro_html' => 'Copie le contenu ci-dessous et enregistre-le comme <code class="bg-gray-100 px-2 py-1 rounded">config.php</code> dans le répertoire racine :',
+            'manual_config_instructions_heading' => 'Instructions :',
+            'manual_config_step_1' => 'Clique dans la zone de texte ci-dessus pour sélectionner tout le contenu',
+            'manual_config_step_2' => 'Copie le contenu (Ctrl+C ou Cmd+C)',
+            'manual_config_step_3_html' => 'Crée un nouveau fichier nommé <code class="bg-blue-100 px-1 rounded">config.php</code> dans le répertoire racine de l\'application',
+            'manual_config_step_4' => 'Colle le contenu copié dans le fichier',
+            'manual_config_step_5' => 'Enregistre le fichier',
+            'manual_config_step_6' => 'Clique sur le bouton « Continuer » ci-dessous une fois le fichier créé',
+            'btn_copy_clipboard' => 'Copier dans le presse-papiers',
+            'js_copy_alert' => 'Contenu copié dans le presse-papiers.',
+            'btn_proceed' => 'Continuer',
+            'btn_checking' => 'Vérification...',
+            'manual_config_checking' => 'Vérification de l\'existence de config.php...',
+            'manual_config_found' => '✓ config.php trouvé. Poursuite de l\'installation...',
+            'manual_config_not_found' => '✗ config.php introuvable. Crée le fichier d\'abord.',
+            'manual_config_error' => 'Erreur lors de la vérification du fichier. Recharge la page à la main.',
+            'db_form_intro' => 'Saisis les données de connexion à la base de données. Des valeurs par défaut sont suggérées ; laisse le mot de passe vide si l\'utilisateur MySQL n\'en a pas.',
+            'db_host_label' => 'Serveur de base de données',
+            'db_host_help_html' => 'Habituellement <code>localhost</code> ou une adresse IP. Par défaut : localhost',
+            'db_port_label' => 'Port de la base de données',
+            'db_port_help' => 'Port MySQL par défaut : 3306',
+            'db_name_label' => 'Nom de la base de données',
+            'db_name_help' => 'Nom de la base de données MySQL. Par défaut : telaris (créée si absente)',
+            'db_user_label' => 'Utilisateur de la base de données',
+            'db_user_help' => 'Nom d\'utilisateur MySQL. Par défaut : telaris',
+            'db_password_label' => 'Mot de passe de la base de données',
+            'db_password_placeholder_keep' => '(Laisse vide pour conserver l\'actuel)',
+            'db_password_placeholder_optional' => '(facultatif)',
+            'db_password_help_keep' => 'Laisse vide pour conserver le mot de passe actuel, ou saisis-en un nouveau.',
+            'db_password_help_optional' => 'Laisse vide si l\'utilisateur MySQL n\'a pas de mot de passe.',
+            'btn_create_config' => 'Créer la configuration',
+            'btn_update_config' => 'Mettre à jour la configuration',
+        ],
     ];
     return $strings;
 }
@@ -216,7 +261,7 @@ function setup_pre_db_strings(): array {
 function setup_detect_locale(): string {
     static $locale = null;
     if ($locale !== null) return $locale;
-    $supported = ['en', 'es', 'pt'];
+    $supported = ['en', 'es', 'pt', 'fr'];
     $accept = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '';
     foreach (explode(',', $accept) as $entry) {
         $entry = trim($entry);
