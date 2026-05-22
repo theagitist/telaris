@@ -129,6 +129,44 @@ function locale_normalize_code(string $raw): ?string {
 }
 
 /**
+ * Resolve the current locale (from request) and cache the matching
+ * project_info strings on the request. Subsequent calls return the cached
+ * array. Surfaces that need translated strings (admin, editor, visitor)
+ * call this once, then use t() to read individual keys.
+ */
+function locale_init_strings(): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $loc = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null);
+    $cache = db_get_project_info_for_locale($loc);
+    $cache['__locale'] = $loc;
+    return $cache;
+}
+
+/**
+ * Translate a single project_info key against the current locale, falling
+ * back to the supplied English string if the key is missing or empty.
+ * The fallback ensures pages still render correctly when a key has not
+ * yet been added to project_info (e.g. between deploys).
+ *
+ * Returns a raw string. Wrap in htmlspecialchars() at the call site for
+ * HTML output. Use t_attr() in HTML attributes.
+ */
+function t(string $key, string $fallback = ''): string {
+    $strings = locale_init_strings();
+    $val = $strings[$key] ?? '';
+    return $val !== '' ? (string)$val : $fallback;
+}
+
+/**
+ * Like t(), but escaped for HTML attribute / body use. Convenience for
+ * the common case in PHP templates.
+ */
+function t_attr(string $key, string $fallback = ''): string {
+    return htmlspecialchars(t($key, $fallback), ENT_QUOTES, 'UTF-8');
+}
+
+/**
  * Get the default constellation ID from project settings.
  */
 /**
