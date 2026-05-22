@@ -532,7 +532,7 @@ foreach ($importantExtensions as $ext => $name) {
     <!-- Initial Loading Overlay -->
     <div id="admin-loading-overlay" class="fixed inset-0 z-[1000] bg-gray-100 flex flex-col items-center justify-center transition-opacity duration-300">
         <span class="loading loading-spinner loading-lg text-neutral mb-4"></span>
-        <p class="text-gray-600 font-medium">Loading Admin Console...</p>
+        <p class="text-gray-600 font-medium"><?= t('admin_loading_console', 'Loading Admin Console...') ?></p>
     </div>
 
     <div class="max-w-6xl mx-auto py-8 px-5">
@@ -540,17 +540,17 @@ foreach ($importantExtensions as $ext => $name) {
         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-gray-800 text-3xl font-semibold">Admin Console</h1>
-                    <p class="text-gray-600 mt-1">Welcome, <?php echo htmlspecialchars($_SESSION['admin_user_name'] ?? 'Admin'); ?></p>
+                    <h1 class="text-gray-800 text-3xl font-semibold"><?= t('admin_heading_console', 'Admin Console') ?></h1>
+                    <p class="text-gray-600 mt-1"><?= sprintf(t('admin_label_welcome', 'Welcome, %s'), htmlspecialchars($_SESSION['admin_user_name'] ?? 'Admin')) ?></p>
                 </div>
                 <div class="flex items-center gap-2">
                     <a href="../edit/index.php" class="btn btn-neutral">
-                        Edit Content
+                        <?= t('admin_btn_edit_content', 'Edit Content') ?>
                     </a>
                     <form method="POST" action="" class="inline">
                         <input type="hidden" name="action" value="logout">
                         <button type="submit" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded">
-                            Logout
+                            <?= t('admin_btn_logout', 'Logout') ?>
                         </button>
                     </form>
                 </div>
@@ -560,8 +560,8 @@ foreach ($importantExtensions as $ext => $name) {
         <!-- Messages Data (Hidden) -->
         <div id="php-messages" class="hidden">
             <?php if ($newApiKey): ?>
-                <div data-type="success" data-title="✓ API Key Generated">
-                    Your API Key: <?php echo htmlspecialchars($newApiKey); ?> (Name: <?php echo htmlspecialchars($newApiKeyName); ?>). PLEASE COPY IT NOW.
+                <div data-type="success" data-title="<?= t_attr('admin_msg_api_key_generated_title', '✓ API Key Generated') ?>">
+                    <?= sprintf(t('admin_msg_api_key_generated_body', 'Your API Key: %s (Name: %s). PLEASE COPY IT NOW.'), htmlspecialchars($newApiKey), htmlspecialchars($newApiKeyName)) ?>
                 </div>
             <?php endif; ?>
             <?php if ($message): ?>
@@ -571,7 +571,7 @@ foreach ($importantExtensions as $ext => $name) {
                 <div data-type="error"><?php echo htmlspecialchars($error); ?></div>
             <?php endif; ?>
             <?php if (isset($_GET['saved']) && $_GET['saved'] === '1'): ?>
-                <div data-type="success">Global settings saved.</div>
+                <div data-type="success"><?= t('admin_msg_settings_saved', 'Global settings saved.') ?></div>
             <?php endif; ?>
             <?php if ($settingsError): ?>
                 <div data-type="error"><?php echo htmlspecialchars($settingsError); ?></div>
@@ -584,42 +584,42 @@ foreach ($importantExtensions as $ext => $name) {
                 <button onclick="showTab('constellations')"
                         id="tab-constellations"
                         class="tab tab-lg <?php echo $activeTab === 'constellations' ? 'tab-active' : ''; ?>">
-                    Galaxies
+                    <?= t('admin_tab_galaxies', 'Galaxies') ?>
                 </button>
                 <button onclick="showTab('clusters')"
                         id="tab-clusters"
                         class="tab tab-lg <?php echo $activeTab === 'clusters' ? 'tab-active' : ''; ?>">
-                    Clusters
+                    <?= t('admin_tab_clusters', 'Clusters') ?>
                 </button>
                 <button onclick="showTab('users')"
                         id="tab-users"
                         class="tab tab-lg <?php echo $activeTab === 'users' ? 'tab-active' : ''; ?>">
-                    Users
+                    <?= t('admin_tab_users', 'Users') ?>
                 </button>
                 <button onclick="showTab('backup')"
                         id="tab-backup"
                         class="tab tab-lg <?php echo $activeTab === 'backup' ? 'tab-active' : ''; ?>">
-                    Backup
+                    <?= t('admin_tab_backup', 'Backup') ?>
                 </button>
                 <button onclick="showTab('snapshots')"
                         id="tab-snapshots"
                         class="tab tab-lg <?php echo $activeTab === 'snapshots' ? 'tab-active' : ''; ?>">
-                    Snapshots
+                    <?= t('admin_tab_snapshots', 'Snapshots') ?>
                 </button>
                 <button onclick="showTab('settings')"
                         id="tab-settings"
                         class="tab tab-lg <?php echo $activeTab === 'settings' ? 'tab-active' : ''; ?>">
-                    Global Settings
+                    <?= t('admin_tab_settings', 'Global Settings') ?>
                 </button>
                 <button onclick="showTab('api-keys')"
                         id="tab-api-keys"
                         class="tab tab-lg <?php echo $activeTab === 'api-keys' ? 'tab-active' : ''; ?>">
-                    API Keys
+                    <?= t('admin_tab_api_keys', 'API Keys') ?>
                 </button>
                 <button onclick="showTab('php-info')"
                         id="tab-php-info"
                         class="tab tab-lg <?php echo $activeTab === 'php-info' ? 'tab-active' : ''; ?>">
-                    PHP Information
+                    <?= t('admin_tab_php_info', 'PHP Information') ?>
                 </button>
             </div>
         </div>
@@ -630,56 +630,60 @@ foreach ($importantExtensions as $ext => $name) {
                 <div>
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
-                            <h2 class="text-gray-800 text-base font-semibold">Users (<?php echo count($users); ?>)</h2>
-                            <button type="button" onclick="document.getElementById('create_user_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New User</button>
-                            <button type="button" onclick="openBulkUsersModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">Bulk import</button>
+                            <h2 class="text-gray-800 text-base font-semibold"><?= t('admin_heading_users', 'Users') ?> (<?php echo count($users); ?>)</h2>
+                            <button type="button" onclick="document.getElementById('create_user_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t('admin_btn_new_user', 'New User') ?></button>
+                            <button type="button" onclick="openBulkUsersModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t('admin_btn_bulk_import', 'Bulk import') ?></button>
                         </div>
-                        
+
                         <!-- Top Pagination -->
                         <div id="users-pagination-header" class="flex-1 flex justify-center"></div>
 
                         <div class="flex items-center gap-2 min-w-[250px]">
-                            <label for="search-users" class="text-sm font-medium text-gray-700">Search:</label>
-                            <input type="text" 
-                                   id="search-users" 
-                                   placeholder="Search users..." 
+                            <label for="search-users" class="text-sm font-medium text-gray-700"><?= t('admin_label_search', 'Search:') ?></label>
+                            <input type="text"
+                                   id="search-users"
+                                   placeholder="<?= t_attr('admin_placeholder_search_users', 'Search users...') ?>"
                                    oninput="applyUserSearch()"
                                    class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
                     </div>
-                    
+
                     <?php if (empty($users)): ?>
-                        <p class="text-gray-600">No users found.</p>
+                        <p class="text-gray-600"><?= t('admin_msg_no_users', 'No users found.') ?></p>
                     <?php else: ?>
                         <div class="border border-gray-300 rounded">
                             <table id="users-list" class="w-full border-collapse">
                                 <thead>
                                     <tr class="border-b-2 border-gray-400 bg-gray-100">
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('name')">Name<span id="sort-indicator-name"></span></span>
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('name')"><?= t('admin_col_user_name', 'Name') ?><span id="sort-indicator-name"></span></span>
                                         </th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('email')">Email<span id="sort-indicator-email"></span></span>
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('email')"><?= t('admin_col_user_email', 'Email') ?><span id="sort-indicator-email"></span></span>
                                         </th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('type')">Type<span id="sort-indicator-type"></span></span>
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('type')"><?= t('admin_col_user_type', 'Type') ?><span id="sort-indicator-type"></span></span>
                                         </th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('date_created')">Created<span id="sort-indicator-date_created"></span></span>
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('date_created')"><?= t('admin_col_user_created', 'Created') ?><span id="sort-indicator-date_created"></span></span>
                                         </th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('date_last_login')">Last Login<span id="sort-indicator-date_last_login"></span></span>
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('date_last_login')"><?= t('admin_col_user_last_login', 'Last Login') ?><span id="sort-indicator-date_last_login"></span></span>
                                         </th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('updated_at')">Last Updated<span id="sort-indicator-updated_at"></span></span>
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('updated_at')"><?= t('admin_col_user_last_updated', 'Last Updated') ?><span id="sort-indicator-updated_at"></span></span>
                                         </th>
-                                        <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">Actions</th>
+                                        <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2"><?= t('admin_col_actions', 'Actions') ?></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($users as $user): ?>
                                         <?php
-                                        $typeLabels = [0 => 'Regular', 1 => 'Editor', 2 => 'Admin'];
+                                        $typeLabels = [
+                                            0 => t('admin_user_type_regular', 'Regular'),
+                                            1 => t('admin_user_type_editor', 'Editor'),
+                                            2 => t('admin_user_type_admin', 'Admin'),
+                                        ];
                                         $typeColors = [0 => 'bg-gray-400', 1 => 'bg-blue-400', 2 => 'bg-purple-400'];
                                         $userType = (int)$user['type'];
                                         $fullName = htmlspecialchars($user['firstname'] . ' ' . $user['lastname']);
@@ -712,7 +716,7 @@ foreach ($importantExtensions as $ext => $name) {
                                             $clickEdit = "editUser($userJson)";
                                             ?>
                                             <td class="py-2 px-2 font-semibold text-gray-800 max-w-[12rem] cursor-pointer" onclick="<?php echo $clickEdit; ?>">
-                                                <span class="block truncate" title="<?php echo $fullName; ?>"><?php echo $fullName; ?><?php if ($isCurrentUser): ?> <span class="ml-1 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">You</span><?php endif; ?></span>
+                                                <span class="block truncate" title="<?php echo $fullName; ?>"><?php echo $fullName; ?><?php if ($isCurrentUser): ?> <span class="ml-1 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded"><?= t('admin_badge_you', 'You') ?></span><?php endif; ?></span>
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-600 max-w-[14rem] cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <span class="block truncate" title="<?php echo $email; ?>"><?php echo $email; ?></span>
@@ -724,7 +728,7 @@ foreach ($importantExtensions as $ext => $name) {
                                                 <?php if ($createdIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($createdIso); ?>"><?php echo date('y-m-d H:i', $createdTs); ?></span><?php else: ?>—<?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
-                                                <?php if ($lastLoginIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($lastLoginIso); ?>"><?php echo date('y-m-d H:i', $lastLoginTs); ?></span><?php else: ?>Never<?php endif; ?>
+                                                <?php if ($lastLoginIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($lastLoginIso); ?>"><?php echo date('y-m-d H:i', $lastLoginTs); ?></span><?php else: ?><?= t('admin_label_never', 'Never') ?><?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <?php if ($updatedIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($updatedIso); ?>"><?php echo date('y-m-d H:i', $updatedTs); ?></span><?php else: ?>—<?php endif; ?>
@@ -736,13 +740,13 @@ foreach ($importantExtensions as $ext => $name) {
                                                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
                                                         </label>
                                                         <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-36">
-                                                            <li><a onclick="event.stopPropagation(); <?php echo $clickEdit; ?>" class="text-gray-700 text-xs">Edit</a></li>
+                                                            <li><a onclick="event.stopPropagation(); <?php echo $clickEdit; ?>" class="text-gray-700 text-xs"><?= t('admin_action_edit', 'Edit') ?></a></li>
                                                             <?php if (!$isCurrentUser): ?>
                                                                 <?php
-                                                                $delMsg = "Are you sure you want to delete the user \"$fullName\"? This action cannot be undone.";
+                                                                $delMsg = sprintf(t('admin_confirm_delete_user', 'Are you sure you want to delete the user "%s"? This action cannot be undone.'), $fullName);
                                                                 $delMsgJs = htmlspecialchars(json_encode($delMsg), ENT_QUOTES, 'UTF-8');
                                                                 ?>
-                                                                <li><a onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, null)" class="text-red-600 text-xs">Delete</a></li>
+                                                                <li><a onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, null)" class="text-red-600 text-xs"><?= t('admin_action_delete', 'Delete') ?></a></li>
                                                             <?php endif; ?>
                                                         </ul>
                                                     </div>
@@ -761,47 +765,47 @@ foreach ($importantExtensions as $ext => $name) {
             <div id="content-api-keys" class="p-6 <?php echo $activeTab !== 'api-keys' ? 'hidden' : ''; ?>">
                 <!-- Generate New API Key Form (hidden by default; shown when New API Key clicked) -->
                 <div id="api-key-form-panel" class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded hidden">
-                    <h2 class="text-blue-800 text-xl font-semibold mb-4">Generate New API Key</h2>
+                    <h2 class="text-blue-800 text-xl font-semibold mb-4"><?= t('admin_heading_generate_api_key', 'Generate New API Key') ?></h2>
                     <form method="POST" action="">
                         <input type="hidden" name="action" value="generate">
                         <div class="mb-4">
-                            <label for="name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
-                            <input type="text" 
-                                   id="name" 
-                                   name="name" 
-                                   required 
-                                   placeholder="e.g., Frontend App, Mobile App, Admin"
+                            <label for="name" class="block mb-1.5 text-gray-800 font-medium"><?= t('admin_label_api_key_name', 'Name *') ?></label>
+                            <input type="text"
+                                   id="name"
+                                   name="name"
+                                   required
+                                   placeholder="<?= t_attr('admin_placeholder_api_key_name', 'e.g., Frontend App, Mobile App, Admin') ?>"
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            <span class="text-xs text-gray-500 mt-1 block">A descriptive name for this API key</span>
+                            <span class="text-xs text-gray-500 mt-1 block"><?= t('admin_help_api_key_name', 'A descriptive name for this API key') ?></span>
                         </div>
                         <div class="mb-4">
-                            <label for="description" class="block mb-1.5 text-gray-800 font-medium">Description</label>
-                            <textarea id="description" 
-                                      name="description" 
+                            <label for="description" class="block mb-1.5 text-gray-800 font-medium"><?= t('admin_label_api_key_description', 'Description') ?></label>
+                            <textarea id="description"
+                                      name="description"
                                       rows="2"
-                                      placeholder="Optional description of what this key is used for"
+                                      placeholder="<?= t_attr('admin_placeholder_api_key_description', 'Optional description of what this key is used for') ?>"
                                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
                         </div>
                         <div class="flex gap-2">
                             <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                                Generate API Key
+                                <?= t('admin_btn_generate_api_key', 'Generate API Key') ?>
                             </button>
                             <button type="button" onclick="document.getElementById('api-key-form-panel').classList.add('hidden');" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                                Cancel
+                                <?= t('admin_btn_cancel', 'Cancel') ?>
                             </button>
                         </div>
                     </form>
                 </div>
-                
+
                 <!-- API Keys list -->
                 <div>
                     <div class="flex items-center gap-3 mb-4">
-                        <h2 class="text-gray-800 text-base font-semibold">API Keys (<?php echo count($apiKeys); ?>)</h2>
-                        <a href="#" onclick="document.getElementById('api-key-form-panel').classList.remove('hidden'); return false;" class="text-blue-600 hover:text-blue-800 font-medium text-base">New API Key</a>
+                        <h2 class="text-gray-800 text-base font-semibold"><?= t('admin_heading_api_keys', 'API Keys') ?> (<?php echo count($apiKeys); ?>)</h2>
+                        <a href="#" onclick="document.getElementById('api-key-form-panel').classList.remove('hidden'); return false;" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t('admin_btn_new_api_key', 'New API Key') ?></a>
                     </div>
-                    
+
                     <?php if (empty($apiKeys)): ?>
-                        <p class="text-gray-600">No API keys have been generated yet.</p>
+                        <p class="text-gray-600"><?= t('admin_msg_no_api_keys', 'No API keys have been generated yet.') ?></p>
                     <?php else: ?>
                         <div class="space-y-4">
                             <?php foreach ($apiKeys as $key): ?>
@@ -811,7 +815,7 @@ foreach ($importantExtensions as $ext => $name) {
                                             <h3 class="font-semibold text-gray-800">
                                                 <?php echo htmlspecialchars($key['name']); ?>
                                                 <?php if (!$key['is_active']): ?>
-                                                    <span class="ml-2 text-xs bg-gray-400 text-white px-2 py-1 rounded">Inactive</span>
+                                                    <span class="ml-2 text-xs bg-gray-400 text-white px-2 py-1 rounded"><?= t('admin_badge_inactive', 'Inactive') ?></span>
                                                 <?php endif; ?>
                                             </h3>
                                             <?php if ($key['description']): ?>
@@ -829,16 +833,16 @@ foreach ($importantExtensions as $ext => $name) {
                                                         <input type="hidden" name="id" value="<?php echo $key['id']; ?>">
                                                         <input type="hidden" name="is_active" value="<?php echo $key['is_active'] ? '0' : '1'; ?>">
                                                         <button type="submit" class="w-full text-left text-gray-700 text-xs px-3 py-1.5 hover:bg-gray-100 rounded">
-                                                            <?php echo $key['is_active'] ? 'Deactivate' : 'Activate'; ?>
+                                                            <?php echo $key['is_active'] ? t('admin_action_deactivate', 'Deactivate') : t('admin_action_activate', 'Activate'); ?>
                                                         </button>
                                                     </form>
                                                 </li>
                                                 <li>
-                                                    <form method="POST" action="" class="p-0 m-0" onsubmit="return confirm('Are you sure you want to delete this API key? This action cannot be undone.');">
+                                                    <form method="POST" action="" class="p-0 m-0" onsubmit="return confirm(<?= htmlspecialchars(json_encode(t('admin_confirm_delete_api_key', 'Are you sure you want to delete this API key? This action cannot be undone.')), ENT_QUOTES, 'UTF-8') ?>);">
                                                         <input type="hidden" name="action" value="delete">
                                                         <input type="hidden" name="id" value="<?php echo $key['id']; ?>">
                                                         <button type="submit" class="w-full text-left text-red-600 text-xs px-3 py-1.5 hover:bg-gray-100 rounded">
-                                                            Delete
+                                                            <?= t('admin_action_delete', 'Delete') ?>
                                                         </button>
                                                     </form>
                                                 </li>
@@ -852,14 +856,14 @@ foreach ($importantExtensions as $ext => $name) {
                                         $keyCreatedIso = $keyCreatedTs !== false ? gmdate('c', $keyCreatedTs) : '';
                                         $keyUpdatedIso = $keyUpdatedTs !== false ? gmdate('c', $keyUpdatedTs) : '';
                                         ?>
-                                        <p><strong>Created:</strong> <?php if ($keyCreatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyCreatedIso); ?>"><?php echo date('y-m-d H:i', $keyCreatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
+                                        <p><strong><?= t('admin_label_created', 'Created:') ?></strong> <?php if ($keyCreatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyCreatedIso); ?>"><?php echo date('y-m-d H:i', $keyCreatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
                                         <?php if (!empty($key['last_used_at'])): ?>
                                             <?php $keyLastUsedTs = strtotime($key['last_used_at']); $keyLastUsedIso = $keyLastUsedTs !== false ? gmdate('c', $keyLastUsedTs) : ''; ?>
-                                            <p><strong>Last Used:</strong> <?php if ($keyLastUsedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyLastUsedIso); ?>"><?php echo date('y-m-d H:i', $keyLastUsedTs); ?></span><?php else: ?>—<?php endif; ?></p>
+                                            <p><strong><?= t('admin_label_last_used', 'Last Used:') ?></strong> <?php if ($keyLastUsedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyLastUsedIso); ?>"><?php echo date('y-m-d H:i', $keyLastUsedTs); ?></span><?php else: ?>—<?php endif; ?></p>
                                         <?php else: ?>
-                                            <p><strong>Last Used:</strong> Never</p>
+                                            <p><strong><?= t('admin_label_last_used', 'Last Used:') ?></strong> <?= t('admin_label_never', 'Never') ?></p>
                                         <?php endif; ?>
-                                        <p><strong>Last Updated:</strong> <?php if ($keyUpdatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyUpdatedIso); ?>"><?php echo date('y-m-d H:i', $keyUpdatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
+                                        <p><strong><?= t('admin_label_last_updated', 'Last Updated:') ?></strong> <?php if ($keyUpdatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyUpdatedIso); ?>"><?php echo date('y-m-d H:i', $keyUpdatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -873,8 +877,8 @@ foreach ($importantExtensions as $ext => $name) {
                 <div>
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
-                            <h2 class="text-gray-800 text-base font-semibold">Galaxies (<span id="constellations-count">...</span>)</h2>
-                            <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Galaxy</button>
+                            <h2 class="text-gray-800 text-base font-semibold"><?= t('admin_heading_galaxies', 'Galaxies') ?> (<span id="constellations-count">...</span>)</h2>
+                            <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t('admin_btn_new_galaxy', 'New Galaxy') ?></button>
                             <?php bridges_admin_render('button'); ?>
                         </div>
 
@@ -882,16 +886,16 @@ foreach ($importantExtensions as $ext => $name) {
                         <div id="constellations-pagination-header" class="flex-1 flex justify-center"></div>
 
                         <div class="flex items-center gap-2 min-w-[250px]">
-                            <label for="search-constellations" class="text-sm font-medium text-gray-700">Search:</label>
-                            <input type="text" 
-                                   id="search-constellations" 
-                                   placeholder="Search galaxies..." 
+                            <label for="search-constellations" class="text-sm font-medium text-gray-700"><?= t('admin_label_search', 'Search:') ?></label>
+                            <input type="text"
+                                   id="search-constellations"
+                                   placeholder="<?= t_attr('admin_placeholder_search_galaxies', 'Search galaxies...') ?>"
                                    oninput="debouncedConstSearch()"
                                    class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
                     </div>
-                    <?php 
-                        $defaultId = (int)($projectAll['default_constellation_id'] ?? 0); 
+                    <?php
+                        $defaultId = (int)($projectAll['default_constellation_id'] ?? 0);
                         $defaultName = 'ID ' . $defaultId;
                         foreach($constellations as $c) {
                             if ((int)$c['id'] === $defaultId) {
@@ -899,9 +903,11 @@ foreach ($importantExtensions as $ext => $name) {
                                 break;
                             }
                         }
+                        $defaultBlock = '<strong>' . $defaultName . '</strong>';
+                        $settingsLink = '<button onclick="showTab(\'settings\')" class="text-blue-600 hover:underline">' . t('admin_tab_settings', 'Global Settings') . '</button>';
                     ?>
-                    <p class="text-sm text-gray-600 mb-4">Each galaxy is a separate set of wormholes and keywords. The current default galaxy, <strong><?php echo $defaultName; ?></strong>, cannot be deleted.<br>You can change the default galaxy in the <button onclick="showTab(\'settings\')" class="text-blue-600 hover:underline">Global Settings</button> tab.</p>
-                    <div id="copy-url-toast" class="hidden fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded shadow-lg text-sm" role="status" aria-live="polite">URL copied to clipboard.</div>
+                    <p class="text-sm text-gray-600 mb-4"><?= sprintf(t('admin_help_galaxies_default', 'Each galaxy is a separate set of wormholes and keywords. The current default galaxy, %s, cannot be deleted.'), $defaultBlock) ?><br><?= sprintf(t('admin_help_galaxies_settings_link', 'You can change the default galaxy in the %s tab.'), $settingsLink) ?></p>
+                    <div id="copy-url-toast" class="hidden fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded shadow-lg text-sm" role="status" aria-live="polite"><?= t('admin_toast_url_copied', 'URL copied to clipboard.') ?></div>
                     <div id="constellations-list-container"></div>
                 </div>
             </div>
@@ -911,23 +917,23 @@ foreach ($importantExtensions as $ext => $name) {
                 <div>
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
-                            <h2 class="text-gray-800 text-base font-semibold">Galaxy Clusters (<span id="clusters-count">...</span>)</h2>
-                            <button type="button" onclick="openClusterCreate()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Cluster</button>
+                            <h2 class="text-gray-800 text-base font-semibold"><?= t('admin_heading_clusters', 'Galaxy Clusters') ?> (<span id="clusters-count">...</span>)</h2>
+                            <button type="button" onclick="openClusterCreate()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t('admin_btn_new_cluster', 'New Cluster') ?></button>
                         </div>
 
                         <!-- Top Pagination -->
                         <div id="clusters-pagination-header" class="flex-1 flex justify-center"></div>
 
                         <div class="flex items-center gap-2 min-w-[250px]">
-                            <label for="search-clusters" class="text-sm font-medium text-gray-700">Search:</label>
+                            <label for="search-clusters" class="text-sm font-medium text-gray-700"><?= t('admin_label_search', 'Search:') ?></label>
                             <input type="text"
                                    id="search-clusters"
-                                   placeholder="Search clusters..."
+                                   placeholder="<?= t_attr('admin_placeholder_search_clusters', 'Search clusters...') ?>"
                                    oninput="debouncedClusterSearch()"
                                    class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
                     </div>
-                    <p class="text-sm text-gray-600 mb-4">A cluster is a curated union of galaxies with its own slug, title, theme, and permalink. Clusters have no native wormholes; they render the union of their members via the multigalaxy pipeline.</p>
+                    <p class="text-sm text-gray-600 mb-4"><?= t('admin_help_clusters', 'A cluster is a curated union of galaxies with its own slug, title, theme, and permalink. Clusters have no native wormholes; they render the union of their members via the multigalaxy pipeline.') ?></p>
                     <div id="clusters-list-container"></div>
                 </div>
             </div>
@@ -935,9 +941,9 @@ foreach ($importantExtensions as $ext => $name) {
             <!-- Global Settings Tab -->
             <div id="content-settings" class="p-6 <?php echo $activeTab !== 'settings' ? 'hidden' : ''; ?>">
                 <div class="flex justify-between items-center mb-4">
-                    <p class="text-gray-600 max-w-2xl">Instance-wide settings for the main app.</p>
+                    <p class="text-gray-600 max-w-2xl"><?= t('admin_help_settings', 'Instance-wide settings for the main app.') ?></p>
                     <div class="bg-gray-100 px-3 py-1.5 rounded-md border border-gray-200">
-                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Version</span>
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= t('admin_label_version', 'Version') ?></span>
                         <span class="ml-2 font-mono text-sm font-bold text-gray-700"><?php echo htmlspecialchars($systemVersion); ?></span>
                     </div>
                 </div>
@@ -945,7 +951,7 @@ foreach ($importantExtensions as $ext => $name) {
                     <input type="hidden" name="action" value="save_settings">
 
                     <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                        <label for="default_constellation_id" class="block mb-1.5 text-gray-800 font-medium text-sm">Default Galaxy</label>
+                        <label for="default_constellation_id" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('admin_label_default_galaxy', 'Default Galaxy') ?></label>
                         <select id="default_constellation_id" name="default_constellation_id" class="select select-bordered select-sm w-full bg-white">
                             <?php
                             $currentOptgroup = null;
@@ -965,19 +971,19 @@ foreach ($importantExtensions as $ext => $name) {
                             if ($inOptgroup) echo '</optgroup>';
                             ?>
                         </select>
-                        <span class="text-xs text-gray-500 mt-1 block">Choose which galaxy is shown at the root of the website.</span>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t('admin_help_default_galaxy', 'Choose which galaxy is shown at the root of the website.') ?></span>
                     </div>
 
                     <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                        <label for="pdf_max_mb" class="block mb-1.5 text-gray-800 font-medium text-sm">PDF max size (MB)</label>
+                        <label for="pdf_max_mb" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('admin_label_pdf_max', 'PDF max size (MB)') ?></label>
                         <input type="number" id="pdf_max_mb" name="pdf_max_mb" min="1" max="2048" step="1"
                                value="<?php echo (int)(db_get_pdf_max_bytes() / (1024 * 1024)); ?>"
                                class="input input-bordered input-sm w-32 bg-white">
-                        <span class="text-xs text-gray-500 mt-1 block">Largest PDF a wormhole can carry. Default 25 MB. Editors uploading bigger files will get a 'File exceeds maximum allowed size' error.</span>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t('admin_help_pdf_max', "Largest PDF a wormhole can carry. Default 25 MB. Editors uploading bigger files will get a 'File exceeds maximum allowed size' error.") ?></span>
                     </div>
 
                     <div class="mt-4">
-                        <button type="submit" class="btn btn-neutral">Save settings</button>
+                        <button type="submit" class="btn btn-neutral"><?= t('admin_btn_save_settings', 'Save settings') ?></button>
                     </div>
                 </form>
             </div>
@@ -988,8 +994,8 @@ foreach ($importantExtensions as $ext => $name) {
 
                     <!-- Export -->
                     <section>
-                        <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold">Download a backup</h2>
-                        <p class="text-sm text-gray-600 mb-4">Create a portable backup file containing galaxies and/or users. The default produces a full backup with embedded media.</p>
+                        <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t('admin_heading_download_backup', 'Download a backup') ?></h2>
+                        <p class="text-sm text-gray-600 mb-4"><?= t('admin_help_download_backup', 'Create a portable backup file containing galaxies and/or users. The default produces a full backup with embedded media.') ?></p>
 
                         <form id="backup-export-form" method="POST" action="backup/export.php" class="space-y-4">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
@@ -997,19 +1003,19 @@ foreach ($importantExtensions as $ext => $name) {
                             <div class="border border-gray-300 rounded p-4">
                                 <label class="flex items-center gap-2 mb-3">
                                     <input type="checkbox" name="include_galaxies" value="1" checked id="export-include-galaxies" class="checkbox checkbox-sm">
-                                    <span class="font-semibold">Galaxies</span>
+                                    <span class="font-semibold"><?= t('admin_label_galaxies', 'Galaxies') ?></span>
                                 </label>
                                 <div id="export-galaxies-options" class="ml-6 space-y-2">
-                                    <label class="flex items-center gap-2"><input type="radio" name="galaxy_scope" value="all" checked class="radio radio-sm"> <span>All galaxies</span></label>
-                                    <label class="flex items-center gap-2"><input type="radio" name="galaxy_scope" value="selected" class="radio radio-sm"> <span>Selected galaxies only</span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="galaxy_scope" value="all" checked class="radio radio-sm"> <span><?= t('admin_label_all_galaxies', 'All galaxies') ?></span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="galaxy_scope" value="selected" class="radio radio-sm"> <span><?= t('admin_label_selected_galaxies', 'Selected galaxies only') ?></span></label>
                                     <div id="export-galaxy-picker" class="hidden mt-3 border border-gray-200 rounded p-3 bg-gray-50">
                                         <div id="export-prefix-chips" class="flex flex-wrap gap-1 mb-3"></div>
                                         <div id="export-galaxy-list" class="max-h-64 overflow-y-auto bg-white border border-gray-200 rounded">
-                                            <p class="text-xs text-gray-500 p-3">Loading galaxies...</p>
+                                            <p class="text-xs text-gray-500 p-3"><?= t('admin_msg_loading_galaxies', 'Loading galaxies...') ?></p>
                                         </div>
                                         <div class="flex justify-between mt-2 text-xs">
-                                            <button type="button" onclick="exportGalaxiesSelectAll(true)" class="text-blue-600 hover:underline">Select all</button>
-                                            <button type="button" onclick="exportGalaxiesSelectAll(false)" class="text-blue-600 hover:underline">Clear</button>
+                                            <button type="button" onclick="exportGalaxiesSelectAll(true)" class="text-blue-600 hover:underline"><?= t('admin_btn_select_all', 'Select all') ?></button>
+                                            <button type="button" onclick="exportGalaxiesSelectAll(false)" class="text-blue-600 hover:underline"><?= t('admin_btn_clear', 'Clear') ?></button>
                                         </div>
                                     </div>
                                 </div>
@@ -1018,34 +1024,34 @@ foreach ($importantExtensions as $ext => $name) {
                             <div class="border border-gray-300 rounded p-4">
                                 <label class="flex items-center gap-2">
                                     <input type="checkbox" name="include_users" value="1" checked class="checkbox checkbox-sm">
-                                    <span class="font-semibold">Users (always all)</span>
+                                    <span class="font-semibold"><?= t('admin_label_users_always_all', 'Users (always all)') ?></span>
                                 </label>
-                                <p class="text-xs text-gray-500 ml-6">User passwords are exported as hashes. They never appear in plaintext.</p>
+                                <p class="text-xs text-gray-500 ml-6"><?= t('admin_help_users_export', 'User passwords are exported as hashes. They never appear in plaintext.') ?></p>
                             </div>
 
                             <div class="border border-gray-300 rounded p-4">
-                                <div class="font-semibold mb-2">Media files</div>
+                                <div class="font-semibold mb-2"><?= t('admin_label_media_files', 'Media files') ?></div>
                                 <div class="space-y-1 text-sm">
-                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="embedded" checked class="radio radio-sm"> <span>Embedded — self-contained backup (recommended)</span></label>
-                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="refs" class="radio radio-sm"> <span>References only — smaller file, only restorable on the same server</span></label>
-                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="none" class="radio radio-sm"> <span>None — strip all media</span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="embedded" checked class="radio radio-sm"> <span><?= t('admin_label_media_embedded', 'Embedded: self-contained backup (recommended)') ?></span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="refs" class="radio radio-sm"> <span><?= t('admin_label_media_refs', 'References only: smaller file, only restorable on the same server') ?></span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="none" class="radio radio-sm"> <span><?= t('admin_label_media_none', 'None: strip all media') ?></span></label>
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Download backup</button>
+                            <button type="submit" class="btn btn-primary"><?= t('admin_btn_download_backup', 'Download backup') ?></button>
                         </form>
                     </section>
 
                     <!-- Import -->
                     <section>
-                        <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold">Restore from a backup</h2>
-                        <p class="text-sm text-gray-600 mb-4">Upload a <code>.telaris-backup</code> file. You will see a summary before anything is changed.</p>
+                        <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t('admin_heading_restore_backup', 'Restore from a backup') ?></h2>
+                        <p class="text-sm text-gray-600 mb-4"><?= t('admin_help_restore_backup', 'Upload a .telaris-backup file. You will see a summary before anything is changed.') ?></p>
 
                         <div class="space-y-4">
                             <div class="border border-gray-300 rounded p-4">
                                 <input type="file" id="backup-import-file" accept=".telaris-backup,application/gzip,application/octet-stream" class="file-input file-input-bordered file-input-sm w-full" onchange="backupOnFilePicked()">
                                 <div id="backup-import-file-info" class="hidden mt-2 text-xs text-gray-600"></div>
-                                <button type="button" id="backup-import-inspect-btn" onclick="backupInspect()" class="btn btn-neutral btn-sm mt-3">Inspect file</button>
+                                <button type="button" id="backup-import-inspect-btn" onclick="backupInspect()" class="btn btn-neutral btn-sm mt-3"><?= t('admin_btn_inspect_file', 'Inspect file') ?></button>
                                 <div id="backup-import-status" class="hidden mt-3 text-sm">
                                     <div id="backup-import-status-text" class="text-gray-700"></div>
                                     <div id="backup-import-progress-wrap" class="hidden mt-1 w-full bg-gray-200 rounded h-2 overflow-hidden">
@@ -1060,20 +1066,20 @@ foreach ($importantExtensions as $ext => $name) {
 
                             <div id="backup-import-options" class="hidden border border-gray-300 rounded p-4 space-y-4">
                                 <div>
-                                    <div class="font-semibold mb-2">Galaxies in this file</div>
+                                    <div class="font-semibold mb-2"><?= t('admin_label_galaxies_in_file', 'Galaxies in this file') ?></div>
                                     <div id="import-prefix-chips" class="flex flex-wrap gap-1 mb-2"></div>
                                     <div id="import-galaxy-list" class="max-h-64 overflow-y-auto bg-white border border-gray-200 rounded"></div>
                                     <div class="flex justify-between mt-2 text-xs">
-                                        <button type="button" onclick="importGalaxiesSelectAll(true)" class="text-blue-600 hover:underline">Select all</button>
-                                        <button type="button" onclick="importGalaxiesSelectAll(false)" class="text-blue-600 hover:underline">Clear</button>
+                                        <button type="button" onclick="importGalaxiesSelectAll(true)" class="text-blue-600 hover:underline"><?= t('admin_btn_select_all', 'Select all') ?></button>
+                                        <button type="button" onclick="importGalaxiesSelectAll(false)" class="text-blue-600 hover:underline"><?= t('admin_btn_clear', 'Clear') ?></button>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <div class="font-semibold mb-2">For each selected galaxy</div>
+                                    <div class="font-semibold mb-2"><?= t('admin_label_for_each_galaxy', 'For each selected galaxy') ?></div>
                                     <div class="space-y-1 text-sm">
-                                        <label class="flex items-center gap-2"><input type="radio" name="import_conflict" value="overwrite" checked class="radio radio-sm"> <span>Overwrite if a galaxy with the same slug exists</span></label>
-                                        <label class="flex items-center gap-2"><input type="radio" name="import_conflict" value="rename" class="radio radio-sm"> <span>Create as new (rename on conflict, suffix:</span>
+                                        <label class="flex items-center gap-2"><input type="radio" name="import_conflict" value="overwrite" checked class="radio radio-sm"> <span><?= t('admin_label_overwrite_slug', 'Overwrite if a galaxy with the same slug exists') ?></span></label>
+                                        <label class="flex items-center gap-2"><input type="radio" name="import_conflict" value="rename" class="radio radio-sm"> <span><?= t('admin_label_create_as_new', 'Create as new (rename on conflict, suffix:') ?></span>
                                             <input type="text" id="import-rename-suffix" value=" (restored)" class="input input-bordered input-xs ml-1" style="width: 140px;">
                                             <span>)</span>
                                         </label>
@@ -1081,21 +1087,21 @@ foreach ($importantExtensions as $ext => $name) {
                                 </div>
 
                                 <div class="border-t pt-3">
-                                    <div class="font-semibold mb-2">Users in this file</div>
-                                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="import-restore-users" checked class="checkbox checkbox-sm"> <span>Restore users</span></label>
+                                    <div class="font-semibold mb-2"><?= t('admin_label_users_in_file', 'Users in this file') ?></div>
+                                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="import-restore-users" checked class="checkbox checkbox-sm"> <span><?= t('admin_label_restore_users', 'Restore users') ?></span></label>
                                     <div class="ml-6 mt-2 space-y-1 text-sm">
-                                        <label class="flex items-center gap-2"><input type="radio" name="import_users_mode" value="skip" checked class="radio radio-sm"> <span>Skip existing users (match by email)</span></label>
-                                        <label class="flex items-center gap-2"><input type="radio" name="import_users_mode" value="replace" class="radio radio-sm"> <span>Update existing users by email</span></label>
-                                        <label class="flex items-center gap-2 ml-6"><input type="checkbox" id="import-users-replace-pw" class="checkbox checkbox-sm"> <span>Also overwrite password hashes</span></label>
+                                        <label class="flex items-center gap-2"><input type="radio" name="import_users_mode" value="skip" checked class="radio radio-sm"> <span><?= t('admin_label_skip_existing', 'Skip existing users (match by email)') ?></span></label>
+                                        <label class="flex items-center gap-2"><input type="radio" name="import_users_mode" value="replace" class="radio radio-sm"> <span><?= t('admin_label_update_existing', 'Update existing users by email') ?></span></label>
+                                        <label class="flex items-center gap-2 ml-6"><input type="checkbox" id="import-users-replace-pw" class="checkbox checkbox-sm"> <span><?= t('admin_label_overwrite_pw', 'Also overwrite password hashes') ?></span></label>
                                     </div>
                                 </div>
 
                                 <div class="border-t pt-3">
-                                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="import-restore-media" checked class="checkbox checkbox-sm"> <span>Restore media files</span></label>
+                                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="import-restore-media" checked class="checkbox checkbox-sm"> <span><?= t('admin_label_restore_media', 'Restore media files') ?></span></label>
                                 </div>
 
                                 <div class="border-t pt-3">
-                                    <button type="button" onclick="backupCommit()" class="btn btn-warning">Restore</button>
+                                    <button type="button" onclick="backupCommit()" class="btn btn-warning"><?= t('admin_btn_restore', 'Restore') ?></button>
                                 </div>
                             </div>
 
@@ -1110,69 +1116,69 @@ foreach ($importantExtensions as $ext => $name) {
 
             <!-- Snapshots Tab -->
             <div id="content-snapshots" class="p-6 <?php echo $activeTab !== 'snapshots' ? 'hidden' : ''; ?>">
-                <p class="text-sm text-gray-600 mb-4">Snapshots are local, on-disk full backups of the entire system. Restoring a snapshot wipes everything and replaces it with the snapshot's state. Any snapshots created after the restored one are deleted.</p>
+                <p class="text-sm text-gray-600 mb-4"><?= t('admin_help_snapshots', "Snapshots are local, on-disk full backups of the entire system. Restoring a snapshot wipes everything and replaces it with the snapshot's state. Any snapshots created after the restored one are deleted.") ?></p>
 
                 <!-- Create snapshot -->
                 <section class="mb-8 border border-gray-300 rounded p-4">
-                    <h2 class="text-lg font-semibold mb-3">Create snapshot now</h2>
+                    <h2 class="text-lg font-semibold mb-3"><?= t('admin_heading_create_snapshot', 'Create snapshot now') ?></h2>
                     <div class="flex flex-wrap items-center gap-3">
-                        <input type="text" id="snapshot-note" placeholder="Optional note (e.g. before migration)" class="input input-bordered input-sm flex-1 min-w-[240px]">
-                        <button type="button" id="snapshot-create-btn" onclick="snapshotCreate()" class="btn btn-neutral btn-sm">Create snapshot</button>
+                        <input type="text" id="snapshot-note" placeholder="<?= t_attr('admin_placeholder_snapshot_note', 'Optional note (e.g. before migration)') ?>" class="input input-bordered input-sm flex-1 min-w-[240px]">
+                        <button type="button" id="snapshot-create-btn" onclick="snapshotCreate()" class="btn btn-neutral btn-sm"><?= t('admin_btn_create_snapshot', 'Create snapshot') ?></button>
                     </div>
                     <div id="snapshot-create-progress" class="mt-3 hidden">
                         <progress class="progress progress-neutral w-full"></progress>
-                        <p id="snapshot-create-progress-label" class="text-xs text-gray-600 mt-1">Creating snapshot. This may take a minute for large instances. Please do not close this tab.</p>
+                        <p id="snapshot-create-progress-label" class="text-xs text-gray-600 mt-1"><?= t('admin_msg_creating_snapshot', 'Creating snapshot. This may take a minute for large instances. Please do not close this tab.') ?></p>
                     </div>
                 </section>
 
                 <!-- Schedule -->
                 <section class="mb-8 border border-gray-300 rounded p-4">
                     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-                        <h2 class="text-lg font-semibold">Snapshot scheduler</h2>
+                        <h2 class="text-lg font-semibold"><?= t('admin_heading_snapshot_scheduler', 'Snapshot scheduler') ?></h2>
                         <label class="text-sm flex items-center gap-3 cursor-pointer select-none">
-                            <span class="font-medium">Enable daily snapshots</span>
+                            <span class="font-medium"><?= t('admin_label_enable_daily', 'Enable daily snapshots') ?></span>
                             <input type="checkbox" id="schedule-enabled" class="toggle toggle-neutral toggle-sm">
                         </label>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
-                        <label class="text-sm">Hour (UTC)
+                        <label class="text-sm"><?= t('admin_label_hour_utc', 'Hour (UTC)') ?>
                             <input type="number" id="schedule-hour" min="0" max="23" value="3" class="input input-bordered input-sm w-full">
                         </label>
-                        <label class="text-sm">Keep days (auto)
+                        <label class="text-sm"><?= t('admin_label_keep_days', 'Keep days (auto)') ?>
                             <input type="number" id="schedule-keep-days" min="1" value="7" class="input input-bordered input-sm w-full">
                         </label>
                     </div>
                     <div class="mt-3 flex flex-wrap gap-2 items-center">
-                        <button type="button" onclick="scheduleSave()" class="btn btn-neutral btn-sm">Save</button>
-                        <button type="button" onclick="snapshotsLoad()" class="btn btn-ghost btn-sm">Refresh status</button>
+                        <button type="button" onclick="scheduleSave()" class="btn btn-neutral btn-sm"><?= t('admin_btn_save', 'Save') ?></button>
+                        <button type="button" onclick="snapshotsLoad()" class="btn btn-ghost btn-sm"><?= t('admin_btn_refresh_status', 'Refresh status') ?></button>
                     </div>
 
                     <div class="mt-4 pt-3 border-t border-gray-200">
                         <div class="flex flex-wrap gap-4 text-sm">
                             <div>
-                                <span class="text-gray-500">Status:</span>
-                                <span id="scheduler-status-badge" class="ml-1 px-2 py-0.5 rounded text-xs bg-gray-200">loading...</span>
+                                <span class="text-gray-500"><?= t('admin_label_status', 'Status:') ?></span>
+                                <span id="scheduler-status-badge" class="ml-1 px-2 py-0.5 rounded text-xs bg-gray-200"><?= t('admin_label_status_loading', 'loading...') ?></span>
                             </div>
                             <div>
-                                <span class="text-gray-500">Last snapshot:</span>
-                                <span id="scheduler-last-run" class="ml-1">never</span>
+                                <span class="text-gray-500"><?= t('admin_label_last_snapshot', 'Last snapshot:') ?></span>
+                                <span id="scheduler-last-run" class="ml-1"><?= t('admin_label_never_lower', 'never') ?></span>
                             </div>
                             <div>
-                                <span class="text-gray-500">Last checked:</span>
-                                <span id="scheduler-last-check" class="ml-1">never</span>
+                                <span class="text-gray-500"><?= t('admin_label_last_checked', 'Last checked:') ?></span>
+                                <span id="scheduler-last-check" class="ml-1"><?= t('admin_label_never_lower', 'never') ?></span>
                             </div>
                         </div>
                         <div id="scheduler-status-detail" class="text-xs text-amber-700 mt-2 hidden"></div>
-                        <div class="text-xs text-gray-600 mt-3 mb-1">Recent activity</div>
-                        <pre id="scheduler-log" class="bg-gray-900 text-green-200 p-2 rounded text-xs overflow-x-auto max-h-64 whitespace-pre-wrap">(no activity yet)</pre>
+                        <div class="text-xs text-gray-600 mt-3 mb-1"><?= t('admin_label_recent_activity', 'Recent activity') ?></div>
+                        <pre id="scheduler-log" class="bg-gray-900 text-green-200 p-2 rounded text-xs overflow-x-auto max-h-64 whitespace-pre-wrap"><?= t('admin_msg_no_activity', '(no activity yet)') ?></pre>
                     </div>
                 </section>
 
                 <!-- List -->
                 <section>
-                    <h2 class="text-lg font-semibold mb-3">Available snapshots</h2>
+                    <h2 class="text-lg font-semibold mb-3"><?= t('admin_heading_available_snapshots', 'Available snapshots') ?></h2>
                     <div id="snapshots-table-wrap">
-                        <p class="text-sm text-gray-500">Loading...</p>
+                        <p class="text-sm text-gray-500"><?= t('admin_msg_loading', 'Loading...') ?></p>
                     </div>
                 </section>
             </div>
@@ -1181,7 +1187,7 @@ foreach ($importantExtensions as $ext => $name) {
             <div id="content-php-info" class="p-6 <?php echo $activeTab !== 'php-info' ? 'hidden' : ''; ?>">
                 <!-- PHP Configuration -->
                 <div class="mb-6">
-                    <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold">PHP Configuration</h2>
+                    <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t('admin_heading_php_config', 'PHP Configuration') ?></h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                         <?php foreach ($phpConfig as $label => $value): ?>
                             <div class="p-2.5 bg-gray-50 rounded">
@@ -1194,7 +1200,7 @@ foreach ($importantExtensions as $ext => $name) {
                 
                 <!-- Important Extensions -->
                 <div class="mb-6">
-                    <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold">Important Extensions</h2>
+                    <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t('admin_heading_important_extensions', 'Important Extensions') ?></h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-4">
                         <?php foreach ($extensionStatus as $name => $installed): ?>
                             <div class="p-3 rounded flex items-center gap-2.5 <?php echo $installed ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-700'; ?>">
@@ -1207,7 +1213,7 @@ foreach ($importantExtensions as $ext => $name) {
                 
                 <!-- All Loaded Extensions -->
                 <div>
-                    <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold">All Loaded Extensions (<?php echo count($loadedExtensions); ?>)</h2>
+                    <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t('admin_heading_all_extensions', 'All Loaded Extensions') ?> (<?php echo count($loadedExtensions); ?>)</h2>
                     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-4">
                         <?php foreach ($loadedExtensions as $ext): ?>
                             <span class="p-1.5 px-2.5 bg-gray-100 rounded text-sm font-mono"><?php echo htmlspecialchars($ext); ?></span>
@@ -1223,6 +1229,109 @@ foreach ($importantExtensions as $ext => $name) {
         const API_KEY = <?php echo json_encode(getDefaultApiKey()); ?>;
         const CSRF_TOKEN = <?php echo json_encode($csrfToken); ?>;
         const API_URL = '../api/validate.php';
+
+        window.TELARIS_ADMIN = <?= json_encode([
+            // Galaxy table chrome
+            'msgNoGalaxies' => t('admin_msg_no_galaxies', 'No galaxies found.'),
+            'colId' => t('admin_col_id', 'ID'),
+            'colGalaxyName' => t('admin_col_galaxy_name', 'Name'),
+            'colSlug' => t('admin_col_slug', 'Slug'),
+            'colTagline' => t('admin_col_tagline', 'Tagline'),
+            'colWormholes' => t('admin_col_wormholes', 'Wormholes'),
+            'colCreated' => t('admin_col_created', 'Created'),
+            'colLastUpdated' => t('admin_col_last_updated', 'Last Updated'),
+            'colActions' => t('admin_col_actions', 'Actions'),
+            'badgeDefault' => t('admin_badge_default', 'Default'),
+            'badgeImported' => t('admin_badge_imported', 'Imported'),
+            'titleTourEnabled' => t('admin_title_tour_enabled', 'Auto-tour enabled'),
+            'msgErrorLoadingGalaxies' => t('admin_msg_error_loading_galaxies', 'Error loading galaxies: %s'),
+            'actionEdit' => t('admin_action_edit', 'Edit'),
+            'actionView' => t('admin_action_view', 'View'),
+            'actionCopyUrl' => t('admin_action_copy_url', 'Copy URL'),
+            'actionKeywordCanvas' => t('admin_action_keyword_canvas', 'Keyword canvas'),
+            'actionDuplicate' => t('admin_action_duplicate', 'Duplicate'),
+            'actionRefresh' => t('admin_action_refresh', 'Refresh'),
+            'actionDelete' => t('admin_action_delete', 'Delete'),
+            'confirmDeleteGalaxy' => t('admin_confirm_delete_galaxy', 'Are you sure you want to delete the galaxy "%s"? This will permanently remove ALL wormholes and keywords inside it.'),
+            // Clusters table chrome
+            'msgNoClustersSearch' => t('admin_msg_no_clusters_search', 'No clusters match this search.'),
+            'msgNoClusters' => t('admin_msg_no_clusters', 'No clusters yet.'),
+            'colTheme' => t('admin_col_theme', 'Theme'),
+            'colMembers' => t('admin_col_members', 'Members'),
+            'titleIdleSpotlight' => t('admin_title_idle_spotlight', 'Idle spotlight enabled'),
+            'titleGalaxyList' => t('admin_title_galaxy_list', 'Galaxy list shown to visitors'),
+            'badgeGalaxyList' => t('admin_badge_galaxy_list', 'Galaxy list'),
+            'confirmDeleteCluster' => t('admin_confirm_delete_cluster', 'Delete cluster "%s"? Members (the galaxies inside) are unaffected; only the cluster itself is removed.'),
+            'msgErrorLoadingClusters' => t('admin_msg_error_loading_clusters', 'Error loading clusters: %s'),
+            // Backup chrome
+            'btnInspectFile' => t('admin_btn_inspect_file', 'Inspect file'),
+            'labelNoPrefixChip' => t('admin_label_no_prefix_chip', 'No prefix (%d)'),
+            'labelWormholeCount' => t('admin_label_wormhole_count', '%d wormholes'),
+            'labelDefaultInline' => t('admin_label_default_inline', '(default)'),
+            'msgNoGalaxiesInBackup' => t('admin_msg_no_galaxies_in_backup', 'No galaxies in this backup.'),
+            'msgFileSelected' => t('admin_msg_file_selected', 'Selected: %s (%s)'),
+            'toastChooseBackup' => t('admin_toast_choose_backup', 'Choose a backup file first.'),
+            'toastInspectFirst' => t('admin_toast_inspect_first', 'Inspect a file first.'),
+            'toastInspectFailed' => t('admin_toast_inspect_failed', 'Inspect failed: %s'),
+            'toastFailedPrefix' => t('admin_toast_failed_prefix', 'Failed: %s'),
+            'toastNothingSelected' => t('admin_toast_nothing_selected', 'Nothing selected to restore.'),
+            'confirmRestore' => t('admin_confirm_restore', "Restore %s into this system?\n\nConflict mode: %s\n\nThis cannot be undone."),
+            'toastRestoreComplete' => t('admin_toast_restore_complete', 'Restore complete.'),
+            'toastRestoreFailed' => t('admin_toast_restore_failed', 'Restore failed: %s'),
+            'labelBackupSummary' => t('admin_label_backup_summary', 'Backup file summary'),
+            'textFormatAppCreated' => t('admin_text_format_app_created', 'Format v%s · App %s · Created %s'),
+            'textSummaryCounts' => t('admin_text_summary_counts', 'Galaxies: %s · Wormholes: %s · Keywords: %s'),
+            'textSummaryUsersMedia' => t('admin_text_summary_users_media', 'Users: %s%s · Media: %s files (%s MB)'),
+            'textNoAdminUserWarn' => t('admin_text_no_admin_user_warn', '(no admin user!)'),
+            'labelFailures' => t('admin_label_failures', 'Failures:'),
+            'headingRestoreComplete' => t('admin_heading_restore_complete', 'Restore complete'),
+            'textGalaxiesReport' => t('admin_text_galaxies_report', 'Galaxies: created %s, overwritten %s, renamed %s, skipped %s'),
+            'textUsersReport' => t('admin_text_users_report', 'Users: created %s, updated %s, skipped %s'),
+            'textMediaReport' => t('admin_text_media_report', 'Media files: written %s, skipped %s'),
+            // Snapshots
+            'labelDisabled' => t('admin_label_disabled', 'Disabled'),
+            'labelActive' => t('admin_label_active', 'Active'),
+            'labelNeedsAttention' => t('admin_label_needs_attention', 'Needs attention'),
+            'msgCronInactive' => t('admin_msg_cron_inactive', "The system's cron service is not running (%s). Scheduled snapshots will not be taken until cron is started."),
+            'msgCronNotInstalled' => t('admin_msg_cron_not_installed', 'Unable to register the scheduler with cron. Try saving again.'),
+            'msgSchedulerUnknown' => t('admin_msg_scheduler_unknown', 'Scheduler status unknown.'),
+            'msgNoActivity' => t('admin_msg_no_activity', '(no activity yet)'),
+            'labelNeverLower' => t('admin_label_never_lower', 'never'),
+            'msgNoSnapshots' => t('admin_msg_no_snapshots', 'No snapshots yet. Create one above.'),
+            'colSnapshotCreated' => t('admin_col_snapshot_created', 'Created (UTC)'),
+            'colSize' => t('admin_col_size', 'Size'),
+            'colType' => t('admin_col_type', 'Type'),
+            'colCreator' => t('admin_col_creator', 'Creator'),
+            'colNote' => t('admin_col_note', 'Note'),
+            'labelFileMissing' => t('admin_label_file_missing', '(file missing)'),
+            'labelCreatorSystem' => t('admin_label_creator_system', 'system'),
+            'actionRestore' => t('admin_action_restore', 'Restore'),
+            'actionDownload' => t('admin_action_download', 'Download'),
+            'btnCreating' => t('admin_btn_creating', 'Creating...'),
+            'msgCreatingElapsed' => t('admin_msg_creating_elapsed', 'Creating snapshot. Elapsed: %ss. This may take a minute for large instances. Please do not close this tab.'),
+            'msgCreatingSnapshot' => t('admin_msg_creating_snapshot', 'Creating snapshot. This may take a minute for large instances. Please do not close this tab.'),
+            'toastSnapshotCreated' => t('admin_toast_snapshot_created', 'Snapshot created in %ss.'),
+            'toastCreateSnapshotFailed' => t('admin_toast_create_snapshot_failed', 'Create snapshot failed: %s'),
+            'confirmDeleteSnapshot' => t('admin_confirm_delete_snapshot', 'Delete this snapshot? The file will be permanently removed from disk.'),
+            'toastSnapshotDeleted' => t('admin_toast_snapshot_deleted', 'Snapshot deleted.'),
+            'toastDeleteFailed' => t('admin_toast_delete_failed', 'Delete failed: %s'),
+            'promptRestoreSnapshot' => t('admin_prompt_restore_snapshot', "RESTORE will WIPE the entire system and replace it with the snapshot from %s.\n\nAll snapshots created after that point will also be deleted.\n\nType RESTORE to confirm:"),
+            'toastConfirmPhraseMismatch' => t('admin_toast_confirm_phrase_mismatch', 'Confirmation phrase did not match. Restore cancelled.'),
+            'confirmNoAdmin' => t('admin_confirm_no_admin', 'WARNING: this snapshot has no admin user. Restoring will lock everyone out of the admin console. Proceed anyway?'),
+            'toastRestoreCompleteLogout' => t('admin_toast_restore_complete_logout', 'Restore complete. You may be logged out.'),
+            'toastRestoreCompleteReport' => t('admin_toast_restore_complete_report', 'Restore complete. Created %s galaxies, %s users. %s later snapshot(s) deleted. You may be logged out.'),
+            'toastFailedLoadGalaxies' => t('admin_toast_failed_load_galaxies', 'Failed to load galaxies: %s'),
+            'toastSavedCronWarning' => t('admin_toast_saved_cron_warning', 'Saved, but scheduler could not register with cron: %s'),
+            'toastScheduleSaved' => t('admin_toast_schedule_saved', 'Schedule saved.'),
+            'toastSaveScheduleFailed' => t('admin_toast_save_schedule_failed', 'Save schedule failed: %s'),
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
+
+        const ADM = window.TELARIS_ADMIN || {};
+        function tFmtAdm(tpl, ...args) {
+            if (!tpl) return '';
+            let i = 0;
+            return String(tpl).replace(/%[ds]/g, () => (i < args.length ? String(args[i++]) : ''));
+        }
 
         // Generic dispatcher for the per-galaxy Refresh link. Each bridge's
         // admin partial registers its refresh handler in window.BRIDGES_REFRESH_UI;
@@ -2236,7 +2345,7 @@ foreach ($importantExtensions as $ext => $name) {
                 if (countEl) countEl.textContent = total;
 
                 if (constellations.length === 0) {
-                    container.innerHTML = '<p class="text-gray-600 py-4">No galaxies found.</p>';
+                    container.innerHTML = '<p class="text-gray-600 py-4">' + escapeHtmlAdmin(ADM.msgNoGalaxies || 'No galaxies found.') + '</p>';
                     updateConstPagination();
                     return;
                 }
@@ -2246,27 +2355,27 @@ foreach ($importantExtensions as $ext => $name) {
                         <thead>
                             <tr class="border-b-2 border-gray-400 bg-gray-100">
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('id')">ID<span id="sort-indicator-const-id"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('id')">${escapeHtmlAdmin(ADM.colId || 'ID')}<span id="sort-indicator-const-id"></span></span>
                                 </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('name')">Name<span id="sort-indicator-const-name"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('name')">${escapeHtmlAdmin(ADM.colGalaxyName || 'Name')}<span id="sort-indicator-const-name"></span></span>
                                 </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('slug')">Slug<span id="sort-indicator-const-slug"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('slug')">${escapeHtmlAdmin(ADM.colSlug || 'Slug')}<span id="sort-indicator-const-slug"></span></span>
                                 </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('tagline')">Tagline<span id="sort-indicator-const-tagline"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('tagline')">${escapeHtmlAdmin(ADM.colTagline || 'Tagline')}<span id="sort-indicator-const-tagline"></span></span>
                                 </th>
                                 <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('node_count')">Wormholes<span id="sort-indicator-const-node_count"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('node_count')">${escapeHtmlAdmin(ADM.colWormholes || 'Wormholes')}<span id="sort-indicator-const-node_count"></span></span>
                                 </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('created_at')">Created<span id="sort-indicator-const-created_at"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('created_at')">${escapeHtmlAdmin(ADM.colCreated || 'Created')}<span id="sort-indicator-const-created_at"></span></span>
                                 </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('updated_at')">Last Updated<span id="sort-indicator-const-updated_at"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortConstellationsByColumn('updated_at')">${escapeHtmlAdmin(ADM.colLastUpdated || 'Last Updated')}<span id="sort-indicator-const-updated_at"></span></span>
                                 </th>
-                                <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">Actions</th>
+                                <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">${escapeHtmlAdmin(ADM.colActions || 'Actions')}</th>
                             </tr>
                         </thead>
                         <tbody>`;
@@ -2285,16 +2394,16 @@ foreach ($importantExtensions as $ext => $name) {
                     const updatedAt = c.updated_at ? new Date(c.updated_at) : null;
                     const fmtDate = (d) => d ? `${d.getFullYear().toString().slice(-2)}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}` : '—';
 
-                    const delMsg = JSON.stringify(`Are you sure you want to delete the galaxy "${c.name}"? This will permanently remove ALL wormholes and keywords inside it.`);
+                    const delMsg = JSON.stringify(tFmtAdm(ADM.confirmDeleteGalaxy || 'Are you sure you want to delete the galaxy "%s"? This will permanently remove ALL wormholes and keywords inside it.', c.name));
                     const cNameJson = JSON.stringify(c.name);
 
                     html += `<tr class="constellation-row border-b border-gray-300${hoverClass}"${bgStyle}>
                         <td class="py-2 px-2 font-mono text-gray-800 cursor-pointer whitespace-nowrap" onclick="${clickEdit}">${c.id}</td>
                         <td class="py-2 px-2 font-semibold text-gray-800 cursor-pointer" onclick="${clickEdit}">
                             ${escapeHtmlAdmin(c.name)}
-                            ${c.is_default ? '<span class="ml-2 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">Default</span>' : ''}
-                            ${c.import_source ? '<span class="ml-2 text-xs bg-purple-400 text-white px-1.5 py-0.5 rounded">Imported</span>' : ''}
-                            ${c.tour_enabled ? '<span class="ml-2 inline-flex items-center text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded" title="Auto-tour enabled"><svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>' : ''}
+                            ${c.is_default ? '<span class="ml-2 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">' + escapeHtmlAdmin(ADM.badgeDefault || 'Default') + '</span>' : ''}
+                            ${c.import_source ? '<span class="ml-2 text-xs bg-purple-400 text-white px-1.5 py-0.5 rounded">' + escapeHtmlAdmin(ADM.badgeImported || 'Imported') + '</span>' : ''}
+                            ${c.tour_enabled ? '<span class="ml-2 inline-flex items-center text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded" title="' + escapeHtmlAdmin(ADM.titleTourEnabled || 'Auto-tour enabled') + '"><svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>' : ''}
                         </td>
                         <td class="py-2 px-2 font-mono text-xs text-blue-600 cursor-pointer" onclick="${clickEdit}">${escapeHtmlAdmin(slug)}</td>
                         <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="${clickEdit}" title="${escapeHtmlAdmin(c.tagline)}">${escapeHtmlAdmin(c.tagline)}</td>
@@ -2310,13 +2419,13 @@ foreach ($importantExtensions as $ext => $name) {
                                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
                                     </label>
                                     <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-44">
-                                        <li><a onclick="event.stopPropagation(); editConstellation(${cJsonAttr})" class="text-gray-700 text-xs">Edit</a></li>
-                                        <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">View</a></li>
-                                        <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">Copy URL</a></li>
-                                        <li><a href="../edit/keyword-canvas.php?galaxy_id=${c.id}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">Keyword canvas</a></li>
-                                        <li><a onclick="event.stopPropagation(); duplicateConstellation(${cJsonAttr})" class="text-gray-700 text-xs">Duplicate</a></li>
-                                        ${c.import_source ? `<li><a onclick="event.stopPropagation(); bridgeRefreshConstellation(${c.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-purple-600 text-xs">Refresh</a></li>` : ''}
-                                        ${!c.is_default ? `<li><a onclick="event.stopPropagation(); triggerDelete('delete_constellation', '${c.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">Delete</a></li>` : ''}
+                                        <li><a onclick="event.stopPropagation(); editConstellation(${cJsonAttr})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionEdit || 'Edit')}</a></li>
+                                        <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionView || 'View')}</a></li>
+                                        <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionCopyUrl || 'Copy URL')}</a></li>
+                                        <li><a href="../edit/keyword-canvas.php?galaxy_id=${c.id}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionKeywordCanvas || 'Keyword canvas')}</a></li>
+                                        <li><a onclick="event.stopPropagation(); duplicateConstellation(${cJsonAttr})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionDuplicate || 'Duplicate')}</a></li>
+                                        ${c.import_source ? `<li><a onclick="event.stopPropagation(); bridgeRefreshConstellation(${c.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-purple-600 text-xs">${escapeHtmlAdmin(ADM.actionRefresh || 'Refresh')}</a></li>` : ''}
+                                        ${!c.is_default ? `<li><a onclick="event.stopPropagation(); triggerDelete('delete_constellation', '${c.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">${escapeHtmlAdmin(ADM.actionDelete || 'Delete')}</a></li>` : ''}
                                     </ul>
                                 </div>
                             </div>
@@ -2331,7 +2440,7 @@ foreach ($importantExtensions as $ext => $name) {
                 updateConstellationSortIndicators();
                 formatLocalDatetimes();
             } catch (e) {
-                container.innerHTML = '<p class="text-red-600">Error loading galaxies: ' + escapeHtmlAdmin(e.message) + '</p>';
+                container.innerHTML = '<p class="text-red-600">' + escapeHtmlAdmin(tFmtAdm(ADM.msgErrorLoadingGalaxies || 'Error loading galaxies: %s', e.message)) + '</p>';
             }
         }
 
@@ -2456,8 +2565,8 @@ foreach ($importantExtensions as $ext => $name) {
 
                 if (clusters.length === 0) {
                     container.innerHTML = clusterFilter
-                        ? '<p class="text-gray-600 py-4">No clusters match this search.</p>'
-                        : '<p class="text-sm text-gray-500 italic py-4">No clusters yet.</p>';
+                        ? '<p class="text-gray-600 py-4">' + escapeHtmlAdmin(ADM.msgNoClustersSearch || 'No clusters match this search.') + '</p>'
+                        : '<p class="text-sm text-gray-500 italic py-4">' + escapeHtmlAdmin(ADM.msgNoClusters || 'No clusters yet.') + '</p>';
                     updateClusterPagination();
                     return;
                 }
@@ -2467,30 +2576,30 @@ foreach ($importantExtensions as $ext => $name) {
                         <thead>
                             <tr class="border-b-2 border-gray-400 bg-gray-100">
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('id')">ID<span id="sort-indicator-cluster-id"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('id')">${escapeHtmlAdmin(ADM.colId || 'ID')}<span id="sort-indicator-cluster-id"></span></span>
                                 </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('name')">Name<span id="sort-indicator-cluster-name"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('name')">${escapeHtmlAdmin(ADM.colGalaxyName || 'Name')}<span id="sort-indicator-cluster-name"></span></span>
                                 </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('slug')">Slug<span id="sort-indicator-cluster-slug"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('slug')">${escapeHtmlAdmin(ADM.colSlug || 'Slug')}<span id="sort-indicator-cluster-slug"></span></span>
                                 </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('tagline')">Tagline<span id="sort-indicator-cluster-tagline"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('tagline')">${escapeHtmlAdmin(ADM.colTagline || 'Tagline')}<span id="sort-indicator-cluster-tagline"></span></span>
                                 </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('theme')">Theme<span id="sort-indicator-cluster-theme"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('theme')">${escapeHtmlAdmin(ADM.colTheme || 'Theme')}<span id="sort-indicator-cluster-theme"></span></span>
                                 </th>
                                 <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('member_count')">Members<span id="sort-indicator-cluster-member_count"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('member_count')">${escapeHtmlAdmin(ADM.colMembers || 'Members')}<span id="sort-indicator-cluster-member_count"></span></span>
                                 </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('created_at')">Created<span id="sort-indicator-cluster-created_at"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('created_at')">${escapeHtmlAdmin(ADM.colCreated || 'Created')}<span id="sort-indicator-cluster-created_at"></span></span>
                                 </th>
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('updated_at')">Last Updated<span id="sort-indicator-cluster-updated_at"></span></span>
+                                    <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortClustersByColumn('updated_at')">${escapeHtmlAdmin(ADM.colLastUpdated || 'Last Updated')}<span id="sort-indicator-cluster-updated_at"></span></span>
                                 </th>
-                                <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">Actions</th>
+                                <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2">${escapeHtmlAdmin(ADM.colActions || 'Actions')}</th>
                             </tr>
                         </thead>
                         <tbody>`;
@@ -2512,17 +2621,17 @@ foreach ($importantExtensions as $ext => $name) {
                     const updatedAt = cl.updated_at ? new Date(cl.updated_at) : null;
                     const fmtDate = (d) => d ? `${d.getFullYear().toString().slice(-2)}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}` : '—';
 
-                    const delMsg = JSON.stringify(`Delete cluster "${cl.name}"? Members (the galaxies inside) are unaffected — only the cluster itself is removed.`);
+                    const delMsg = JSON.stringify(tFmtAdm(ADM.confirmDeleteCluster || 'Delete cluster "%s"? Members (the galaxies inside) are unaffected; only the cluster itself is removed.', cl.name));
                     const cNameJson = JSON.stringify(cl.name);
 
                     const tourBadge = cl.tour_enabled
-                        ? '<span class="ml-2 inline-flex items-center text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded" title="Auto-tour enabled"><svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>'
+                        ? '<span class="ml-2 inline-flex items-center text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded" title="' + escapeHtmlAdmin(ADM.titleTourEnabled || 'Auto-tour enabled') + '"><svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>'
                         : '';
                     const idleBadge = cl.idle_spotlight_enabled
-                        ? '<span class="ml-2 inline-flex items-center text-xs bg-blue-400 text-white px-1.5 py-0.5 rounded" title="Idle spotlight enabled"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2"/></svg></span>'
+                        ? '<span class="ml-2 inline-flex items-center text-xs bg-blue-400 text-white px-1.5 py-0.5 rounded" title="' + escapeHtmlAdmin(ADM.titleIdleSpotlight || 'Idle spotlight enabled') + '"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2"/></svg></span>'
                         : '';
                     const galaxyListBadge = cl.show_galaxy_list
-                        ? '<span class="ml-2 text-xs bg-gray-500 text-white px-1.5 py-0.5 rounded" title="Galaxy list shown to visitors">Galaxy list</span>'
+                        ? '<span class="ml-2 text-xs bg-gray-500 text-white px-1.5 py-0.5 rounded" title="' + escapeHtmlAdmin(ADM.titleGalaxyList || 'Galaxy list shown to visitors') + '">' + escapeHtmlAdmin(ADM.badgeGalaxyList || 'Galaxy list') + '</span>'
                         : '';
 
                     html += `<tr class="cluster-row border-b border-gray-300${hoverClass}"${bgStyle}>
@@ -2546,11 +2655,11 @@ foreach ($importantExtensions as $ext => $name) {
                                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
                                     </label>
                                     <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-40">
-                                        <li><a onclick="event.stopPropagation(); openClusterEdit(${cJsonAttr})" class="text-gray-700 text-xs">Edit</a></li>
-                                        <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">View</a></li>
-                                        <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">Copy URL</a></li>
-                                        <li><a onclick="event.stopPropagation(); duplicateCluster(${cJsonAttr})" class="text-gray-700 text-xs">Duplicate</a></li>
-                                        <li><a onclick="event.stopPropagation(); triggerDelete('delete_cluster', '${cl.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">Delete</a></li>
+                                        <li><a onclick="event.stopPropagation(); openClusterEdit(${cJsonAttr})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionEdit || 'Edit')}</a></li>
+                                        <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionView || 'View')}</a></li>
+                                        <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionCopyUrl || 'Copy URL')}</a></li>
+                                        <li><a onclick="event.stopPropagation(); duplicateCluster(${cJsonAttr})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionDuplicate || 'Duplicate')}</a></li>
+                                        <li><a onclick="event.stopPropagation(); triggerDelete('delete_cluster', '${cl.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">${escapeHtmlAdmin(ADM.actionDelete || 'Delete')}</a></li>
                                     </ul>
                                 </div>
                             </div>
@@ -2565,7 +2674,7 @@ foreach ($importantExtensions as $ext => $name) {
                 updateClusterSortIndicators();
                 formatLocalDatetimes();
             } catch (e) {
-                container.innerHTML = '<p class="text-red-600">Error loading clusters: ' + escapeHtmlAdmin(e.message) + '</p>';
+                container.innerHTML = '<p class="text-red-600">' + escapeHtmlAdmin(tFmtAdm(ADM.msgErrorLoadingClusters || 'Error loading clusters: %s', e.message)) + '</p>';
             }
         }
 
@@ -2638,7 +2747,7 @@ foreach ($importantExtensions as $ext => $name) {
                 backupGalaxiesCache = all;
                 return backupGalaxiesCache;
             } catch (e) {
-                showMessage('Failed to load galaxies: ' + escapeHtmlAdmin(e.message), 'error');
+                showMessage(tFmtAdm(ADM.toastFailedLoadGalaxies || 'Failed to load galaxies: %s', escapeHtmlAdmin(e.message)), 'error');
                 return [];
             }
         }
@@ -2662,7 +2771,7 @@ foreach ($importantExtensions as $ext => $name) {
                 chips.push(`<button type="button" data-prefix="${escapeHtmlAdmin(p)}" class="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 rounded">[${escapeHtmlAdmin(p)}] (${n})</button>`);
             });
             if (noPrefix > 0) {
-                chips.push(`<button type="button" data-prefix="" class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded">No prefix (${noPrefix})</button>`);
+                chips.push(`<button type="button" data-prefix="" class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded">${escapeHtmlAdmin(tFmtAdm(ADM.labelNoPrefixChip || 'No prefix (%d)', noPrefix))}</button>`);
             }
             container.innerHTML = chips.join('');
             container.querySelectorAll('button[data-prefix]').forEach(btn => {
@@ -2675,14 +2784,14 @@ foreach ($importantExtensions as $ext => $name) {
             const list = document.getElementById('export-galaxy-list');
             if (!list) return;
             if (galaxies.length === 0) {
-                list.innerHTML = '<p class="text-xs text-gray-500 p-3">No galaxies found.</p>';
+                list.innerHTML = '<p class="text-xs text-gray-500 p-3">' + escapeHtmlAdmin(ADM.msgNoGalaxies || 'No galaxies found.') + '</p>';
                 return;
             }
             list.innerHTML = galaxies.map(g => `
                 <label class="flex items-center gap-2 p-2 border-b border-gray-100 hover:bg-gray-50 cursor-pointer">
                     <input type="checkbox" name="galaxy_ids[]" value="${g.id}" data-name="${escapeHtmlAdmin(g.name)}" class="checkbox checkbox-sm">
                     <span class="flex-1 text-sm">${escapeHtmlAdmin(g.name)}</span>
-                    <span class="text-xs text-gray-500">${g.node_count} wormholes</span>
+                    <span class="text-xs text-gray-500">${escapeHtmlAdmin(tFmtAdm(ADM.labelWormholeCount || '%d wormholes', g.node_count))}</span>
                 </label>
             `).join('');
             backupRenderPrefixChips(galaxies, document.getElementById('export-prefix-chips'), (prefix) => {
@@ -2726,7 +2835,7 @@ foreach ($importantExtensions as $ext => $name) {
                 return;
             }
             const f = fileEl.files[0];
-            info.textContent = `Selected: ${f.name} (${backupFormatBytes(f.size)})`;
+            info.textContent = tFmtAdm(ADM.msgFileSelected || 'Selected: %s (%s)', f.name, backupFormatBytes(f.size));
             info.classList.remove('hidden');
             // Hide any previous results
             document.getElementById('backup-import-summary').classList.add('hidden');
@@ -2763,7 +2872,7 @@ foreach ($importantExtensions as $ext => $name) {
         async function backupInspect() {
             const fileEl = document.getElementById('backup-import-file');
             if (!fileEl.files || fileEl.files.length === 0) {
-                showMessage('Choose a backup file first.', 'error');
+                showMessage(ADM.toastChooseBackup || 'Choose a backup file first.', 'error');
                 return;
             }
             const file = fileEl.files[0];
@@ -2839,23 +2948,30 @@ foreach ($importantExtensions as $ext => $name) {
                 const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
                 backupSetStatus(`Done in ${elapsed}s. Review the summary below, choose your options, then Restore.`, {});
             } catch (e) {
-                backupSetStatus('Failed: ' + escapeHtmlAdmin(e.message), { error: true });
-                showMessage('Inspect failed: ' + escapeHtmlAdmin(e.message), 'error');
+                backupSetStatus(tFmtAdm(ADM.toastFailedPrefix || 'Failed: %s', escapeHtmlAdmin(e.message)), { error: true });
+                showMessage(tFmtAdm(ADM.toastInspectFailed || 'Inspect failed: %s', escapeHtmlAdmin(e.message)), 'error');
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Inspect file';
+                btn.textContent = ADM.btnInspectFile || 'Inspect file';
             }
         }
 
         function backupRenderImportSummary(s) {
             const el = document.getElementById('backup-import-summary');
             const mb = (s.media_bytes || 0) / 1048576;
-            const adminWarn = !s.has_admin_user && s.user_count > 0 ? ' <span class="text-red-700 font-semibold">(no admin user!)</span>' : '';
+            const adminWarn = !s.has_admin_user && s.user_count > 0 ? ' <span class="text-red-700 font-semibold">' + escapeHtmlAdmin(ADM.textNoAdminUserWarn || '(no admin user!)') + '</span>' : '';
+            // textSummaryUsersMedia keeps two %s near the start so the (no admin user!) HTML can be injected unescaped between user_count and the media counts.
+            const usersMediaParts = tFmtAdm(ADM.textSummaryUsersMedia || 'Users: %s%s · Media: %s files (%s MB)', 'USERCOUNT', 'ADMINWARN', 'MEDIACOUNT', 'MB');
+            const usersMediaLine = escapeHtmlAdmin(usersMediaParts)
+                .replace('USERCOUNT', String(s.user_count))
+                .replace('ADMINWARN', adminWarn)
+                .replace('MEDIACOUNT', String(s.media_blob_count))
+                .replace('MB', mb.toFixed(1));
             el.innerHTML = `
-                <div class="font-semibold mb-1">Backup file summary</div>
-                <div>Format v${s.format_version} · App ${escapeHtmlAdmin(s.app_version)} · Created ${escapeHtmlAdmin(s.created_at)}</div>
-                <div>Galaxies: ${s.galaxy_count} · Wormholes: ${s.node_count} · Keywords: ${s.keyword_count}</div>
-                <div>Users: ${s.user_count}${adminWarn} · Media: ${s.media_blob_count} files (${mb.toFixed(1)} MB)</div>
+                <div class="font-semibold mb-1">${escapeHtmlAdmin(ADM.labelBackupSummary || 'Backup file summary')}</div>
+                <div>${escapeHtmlAdmin(tFmtAdm(ADM.textFormatAppCreated || 'Format v%s · App %s · Created %s', s.format_version, s.app_version, s.created_at))}</div>
+                <div>${escapeHtmlAdmin(tFmtAdm(ADM.textSummaryCounts || 'Galaxies: %s · Wormholes: %s · Keywords: %s', s.galaxy_count, s.node_count, s.keyword_count))}</div>
+                <div>${usersMediaLine}</div>
             `;
         }
 
@@ -2863,15 +2979,15 @@ foreach ($importantExtensions as $ext => $name) {
             const list = document.getElementById('import-galaxy-list');
             if (!list) return;
             if (galaxies.length === 0) {
-                list.innerHTML = '<p class="text-xs text-gray-500 p-3">No galaxies in this backup.</p>';
+                list.innerHTML = '<p class="text-xs text-gray-500 p-3">' + escapeHtmlAdmin(ADM.msgNoGalaxiesInBackup || 'No galaxies in this backup.') + '</p>';
                 document.getElementById('import-prefix-chips').innerHTML = '';
                 return;
             }
             list.innerHTML = galaxies.map(g => `
                 <label class="flex items-center gap-2 p-2 border-b border-gray-100 hover:bg-gray-50 cursor-pointer">
                     <input type="checkbox" data-ref="${escapeHtmlAdmin(g.ref)}" data-name="${escapeHtmlAdmin(g.name)}" checked class="checkbox checkbox-sm import-galaxy-cb">
-                    <span class="flex-1 text-sm">${escapeHtmlAdmin(g.name)}${g.is_default ? ' <span class="text-xs text-purple-600">(default)</span>' : ''}</span>
-                    <span class="text-xs text-gray-500">${g.node_count} wormholes</span>
+                    <span class="flex-1 text-sm">${escapeHtmlAdmin(g.name)}${g.is_default ? ' <span class="text-xs text-purple-600">' + escapeHtmlAdmin(ADM.labelDefaultInline || '(default)') + '</span>' : ''}</span>
+                    <span class="text-xs text-gray-500">${escapeHtmlAdmin(tFmtAdm(ADM.labelWormholeCount || '%d wormholes', g.node_count))}</span>
                 </label>
             `).join('');
             backupRenderPrefixChips(galaxies, document.getElementById('import-prefix-chips'), (prefix) => {
@@ -2890,7 +3006,7 @@ foreach ($importantExtensions as $ext => $name) {
 
         async function backupCommit() {
             if (!backupImportTempId) {
-                showMessage('Inspect a file first.', 'error');
+                showMessage(ADM.toastInspectFirst || 'Inspect a file first.', 'error');
                 return;
             }
             const conflict = document.querySelector('input[name="import_conflict"]:checked')?.value || 'overwrite';
@@ -2913,10 +3029,11 @@ foreach ($importantExtensions as $ext => $name) {
 
             const userCount = (backupImportSummary?.user_count || 0);
             if (selectedCount === 0 && (!restoreUsers || userCount === 0)) {
-                showMessage('Nothing selected to restore.', 'error');
+                showMessage(ADM.toastNothingSelected || 'Nothing selected to restore.', 'error');
                 return;
             }
-            const proceed = confirm(`Restore ${selectedCount} galaxy/galaxies` + (restoreUsers ? ` and up to ${userCount} user(s)` : '') + ` into this system?\n\nConflict mode: ${conflict.toUpperCase()}\n\nThis cannot be undone.`);
+            const scopePart = `${selectedCount} galaxy/galaxies` + (restoreUsers ? ` and up to ${userCount} user(s)` : '');
+            const proceed = confirm(tFmtAdm(ADM.confirmRestore || "Restore %s into this system?\n\nConflict mode: %s\n\nThis cannot be undone.", scopePart, conflict.toUpperCase()));
             if (!proceed) return;
 
             const payload = {
@@ -2941,21 +3058,21 @@ foreach ($importantExtensions as $ext => $name) {
                 if (!r.ok || !data.ok) throw new Error(data.error || 'Restore failed');
                 const rep = data.report;
                 const failedHtml = (rep.galaxies_failed && rep.galaxies_failed.length)
-                    ? '<div class="mt-2 text-red-700">Failures:<ul class="list-disc ml-6">' + rep.galaxies_failed.map(f => `<li>${escapeHtmlAdmin(f.name || f.ref)}: ${escapeHtmlAdmin(f.error)}</li>`).join('') + '</ul></div>'
+                    ? '<div class="mt-2 text-red-700">' + escapeHtmlAdmin(ADM.labelFailures || 'Failures:') + '<ul class="list-disc ml-6">' + rep.galaxies_failed.map(f => `<li>${escapeHtmlAdmin(f.name || f.ref)}: ${escapeHtmlAdmin(f.error)}</li>`).join('') + '</ul></div>'
                     : '';
                 const el = document.getElementById('backup-import-result');
                 el.innerHTML = `
-                    <div class="font-semibold mb-1">Restore complete</div>
-                    <div>Galaxies: created ${rep.galaxies_created}, overwritten ${rep.galaxies_overwritten}, renamed ${rep.galaxies_renamed}, skipped ${rep.galaxies_skipped}</div>
-                    <div>Users: created ${rep.users_created}, updated ${rep.users_updated}, skipped ${rep.users_skipped}</div>
-                    <div>Media files: written ${rep.media_files_written}, skipped ${rep.media_files_skipped}</div>
+                    <div class="font-semibold mb-1">${escapeHtmlAdmin(ADM.headingRestoreComplete || 'Restore complete')}</div>
+                    <div>${escapeHtmlAdmin(tFmtAdm(ADM.textGalaxiesReport || 'Galaxies: created %s, overwritten %s, renamed %s, skipped %s', rep.galaxies_created, rep.galaxies_overwritten, rep.galaxies_renamed, rep.galaxies_skipped))}</div>
+                    <div>${escapeHtmlAdmin(tFmtAdm(ADM.textUsersReport || 'Users: created %s, updated %s, skipped %s', rep.users_created, rep.users_updated, rep.users_skipped))}</div>
+                    <div>${escapeHtmlAdmin(tFmtAdm(ADM.textMediaReport || 'Media files: written %s, skipped %s', rep.media_files_written, rep.media_files_skipped))}</div>
                     ${failedHtml}
                 `;
                 el.classList.remove('hidden');
                 backupImportTempId = null;
-                showMessage('Restore complete.', 'success');
+                showMessage(ADM.toastRestoreComplete || 'Restore complete.', 'success');
             } catch (e) {
-                showMessage('Restore failed: ' + escapeHtmlAdmin(e.message), 'error');
+                showMessage(tFmtAdm(ADM.toastRestoreFailed || 'Restore failed: %s', escapeHtmlAdmin(e.message)), 'error');
             }
         }
 
@@ -2982,27 +3099,28 @@ foreach ($importantExtensions as $ext => $name) {
             document.getElementById('schedule-hour').value = (s.hour ?? 3);
             document.getElementById('schedule-keep-days').value = (s.keep_days ?? 7);
 
-            document.getElementById('scheduler-last-run').textContent = s.last_run_at ? (s.last_run_at + ' UTC') : 'never';
-            document.getElementById('scheduler-last-check').textContent = (c && c.log_mtime) ? c.log_mtime : 'never';
+            const neverLower = ADM.labelNeverLower || 'never';
+            document.getElementById('scheduler-last-run').textContent = s.last_run_at ? (s.last_run_at + ' UTC') : neverLower;
+            document.getElementById('scheduler-last-check').textContent = (c && c.log_mtime) ? c.log_mtime : neverLower;
 
             const badge = document.getElementById('scheduler-status-badge');
             const detail = document.getElementById('scheduler-status-detail');
             let label, cls, msg = '';
             if (!s.enabled) {
-                label = 'Disabled';
+                label = ADM.labelDisabled || 'Disabled';
                 cls = 'bg-gray-200 text-gray-700';
             } else if (c && c.service_active && c.installed) {
-                label = 'Active';
+                label = ADM.labelActive || 'Active';
                 cls = 'bg-green-100 text-green-800';
             } else {
-                label = 'Needs attention';
+                label = ADM.labelNeedsAttention || 'Needs attention';
                 cls = 'bg-amber-100 text-amber-800';
                 if (c && !c.service_active) {
-                    msg = "The system's cron service is not running (" + (c.service_message || 'inactive') + "). Scheduled snapshots will not be taken until cron is started.";
+                    msg = tFmtAdm(ADM.msgCronInactive || "The system's cron service is not running (%s). Scheduled snapshots will not be taken until cron is started.", c.service_message || 'inactive');
                 } else if (c && !c.installed) {
-                    msg = 'Unable to register the scheduler with cron. Try saving again.';
+                    msg = ADM.msgCronNotInstalled || 'Unable to register the scheduler with cron. Try saving again.';
                 } else {
-                    msg = 'Scheduler status unknown.';
+                    msg = ADM.msgSchedulerUnknown || 'Scheduler status unknown.';
                 }
             }
             badge.textContent = label;
@@ -3016,13 +3134,13 @@ foreach ($importantExtensions as $ext => $name) {
 
             const logEl = document.getElementById('scheduler-log');
             const logTxt = (c && c.recent_log && c.recent_log.length) ? c.recent_log : '';
-            logEl.textContent = logTxt || '(no activity yet)';
+            logEl.textContent = logTxt || (ADM.msgNoActivity || '(no activity yet)');
         }
 
         function snapshotsRenderTable(rows) {
             const wrap = document.getElementById('snapshots-table-wrap');
             if (!rows.length) {
-                wrap.innerHTML = '<p class="text-sm text-gray-500">No snapshots yet. Create one above.</p>';
+                wrap.innerHTML = '<p class="text-sm text-gray-500">' + escapeHtmlAdmin(ADM.msgNoSnapshots || 'No snapshots yet. Create one above.') + '</p>';
                 return;
             }
             const fmtBytes = (b) => {
@@ -3034,25 +3152,26 @@ foreach ($importantExtensions as $ext => $name) {
             let html = `<div class="border border-gray-300 rounded overflow-x-auto">
                 <table class="w-full border-collapse text-sm">
                     <thead><tr class="border-b-2 border-gray-400 bg-gray-100">
-                        <th class="text-left p-2">Created (UTC)</th>
-                        <th class="text-left p-2">Size</th>
-                        <th class="text-left p-2">Type</th>
-                        <th class="text-left p-2">Creator</th>
-                        <th class="text-left p-2">Note</th>
-                        <th class="text-right p-2">Actions</th>
+                        <th class="text-left p-2">${escapeHtmlAdmin(ADM.colSnapshotCreated || 'Created (UTC)')}</th>
+                        <th class="text-left p-2">${escapeHtmlAdmin(ADM.colSize || 'Size')}</th>
+                        <th class="text-left p-2">${escapeHtmlAdmin(ADM.colType || 'Type')}</th>
+                        <th class="text-left p-2">${escapeHtmlAdmin(ADM.colCreator || 'Creator')}</th>
+                        <th class="text-left p-2">${escapeHtmlAdmin(ADM.colNote || 'Note')}</th>
+                        <th class="text-right p-2">${escapeHtmlAdmin(ADM.colActions || 'Actions')}</th>
                     </tr></thead><tbody>`;
             rows.forEach(r => {
-                const missing = !r.file_exists ? ' <span class="text-red-700 text-xs">(file missing)</span>' : '';
+                const missing = !r.file_exists ? ' <span class="text-red-700 text-xs">' + escapeHtmlAdmin(ADM.labelFileMissing || '(file missing)') + '</span>' : '';
+                const creatorFallback = r.trigger_type === 'scheduled' ? (ADM.labelCreatorSystem || 'system') : '—';
                 html += `<tr class="border-b border-gray-200 hover:bg-gray-50">
                     <td class="p-2 whitespace-nowrap">${escapeHtmlAdmin(r.created_at)}${missing}</td>
                     <td class="p-2 whitespace-nowrap">${fmtBytes(parseInt(r.size_bytes, 10) || 0)}</td>
                     <td class="p-2"><span class="text-xs px-2 py-0.5 rounded ${r.trigger_type === 'manual' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}">${escapeHtmlAdmin(r.trigger_type)}</span></td>
-                    <td class="p-2">${escapeHtmlAdmin(r.creator_email || (r.trigger_type === 'scheduled' ? 'system' : '—'))}</td>
+                    <td class="p-2">${escapeHtmlAdmin(r.creator_email || creatorFallback)}</td>
                     <td class="p-2">${escapeHtmlAdmin(r.note || '')}</td>
                     <td class="p-2 text-right whitespace-nowrap">
-                        <button type="button" onclick="snapshotRestoreClick(${r.id}, '${escapeHtmlAdmin(r.created_at)}')" class="text-orange-600 hover:underline text-xs mr-2">Restore</button>
-                        <a href="snapshots/download.php?id=${r.id}" class="text-blue-600 hover:underline text-xs mr-2">Download</a>
-                        <button type="button" onclick="snapshotDeleteClick(${r.id})" class="text-red-600 hover:underline text-xs">Delete</button>
+                        <button type="button" onclick="snapshotRestoreClick(${r.id}, '${escapeHtmlAdmin(r.created_at)}')" class="text-orange-600 hover:underline text-xs mr-2">${escapeHtmlAdmin(ADM.actionRestore || 'Restore')}</button>
+                        <a href="snapshots/download.php?id=${r.id}" class="text-blue-600 hover:underline text-xs mr-2">${escapeHtmlAdmin(ADM.actionDownload || 'Download')}</a>
+                        <button type="button" onclick="snapshotDeleteClick(${r.id})" class="text-red-600 hover:underline text-xs">${escapeHtmlAdmin(ADM.actionDelete || 'Delete')}</button>
                     </td>
                 </tr>`;
             });
@@ -3067,12 +3186,12 @@ foreach ($importantExtensions as $ext => $name) {
             const label = document.getElementById('snapshot-create-progress-label');
             const originalLabel = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Creating...';
+            btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> ' + escapeHtmlAdmin(ADM.btnCreating || 'Creating...');
             progress.classList.remove('hidden');
             const t0 = Date.now();
             const tick = setInterval(() => {
                 const s = Math.floor((Date.now() - t0) / 1000);
-                label.textContent = 'Creating snapshot. Elapsed: ' + s + 's. This may take a minute for large instances. Please do not close this tab.';
+                label.textContent = tFmtAdm(ADM.msgCreatingElapsed || 'Creating snapshot. Elapsed: %ss. This may take a minute for large instances. Please do not close this tab.', s);
             }, 1000);
             try {
                 const r = await fetch('snapshots/create.php', {
@@ -3082,22 +3201,22 @@ foreach ($importantExtensions as $ext => $name) {
                 });
                 const data = await r.json();
                 if (!r.ok || !data.ok) throw new Error(data.error || 'Create failed');
-                showMessage('Snapshot created in ' + Math.floor((Date.now() - t0) / 1000) + 's.', 'success');
+                showMessage(tFmtAdm(ADM.toastSnapshotCreated || 'Snapshot created in %ss.', Math.floor((Date.now() - t0) / 1000)), 'success');
                 document.getElementById('snapshot-note').value = '';
                 snapshotsLoad();
             } catch (e) {
-                showMessage('Create snapshot failed: ' + escapeHtmlAdmin(e.message), 'error');
+                showMessage(tFmtAdm(ADM.toastCreateSnapshotFailed || 'Create snapshot failed: %s', escapeHtmlAdmin(e.message)), 'error');
             } finally {
                 clearInterval(tick);
                 btn.disabled = false;
                 btn.innerHTML = originalLabel;
                 progress.classList.add('hidden');
-                label.textContent = 'Creating snapshot. This may take a minute for large instances. Please do not close this tab.';
+                label.textContent = ADM.msgCreatingSnapshot || 'Creating snapshot. This may take a minute for large instances. Please do not close this tab.';
             }
         }
 
         async function snapshotDeleteClick(id) {
-            if (!confirm('Delete this snapshot? The file will be permanently removed from disk.')) return;
+            if (!confirm(ADM.confirmDeleteSnapshot || 'Delete this snapshot? The file will be permanently removed from disk.')) return;
             try {
                 const r = await fetch('snapshots/delete.php', {
                     method: 'POST',
@@ -3106,17 +3225,17 @@ foreach ($importantExtensions as $ext => $name) {
                 });
                 const data = await r.json();
                 if (!r.ok || !data.ok) throw new Error(data.error || 'Delete failed');
-                showMessage('Snapshot deleted.', 'success');
+                showMessage(ADM.toastSnapshotDeleted || 'Snapshot deleted.', 'success');
                 snapshotsLoad();
             } catch (e) {
-                showMessage('Delete failed: ' + escapeHtmlAdmin(e.message), 'error');
+                showMessage(tFmtAdm(ADM.toastDeleteFailed || 'Delete failed: %s', escapeHtmlAdmin(e.message)), 'error');
             }
         }
 
         async function snapshotRestoreClick(id, createdAt) {
-            const phrase = prompt(`RESTORE will WIPE the entire system and replace it with the snapshot from ${createdAt}.\n\nAll snapshots created after that point will also be deleted.\n\nType RESTORE to confirm:`);
+            const phrase = prompt(tFmtAdm(ADM.promptRestoreSnapshot || "RESTORE will WIPE the entire system and replace it with the snapshot from %s.\n\nAll snapshots created after that point will also be deleted.\n\nType RESTORE to confirm:", createdAt));
             if (phrase !== 'RESTORE') {
-                if (phrase !== null) showMessage('Confirmation phrase did not match. Restore cancelled.', 'error');
+                if (phrase !== null) showMessage(ADM.toastConfirmPhraseMismatch || 'Confirmation phrase did not match. Restore cancelled.', 'error');
                 return;
             }
             let confirmNoAdmin = false;
@@ -3129,7 +3248,7 @@ foreach ($importantExtensions as $ext => $name) {
                 const data = await r.json();
                 if (!r.ok || !data.ok) {
                     if (data.error && data.error.indexOf('no admin user') !== -1) {
-                        if (!confirm('WARNING: this snapshot has no admin user. Restoring will lock everyone out of the admin console. Proceed anyway?')) return;
+                        if (!confirm(ADM.confirmNoAdmin || 'WARNING: this snapshot has no admin user. Restoring will lock everyone out of the admin console. Proceed anyway?')) return;
                         // Retry with override
                         const r2 = await fetch('snapshots/restore.php', {
                             method: 'POST',
@@ -3138,16 +3257,16 @@ foreach ($importantExtensions as $ext => $name) {
                         });
                         const data2 = await r2.json();
                         if (!r2.ok || !data2.ok) throw new Error(data2.error || 'Restore failed');
-                        showMessage('Restore complete. You may be logged out.', 'success');
+                        showMessage(ADM.toastRestoreCompleteLogout || 'Restore complete. You may be logged out.', 'success');
                         return;
                     }
                     throw new Error(data.error || 'Restore failed');
                 }
                 const rep = data.report;
-                showMessage(`Restore complete. Created ${rep.galaxies_created} galaxies, ${rep.users_created} users. ${rep.snapshots_deleted_after_restore} later snapshot(s) deleted. You may be logged out.`, 'success');
+                showMessage(tFmtAdm(ADM.toastRestoreCompleteReport || 'Restore complete. Created %s galaxies, %s users. %s later snapshot(s) deleted. You may be logged out.', rep.galaxies_created, rep.users_created, rep.snapshots_deleted_after_restore), 'success');
                 snapshotsLoad();
             } catch (e) {
-                showMessage('Restore failed: ' + escapeHtmlAdmin(e.message), 'error');
+                showMessage(tFmtAdm(ADM.toastRestoreFailed || 'Restore failed: %s', escapeHtmlAdmin(e.message)), 'error');
             }
         }
 
@@ -3167,13 +3286,13 @@ foreach ($importantExtensions as $ext => $name) {
                 const data = await r.json();
                 if (!r.ok || !data.ok) throw new Error(data.error || 'Save failed');
                 if (data.warning) {
-                    showMessage('Saved, but scheduler could not register with cron: ' + escapeHtmlAdmin(data.warning), 'error');
+                    showMessage(tFmtAdm(ADM.toastSavedCronWarning || 'Saved, but scheduler could not register with cron: %s', escapeHtmlAdmin(data.warning)), 'error');
                 } else {
-                    showMessage('Schedule saved.', 'success');
+                    showMessage(ADM.toastScheduleSaved || 'Schedule saved.', 'success');
                 }
                 snapshotsRenderScheduler(data.schedule, data.cron);
             } catch (e) {
-                showMessage('Save schedule failed: ' + escapeHtmlAdmin(e.message), 'error');
+                showMessage(tFmtAdm(ADM.toastSaveScheduleFailed || 'Save schedule failed: %s', escapeHtmlAdmin(e.message)), 'error');
             }
         }
     </script>
