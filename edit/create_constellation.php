@@ -7,20 +7,18 @@ require_once __DIR__ . '/../utils/auth.php';
 requireEditorOrAdminLogin();
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/api-error.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed'], JSON_THROW_ON_ERROR);
-    exit;
+    api_error('405.001', 'Method not allowed.');
 }
 
 $input = file_get_contents('php://input');
 $data = json_decode($input, true);
 $name = isset($data['name']) ? trim((string)$data['name']) : '';
 if ($name === '') {
-    http_response_code(400);
-    echo json_encode(['error' => 'Constellation name is required'], JSON_THROW_ON_ERROR);
-    exit;
+    api_error('400.011', 'A constellation name is required.');
 }
 
 try {
@@ -37,6 +35,6 @@ try {
     }
     echo json_encode(['id' => $id, 'name' => $name, 'tagline' => $tagline], JSON_THROW_ON_ERROR);
 } catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()], JSON_THROW_ON_ERROR);
+    error_log('edit/create_constellation.php: ' . $e->getMessage());
+    api_error('500.001', 'Internal server error.');
 }

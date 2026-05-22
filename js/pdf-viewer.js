@@ -32,14 +32,16 @@ async function ensurePdfJs() {
  */
 let activeToken = 0;
 
-// Localized strings injected by inc/main-view.php; English fallback if unset.
+// Localized strings injected by inc/main-view.php; per the decolonial-identifier
+// rule, fallback is the identifier itself (TELARIS_PDF_KEY), not English.
 function L(key, fallback) {
     const v = window['TELARIS_PDF_' + key];
-    return (typeof v === 'string' && v !== '') ? v : fallback;
+    if (typeof v === 'string' && v !== '') return v;
+    return 'TELARIS_PDF_' + key;
 }
 function pageCountText(n) {
-    if (n === 1) return L('PAGES_SINGULAR_TEXT', '1 page');
-    const tpl = L('PAGES_PLURAL_TEXT', '%d pages');
+    if (n === 1) return L('PAGES_SINGULAR_TEXT', 'TELARIS_PDF_PAGES_SINGULAR_TEXT');
+    const tpl = L('PAGES_PLURAL_TEXT', 'TELARIS_PDF_PAGES_PLURAL_TEXT');
     return tpl.replace('%d', String(n));
 }
 
@@ -47,7 +49,7 @@ export async function renderPdf({ pagesEl, statusEl, downloadEl, openEl, url }) 
     const myToken = ++activeToken;
     if (!pagesEl) return;
     pagesEl.innerHTML = '';
-    if (statusEl) statusEl.textContent = L('LOADING_TEXT', 'Loading PDF…');
+    if (statusEl) statusEl.textContent = L('LOADING_TEXT', 'TELARIS_PDF_LOADING_TEXT');
     if (downloadEl) downloadEl.href = url;
     if (openEl) openEl.href = url;
 
@@ -55,7 +57,7 @@ export async function renderPdf({ pagesEl, statusEl, downloadEl, openEl, url }) 
     try {
         lib = await ensurePdfJs();
     } catch (err) {
-        if (statusEl) statusEl.textContent = L('ERROR_LOAD_TEXT', 'PDF library failed to load.');
+        if (statusEl) statusEl.textContent = L('ERROR_LOAD_TEXT', 'TELARIS_PDF_ERROR_LOAD_TEXT');
         console.error('PDF.js load failed:', err);
         return;
     }
@@ -67,13 +69,13 @@ export async function renderPdf({ pagesEl, statusEl, downloadEl, openEl, url }) 
         doc = await loadingTask.promise;
     } catch (err) {
         if (myToken !== activeToken) return;
-        if (statusEl) statusEl.textContent = L('ERROR_OPEN_TEXT', "Couldn't open PDF.");
+        if (statusEl) statusEl.textContent = L('ERROR_OPEN_TEXT', "TELARIS_PDF_ERROR_OPEN_TEXT");
         console.error('PDF load failed for', url, err);
         return;
     }
     if (myToken !== activeToken) return;
 
-    if (statusEl) statusEl.textContent = L('RENDERING_TEXT', 'Rendering pages…');
+    if (statusEl) statusEl.textContent = L('RENDERING_TEXT', 'TELARIS_PDF_RENDERING_TEXT');
 
     // Pixel ratio scaling so text stays crisp on high-DPI screens.
     const dpr = Math.min(window.devicePixelRatio || 1, 2);

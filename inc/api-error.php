@@ -73,6 +73,8 @@ declare(strict_types=1);
  *   400.041 — encoding error                                (api/tags.php)
  *   400.042 — failed to encode response                     (api/nodes.php)
  *   400.043 — must select galaxies or users for backup      (admin/backup/export.php)
+ *   400.044 — invalid URL format (full URL expected)        (inc/bridges/mocambos/handler.php)
+ *   400.045 — no galaxias specified                         (inc/bridges/mocambos/handler.php)
  *
  *   401.001 — api key is missing                            (api/auth.php)
  *   401.002 — invalid api key                               (api/auth.php)
@@ -120,6 +122,8 @@ declare(strict_types=1);
  *   500.013 — failed to encode animation data               (api/nodes.php)
  *   500.014 — failed to encode json data                    (api/nodes.php)
  *   500.015 — could not save uploaded file (backup)         (admin/backup/import.php)
+ *
+ *   502.001 — failed to reach upstream Mocambos API         (inc/bridges/mocambos/handler.php)
  *
  * When adding a new error: append the next subcode within the appropriate
  * status class, add a row above, add the `api_error_<status>_<subcode>`

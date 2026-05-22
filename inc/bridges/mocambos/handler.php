@@ -14,6 +14,8 @@ declare(strict_types=1);
  * points produce a streamMsg / logger callback pair and delegate to it.
  */
 
+require_once __DIR__ . '/../../db.php';
+require_once __DIR__ . '/../../api-error.php';
 require_once __DIR__ . '/download.php';
 require_once __DIR__ . '/sync.php';
 
@@ -34,8 +36,7 @@ function mocambos_handle_request(): void {
         set_time_limit(0);
         _mocambos_http_import();
     } else {
-        http_response_code(405);
-        echo json_encode(['error' => 'Method not allowed or unknown action'], JSON_THROW_ON_ERROR);
+        api_error('405.001', 'Method not allowed.');
     }
 }
 
@@ -97,26 +98,26 @@ function mocambos_run_cli(): int {
 
     if ($apiBase === '') {
         if ($interactive) {
-            echo "\n\033[1mMocambos Import\033[0m\n\n";
-            $apiBase = _mocambos_cli_prompt('Mocambos API base URL', 'https://oya.mocambos.net/api/v2');
+            echo "\n\033[1m" . t('mocambos_h_cli_header', 'Mocambos Import') . "\033[0m\n\n";
+            $apiBase = _mocambos_cli_prompt(t('mocambos_h_cli_prompt_api_base', 'Mocambos API base URL'), 'https://oya.mocambos.net/api/v2');
         } else {
-            fwrite(STDERR, "Error: --api-base is required.\n");
-            fwrite(STDERR, "Usage: php admin/cli/import_bridge.php mocambos --api-base=URL --galaxia=SLUG\n");
+            fwrite(STDERR, t('mocambos_h_cli_err_api_base_required', 'Error: --api-base is required.') . "\n");
+            fwrite(STDERR, t('mocambos_h_cli_err_usage', 'Usage: php admin/cli/import_bridge.php mocambos --api-base=URL --galaxia=SLUG') . "\n");
             return 1;
         }
     }
     $apiBase = rtrim($apiBase, '/');
 
-    $log('INFO', "Connecting to {$apiBase}...");
+    $log('INFO', sprintf(t('mocambos_h_cli_connecting', 'Connecting to %s...'), $apiBase));
 
     $galaxias = _mocambos_fetch_json($apiBase . '/galaxia');
     if (!is_array($galaxias)) {
-        $log('ERROR', "Failed to fetch galaxia list from {$apiBase}/galaxia");
+        $log('ERROR', sprintf(t('mocambos_h_cli_fetch_galaxias_failed', 'Failed to fetch galaxia list from %s.'), $apiBase . '/galaxia'));
         return 1;
     }
 
     $mucuaMaps = _mocambos_fetch_mucua_maps($apiBase);
-    $log('INFO', 'Found ' . count($galaxias) . ' galaxia(s), ' . count($mucuaMaps['name']) . ' mucua(s)');
+    $log('INFO', sprintf(t('mocambos_h_cli_found_counts', 'Found %d galaxia(s), %d mucua(s).'), count($galaxias), count($mucuaMaps['name'])));
 
     $galaxiaInfoMap = [];
     $galaxiaIndexed = [];
@@ -128,8 +129,8 @@ function mocambos_run_cli(): int {
 
     // List-only mode.
     if ($listMode) {
-        echo "\nAvailable galaxias at {$apiBase}:\n\n";
-        printf("  %-40s %-20s %s\n", 'SLUG', 'NAME', 'SMID');
+        echo "\n" . sprintf(t('mocambos_h_cli_available_galaxias_at', 'Available galaxias at %s:'), $apiBase) . "\n\n";
+        printf("  %-40s %-20s %s\n", t('mocambos_h_cli_col_slug', 'SLUG'), t('mocambos_h_cli_col_name', 'NAME'), t('mocambos_h_cli_col_smid', 'SMID'));
         printf("  %-40s %-20s %s\n", str_repeat('-', 40), str_repeat('-', 20), str_repeat('-', 36));
         foreach ($galaxias as $g) {
             printf("  %-40s %-20s %s\n", $g['slug'] ?? '?', $g['name'] ?? '?', $g['smid'] ?? '?');
@@ -151,28 +152,28 @@ function mocambos_run_cli(): int {
                 }
             }
         }
-        echo "\nAvailable galaxias:\n\n";
+        echo "\n" . t('mocambos_h_cli_available_galaxias', 'Available galaxias:') . "\n\n";
         foreach ($galaxiaIndexed as $num => $g) {
             $name = $g['name'] ?? $g['slug'] ?? '?';
             $slug = $g['slug'] ?? '?';
-            $imported = isset($importedSlugs[$slug]) ? " \033[33m(already imported)\033[0m" : '';
-            printf("  \033[1m%d)\033[0m %s — %s%s\n", $num, $name, $slug, $imported);
+            $imported = isset($importedSlugs[$slug]) ? ' \033[33m' . t('mocambos_h_cli_already_imported', '(already imported)') . '\033[0m' : '';
+            printf("  \033[1m%d)\033[0m %s; %s%s\n", $num, $name, $slug, $imported);
         }
         echo "\n";
-        $choice = _mocambos_cli_prompt('Select galaxia number (or type slug)');
+        $choice = _mocambos_cli_prompt(t('mocambos_h_cli_prompt_select_galaxia', 'Select galaxia number (or type slug)'));
         if (ctype_digit($choice) && isset($galaxiaIndexed[(int)$choice])) {
             $galaxiaSlug = $galaxiaIndexed[(int)$choice]['slug'] ?? '';
         } else {
             $galaxiaSlug = $choice;
         }
         if ($galaxiaSlug === '') {
-            echo "No galaxia selected.\n";
+            echo t('mocambos_h_cli_no_galaxia_selected', 'No galaxia selected.') . "\n";
             return 0;
         }
     }
 
     if ($galaxiaSlug === '') {
-        fwrite(STDERR, "Error: --galaxia=SLUG is required.\n");
+        fwrite(STDERR, t('mocambos_h_cli_err_galaxia_required', 'Error: --galaxia=SLUG is required.') . "\n");
         return 1;
     }
 
@@ -183,20 +184,20 @@ function mocambos_run_cli(): int {
             if (str_contains($slug, $galaxiaSlug)) {
                 $galInfo = $info;
                 $galaxiaSlug = $slug;
-                $log('INFO', "Matched galaxia slug: {$slug}");
+                $log('INFO', sprintf(t('mocambos_h_cli_matched_slug', 'Matched galaxia slug: %s.'), $slug));
                 break;
             }
         }
     }
     if ($galInfo === null) {
-        $log('ERROR', "Galaxia '{$galaxiaSlug}' not found. Use --list to see available galaxias.");
+        $log('ERROR', sprintf(t('mocambos_h_cli_galaxia_not_found', 'Galaxia "%s" not found. Use --list to see available galaxias.'), $galaxiaSlug));
         return 1;
     }
 
     if ($interactive) {
         echo "\n";
-        $noMedia = !_mocambos_cli_confirm('Download media files? (slower but includes images/audio/video)');
-        $limitInput = _mocambos_cli_prompt('Limit number of items? (enter number, or press Enter for all)', '0');
+        $noMedia = !_mocambos_cli_confirm(t('mocambos_h_cli_prompt_download_media', 'Download media files? (slower but includes images/audio/video)'));
+        $limitInput = _mocambos_cli_prompt(t('mocambos_h_cli_prompt_limit', 'Limit number of items? (enter number, or press Enter for all)'), '0');
         $limit = (int)$limitInput;
     }
 
@@ -210,28 +211,28 @@ function mocambos_run_cli(): int {
 
     if ($interactive) {
         echo "\n";
-        echo "  Galaxia:  {$galaxiaName} ({$galaxiaSlug})\n";
-        echo "  API:      {$apiBase}\n";
-        echo "  Media:    " . ($noMedia ? 'skip' : 'download') . "\n";
-        echo "  Limit:    " . ($limit > 0 ? $limit : 'all') . "\n";
+        echo "  " . t('mocambos_h_cli_summary_galaxia', 'Galaxia:') . "  {$galaxiaName} ({$galaxiaSlug})\n";
+        echo "  " . t('mocambos_h_cli_summary_api', 'API:') . "      {$apiBase}\n";
+        echo "  " . t('mocambos_h_cli_summary_media', 'Media:') . "    " . ($noMedia ? t('mocambos_h_cli_value_skip', 'skip') : t('mocambos_h_cli_value_download', 'download')) . "\n";
+        echo "  " . t('mocambos_h_cli_summary_limit', 'Limit:') . "    " . ($limit > 0 ? $limit : t('mocambos_h_cli_value_all', 'all')) . "\n";
         echo "\n";
-        if (!_mocambos_cli_confirm('Proceed with import?')) {
-            echo "Aborted.\n";
+        if (!_mocambos_cli_confirm(t('mocambos_h_cli_prompt_proceed', 'Proceed with import?'))) {
+            echo t('mocambos_h_cli_aborted', 'Aborted.') . "\n";
             return 0;
         }
         echo "\n";
     }
 
-    $log('INFO', "Galaxia: {$galaxiaName} (slug={$galaxiaSlug}, smid={$galaxiaSmid})");
+    $log('INFO', sprintf(t('mocambos_h_cli_galaxia_info', 'Galaxia: %s (slug=%s, smid=%s).'), $galaxiaName, $galaxiaSlug, $galaxiaSmid));
 
     // Fetch all items, filter by galaxia.
     $allItems = _mocambos_fetch_all_items($apiBase, function(string $msg) use ($log) { $log('INFO', $msg); });
     $galaxiaItems = array_values(array_filter($allItems, fn($item) => ($item['galaxia_smid'] ?? '') === $galaxiaSmid));
-    $log('INFO', 'Total items for this galaxia: ' . count($galaxiaItems));
+    $log('INFO', sprintf(t('mocambos_h_cli_total_items', 'Total items for this galaxia: %d.'), count($galaxiaItems)));
 
     if ($limit > 0 && count($galaxiaItems) > $limit) {
         $galaxiaItems = array_slice($galaxiaItems, 0, $limit);
-        $log('WARN', "Limited to {$limit} items (--limit)");
+        $log('WARN', sprintf(t('mocambos_h_cli_limited_to', 'Limited to %d items (--limit).'), $limit));
     }
 
     // streamMsg for CLI mode just routes through the colored logger.
@@ -270,15 +271,17 @@ function mocambos_run_cli(): int {
     $elapsed = round(microtime(true) - $startTime, 1);
     echo "\n";
     $log('INFO', str_repeat('─', 50));
-    $log('INFO', "Constellation: {$galaxiaName} (ID {$result['constellation_id']})");
-    $log('INFO', "Imported: {$result['imported_count']}/{$result['expected_count']} items in {$elapsed}s");
+    $log('INFO', sprintf(t('mocambos_h_cli_constellation_label', 'Constellation: %s (id %d).'), $galaxiaName, $result['constellation_id']));
+    $log('INFO', sprintf(t('mocambos_h_cli_imported_summary', 'Imported: %d/%d items in %ss.'), $result['imported_count'], $result['expected_count'], $elapsed));
     if (count($result['errors']) > 0) {
-        $log('WARN', 'Errors: ' . count($result['errors']));
+        $log('WARN', sprintf(t('mocambos_h_cli_errors_count', 'Errors: %d.'), count($result['errors'])));
     }
     if ($noMedia) {
-        $log('INFO', "Media downloads skipped (--no-media)");
+        $log('INFO', t('mocambos_h_cli_media_skipped', 'Media downloads skipped (--no-media).'));
     }
-    $log('INFO', $result['is_new'] ? 'New constellation created' : 'Existing constellation re-imported');
+    $log('INFO', $result['is_new']
+        ? t('mocambos_h_cli_constellation_new', 'New constellation created.')
+        : t('mocambos_h_cli_constellation_existing', 'Existing constellation re-imported.'));
     echo "\n";
     return 0;
 }
@@ -288,14 +291,10 @@ function mocambos_run_cli(): int {
 function _mocambos_http_validate(): void {
     $apiBase = trim($_GET['api_base'] ?? '');
     if ($apiBase === '' || !filter_var($apiBase, FILTER_VALIDATE_URL)) {
-        http_response_code(400);
-        echo json_encode(['valid' => false, 'error' => 'Invalid URL format. Expected a full URL like https://hostname/api/v2'], JSON_THROW_ON_ERROR);
-        return;
+        api_error('400.044', 'Invalid URL format. Expected a full URL like https://hostname/api/v2.');
     }
     if (!preg_match('#^https?://#', $apiBase)) {
-        http_response_code(400);
-        echo json_encode(['valid' => false, 'error' => 'URL must start with http:// or https://'], JSON_THROW_ON_ERROR);
-        return;
+        api_error('400.003', 'Invalid URL: only http and https URLs are allowed.');
     }
 
     $checks = [];
@@ -313,7 +312,7 @@ function _mocambos_http_validate(): void {
             }
         }
         if ($body === false) {
-            return [false, 0, null, 'Connection failed — could not reach the server'];
+            return [false, 0, null, t('mocambos_h_check_connection_failed', 'Connection failed; could not reach the server.')];
         }
         return [$status >= 200 && $status < 300, $status, $body, null];
     };
@@ -322,17 +321,17 @@ function _mocambos_http_validate(): void {
     [$ok, $status, $body, $err] = $probe($apiBase . '/galaxia');
     if (!$ok) {
         $checks[] = ['endpoint' => '/galaxia', 'status' => 'fail', 'http_status' => $status,
-            'detail' => $err ?? "HTTP {$status} — expected 200. This endpoint must return a JSON array of galaxia objects."];
+            'detail' => $err ?? sprintf(t('mocambos_h_check_galaxia_http_fail', 'HTTP %d; expected 200.'), $status)];
         $allOk = false;
     } else {
         $data = json_decode($body, true);
         if (!is_array($data)) {
             $checks[] = ['endpoint' => '/galaxia', 'status' => 'fail', 'http_status' => $status,
-                'detail' => 'Response is not a valid JSON array. Received: ' . mb_substr((string)$body, 0, 200)];
+                'detail' => sprintf(t('mocambos_h_check_galaxia_not_array', 'Response is not a valid JSON array. Received: %s'), mb_substr((string)$body, 0, 200))];
             $allOk = false;
         } elseif (count($data) === 0) {
             $checks[] = ['endpoint' => '/galaxia', 'status' => 'warn', 'http_status' => $status,
-                'detail' => 'Returned an empty array — no galaxias available to import.'];
+                'detail' => t('mocambos_h_check_galaxia_empty', 'Returned an empty array; no galaxias available to import.')];
         } else {
             $first = $data[0];
             $missing = [];
@@ -341,11 +340,11 @@ function _mocambos_http_validate(): void {
             }
             if ($missing) {
                 $checks[] = ['endpoint' => '/galaxia', 'status' => 'fail', 'http_status' => $status,
-                    'detail' => 'Galaxia objects are missing required fields: ' . implode(', ', $missing) . '. Each galaxia must have: name, slug, default_mucua.'];
+                    'detail' => sprintf(t('mocambos_h_check_galaxia_missing_fields', 'Galaxia objects are missing required fields: %s.'), implode(', ', $missing))];
                 $allOk = false;
             } else {
                 $checks[] = ['endpoint' => '/galaxia', 'status' => 'ok', 'http_status' => $status,
-                    'detail' => 'Found ' . count($data) . ' galaxia(s). Structure looks correct.'];
+                    'detail' => sprintf(t('mocambos_h_check_galaxia_ok', 'Found %d galaxia(s). Structure looks correct.'), count($data))];
             }
         }
     }
@@ -354,17 +353,17 @@ function _mocambos_http_validate(): void {
     [$ok, $status, $body, $err] = $probe($apiBase . '/mucua');
     if (!$ok) {
         $checks[] = ['endpoint' => '/mucua', 'status' => 'fail', 'http_status' => $status,
-            'detail' => $err ?? "HTTP {$status} — expected 200. This endpoint must return a JSON array of mucua objects."];
+            'detail' => $err ?? sprintf(t('mocambos_h_check_mucua_http_fail', 'HTTP %d; expected 200.'), $status)];
         $allOk = false;
     } else {
         $data = json_decode($body, true);
         if (!is_array($data)) {
             $checks[] = ['endpoint' => '/mucua', 'status' => 'fail', 'http_status' => $status,
-                'detail' => 'Response is not a valid JSON array. Received: ' . mb_substr((string)$body, 0, 200)];
+                'detail' => sprintf(t('mocambos_h_check_mucua_not_array', 'Response is not a valid JSON array. Received: %s'), mb_substr((string)$body, 0, 200))];
             $allOk = false;
         } elseif (count($data) === 0) {
             $checks[] = ['endpoint' => '/mucua', 'status' => 'warn', 'http_status' => $status,
-                'detail' => 'Returned an empty array — no mucuas found. Media downloads may not work.'];
+                'detail' => t('mocambos_h_check_mucua_empty', 'Returned an empty array; no mucuas found.')];
         } else {
             $first = $data[0];
             $missing = [];
@@ -373,11 +372,11 @@ function _mocambos_http_validate(): void {
             }
             if ($missing) {
                 $checks[] = ['endpoint' => '/mucua', 'status' => 'fail', 'http_status' => $status,
-                    'detail' => 'Mucua objects are missing required fields: ' . implode(', ', $missing) . '. Each mucua must have: smid, slug.'];
+                    'detail' => sprintf(t('mocambos_h_check_mucua_missing_fields', 'Mucua objects are missing required fields: %s.'), implode(', ', $missing))];
                 $allOk = false;
             } else {
                 $checks[] = ['endpoint' => '/mucua', 'status' => 'ok', 'http_status' => $status,
-                    'detail' => 'Found ' . count($data) . ' mucua(s). Structure looks correct.'];
+                    'detail' => sprintf(t('mocambos_h_check_mucua_ok', 'Found %d mucua(s). Structure looks correct.'), count($data))];
             }
         }
     }
@@ -386,18 +385,18 @@ function _mocambos_http_validate(): void {
     [$ok, $status, $body, $err] = $probe($apiBase . '/acervo/find?pag_tamanho=1');
     if (!$ok) {
         $checks[] = ['endpoint' => '/acervo/find', 'status' => 'fail', 'http_status' => $status,
-            'detail' => $err ?? "HTTP {$status} — expected 200. This endpoint must return a paginated JSON object with an 'items' array."];
+            'detail' => $err ?? sprintf(t('mocambos_h_check_acervo_http_fail', 'HTTP %d; expected 200.'), $status)];
         $allOk = false;
     } else {
         $data = json_decode($body, true);
         if (!is_array($data) || !isset($data['items'])) {
             $checks[] = ['endpoint' => '/acervo/find', 'status' => 'fail', 'http_status' => $status,
-                'detail' => 'Response missing "items" key. Expected {item_count, page_count, items: [...]}. Received: ' . mb_substr((string)$body, 0, 200)];
+                'detail' => sprintf(t('mocambos_h_check_acervo_no_items', 'Response missing "items" key. Received: %s'), mb_substr((string)$body, 0, 200))];
             $allOk = false;
         } else {
             $itemCount = $data['item_count'] ?? count($data['items']);
             $checks[] = ['endpoint' => '/acervo/find', 'status' => 'ok', 'http_status' => $status,
-                'detail' => "Returned {$itemCount} media item(s) total. Structure looks correct."];
+                'detail' => sprintf(t('mocambos_h_check_acervo_ok', 'Returned %d media item(s) total.'), $itemCount)];
         }
     }
 
@@ -405,16 +404,16 @@ function _mocambos_http_validate(): void {
     [$ok, $status, $body, $err] = $probe($apiBase . '/blog/find?pag_tamanho=1');
     if (!$ok) {
         $checks[] = ['endpoint' => '/blog/find', 'status' => 'warn', 'http_status' => $status,
-            'detail' => $err ?? "HTTP {$status} — expected 200. Blog articles will not be imported."];
+            'detail' => $err ?? sprintf(t('mocambos_h_check_blog_http_fail', 'HTTP %d; expected 200.'), $status)];
     } else {
         $data = json_decode($body, true);
         if (!is_array($data) || !isset($data['items'])) {
             $checks[] = ['endpoint' => '/blog/find', 'status' => 'warn', 'http_status' => $status,
-                'detail' => 'Response missing "items" key. Blog articles will not be imported.'];
+                'detail' => t('mocambos_h_check_blog_no_items', 'Response missing "items" key. Blog articles will not be imported.')];
         } else {
             $itemCount = $data['item_count'] ?? count($data['items']);
             $checks[] = ['endpoint' => '/blog/find', 'status' => 'ok', 'http_status' => $status,
-                'detail' => "Returned {$itemCount} blog article(s) total. Structure looks correct."];
+                'detail' => sprintf(t('mocambos_h_check_blog_ok', 'Returned %d blog article(s) total.'), $itemCount)];
         }
     }
 
@@ -424,16 +423,12 @@ function _mocambos_http_validate(): void {
 function _mocambos_http_list_galaxias(): void {
     $apiBase = trim($_GET['api_base'] ?? '');
     if ($apiBase === '' || !filter_var($apiBase, FILTER_VALIDATE_URL)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Invalid api_base URL'], JSON_THROW_ON_ERROR);
-        return;
+        api_error('400.044', 'Invalid URL format. Expected a full URL like https://hostname/api/v2.');
     }
 
     $galaxias = _mocambos_fetch_json($apiBase . '/galaxia');
     if (!is_array($galaxias)) {
-        http_response_code(502);
-        echo json_encode(['error' => 'Failed to reach Mocambos API at ' . $apiBase], JSON_THROW_ON_ERROR);
-        return;
+        api_error('502.001', 'Failed to reach the upstream Mocambos API at %s.', [$apiBase]);
     }
 
     $mucuaMaps = _mocambos_fetch_mucua_maps($apiBase);
@@ -478,18 +473,14 @@ function _mocambos_http_import(): void {
     $input = stream_get_contents(fopen('php://input', 'r'), 10485760);
     $data = json_decode($input, true);
     if (!is_array($data)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Invalid JSON body'], JSON_THROW_ON_ERROR);
-        return;
+        api_error('400.001', 'Invalid JSON: %s', [json_last_error_msg()]);
     }
 
     $apiBase = trim($data['api_base'] ?? 'https://timbuktu.mocambos.net/api/v2');
     $fullRefresh = !empty($data['full_refresh']);
     $galaxias = $data['galaxias'] ?? [];
     if (!is_array($galaxias) || empty($galaxias)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'No galaxias specified'], JSON_THROW_ON_ERROR);
-        return;
+        api_error('400.045', 'No galaxias specified.');
     }
 
     // Switch to streaming newline-delimited JSON for real-time progress.
@@ -529,14 +520,14 @@ function _mocambos_http_import(): void {
 
     // One mucua fetch shared across all selected galaxias.
     $mucuaMaps = _mocambos_fetch_mucua_maps($apiBase);
-    $streamMsg('info', 'Resolved ' . count($mucuaMaps['name']) . ' mucua names');
+    $streamMsg('info', sprintf(t('mocambos_h_resolved_mucua_names', 'Resolved %d mucua names.'), count($mucuaMaps['name'])));
 
     // Fetch all items once across all selected galaxias.
-    $streamMsg('info', "Fetching media items from Mocambos API...");
+    $streamMsg('info', t('mocambos_h_fetching_media', 'Fetching media items from the Mocambos API...'));
     $allItems = _mocambos_fetch_all_items($apiBase, function(string $msg) use ($streamMsg) {
         $streamMsg('info', $msg);
     });
-    $streamMsg('info', "Total items fetched: " . count($allItems));
+    $streamMsg('info', sprintf(t('mocambos_h_total_items_fetched', 'Total items fetched: %d.'), count($allItems)));
 
     // Galaxia info map for names that may not be in selection payload.
     $galaxiaInfoMap = [];
@@ -562,7 +553,7 @@ function _mocambos_http_import(): void {
 
         $galaxiaItems = array_values(array_filter($allItems, fn($item) => ($item['galaxia_smid'] ?? '') === $galaxiaSmid));
         $writeLog('INFO', "--- Galaxia: {$galaxiaSlug} (smid={$galaxiaSmid}), mucua: {$mucuaSlug}, items: " . count($galaxiaItems) . " ---");
-        $streamMsg('info', "Processing galaxia: {$galaxiaSlug} (" . count($galaxiaItems) . " items)");
+        $streamMsg('info', sprintf(t('mocambos_h_processing_galaxia', 'Processing galaxia: %s (%d items).'), $galaxiaSlug, count($galaxiaItems)));
 
         $galInfo = $galaxiaInfoMap[$galaxiaSlug] ?? [];
 
@@ -597,7 +588,7 @@ function _mocambos_http_import(): void {
         $writeLog('INFO', 'Log file: ' . $logFile);
         fclose($logFp);
     }
-    $streamMsg('done', 'Import complete', ['success' => true, 'results' => $results]);
+    $streamMsg('done', t('mocambos_h_import_complete', 'Import complete.'), ['success' => true, 'results' => $results]);
 }
 
 // ── Shared import core ───────────────────────────────────────────────────────
@@ -652,28 +643,28 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
     }
 
     if ($constellationId !== null && $fullRefresh) {
-        $logger('INFO', "Full refresh — clearing all nodes for re-import");
-        $streamMsg('info', "Full refresh — clearing existing nodes...");
+        $logger('INFO', "Full refresh; clearing all nodes for re-import");
+        $streamMsg('info', t('mocambos_h_full_refresh_clearing', 'Full refresh; clearing existing nodes...'));
         db_clear_constellation_nodes($constellationId);
     } elseif ($constellationId !== null) {
         $logger('INFO', "Existing constellation found (ID {$constellationId}), checking for incremental sync");
-        $streamMsg('info', "Re-importing — computing diff...");
+        $streamMsg('info', t('mocambos_h_re_importing_diff', 'Re-importing; computing diff...'));
 
         $backfilled = db_backfill_import_slugs($constellationId);
         if ($backfilled > 0) {
-            $streamMsg('info', "Backfilled {$backfilled} import slugs");
+            $streamMsg('info', sprintf(t('mocambos_h_backfilled_slugs', 'Backfilled %d import slugs.'), $backfilled));
         }
 
         $existingBySlug = db_get_nodes_by_import_slug($constellationId);
         $diff = mocambos_compute_diff($existingBySlug, $galaxiaItems, $mucuaNameMap);
-        $streamMsg('info', "Diff: " . count($diff['added']) . " new, " . count($diff['modified']) . " modified, " . count($diff['deleted']) . " deleted, " . $diff['unchanged'] . " unchanged");
+        $streamMsg('info', sprintf(t('mocambos_h_diff_summary', 'Diff: %d new, %d modified, %d deleted, %d unchanged.'), count($diff['added']), count($diff['modified']), count($diff['deleted']), $diff['unchanged']));
 
         if (!empty($diff['deleted'])) {
-            $streamMsg('info', "Deleting " . count($diff['deleted']) . " removed items...");
+            $streamMsg('info', sprintf(t('mocambos_h_deleting_removed', 'Deleting %d removed items...'), count($diff['deleted'])));
             mocambos_apply_deletions($diff['deleted'], $constellationId, getDB());
         }
         if (!empty($diff['modified'])) {
-            $streamMsg('info', "Updating " . count($diff['modified']) . " modified items...");
+            $streamMsg('info', sprintf(t('mocambos_h_updating_modified', 'Updating %d modified items...'), count($diff['modified'])));
             mocambos_apply_modifications($diff['modified'], $constellationId, getDB());
         }
         $isIncremental = true;
@@ -685,7 +676,7 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
         while (true) {
             try {
                 $constellationId = db_create_constellation($galaxiaName, $galaxiaDesc ?: '', $slug, 'abstract');
-                $streamMsg('success', "Created constellation: {$galaxiaName} (ID {$constellationId})");
+                $streamMsg('success', sprintf(t('mocambos_h_created_constellation', 'Created constellation: %s (id %d).'), $galaxiaName, $constellationId));
                 break;
             } catch (PDOException $e) {
                 if (str_contains($e->getMessage(), 'Duplicate entry') && $suffix <= 20) {
@@ -710,7 +701,9 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
     $importedCount = 0;
 
     // ── Phase 1: batch-insert new nodes ────────────────────────────────────
-    $streamMsg('info', $isIncremental ? "Adding {$expectedCount} new nodes..." : "Phase 1: Creating {$expectedCount} nodes...");
+    $streamMsg('info', $isIncremental
+        ? sprintf(t('mocambos_h_adding_new_nodes', 'Adding %d new nodes...'), $expectedCount)
+        : sprintf(t('mocambos_h_phase1_creating', 'Phase 1: creating %d nodes...'), $expectedCount));
     $pdo = getDB();
     $insertStmt = $pdo->prepare("
         INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, audio_autoplay, video_autoplay, source_facet, media_type, source_created_at, import_slug)
@@ -775,22 +768,22 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
             if ($importedCount % $batchSize === 0) {
                 $pdo->commit();
                 $pdo->beginTransaction();
-                $streamMsg('info', "  {$importedCount}/{$expectedCount} nodes created");
+                $streamMsg('info', sprintf(t('mocambos_h_nodes_created_progress', '  %d/%d nodes created.'), $importedCount, $expectedCount));
             }
         } catch (Throwable $e) {
-            $errors[] = 'Failed to create node: ' . ($item['slug'] ?? '?') . ' (' . $e->getMessage() . ')';
+            $errors[] = sprintf(t('mocambos_h_failed_to_create_node', 'Failed to create node: %s (%s).'), $item['slug'] ?? '?', $e->getMessage());
             $logger('ERROR', 'Node create error: ' . $e->getMessage());
         }
     }
     $pdo->commit();
-    $streamMsg('success', "Phase 1 complete: {$importedCount}/{$expectedCount} nodes created");
+    $streamMsg('success', sprintf(t('mocambos_h_phase1_complete', 'Phase 1 complete: %d/%d nodes created.'), $importedCount, $expectedCount));
 
     // ── Phase 2: download media files (unless skipped) ─────────────────────
     $mediaCount = 0;
     $mediaErrors = 0;
 
     if (!$skipMedia) {
-        $streamMsg('info', "Phase 2: Downloading media files...");
+        $streamMsg('info', t('mocambos_h_phase2_downloading', 'Phase 2: downloading media files...'));
         $uploadDir = UPLOAD_DIR;
 
         foreach ($galaxiaItems as $itemIndex => $item) {
@@ -830,7 +823,7 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
             $hashSuffix = $contentHash !== '' ? '/' . $contentHash : '';
 
             if ($mediaType === 'imagem') {
-                $streamMsg('download', "({$counter}) Downloading image: {$nodeName}");
+                $streamMsg('download', sprintf(t('mocambos_h_downloading_image', '(%s) Downloading image: %s'), $counter, $nodeName));
                 $localPath = mocambos_download_file($dlBase . '/acervo/download/' . $itemSlug . $hashSuffix, $nodeFullDir, 'image', $logger);
                 if ($localPath !== null) {
                     $relPath = $nodeRelDir . '/' . basename($localPath);
@@ -845,13 +838,13 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
                     if ($thumbPath !== null) { $iconUrl = $nodeRelDir . '/' . basename($thumbPath); $needsUpdate = true; }
                 }
             } elseif ($mediaType === 'video') {
-                $streamMsg('download', "({$counter}) Downloading video: {$nodeName}");
+                $streamMsg('download', sprintf(t('mocambos_h_downloading_video', '(%s) Downloading video: %s'), $counter, $nodeName));
                 $localPath = mocambos_download_file($dlBase . '/acervo/download/' . $itemSlug . $hashSuffix, $nodeFullDir, 'video', $logger);
                 if ($localPath !== null) { $videoUrl = $nodeRelDir . '/' . basename($localPath); $needsUpdate = true; } else { $mediaErrors++; }
                 $thumbPath = mocambos_download_file($dlBase . '/acervo/thumbnail/' . $itemSlug, $nodeFullDir, 'icon', $logger);
                 if ($thumbPath !== null) { $iconUrl = $nodeRelDir . '/' . basename($thumbPath); $needsUpdate = true; }
             } elseif ($mediaType === 'audio') {
-                $streamMsg('download', "({$counter}) Downloading audio: {$nodeName}");
+                $streamMsg('download', sprintf(t('mocambos_h_downloading_audio', '(%s) Downloading audio: %s'), $counter, $nodeName));
                 $localPath = mocambos_download_file($dlBase . '/acervo/download/' . $itemSlug . $hashSuffix, $nodeFullDir, 'audio', $logger);
                 if ($localPath !== null) { $audioUrl = $nodeRelDir . '/' . basename($localPath); $needsUpdate = true; } else { $mediaErrors++; }
                 $thumbPath = mocambos_download_file($dlBase . '/acervo/thumbnail/' . $itemSlug, $nodeFullDir, 'icon', $logger);
@@ -866,16 +859,19 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
                 $mediaCount++;
             }
         }
-        $streamMsg('success', "Phase 2 complete: {$mediaCount} media files downloaded" . ($mediaErrors > 0 ? " ({$mediaErrors} failed)" : ''));
-        if ($mediaErrors > 0) $errors[] = "{$mediaErrors} media downloads failed";
+        $streamMsg('success', $mediaErrors > 0
+            ? sprintf(t('mocambos_h_phase2_complete_with_errors', 'Phase 2 complete: %d media files downloaded (%d failed).'), $mediaCount, $mediaErrors)
+            : sprintf(t('mocambos_h_phase2_complete', 'Phase 2 complete: %d media files downloaded.'), $mediaCount));
+        if ($mediaErrors > 0) $errors[] = sprintf(t('mocambos_h_media_downloads_failed', '%d media downloads failed.'), $mediaErrors);
     }
 
     $actualNodes = db_get_nodes($constellationId);
     $actualCount = count($actualNodes);
     $errCount = count($errors);
     $streamMsg($errCount > 0 ? 'warning' : 'success',
-        "Galaxia {$galaxiaSlug} done: {$importedCount}/{$expectedCount} items imported" .
-        ($errCount > 0 ? " ({$errCount} errors)" : ''));
+        $errCount > 0
+            ? sprintf(t('mocambos_h_galaxia_done_with_errors', 'Galaxia %s done: %d/%d items imported (%d errors).'), $galaxiaSlug, $importedCount, $expectedCount, $errCount)
+            : sprintf(t('mocambos_h_galaxia_done', 'Galaxia %s done: %d/%d items imported.'), $galaxiaSlug, $importedCount, $expectedCount));
 
     return [
         'constellation_id' => $constellationId,

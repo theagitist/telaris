@@ -31,7 +31,7 @@ class TelarisNetwork {
         this.navigationStack = [{ constellationId: window.TELARIS_CONSTELLATION_ID ?? 0, clusterKey: null }];
         this.networkManager = new NetworkManager({ fadeSpeed: 0.1 });
         this.geometryManager = new GeometryManager();
-        this.currentTheme = getTheme(window.TELARIS_THEME_ID || 'cosmic');
+        this.currentTheme = getTheme(window.TELARIS_THEME_ID || 'window.TELARIS_THEME_ID');
         this._portalFadeInMultiplier = null;
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2(-Infinity, -Infinity);
@@ -101,12 +101,12 @@ class TelarisNetwork {
         try {
             sessionStorage.setItem(frameKey, JSON.stringify({
                 url, r, g, b, app, alertMsg,
-                nodeName: d.name || window.TELARIS_NODE_NAME_FALLBACK_TEXT || 'System',
+                nodeName: d.name || window.TELARIS_NODE_NAME_FALLBACK_TEXT || 'window.TELARIS_NODE_NAME_FALLBACK_TEXT',
                 description: d.description || '',
-                openPortalText: window.TELARIS_OPEN_PORTAL_TEXT || 'Open the Portal',
-                launchingText: window.TELARIS_LAUNCHING_TEXT || 'Launching',
-                missionActiveText: window.TELARIS_MISSION_ACTIVE_TEXT || 'Mission Active',
-                goText: window.TELARIS_GO_TEXT || 'GO',
+                openPortalText: window.TELARIS_OPEN_PORTAL_TEXT || 'window.TELARIS_OPEN_PORTAL_TEXT',
+                launchingText: window.TELARIS_LAUNCHING_TEXT || 'window.TELARIS_LAUNCHING_TEXT',
+                missionActiveText: window.TELARIS_MISSION_ACTIVE_TEXT || 'window.TELARIS_MISSION_ACTIVE_TEXT',
+                goText: window.TELARIS_GO_TEXT || 'window.TELARIS_GO_TEXT',
             }));
         } catch (e) { /* storage full — fall through to URL params */ }
 
@@ -114,11 +114,11 @@ class TelarisNetwork {
             '&url=' + encodeURIComponent(url) +
             '&r=' + r + '&g=' + g + '&b=' + b +
             '&app=' + encodeURIComponent(app) +
-            '&node_name=' + encodeURIComponent(d.name || window.TELARIS_NODE_NAME_FALLBACK_TEXT || 'System') +
-            '&open_portal_text=' + encodeURIComponent(window.TELARIS_OPEN_PORTAL_TEXT || 'Open the Portal') +
-            '&launching_text=' + encodeURIComponent(window.TELARIS_LAUNCHING_TEXT || 'Launching') +
-            '&mission_active_text=' + encodeURIComponent(window.TELARIS_MISSION_ACTIVE_TEXT || 'Mission Active') +
-            '&go_text=' + encodeURIComponent(window.TELARIS_GO_TEXT || 'GO');
+            '&node_name=' + encodeURIComponent(d.name || window.TELARIS_NODE_NAME_FALLBACK_TEXT || 'window.TELARIS_NODE_NAME_FALLBACK_TEXT') +
+            '&open_portal_text=' + encodeURIComponent(window.TELARIS_OPEN_PORTAL_TEXT || 'window.TELARIS_OPEN_PORTAL_TEXT') +
+            '&launching_text=' + encodeURIComponent(window.TELARIS_LAUNCHING_TEXT || 'window.TELARIS_LAUNCHING_TEXT') +
+            '&mission_active_text=' + encodeURIComponent(window.TELARIS_MISSION_ACTIVE_TEXT || 'window.TELARIS_MISSION_ACTIVE_TEXT') +
+            '&go_text=' + encodeURIComponent(window.TELARIS_GO_TEXT || 'window.TELARIS_GO_TEXT');
         window.open(frameUrl, '_blank');
     }
 
@@ -162,7 +162,7 @@ class TelarisNetwork {
         if (!overlay || !win) return;
 
         // Title
-        if (titleEl) titleEl.textContent = d.name || window.TELARIS_NODE_NAME_FALLBACK_TEXT || 'System';
+        if (titleEl) titleEl.textContent = d.name || window.TELARIS_NODE_NAME_FALLBACK_TEXT || 'window.TELARIS_NODE_NAME_FALLBACK_TEXT';
 
         // Description
         if (descriptionEl) {
@@ -365,7 +365,7 @@ class TelarisNetwork {
         if (urlWrap && urlButton) {
             if (d.node_type === 'portal' && d.target_constellation_id != null) {
                 urlWrap.classList.remove('hidden');
-                urlButton.textContent = window.TELARIS_OPEN_PORTAL_TEXT || 'Open the Portal';
+                urlButton.textContent = window.TELARIS_OPEN_PORTAL_TEXT || 'window.TELARIS_OPEN_PORTAL_TEXT';
                 urlButton.onclick = () => {
                     this.closeRichMediaWindow();
                     if (window.telarisApp) {
@@ -376,7 +376,7 @@ class TelarisNetwork {
                 };
             } else if (d.url) {
                 urlWrap.classList.remove('hidden');
-                urlButton.textContent = `${window.TELARIS_LAUNCH_TEXT || 'LAUNCH'} ${d.name || 'SYSTEM'}`;
+                urlButton.textContent = `${window.TELARIS_LAUNCH_TEXT || 'window.TELARIS_LAUNCH_TEXT'} ${d.name || 'SYSTEM'}`;
                 urlButton.onclick = () => {
                     this.closeRichMediaWindow();
                     this.openInFrame(node, d.url);
@@ -512,11 +512,11 @@ class TelarisNetwork {
 
         list.innerHTML = '';
         for (const r of rows) {
-            const name = r.name || window.TELARIS_UNTITLED_TEXT || 'Untitled';
+            const name = r.name || window.TELARIS_UNTITLED_TEXT || 'window.TELARIS_UNTITLED_TEXT';
             const chip = document.createElement('button');
             chip.type = 'button';
             chip.textContent = name;
-            chip.title = (window.TELARIS_CHIP_OPEN_PREFIX_TEXT || 'Open') + ' ' + name;
+            chip.title = (window.TELARIS_CHIP_OPEN_PREFIX_TEXT || 'window.TELARIS_CHIP_OPEN_PREFIX_TEXT') + ' ' + name;
             const color = colorFor(name);
             chip.style.cssText = [
                 'background:transparent',
@@ -2239,7 +2239,7 @@ class TelarisNetwork {
             torus.className = 'cls-torus';
             const text = document.createElement('p');
             text.className = 'cls-text';
-            text.textContent = window.TELARIS_LOADING_TEXT || 'Loading';
+            text.textContent = window.TELARIS_LOADING_TEXT || 'window.TELARIS_LOADING_TEXT';
             screen.appendChild(torus);
             screen.appendChild(text);
             Object.assign(screen.style, {
@@ -2444,7 +2444,7 @@ class TelarisNetwork {
 
         // "All" root link
         const rootLink = document.createElement('span');
-        rootLink.textContent = window.TELARIS_BREADCRUMB_ALL || 'All';
+        rootLink.textContent = window.TELARIS_BREADCRUMB_ALL || 'window.TELARIS_BREADCRUMB_ALL';
         rootLink.style.cursor = 'pointer';
         rootLink.style.opacity = '0.7';
         rootLink.addEventListener('click', () => {
@@ -4002,7 +4002,7 @@ class TelarisNetwork {
         const close = document.createElement('button');
         close.type = 'button';
         close.textContent = '×';
-        close.title = (window.TELARIS_CLEAR_SCAN_TEXT || 'Clear search');
+        close.title = (window.TELARIS_CLEAR_SCAN_TEXT || 'window.TELARIS_CLEAR_SCAN_TEXT');
         Object.assign(close.style, {
             background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)',
             cursor: 'pointer', fontSize: '1rem', lineHeight: '1',
@@ -4044,7 +4044,7 @@ class TelarisNetwork {
             resultsDropdown.innerHTML = '';
 
             if (results.length === 0) {
-                resultsDropdown.innerHTML = '<div class="px-3 py-2 text-xs text-white/40 uppercase tracking-wider">' + escapeHtml(window.TELARIS_NO_RESULTS_TEXT || 'No results') + '</div>';
+                resultsDropdown.innerHTML = '<div class="px-3 py-2 text-xs text-white/40 uppercase tracking-wider">' + escapeHtml(window.TELARIS_NO_RESULTS_TEXT || 'window.TELARIS_NO_RESULTS_TEXT') + '</div>';
                 resultsDropdown.style.display = 'block';
                 return;
             }
@@ -4231,7 +4231,7 @@ class TelarisNetwork {
 
         await this._loadFlatWithFilter(cid, new Set([nodeId]));
 
-        const labelBase = window.TELARIS_SEARCH_RESULT_TEXT || 'Search result';
+        const labelBase = window.TELARIS_SEARCH_RESULT_TEXT || 'window.TELARIS_SEARCH_RESULT_TEXT';
         const name = (result.name || '').trim();
         this._renderSearchLegend(name ? `${labelBase}: ${name}` : labelBase);
 
@@ -4272,7 +4272,7 @@ class TelarisNetwork {
             );
             if (ids.size === 0) return;
             await this._loadFlatWithFilter(cid, ids);
-            const labelBase = window.TELARIS_SEARCH_RESULTS_TEXT || 'Search results';
+            const labelBase = window.TELARIS_SEARCH_RESULTS_TEXT || 'window.TELARIS_SEARCH_RESULTS_TEXT';
             this._renderSearchLegend(`${labelBase}: "${q}" (${ids.size})`);
         } catch (e) {
             console.error('Search commit failed:', e);
