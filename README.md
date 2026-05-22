@@ -148,7 +148,7 @@ Bridges are off by default. To enable one, edit `config.php`:
 define('TELARIS_BRIDGES', ['mocambos']);
 ```
 
-The constant is a flat array of handler names. Each name corresponds to a subdirectory `inc/bridges/{name}/` with a standard file layout (described in *Adding a new bridge* below). With no enabled bridges, the admin *Import from...* surface is hidden and the CLI dispatcher refuses unknown names.
+The constant is a flat array of handler names. Each name corresponds to a subdirectory `inc/bridges/{name}/` with a standard file layout (see [`BRIDGES.md`](BRIDGES.md)). With no enabled bridges, the admin *Import from...* surface is hidden and the CLI dispatcher refuses unknown names.
 
 ### Importing from Mocambos
 
@@ -171,40 +171,11 @@ Useful flags: `--no-media` (skip downloads, fast preview), `--limit=N` (test run
 
 Re-imports are incremental by default: nodes are matched on `import_slug`, and only added / modified / deleted items hit the database. A galaxy that was imported earlier can be refreshed with `admin/cli/refresh_constellation.php`.
 
-### Adding a new bridge
+### Writing a new bridge
 
-Bridges are a **plug-in surface** organised by directory. To add a new provider (call it `banana`), create `inc/bridges/banana/` with the standard file layout below, then list `banana` in `TELARIS_BRIDGES`. The framework code names no specific bridge anywhere; all Banana-specific identifiers (functions, JS globals, modal IDs, button text, log filenames, static assets) live under `inc/bridges/banana/` (and `img/bridges/banana/` for assets) and nowhere else.
+The framework is a plug-in surface. Adding a new provider is one subdirectory under `inc/bridges/{name}/` with two standard filenames (`handler.php` required, `admin.php` optional) plus whatever internal helpers the bridge needs. No generic file in the codebase changes when a new bridge ships.
 
-```
-inc/bridges/banana/
-├── handler.php       REQUIRED
-├── admin.php         OPTIONAL: admin UI render functions
-└── ...               any other files the bridge needs (helpers, fixtures)
-```
-
-**Required: `inc/bridges/banana/handler.php`** exports two entry points, both with no parameters:
-
-```php
-function banana_handle_request(): void;   // HTTP, called by api/bridge.php
-function banana_run_cli(): int;            // CLI, called by admin/cli/import_bridge.php
-```
-
-The HTTP dispatcher handles authentication, CORS, name validation, and the active-bridge check before calling `banana_handle_request()`. The handler owns its own action vocabulary (e.g. `?action=connect`, `?action=fetch`, `?action=import`) and reads its parameters from `$_GET`, `$_POST`, or `php://input` as it sees fit. The CLI dispatcher does the same for `banana_run_cli()` (which calls `getopt()` itself with whatever flag schema the bridge wants; the dispatcher pre-parses nothing).
-
-The same `handler.php` may also export any of these **optional handler hooks**:
-
-- `banana_cli_args_from_source(array $source): ?array`: given the `import_source` JSON stamped onto a constellation by an earlier import, return the CLI flags that would re-import it. Enables `admin/cli/refresh_constellation.php` to refresh Banana-imported galaxies.
-- `banana_cluster_icon_url(): string`: visitor-side: a URL to apply as the icon on auto-generated cluster pseudo-nodes inside Banana-imported galaxies.
-
-**Optional: `inc/bridges/banana/admin.php`** defines any subset of three render functions. Each `echo`s its contribution. The framework calls them at the matching slot in `admin/index.php`.
-
-- `banana_admin_render_button(): void`: contributes a button to the galaxy-list header (e.g. "Import from Banana").
-- `banana_admin_render_modal(): void`: contributes a `<dialog>` element to the page body.
-- `banana_admin_render_js(): void`: contributes a `<script>` block. For per-galaxy refresh to work via the generic *Refresh* link, register the handler with `window.BRIDGES_REFRESH_UI['banana'] = function(constId, name) { ... }`.
-
-Other files inside `inc/bridges/banana/` (e.g. `fetch.php`, `parse.php`, internal helpers) are at the bridge author's discretion; the framework only knows about `handler.php` and `admin.php`. Static assets the bridge wants in the visitor-side scene (icons, themes, etc.) go under `img/bridges/banana/`.
-
-The framework lib at `inc/bridges/_lib.php` exposes `bridges_active()`, `bridges_is_active()`, `bridges_name_is_valid()`, `bridges_load()`, `bridges_admin_load_all()`, `bridges_admin_render($hook)`, `bridges_cluster_icon_url_for($name)`. Bridge names must match `^[a-z][a-z0-9_-]*$` and are checked before any file system access; this is verified in `tests/php/Unit/BridgesLibTest.php`. Bridge handler files should namespace their global function definitions with the `{name}_` prefix (or `_{name}_` for private helpers) to avoid collisions in the PHP function table when multiple bridges load together.
+The full procedure, file-by-file contract, handler interface, hook list, naming conventions, and reference patterns are documented in [`BRIDGES.md`](BRIDGES.md).
 
 ## Testing
 
