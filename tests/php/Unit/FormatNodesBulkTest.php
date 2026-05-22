@@ -140,13 +140,13 @@ final class FormatNodesBulkTest extends TestCase
         $this->assertSame('Author C', $result[2]['image_attribution']);
     }
 
-    public function testMucuaNamePreservedWhenSet(): void
+    public function testSourceFacetPreservedWhenSet(): void
     {
         $result = db_format_nodes_bulk([$this->makeNode(['source_facet' => 'TestSource'])]);
         $this->assertSame('TestSource', $result[0]['source_facet']);
     }
 
-    public function testMucuaNameNullWhenEmpty(): void
+    public function testSourceFacetNullWhenEmpty(): void
     {
         $result = db_format_nodes_bulk([$this->makeNode(['source_facet' => ''])]);
         $this->assertNull($result[0]['source_facet']);

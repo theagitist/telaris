@@ -47,7 +47,7 @@ function mocambos_handle_request(): void {
  * bridges_cluster_icon_url_for().
  */
 function mocambos_cluster_icon_url(): string {
-    return 'img/baobaxia-cluster.svg';
+    return 'img/bridges/mocambos/cluster.svg';
 }
 
 // ── Refresh hook (optional handler interface) ────────────────────────────────

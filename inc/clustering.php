@@ -231,15 +231,15 @@ function compute_clusters(array $nodes, int $threshold = 80): array {
 
     // If the source_facet column is populated on any node, use it as the
     // first clustering axis (it's the strongest grouping when present).
-    $hasMucua = false;
+    $hasFacet = false;
     foreach ($nodes as $node) {
         if (!empty($node['source_facet'])) {
-            $hasMucua = true;
+            $hasFacet = true;
             break;
         }
     }
 
-    if ($hasMucua) {
+    if ($hasFacet) {
         $cascade = ['source', 'type', 'date_year', 'date_month', 'alpha'];
     } else {
         $cascade = ['type', 'date_year', 'date_month', 'alpha'];
@@ -326,15 +326,15 @@ function filter_nodes_by_cluster(array $nodes, string $clusterKey, int $threshol
     $usedLevels = array_map(fn($f) => $f['level'], $filters);
 
     // Detect whether the source_facet column is populated on this slice.
-    $hasMucua = false;
+    $hasFacet = false;
     foreach ($filtered as $node) {
         if (!empty($node['source_facet'])) {
-            $hasMucua = true;
+            $hasFacet = true;
             break;
         }
     }
 
-    if ($hasMucua) {
+    if ($hasFacet) {
         $fullCascade = ['source', 'type', 'date_year', 'date_month', 'alpha'];
     } else {
         $fullCascade = ['type', 'date_year', 'date_month', 'alpha'];
@@ -382,11 +382,11 @@ function find_cluster_path_for_node(array $allNodes, int $nodeId, int $threshold
     if ($targetNode === null) return null;
 
     // Detect cascade
-    $hasMucua = false;
+    $hasFacet = false;
     foreach ($allNodes as $node) {
-        if (!empty($node['source_facet'])) { $hasMucua = true; break; }
+        if (!empty($node['source_facet'])) { $hasFacet = true; break; }
     }
-    $cascade = $hasMucua
+    $cascade = $hasFacet
         ? ['source', 'type', 'date_year', 'date_month', 'alpha']
         : ['type', 'date_year', 'date_month', 'alpha'];
 
