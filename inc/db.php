@@ -80,7 +80,7 @@ function getDefaultApiKey(?PDO $pdo = null): ?string {
 // ---------------------------------------------------------------------------
 
 /** Column keys for project_info (one row per locale). */
-const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text', 'back_button_text', 'system_online_text', 'reload_system_text', 'scan_system_text', 'clear_scan_text', 'systems_label_text', 'hyperlinks_label_text', 'initialize_auth_text', 'admin_label_text', 'logout_label_text', 'click_to_view_text', 'tap_to_view_text', 'open_portal_text', 'sound_label_text', 'sound_on_text', 'sound_off_text', 'launching_text', 'mission_active_text', 'go_text', 'breadcrumb_all_text', 'launch_button_text', 'no_results_text', 'items_label_text', 'other_label_text', 'galaxies_label_text', 'galaxy_count_singular_text', 'galaxy_count_plural_text', 'pdf_loading_text', 'pdf_rendering_text', 'pdf_pages_singular_text', 'pdf_pages_plural_text', 'pdf_open_text', 'pdf_download_text', 'pdf_error_load_text', 'pdf_error_open_text'];
+const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text', 'back_button_text', 'system_online_text', 'reload_system_text', 'scan_system_text', 'clear_scan_text', 'systems_label_text', 'hyperlinks_label_text', 'initialize_auth_text', 'admin_label_text', 'logout_label_text', 'click_to_view_text', 'tap_to_view_text', 'open_portal_text', 'sound_label_text', 'sound_on_text', 'sound_off_text', 'launching_text', 'mission_active_text', 'go_text', 'breadcrumb_all_text', 'launch_button_text', 'no_results_text', 'items_label_text', 'other_label_text', 'galaxies_label_text', 'galaxy_count_singular_text', 'galaxy_count_plural_text', 'pdf_loading_text', 'pdf_rendering_text', 'pdf_pages_singular_text', 'pdf_pages_plural_text', 'pdf_open_text', 'pdf_download_text', 'pdf_error_load_text', 'pdf_error_open_text', 'tour_label_text', 'tour_start_aria_text', 'tour_previous_aria_text', 'tour_pause_aria_text', 'tour_next_aria_text', 'tour_exit_aria_text', 'nav_toggle_aria_text', 'share_link_title_text', 'related_label_text', 'lang_label_text', 'node_name_fallback_text', 'untitled_text', 'chip_open_prefix_text', 'search_result_text', 'search_results_text'];
 
 /**
  * Locales supported (one row per locale in project_info). The default locale
@@ -233,6 +233,21 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'pdf_download_text' => 'Download',
             'pdf_error_load_text' => 'PDF library failed to load.',
             'pdf_error_open_text' => "Couldn't open PDF.",
+            'tour_label_text' => 'Tour',
+            'tour_start_aria_text' => 'Start tour',
+            'tour_previous_aria_text' => 'Previous',
+            'tour_pause_aria_text' => 'Pause',
+            'tour_next_aria_text' => 'Next',
+            'tour_exit_aria_text' => 'Exit tour',
+            'nav_toggle_aria_text' => 'Toggle navigation menu',
+            'share_link_title_text' => 'Copy link to this wormhole',
+            'related_label_text' => 'Related',
+            'lang_label_text' => 'Lang:',
+            'node_name_fallback_text' => 'System',
+            'untitled_text' => 'Untitled',
+            'chip_open_prefix_text' => 'Open',
+            'search_result_text' => 'Search result',
+            'search_results_text' => 'Search results',
         ],
         'es' => [
             'name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 
@@ -260,6 +275,21 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'pdf_download_text' => 'Descargar',
             'pdf_error_load_text' => 'No se pudo cargar la biblioteca de PDF.',
             'pdf_error_open_text' => 'No se pudo abrir el PDF.',
+            'tour_label_text' => 'Recorrido',
+            'tour_start_aria_text' => 'Iniciar recorrido',
+            'tour_previous_aria_text' => 'Anterior',
+            'tour_pause_aria_text' => 'Pausar',
+            'tour_next_aria_text' => 'Siguiente',
+            'tour_exit_aria_text' => 'Salir del recorrido',
+            'nav_toggle_aria_text' => 'Alternar menú de navegación',
+            'share_link_title_text' => 'Copiar enlace a este agujero de gusano',
+            'related_label_text' => 'Relacionados',
+            'lang_label_text' => 'Idioma:',
+            'node_name_fallback_text' => 'Sistema',
+            'untitled_text' => 'Sin título',
+            'chip_open_prefix_text' => 'Abrir',
+            'search_result_text' => 'Resultado',
+            'search_results_text' => 'Resultados',
         ],
         'pt' => [
             'name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 
@@ -287,6 +317,21 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'pdf_download_text' => 'Baixar',
             'pdf_error_load_text' => 'Falha ao carregar a biblioteca de PDF.',
             'pdf_error_open_text' => 'Não foi possível abrir o PDF.',
+            'tour_label_text' => 'Tour',
+            'tour_start_aria_text' => 'Iniciar tour',
+            'tour_previous_aria_text' => 'Anterior',
+            'tour_pause_aria_text' => 'Pausar',
+            'tour_next_aria_text' => 'Próximo',
+            'tour_exit_aria_text' => 'Sair do tour',
+            'nav_toggle_aria_text' => 'Alternar menu de navegação',
+            'share_link_title_text' => 'Copiar link para este buraco de minhoca',
+            'related_label_text' => 'Relacionados',
+            'lang_label_text' => 'Idioma:',
+            'node_name_fallback_text' => 'Sistema',
+            'untitled_text' => 'Sem título',
+            'chip_open_prefix_text' => 'Abrir',
+            'search_result_text' => 'Resultado',
+            'search_results_text' => 'Resultados',
         ],
     ];
 }

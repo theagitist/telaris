@@ -170,7 +170,7 @@ header("X-Content-Type-Options: nosniff");
         <p class="loading-text"><?php echo htmlspecialchars($projectLoadingText ?? 'Loading'); ?></p>
     </div>
 
-    <button id="hud-indicator" aria-label="Toggle navigation menu" aria-expanded="false" type="button">
+    <button id="hud-indicator" aria-label="<?php echo htmlspecialchars($projectNavToggleAriaText ?? 'Toggle navigation menu'); ?>" aria-expanded="false" type="button">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 12h18M3 6h18M3 18h18"/>
         </svg>
@@ -255,10 +255,10 @@ header("X-Content-Type-Options: nosniff");
         </div>
 
         <!-- Auto-tour HUD: Play button (manual start) and during-tour player overlay -->
-        <button id="tour-play-btn" class="hidden fixed bottom-6 right-6 z-[260] bg-black/70 hover:bg-black/90 border border-white/30 hover:border-[#00ffcc] text-white text-xs uppercase tracking-[0.18em] px-4 py-2 rounded-[2px] transition-all" type="button" aria-label="Start tour">
+        <button id="tour-play-btn" class="hidden fixed bottom-6 right-6 z-[260] bg-black/70 hover:bg-black/90 border border-white/30 hover:border-[#00ffcc] text-white text-xs uppercase tracking-[0.18em] px-4 py-2 rounded-[2px] transition-all" type="button" aria-label="<?php echo htmlspecialchars($projectTourStartAriaText ?? 'Start tour'); ?>">
             <span class="inline-flex items-center gap-2">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-                <span id="tour-play-btn-label">Tour</span>
+                <span id="tour-play-btn-label"><?php echo htmlspecialchars($projectTourLabelText ?? 'Tour'); ?></span>
             </span>
         </button>
 
@@ -267,17 +267,17 @@ header("X-Content-Type-Options: nosniff");
             <div class="w-32 h-1 bg-white/10 rounded overflow-hidden">
                 <div id="tour-hud-progress-bar" class="h-full bg-[#00ffcc] transition-all" style="width: 0%"></div>
             </div>
-            <button id="tour-hud-prev" class="hover:text-[#00ffcc] transition-colors" type="button" aria-label="Previous">
+            <button id="tour-hud-prev" class="hover:text-[#00ffcc] transition-colors" type="button" aria-label="<?php echo htmlspecialchars($projectTourPreviousAriaText ?? 'Previous'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
             </button>
-            <button id="tour-hud-pause" class="hover:text-[#00ffcc] transition-colors" type="button" aria-label="Pause">
+            <button id="tour-hud-pause" class="hover:text-[#00ffcc] transition-colors" type="button" aria-label="<?php echo htmlspecialchars($projectTourPauseAriaText ?? 'Pause'); ?>">
                 <svg id="tour-hud-pause-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
                 <svg id="tour-hud-resume-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true" class="hidden"><path d="M8 5v14l11-7z"/></svg>
             </button>
-            <button id="tour-hud-next" class="hover:text-[#00ffcc] transition-colors" type="button" aria-label="Next">
+            <button id="tour-hud-next" class="hover:text-[#00ffcc] transition-colors" type="button" aria-label="<?php echo htmlspecialchars($projectTourNextAriaText ?? 'Next'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M16 6h2v12h-2zm-9.5 0L15 12l-8.5 6z"/></svg>
             </button>
-            <button id="tour-hud-exit" class="hover:text-red-400 transition-colors" type="button" aria-label="Exit tour">
+            <button id="tour-hud-exit" class="hover:text-red-400 transition-colors" type="button" aria-label="<?php echo htmlspecialchars($projectTourExitAriaText ?? 'Exit tour'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
         </div>
@@ -292,7 +292,7 @@ header("X-Content-Type-Options: nosniff");
                 </div>
 
                 <!-- Share permalink + Close -->
-                <button id="rm-share-btn" class="absolute top-4 right-12 text-white/50 hover:text-white transition-colors z-10" title="Copy link to this wormhole">
+                <button id="rm-share-btn" class="absolute top-4 right-12 text-white/50 hover:text-white transition-colors z-10" title="<?php echo htmlspecialchars($projectShareLinkTitleText ?? 'Copy link to this wormhole'); ?>">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M10 14a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.5 1.5"/>
                         <path d="M14 10a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1.5-1.5"/>
@@ -379,7 +379,7 @@ header("X-Content-Type-Options: nosniff");
 
                         <!-- Related nodes (single thin row, populated by telaris-3d when galaxy enables it) -->
                         <div id="rm-related-wrap" class="hidden pt-2">
-                            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Related</div>
+                            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1"><?php echo htmlspecialchars($projectRelatedLabelText ?? 'Related'); ?></div>
                             <div id="rm-related" class="flex flex-nowrap items-center gap-3 overflow-x-auto" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent;"></div>
                         </div>
                     </div>
@@ -426,7 +426,7 @@ header("X-Content-Type-Options: nosniff");
                 <button id="hud-sound-toggle" class="font-bold text-[#00ffcc] hover:text-white transition-colors cursor-pointer uppercase tracking-[0.18em]" data-on="<?php echo htmlspecialchars($projectSoundOnText ?? 'ON'); ?>" data-off="<?php echo htmlspecialchars($projectSoundOffText ?? 'OFF'); ?>"><?php echo htmlspecialchars($projectSoundOnText ?? 'ON'); ?></button>
             </div>
             <div class="flex justify-between gap-12">
-                <span class="uppercase tracking-[0.18em]">Lang:</span>
+                <span class="uppercase tracking-[0.18em]"><?php echo htmlspecialchars($projectLangLabelText ?? 'Lang:'); ?></span>
                 <span class="font-bold text-xs uppercase tracking-[0.18em]"><?php
                     $links = [];
                     foreach (PROJECT_INFO_LOCALES as $loc) {
@@ -514,6 +514,11 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_PDF_PAGES_PLURAL_TEXT = <?php echo json_encode($projectPdfPagesPluralText ?? '%d pages'); ?>;
         window.TELARIS_PDF_ERROR_LOAD_TEXT = <?php echo json_encode($projectPdfErrorLoadText ?? 'PDF library failed to load.'); ?>;
         window.TELARIS_PDF_ERROR_OPEN_TEXT = <?php echo json_encode($projectPdfErrorOpenText ?? "Couldn't open PDF."); ?>;
+        window.TELARIS_NODE_NAME_FALLBACK_TEXT = <?php echo json_encode($projectNodeNameFallbackText ?? 'System'); ?>;
+        window.TELARIS_UNTITLED_TEXT = <?php echo json_encode($projectUntitledText ?? 'Untitled'); ?>;
+        window.TELARIS_CHIP_OPEN_PREFIX_TEXT = <?php echo json_encode($projectChipOpenPrefixText ?? 'Open'); ?>;
+        window.TELARIS_SEARCH_RESULT_TEXT = <?php echo json_encode($projectSearchResultText ?? 'Search result'); ?>;
+        window.TELARIS_SEARCH_RESULTS_TEXT = <?php echo json_encode($projectSearchResultsText ?? 'Search results'); ?>;
     </script>
     <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
     (function() {

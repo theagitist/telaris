@@ -154,6 +154,23 @@ $projectPdfOpenText = $projectStrings['pdf_open_text'] ?? 'Open in new window';
 $projectPdfDownloadText = $projectStrings['pdf_download_text'] ?? 'Download';
 $projectPdfErrorLoadText = $projectStrings['pdf_error_load_text'] ?? 'PDF library failed to load.';
 $projectPdfErrorOpenText = $projectStrings['pdf_error_open_text'] ?? "Couldn't open PDF.";
+// Tour HUD + share + related + lang switch (visitor-side, introduced 2026-05-22).
+$projectTourLabelText = $projectStrings['tour_label_text'] ?? 'Tour';
+$projectTourStartAriaText = $projectStrings['tour_start_aria_text'] ?? 'Start tour';
+$projectTourPreviousAriaText = $projectStrings['tour_previous_aria_text'] ?? 'Previous';
+$projectTourPauseAriaText = $projectStrings['tour_pause_aria_text'] ?? 'Pause';
+$projectTourNextAriaText = $projectStrings['tour_next_aria_text'] ?? 'Next';
+$projectTourExitAriaText = $projectStrings['tour_exit_aria_text'] ?? 'Exit tour';
+$projectNavToggleAriaText = $projectStrings['nav_toggle_aria_text'] ?? 'Toggle navigation menu';
+$projectShareLinkTitleText = $projectStrings['share_link_title_text'] ?? 'Copy link to this wormhole';
+$projectRelatedLabelText = $projectStrings['related_label_text'] ?? 'Related';
+$projectLangLabelText = $projectStrings['lang_label_text'] ?? 'Lang:';
+// Used by the 3D scene JS (passed via window.TELARIS_*).
+$projectNodeNameFallbackText = $projectStrings['node_name_fallback_text'] ?? 'System';
+$projectUntitledText = $projectStrings['untitled_text'] ?? 'Untitled';
+$projectChipOpenPrefixText = $projectStrings['chip_open_prefix_text'] ?? 'Open';
+$projectSearchResultText = $projectStrings['search_result_text'] ?? 'Search result';
+$projectSearchResultsText = $projectStrings['search_results_text'] ?? 'Search results';
 $defaultConstellationId = $projectStrings['default_constellation_id'] ?? 0;
 
 // Constellation for main view: root URL = default; /{NUMBER} or ?constellation_id=NUMBER = that constellation

@@ -101,7 +101,7 @@ class TelarisNetwork {
         try {
             sessionStorage.setItem(frameKey, JSON.stringify({
                 url, r, g, b, app, alertMsg,
-                nodeName: d.name || 'System',
+                nodeName: d.name || window.TELARIS_NODE_NAME_FALLBACK_TEXT || 'System',
                 description: d.description || '',
                 openPortalText: window.TELARIS_OPEN_PORTAL_TEXT || 'Open the Portal',
                 launchingText: window.TELARIS_LAUNCHING_TEXT || 'Launching',
@@ -114,7 +114,7 @@ class TelarisNetwork {
             '&url=' + encodeURIComponent(url) +
             '&r=' + r + '&g=' + g + '&b=' + b +
             '&app=' + encodeURIComponent(app) +
-            '&node_name=' + encodeURIComponent(d.name || 'System') +
+            '&node_name=' + encodeURIComponent(d.name || window.TELARIS_NODE_NAME_FALLBACK_TEXT || 'System') +
             '&open_portal_text=' + encodeURIComponent(window.TELARIS_OPEN_PORTAL_TEXT || 'Open the Portal') +
             '&launching_text=' + encodeURIComponent(window.TELARIS_LAUNCHING_TEXT || 'Launching') +
             '&mission_active_text=' + encodeURIComponent(window.TELARIS_MISSION_ACTIVE_TEXT || 'Mission Active') +
@@ -162,7 +162,7 @@ class TelarisNetwork {
         if (!overlay || !win) return;
 
         // Title
-        if (titleEl) titleEl.textContent = d.name || 'System';
+        if (titleEl) titleEl.textContent = d.name || window.TELARIS_NODE_NAME_FALLBACK_TEXT || 'System';
 
         // Description
         if (descriptionEl) {
@@ -512,11 +512,11 @@ class TelarisNetwork {
 
         list.innerHTML = '';
         for (const r of rows) {
-            const name = r.name || 'Untitled';
+            const name = r.name || window.TELARIS_UNTITLED_TEXT || 'Untitled';
             const chip = document.createElement('button');
             chip.type = 'button';
             chip.textContent = name;
-            chip.title = 'Open ' + name;
+            chip.title = (window.TELARIS_CHIP_OPEN_PREFIX_TEXT || 'Open') + ' ' + name;
             const color = colorFor(name);
             chip.style.cssText = [
                 'background:transparent',
