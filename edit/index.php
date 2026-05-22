@@ -87,7 +87,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.png" type="image/png">
-    <title>Edit Wormholes - <?php echo htmlspecialchars($projectName); ?></title>
+    <title><?= t_attr('editor_page_title', 'Edit Wormholes') ?> - <?php echo htmlspecialchars($projectName); ?></title>
     <script src="../js/tailwind.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
 </head>
@@ -97,11 +97,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                    <h1 class="text-gray-800 text-3xl font-semibold">Edit Wormholes</h1>
-                    <p class="text-gray-600 mt-1">Welcome, <?php echo htmlspecialchars($userName); ?> (<?php echo $isAdmin ? 'Admin' : 'Editor'; ?>)</p>
+                    <h1 class="text-gray-800 text-3xl font-semibold"><?= t('editor_page_title', 'Edit Wormholes') ?></h1>
+                    <p class="text-gray-600 mt-1"><?php echo htmlspecialchars($userName); ?> (<?= $isAdmin ? t('editor_user_role_admin', 'Admin') : t('editor_user_role_editor', 'Editor') ?>)</p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <label for="current-constellation" class="text-sm font-medium text-gray-700">Current Galaxy:</label>
+                    <label for="current-constellation" class="text-sm font-medium text-gray-700"><?= t('editor_label_current_galaxy', 'Current Galaxy:') ?></label>
                     <div class="join">
                         <select id="current-constellation" 
                                 onchange="switchConstellation(this.value)"
@@ -119,7 +119,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 $currentConstellationParam = trim((string)$_GET['constellation_id']);
                             }
                             ?>
-                            <option value="all"<?php echo $currentConstellationParam === 'all' ? ' selected' : ''; ?>><?php echo $isAdmin ? 'All galaxies' : 'All my galaxies'; ?></option>
+                            <option value="all"<?php echo $currentConstellationParam === 'all' ? ' selected' : ''; ?>><?= $isAdmin ? t('editor_option_all_galaxies_admin', 'All galaxies') : t('editor_option_all_galaxies_editor', 'All my galaxies') ?></option>
                             <?php
                             $currentOptgroup = null;
                             $inOptgroup = false;
@@ -139,15 +139,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             ?>
                         </select>
                         <button type="button" onclick="viewNetwork()" class="btn btn-sm btn-neutral join-item">
-                            View
+                            <?= t('editor_btn_view', 'View') ?>
                         </button>
-                        <button type="button" id="galaxy-settings-btn" onclick="openCurrentGalaxySettings()" class="btn btn-sm btn-outline join-item" title="Galaxy settings" style="display:none;">
-                            Settings
+                        <button type="button" id="galaxy-settings-btn" onclick="openCurrentGalaxySettings()" class="btn btn-sm btn-outline join-item" title="<?= t_attr('editor_btn_galaxy_settings_title', 'Galaxy settings') ?>" style="display:none;">
+                            <?= t('editor_btn_settings', 'Settings') ?>
                         </button>
-                        <button type="button" id="galaxy-canvas-btn" onclick="openCurrentGalaxyKeywordCanvas()" class="btn btn-sm btn-outline join-item" title="Author keyword relationships" style="display:none;">
-                            Canvas
+                        <button type="button" id="galaxy-canvas-btn" onclick="openCurrentGalaxyKeywordCanvas()" class="btn btn-sm btn-outline join-item" title="<?= t_attr('editor_btn_keyword_canvas_title', 'Author keyword relationships') ?>" style="display:none;">
+                            <?= t('editor_btn_canvas', 'Canvas') ?>
                         </button>
-                        <button type="button" onclick="copyCurrentConstellationUrl(this)" class="btn btn-sm btn-outline join-item" title="Copy galaxy URL">
+                        <button type="button" onclick="copyCurrentConstellationUrl(this)" class="btn btn-sm btn-outline join-item" title="<?= t_attr('editor_btn_copy_url_title', 'Copy galaxy URL') ?>">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                         </button>
                     </div>
@@ -155,11 +155,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 <div class="flex gap-3">
                     <?php if ($isAdmin): ?>
                     <a href="../admin/index.php" class="btn btn-neutral">
-                        Admin Console
+                        <?= t('editor_btn_admin_console', 'Admin Console') ?>
                     </a>
                     <?php endif; ?>
                     <a href="../utils/logout.php" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded">
-                        Logout
+                        <?= t('editor_btn_logout', 'Logout') ?>
                     </a>
                 </div>
             </div>
@@ -167,7 +167,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         <?php if (!$apiKey): ?>
         <div class="mb-5 p-4 bg-red-50 border-2 border-red-500 rounded">
-            <p class="text-red-800 font-semibold">⚠️ Error: No active API key found. Please contact an administrator.</p>
+            <p class="text-red-800 font-semibold"><?= t('editor_error_no_api_key', '⚠️ Error: No active API key found. Please contact an administrator.') ?></p>
         </div>
         <?php endif; ?>
 
@@ -179,40 +179,40 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <!-- Bulk Actions Bar -->
         <div id="bulk-actions-bar" class="hidden sticky top-4 z-[30] bg-neutral text-neutral-content p-4 rounded-lg shadow-xl mb-6 flex items-center justify-between transition-all">
             <div class="flex items-center gap-4">
-                <span class="font-bold"><span id="selected-count">0</span> wormholes selected</span>
+                <span class="font-bold"><span id="selected-count">0</span> <?= t('editor_bulk_selected_suffix', 'wormholes selected') ?></span>
                 <div class="h-6 w-px bg-neutral-content/30"></div>
-                <button onclick="clearSelection()" class="btn btn-sm btn-ghost normal-case font-normal hover:bg-white/10">Clear Selection</button>
+                <button onclick="clearSelection()" class="btn btn-sm btn-ghost normal-case font-normal hover:bg-white/10"><?= t('editor_btn_clear_selection', 'Clear Selection') ?></button>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="openBulkMoveModal()" class="btn btn-sm btn-outline text-white border-white/30 hover:bg-white/10 hover:border-white">Move Selected</button>
-                <button onclick="openBulkDuplicateModal()" class="btn btn-sm btn-outline text-white border-white/30 hover:bg-white/10 hover:border-white">Duplicate Selected</button>
-                <button onclick="bulkDelete()" class="btn btn-sm btn-error text-white">Delete Selected</button>
+                <button onclick="openBulkMoveModal()" class="btn btn-sm btn-outline text-white border-white/30 hover:bg-white/10 hover:border-white"><?= t('editor_btn_bulk_move', 'Move Selected') ?></button>
+                <button onclick="openBulkDuplicateModal()" class="btn btn-sm btn-outline text-white border-white/30 hover:bg-white/10 hover:border-white"><?= t('editor_btn_bulk_duplicate', 'Duplicate Selected') ?></button>
+                <button onclick="bulkDelete()" class="btn btn-sm btn-error text-white"><?= t('editor_btn_bulk_delete', 'Delete Selected') ?></button>
             </div>
         </div>
 
         <!-- Nodes List -->
         <div id="read-only-banner" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 text-yellow-800 text-sm" style="display: none;">
-            This galaxy was imported from an external source and is read-only. Use the Refresh action in the admin galaxy list to sync changes.
+            <?= t('editor_banner_imported_read_only', 'This galaxy was imported from an external source and is read-only. Use the Refresh action in the admin galaxy list to sync changes.') ?>
         </div>
         <div class="bg-white rounded-lg shadow-md mb-6">
             <div class="p-6 border-b border-gray-200">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <h2 class="text-gray-800 text-xl font-semibold">Wormholes (<span id="tab-list-count">0</span>)</h2>
-                        <button type="button" onclick="openCreateNodeModal()" class="node-edit-action text-blue-600 hover:text-blue-800 font-medium text-base">New Wormhole</button>
-                        <button type="button" id="filter-touched-today-btn" onclick="toggleTouchedTodayFilter()" class="text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-500 transition" title="Show only wormholes touched today">Touched today</button>
-                        <button type="button" onclick="openBulkByKeywordModal()" id="bulk-by-keyword-btn" class="text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-500 transition" title="Bulk delete or move every wormhole in this galaxy carrying a chosen keyword">Bulk by keyword…</button>
-                        <button type="button" onclick="document.getElementById('shortcuts_modal').showModal()" class="text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-500 transition" title="Keyboard shortcuts (? to open)">?</button>
+                        <h2 class="text-gray-800 text-xl font-semibold"><?= t('editor_heading_wormholes', 'Wormholes') ?> (<span id="tab-list-count">0</span>)</h2>
+                        <button type="button" onclick="openCreateNodeModal()" class="node-edit-action text-blue-600 hover:text-blue-800 font-medium text-base"><?= t('editor_btn_new_wormhole', 'New Wormhole') ?></button>
+                        <button type="button" id="filter-touched-today-btn" onclick="toggleTouchedTodayFilter()" class="text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-500 transition" title="<?= t_attr('editor_btn_touched_today_title', 'Show only wormholes touched today') ?>"><?= t('editor_btn_touched_today', 'Touched today') ?></button>
+                        <button type="button" onclick="openBulkByKeywordModal()" id="bulk-by-keyword-btn" class="text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-500 transition" title="<?= t_attr('editor_btn_bulk_keyword_title', 'Bulk delete or move every wormhole in this galaxy carrying a chosen keyword') ?>"><?= t('editor_btn_bulk_by_keyword', 'Bulk by keyword…') ?></button>
+                        <button type="button" onclick="document.getElementById('shortcuts_modal').showModal()" class="text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-500 transition" title="<?= t_attr('editor_btn_shortcuts_title', 'Keyboard shortcuts (? to open)') ?>">?</button>
                     </div>
-                    
+
                     <!-- Top Pagination Container -->
                     <div id="nodes-pagination-header" class="flex-1 flex justify-center"></div>
 
                     <div class="flex items-center gap-2 min-w-[300px]">
-                        <label for="search-nodes" class="text-sm font-medium text-gray-700">Search:</label>
-                        <input type="text" 
-                               id="search-nodes" 
-                               placeholder="Search wormholes..." 
+                        <label for="search-nodes" class="text-sm font-medium text-gray-700"><?= t('editor_label_search', 'Search:') ?></label>
+                        <input type="text"
+                               id="search-nodes"
+                               placeholder="<?= t_attr('editor_placeholder_search_wormholes', 'Search wormholes...') ?>"
                                oninput="debouncedSearch()"
                                class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     </div>
@@ -226,25 +226,25 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
                         <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">
-                                Name<span id="sort-indicator-name"></span>
+                                <?= t('editor_col_name', 'Name') ?><span id="sort-indicator-name"></span>
                             </div>
                             <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('node_type')">
-                                Type<span id="sort-indicator-node_type"></span>
+                                <?= t('editor_col_type', 'Type') ?><span id="sort-indicator-node_type"></span>
                             </div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('constellation_name')">
-                                Galaxy<span id="sort-indicator-constellation_name"></span>
+                                <?= t('editor_col_galaxy', 'Galaxy') ?><span id="sort-indicator-constellation_name"></span>
                             </div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')">URL<span id="sort-indicator-url"></span></div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('url')"><?= t('editor_col_url', 'URL') ?><span id="sort-indicator-url"></span></div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('keywords')">
-                                Keywords<span id="sort-indicator-keywords"></span>
+                                <?= t('editor_col_keywords', 'Keywords') ?><span id="sort-indicator-keywords"></span>
                             </div>
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('created_at')">
-                                Created<span id="sort-indicator-created_at"></span>
+                                <?= t('editor_col_created', 'Created') ?><span id="sort-indicator-created_at"></span>
                             </div>
-                            <div class="col-span-1 text-right">Actions</div>
+                            <div class="col-span-1 text-right"><?= t('editor_col_actions', 'Actions') ?></div>
                         </div>
                     </div>
-                    <p class="text-gray-500 p-4" id="loading-message">Loading wormholes...</p>
+                    <p class="text-gray-500 p-4" id="loading-message"><?= t('editor_msg_loading_wormholes', 'Loading wormholes...') ?></p>
                 </div>
             </div>
 
@@ -256,6 +256,130 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         const API_BASE = '../api/nodes.php';
         const CONSTELLATIONS_API = '../api/constellations.php';
         const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'slug' => $c['slug'], 'import_source' => $c['import_source'] ?? null], $constellations), JSON_THROW_ON_ERROR); ?>;
+
+        // Localized strings consumed by inline JS. Mirrors the visitor-side
+        // window.TELARIS_* pattern; bundled in one object to avoid declaring
+        // ~80 PHP variables for every key.
+        window.TELARIS_EDIT = <?= json_encode([
+            // Loading + retrieval states
+            'msgRetrieving' => t('editor_msg_retrieving_wormholes', 'Retrieving wormholes...'),
+            'errorApiKeyMissingFetch' => t('editor_error_api_key_missing_fetch', 'Error: API key is missing. Please contact an administrator.'),
+            'errorApiKeyMissing' => t('editor_error_api_key_missing', 'API key is missing.'),
+            'errorInvalidJson' => t('editor_error_invalid_json', 'Invalid JSON response from server'),
+            'errorInvalidFormat' => t('editor_error_invalid_format', 'Invalid response format'),
+            'errorInvalidDataFormat' => t('editor_error_invalid_data_format', 'Error: Invalid data format received.'),
+            'headingErrorLoading' => t('editor_heading_error_loading', 'Error loading wormholes'),
+            'headingNoWormholes' => t('editor_heading_no_wormholes', 'No wormholes found.'),
+            'textEmptyStateHelp' => t('editor_text_empty_state_help', 'Try adjusting your search or add a new wormhole to get started.'),
+            'errorFatalLoading' => t('editor_error_fatal_loading', 'Fatal error loading wormholes: %s'),
+            'errorCouldNotLoad' => t('editor_error_could_not_load', 'Error: Could not load wormholes. %s'),
+            // Row template
+            'textNoKeywords' => t('editor_text_no_keywords', 'No keywords'),
+            'labelTypePortal' => t('editor_label_node_type_portal', 'Portal'),
+            'labelTypeObject' => t('editor_label_node_type_object', 'Object'),
+            'badgeAcc' => t('editor_badge_accentuated', 'ACC'),
+            'badgeAccTitle' => t('editor_badge_accentuated_title', 'Accentuated Wormhole'),
+            'badgeUrl' => t('editor_badge_has_url', 'URL'),
+            'badgeUrlTitle' => t('editor_badge_has_url_title', 'Has URL'),
+            'badgeDesc' => t('editor_badge_has_desc', 'DESC'),
+            'badgeDescTitle' => t('editor_badge_has_desc_title', 'Has Description'),
+            'badgeImg' => t('editor_badge_has_img', 'IMG'),
+            'badgeImgTitle' => t('editor_badge_has_img_title', 'Has Image'),
+            'badgeEmb' => t('editor_badge_has_emb', 'EMB'),
+            'badgeEmbTitle' => t('editor_badge_has_emb_title', 'Has Embed'),
+            'badgeAud' => t('editor_badge_has_aud', 'AUD'),
+            'badgeAudTitle' => t('editor_badge_has_aud_title', 'Has Audio'),
+            'badgeVid' => t('editor_badge_has_vid', 'VID'),
+            'badgeVidTitle' => t('editor_badge_has_vid_title', 'Has Video'),
+            'titleAccentuated' => t('editor_title_accentuated', 'Accentuated'),
+            'colName' => t('editor_col_name', 'Name'),
+            'colType' => t('editor_col_type', 'Type'),
+            'colGalaxy' => t('editor_col_galaxy', 'Galaxy'),
+            'colKeywords' => t('editor_col_keywords', 'Keywords'),
+            'colAcc' => t('editor_col_acc', 'Acc'),
+            'colAccTitle' => t('editor_col_acc_title', 'Accentuated Status'),
+            'colCreated' => t('editor_col_created', 'Created'),
+            'colUpdated' => t('editor_col_updated', 'Updated'),
+            'colActions' => t('editor_col_actions', 'Actions'),
+            // Row actions
+            'actionViewWormhole' => t('editor_action_view_wormhole', 'View Wormhole'),
+            'actionViewGalaxy' => t('editor_action_view_galaxy', 'View Galaxy'),
+            'actionEdit' => t('editor_action_edit', 'Edit'),
+            'actionDuplicate' => t('editor_action_duplicate', 'Duplicate'),
+            'actionDelete' => t('editor_action_delete', 'Delete'),
+            // Bulk action toasts (use %d as placeholder)
+            'toastBulkMoveSuccess' => t('editor_toast_bulk_move_success', 'Successfully moved %d wormholes.'),
+            'toastBulkMoveFailed' => t('editor_toast_bulk_move_failed', 'Failed to move %d wormholes.'),
+            'toastBulkMoveError' => t('editor_toast_bulk_move_error', 'An error occurred during bulk move.'),
+            'toastDuplicateSuccess' => t('editor_toast_duplicate_success', 'Wormhole duplicated successfully.'),
+            'errorFailedDuplicate' => t('editor_error_failed_duplicate', 'Failed to duplicate'),
+            'toastDuplicateErrorGeneric' => t('editor_toast_duplicate_error_generic', 'An error occurred while duplicating.'),
+            'toastBulkDuplicateSuccess' => t('editor_toast_bulk_duplicate_success', 'Successfully duplicated %d wormholes.'),
+            'toastBulkDuplicateFailed' => t('editor_toast_bulk_duplicate_failed', 'Failed to duplicate %d wormholes.'),
+            'toastBulkDuplicateError' => t('editor_toast_bulk_duplicate_error', 'An error occurred during bulk duplicate.'),
+            'confirmBulkDelete' => t('editor_confirm_bulk_delete', 'Are you sure you want to delete %d selected wormholes? This action cannot be undone.'),
+            'toastBulkDeleteSuccess' => t('editor_toast_bulk_delete_success', 'Successfully deleted %d wormholes.'),
+            'toastBulkDeleteFailed' => t('editor_toast_bulk_delete_failed', 'Failed to delete %d wormholes.'),
+            'toastBulkDeleteError' => t('editor_toast_bulk_delete_error', 'An error occurred during bulk deletion.'),
+            'toastUrlCopied' => t('editor_toast_url_copied', 'URL copied to clipboard'),
+            'titleUrlCopied' => t('editor_title_url_copied', 'Copied!'),
+            'titleCopyUrlDefault' => t('editor_btn_copy_url_title', 'Copy galaxy URL'),
+            // Galaxy creation
+            'toastGalaxyCreated' => t('editor_toast_galaxy_created', 'Galaxy "%s" created.'),
+            'toastErrorCreatingGalaxy' => t('editor_toast_error_creating_galaxy', 'Error creating galaxy: %s'),
+            'promptNewGalaxyName' => t('editor_prompt_new_galaxy_name', 'Name of the new galaxy:'),
+            // Move/Duplicate modal dynamic descriptions
+            'textMoveCountWormholes' => t('editor_text_move_count_wormholes', 'Move %d selected wormholes to another galaxy.'),
+            'textDuplicateTo' => t('editor_text_duplicate_to', 'Duplicate "%s" to:'),
+            'textDuplicateCountWormholes' => t('editor_text_duplicate_count_wormholes', 'Duplicate %d selected wormholes to:'),
+            'labelTargetPrefix' => t('editor_label_target_prefix', 'Target:'),
+            // Node CRUD toasts
+            'toastUpdatedSuccess' => t('editor_toast_updated_successfully', 'Wormhole updated successfully'),
+            'toastCreatedSuccess' => t('editor_toast_created_successfully', 'Wormhole created successfully'),
+            'errorFailedUpdate' => t('editor_error_failed_update', 'Failed to update wormhole'),
+            'errorFailedCreate' => t('editor_error_failed_create', 'Failed to create wormhole'),
+            'errorNetworkUpload' => t('editor_error_network_upload', 'Network error occurred during upload'),
+            'errorNameRequired' => t('editor_error_name_required', 'Wormhole name is required'),
+            'errorLoadingNode' => t('editor_error_loading_node', 'Error loading wormhole: %s'),
+            'confirmDeleteFile' => t('editor_confirm_delete_file', 'Are you sure you want to delete this uploaded %s file?'),
+            'toastFileDeleted' => t('editor_toast_file_deleted', '%s file deleted'),
+            'errorDeletingFile' => t('editor_error_deleting_file', 'Error deleting file: %s'),
+            'confirmDeleteNode' => t('editor_confirm_delete_node', 'Are you sure you want to delete "%s"? This action cannot be undone.'),
+            'errorDeleteWormhole' => t('editor_error_delete_wormhole', 'Failed to delete wormhole'),
+            'toastDeletedSuccess' => t('editor_toast_deleted_successfully', 'Wormhole deleted successfully'),
+            'errorDeletingWormhole' => t('editor_error_deleting_wormhole', 'Error deleting wormhole: %s'),
+            // Bulk-by-keyword modal
+            'optionLoading' => t('editor_option_loading', 'Loading…'),
+            'optionNoKeywords' => t('editor_option_no_keywords', '(no keywords in this galaxy)'),
+            'optionPickOne' => t('editor_option_pick_one', 'pick one'),
+            'optionErrorKeywords' => t('editor_option_error_keywords', 'Error loading keywords'),
+            'optionPickGalaxy' => t('editor_option_pick_galaxy', 'pick a galaxy'),
+            'textPickKeyword' => t('editor_text_pick_keyword', 'Pick a keyword to see the count.'),
+            'errorPickSpecificGalaxy' => t('editor_error_pick_specific_galaxy', 'Pick a specific galaxy first (not "All galaxies").'),
+            'previewMoveOne' => t('editor_preview_move_one', 'Will move 1 wormhole to the chosen galaxy.'),
+            'previewMoveMany' => t('editor_preview_move_many', 'Will move %d wormholes to the chosen galaxy.'),
+            'previewMovePickTargetOne' => t('editor_preview_move_pick_target_one', 'Will move 1 wormhole. Pick a target galaxy first.'),
+            'previewMovePickTargetMany' => t('editor_preview_move_pick_target_many', 'Will move %d wormholes. Pick a target galaxy first.'),
+            'previewDeleteOne' => t('editor_preview_delete_one', 'Will permanently delete 1 wormhole.'),
+            'previewDeleteMany' => t('editor_preview_delete_many', 'Will permanently delete %d wormholes.'),
+            'confirmBulkDeleteKeywordOne' => t('editor_confirm_bulk_delete_keyword_one', 'Permanently delete 1 wormhole carrying "%s"? This cannot be undone.'),
+            'confirmBulkDeleteKeywordMany' => t('editor_confirm_bulk_delete_keyword_many', 'Permanently delete %d wormholes carrying "%s"? This cannot be undone.'),
+            'confirmBulkMoveKeywordOne' => t('editor_confirm_bulk_move_keyword_one', 'Move 1 wormhole carrying "%s" to the selected galaxy?'),
+            'confirmBulkMoveKeywordMany' => t('editor_confirm_bulk_move_keyword_many', 'Move %d wormholes carrying "%s" to the selected galaxy?'),
+            'toastBulkDeletedOne' => t('editor_toast_bulk_deleted_one', 'Deleted 1 wormhole.'),
+            'toastBulkDeletedMany' => t('editor_toast_bulk_deleted_many', 'Deleted %d wormholes.'),
+            'toastBulkMovedOne' => t('editor_toast_bulk_moved_one', 'Moved 1 wormhole.'),
+            'toastBulkMovedMany' => t('editor_toast_bulk_moved_many', 'Moved %d wormholes.'),
+            'toastBulkActionFailed' => t('editor_toast_bulk_action_failed', 'Bulk action failed: %s'),
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
+
+        // Tiny printf-style %d/%s formatter for the localized strings above.
+        // Replaces the first %d or %s with each argument in order. Sufficient
+        // for our patterns where every string has 1-2 placeholders.
+        function tFmt(tpl, ...args) {
+            let i = 0;
+            return tpl.replace(/%[ds]/g, () => (i < args.length ? String(args[i++]) : ''));
+        }
 
         /** Check if a constellation is imported (read-only). */
         function isImportedConstellation(constellationId) {
@@ -365,7 +489,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const count = selectedNodeIds.size;
             if (count === 0) return;
             
-            document.getElementById('bulk-move-count').textContent = count;
+            document.getElementById('bulk-move-description').textContent = tFmt(TELARIS_EDIT.textMoveCountWormholes, count);
             document.getElementById('bulk_move_modal').showModal();
         }
 
@@ -409,17 +533,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 await Promise.all(promises);
 
                 if (successCount > 0) {
-                    showMessage(`Successfully moved ${successCount} wormholes.`);
+                    showMessage(tFmt(TELARIS_EDIT.toastBulkMoveSuccess, successCount));
                 }
                 if (errorCount > 0) {
-                    showMessage(`Failed to move ${errorCount} wormholes.`, 'error');
+                    showMessage(tFmt(TELARIS_EDIT.toastBulkMoveFailed, errorCount), 'error');
                 }
 
                 selectedNodeIds.clear();
                 updateBulkActionsBar();
                 loadNodes();
             } catch (e) {
-                showMessage('An error occurred during bulk move.', 'error');
+                showMessage(TELARIS_EDIT.toastBulkMoveError, 'error');
             } finally {
                 bar.classList.remove('opacity-50', 'pointer-events-none');
             }
@@ -439,7 +563,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 } catch (e) { return; }
             }
             document.getElementById('duplicate-source-id').value = id;
-            document.getElementById('duplicate-source-name').textContent = node.name;
+            document.getElementById('duplicate-source-prompt').textContent = tFmt(TELARIS_EDIT.textDuplicateTo, node.name);
             document.getElementById('duplicate-constellation').value = node.constellation_id;
             document.getElementById('duplicate-node-constellation-badge').textContent = '#' + id;
             document.getElementById('duplicate_node_modal').showModal();
@@ -457,22 +581,22 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     body: JSON.stringify({ duplicate_from: sourceId, constellation_id: constellationId })
                 });
                 if (response.ok) {
-                    showMessage('Wormhole duplicated successfully.');
+                    showMessage(TELARIS_EDIT.toastDuplicateSuccess);
                     document.getElementById('duplicate_node_modal').close();
                     loadNodes();
                 } else {
                     const err = await response.json();
-                    showMessage('Error: ' + (err.error || 'Failed to duplicate'), 'error');
+                    showMessage('Error: ' + (err.error || TELARIS_EDIT.errorFailedDuplicate), 'error');
                 }
             } catch (e) {
-                showMessage('An error occurred while duplicating.', 'error');
+                showMessage(TELARIS_EDIT.toastDuplicateErrorGeneric, 'error');
             }
         }
 
         function openBulkDuplicateModal() {
             const count = selectedNodeIds.size;
             if (count === 0) return;
-            document.getElementById('bulk-duplicate-count').textContent = count;
+            document.getElementById('bulk-duplicate-description').textContent = tFmt(TELARIS_EDIT.textDuplicateCountWormholes, count);
             document.getElementById('bulk_duplicate_modal').showModal();
         }
 
@@ -503,17 +627,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 await Promise.all(promises);
 
                 if (successCount > 0) {
-                    showMessage(`Successfully duplicated ${successCount} wormholes.`);
+                    showMessage(tFmt(TELARIS_EDIT.toastBulkDuplicateSuccess, successCount));
                 }
                 if (errorCount > 0) {
-                    showMessage(`Failed to duplicate ${errorCount} wormholes.`, 'error');
+                    showMessage(tFmt(TELARIS_EDIT.toastBulkDuplicateFailed, errorCount), 'error');
                 }
 
                 selectedNodeIds.clear();
                 updateBulkActionsBar();
                 loadNodes();
             } catch (e) {
-                showMessage('An error occurred during bulk duplicate.', 'error');
+                showMessage(TELARIS_EDIT.toastBulkDuplicateError, 'error');
             } finally {
                 bar.classList.remove('opacity-50', 'pointer-events-none');
             }
@@ -536,7 +660,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const count = selectedNodeIds.size;
             if (count === 0) return;
 
-            confirmAction(`Are you sure you want to delete ${count} selected wormholes? This action cannot be undone.`, async () => {
+            confirmAction(tFmt(TELARIS_EDIT.confirmBulkDelete, count), async () => {
                 const ids = Array.from(selectedNodeIds);
                 let successCount = 0;
                 let errorCount = 0;
@@ -561,17 +685,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     await Promise.all(promises);
 
                     if (successCount > 0) {
-                        showMessage(`Successfully deleted ${successCount} wormholes.`);
+                        showMessage(tFmt(TELARIS_EDIT.toastBulkDeleteSuccess, successCount));
                     }
                     if (errorCount > 0) {
-                        showMessage(`Failed to delete ${errorCount} wormholes.`, 'error');
+                        showMessage(tFmt(TELARIS_EDIT.toastBulkDeleteFailed, errorCount), 'error');
                     }
 
                     selectedNodeIds.clear();
                     updateBulkActionsBar();
                     loadNodes();
                 } catch (e) {
-                    showMessage('An error occurred during bulk deletion.', 'error');
+                    showMessage(TELARIS_EDIT.toastBulkDeleteError, 'error');
                 } finally {
                     bar.classList.remove('opacity-50', 'pointer-events-none');
                 }
@@ -619,11 +743,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             
             navigator.clipboard.writeText(absoluteUrl).then(() => {
                 const origTitle = buttonEl.getAttribute('title');
-                buttonEl.setAttribute('title', 'Copied!');
+                buttonEl.setAttribute('title', TELARIS_EDIT.titleUrlCopied);
                 // Using alert or a more subtle way since we don't have the toast div here yet
-                showMessage('URL copied to clipboard');
+                showMessage(TELARIS_EDIT.toastUrlCopied);
                 setTimeout(() => {
-                    buttonEl.setAttribute('title', origTitle || 'Copy galaxy URL');
+                    buttonEl.setAttribute('title', origTitle || TELARIS_EDIT.titleCopyUrlDefault);
                 }, 1500);
             });
         }
@@ -704,7 +828,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         // Create new constellation via API and add to dropdowns
         async function createNewConstellation(context, inlineNodeId) {
-            const name = window.prompt('Name of the new galaxy:');
+            const name = window.prompt(TELARIS_EDIT.promptNewGalaxyName);
             if (name === null || name.trim() === '') return;
             try {
                 const response = await fetch('create_constellation.php', {
@@ -754,9 +878,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     createSelect.appendChild(opt);
                     createSelect.value = String(newId);
                 }
-                showMessage('Galaxy "' + newName + '" created.');
+                showMessage(tFmt(TELARIS_EDIT.toastGalaxyCreated, newName));
             } catch (e) {
-                showMessage('Error creating galaxy: ' + e.message, 'error');
+                showMessage(tFmt(TELARIS_EDIT.toastErrorCreatingGalaxy, e.message), 'error');
             }
         }
 
@@ -809,12 +933,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             listDiv.innerHTML = `
                 <div class="flex flex-col items-center justify-center py-12 text-gray-500">
                     <span class="loading loading-spinner loading-lg text-neutral mb-4"></span>
-                    <p class="text-lg">Retrieving wormholes...</p>
+                    <p class="text-lg">${escapeHtml(TELARIS_EDIT.msgRetrieving)}</p>
                 </div>
             `;
 
             if (!API_KEY) {
-                listDiv.innerHTML = '<p class="text-red-600">Error: API key is missing. Please contact an administrator.</p>';
+                listDiv.innerHTML = '<p class="text-red-600">' + escapeHtml(TELARIS_EDIT.errorApiKeyMissingFetch) + '</p>';
                 return;
             }
 
@@ -859,11 +983,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 try {
                     result = JSON.parse(responseText);
                 } catch (e) {
-                    throw new Error('Invalid JSON response from server');
+                    throw new Error(TELARIS_EDIT.errorInvalidJson);
                 }
 
                 if (!result.nodes || !Array.isArray(result.nodes)) {
-                    throw new Error('Invalid response format');
+                    throw new Error(TELARIS_EDIT.errorInvalidFormat);
                 }
 
                 allNodes = result.nodes;
@@ -886,8 +1010,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             } catch (error) {
                 const errorMsg = error.message || 'Unknown error';
                 if (listDiv) {
-                    listDiv.innerHTML = 
-                        `<p class="text-red-600 font-semibold">Error loading wormholes</p>
+                    listDiv.innerHTML =
+                        `<p class="text-red-600 font-semibold">${escapeHtml(TELARIS_EDIT.headingErrorLoading)}</p>
                          <p class="text-red-600 text-sm mt-2">${escapeHtml(errorMsg)}</p>`;
                 }
             }
@@ -897,18 +1021,18 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         function displayNodes(nodes) {
             const listDiv = document.getElementById('nodes-list');
             if (!listDiv) return;
-            
+
             if (!Array.isArray(nodes)) {
-                listDiv.innerHTML = '<p class="text-red-600 p-4">Error: Invalid data format received.</p>';
+                listDiv.innerHTML = '<p class="text-red-600 p-4">' + escapeHtml(TELARIS_EDIT.errorInvalidDataFormat) + '</p>';
                 return;
             }
-            
+
             if (nodes.length === 0) {
                 listDiv.innerHTML = `
                     <div class="flex flex-col items-center justify-center py-12 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
                         <svg class="w-12 h-12 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
-                        <p class="text-lg font-medium">No wormholes found.</p>
-                        <p class="text-sm">Try adjusting your search or add a new wormhole to get started.</p>
+                        <p class="text-lg font-medium">${escapeHtml(TELARIS_EDIT.headingNoWormholes)}</p>
+                        <p class="text-sm">${escapeHtml(TELARIS_EDIT.textEmptyStateHelp)}</p>
                     </div>
                 `;
                 return;
@@ -921,14 +1045,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <div class="col-span-1 flex justify-center">
                                 <input type="checkbox" id="select-all-nodes" onclick="toggleSelectAll(this)" class="checkbox checkbox-xs border-gray-400">
                             </div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'name\')">Name<span id="sort-indicator-name"></span></div>
-                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'node_type\')">Type<span id="sort-indicator-node_type"></span></div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'constellation_name\')">Galaxy<span id="sort-indicator-constellation_name"></span></div>
-                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'keywords\')">Keywords<span id="sort-indicator-keywords"></span></div>
-                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'is_accentuated\')" title="Accentuated Status">Acc<span id="sort-indicator-is_accentuated"></span></div>
-                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'created_at\')">Created<span id="sort-indicator-created_at"></span></div>
-                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'updated_at\')">Updated<span id="sort-indicator-updated_at"></span></div>
-                            <div class="col-span-1 text-right pr-2">Actions</div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'name\')">${escapeHtml(TELARIS_EDIT.colName)}<span id="sort-indicator-name"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'node_type\')">${escapeHtml(TELARIS_EDIT.colType)}<span id="sort-indicator-node_type"></span></div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'constellation_name\')">${escapeHtml(TELARIS_EDIT.colGalaxy)}<span id="sort-indicator-constellation_name"></span></div>
+                            <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'keywords\')">${escapeHtml(TELARIS_EDIT.colKeywords)}<span id="sort-indicator-keywords"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'is_accentuated\')" title="${escapeHtml(TELARIS_EDIT.colAccTitle)}">${escapeHtml(TELARIS_EDIT.colAcc)}<span id="sort-indicator-is_accentuated"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'created_at\')">${escapeHtml(TELARIS_EDIT.colCreated)}<span id="sort-indicator-created_at"></span></div>
+                            <div class="col-span-1 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn(\'updated_at\')">${escapeHtml(TELARIS_EDIT.colUpdated)}<span id="sort-indicator-updated_at"></span></div>
+                            <div class="col-span-1 text-right pr-2">${escapeHtml(TELARIS_EDIT.colActions)}</div>
                         </div>
                     </div>
                 `;
@@ -948,19 +1072,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     const updatedDate = updatedDateObj 
                         ? `${updatedDateObj.getFullYear().toString().slice(-2)}-${(updatedDateObj.getMonth()+1).toString().padStart(2,'0')}-${updatedDateObj.getDate().toString().padStart(2,'0')} ${updatedDateObj.getHours().toString().padStart(2,'0')}:${updatedDateObj.getMinutes().toString().padStart(2,'0')}` 
                         : 'N/A';
-                    const keywordsDisplay = node.keywords && node.keywords.length > 0 
+                    const keywordsDisplay = node.keywords && node.keywords.length > 0
                         ? node.keywords.map(k => `<span class="badge badge-sm border-current/20 ${getPastelColor(k)}">${escapeHtml(k)}</span>`).join(' ')
-                        : '<span class="text-xs text-gray-400">No keywords</span>';
+                        : `<span class="text-xs text-gray-400">${escapeHtml(TELARIS_EDIT.textNoKeywords)}</span>`;
                     const constellationName = (node.constellation_name || 'Default');
                     const nodeType = node.node_type || 'object';
-                    const typeLabel = nodeType === 'portal' ? 'Portal' : 'Object';
+                    const typeLabel = nodeType === 'portal' ? TELARIS_EDIT.labelTypePortal : TELARIS_EDIT.labelTypeObject;
                     const typeBadgeClass = nodeType === 'portal' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700';
                     const targetConstellationList = allConstellations.length ? allConstellations : CONSTELLATIONS;
                     const targetConstellationName = (nodeType === 'portal' && node.target_constellation_id != null)
                         ? (targetConstellationList.find(c => c.id === node.target_constellation_id)?.name || ('#' + node.target_constellation_id))
                         : '';
                     const typeDisplay = nodeType === 'portal' && targetConstellationName
-                        ? `<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeBadgeClass}" title="Target: ${escapeHtml(targetConstellationName)}">${escapeHtml(typeLabel)}</span> <span class="text-xs text-gray-500 truncate block" title="${escapeHtml(targetConstellationName)}">→ ${escapeHtml(targetConstellationName)}</span>`
+                        ? `<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeBadgeClass}" title="${escapeHtml(TELARIS_EDIT.labelTargetPrefix)} ${escapeHtml(targetConstellationName)}">${escapeHtml(typeLabel)}</span> <span class="text-xs text-gray-500 truncate block" title="${escapeHtml(targetConstellationName)}">→ ${escapeHtml(targetConstellationName)}</span>`
                         : `<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeBadgeClass}">${escapeHtml(typeLabel)}</span>`;
                     return `
                 <div class="border-b border-gray-300 hover:bg-gray-50 py-2 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50/50' : ''}" onclick="toggleNodeSelection(${node.id}, event)">
@@ -971,13 +1095,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <div class="col-span-2 min-w-0" onclick="editNode(${node.id}); event.stopPropagation();">
                             <div class="font-semibold text-gray-800 truncate" title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</div>
                             <div class="flex flex-wrap gap-1 mt-1">
-                                ${node.is_accentuated ? '<span class="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded border border-yellow-200 font-bold" title="Accentuated Wormhole">ACC</span>' : ''}
-                                ${node.url ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded" title="Has URL">URL</span>' : ''}
-                                ${node.description ? '<span class="text-[10px] bg-green-100 text-green-700 px-1 rounded" title="Has Description">DESC</span>' : ''}
-                                ${node.image_url ? '<span class="text-[10px] bg-purple-100 text-purple-700 px-1 rounded" title="Has Image">IMG</span>' : ''}
-                                ${node.embed_code ? '<span class="text-[10px] bg-pink-100 text-pink-700 px-1 rounded" title="Has Embed">EMB</span>' : ''}
-                                ${node.audio_url ? '<span class="text-[10px] bg-orange-100 text-orange-700 px-1 rounded" title="Has Audio">AUD</span>' : ''}
-                                ${node.video_url ? '<span class="text-[10px] bg-cyan-100 text-cyan-700 px-1 rounded" title="Has Video">VID</span>' : ''}
+                                ${node.is_accentuated ? `<span class="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded border border-yellow-200 font-bold" title="${escapeHtml(TELARIS_EDIT.badgeAccTitle)}">${escapeHtml(TELARIS_EDIT.badgeAcc)}</span>` : ''}
+                                ${node.url ? `<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded" title="${escapeHtml(TELARIS_EDIT.badgeUrlTitle)}">${escapeHtml(TELARIS_EDIT.badgeUrl)}</span>` : ''}
+                                ${node.description ? `<span class="text-[10px] bg-green-100 text-green-700 px-1 rounded" title="${escapeHtml(TELARIS_EDIT.badgeDescTitle)}">${escapeHtml(TELARIS_EDIT.badgeDesc)}</span>` : ''}
+                                ${node.image_url ? `<span class="text-[10px] bg-purple-100 text-purple-700 px-1 rounded" title="${escapeHtml(TELARIS_EDIT.badgeImgTitle)}">${escapeHtml(TELARIS_EDIT.badgeImg)}</span>` : ''}
+                                ${node.embed_code ? `<span class="text-[10px] bg-pink-100 text-pink-700 px-1 rounded" title="${escapeHtml(TELARIS_EDIT.badgeEmbTitle)}">${escapeHtml(TELARIS_EDIT.badgeEmb)}</span>` : ''}
+                                ${node.audio_url ? `<span class="text-[10px] bg-orange-100 text-orange-700 px-1 rounded" title="${escapeHtml(TELARIS_EDIT.badgeAudTitle)}">${escapeHtml(TELARIS_EDIT.badgeAud)}</span>` : ''}
+                                ${node.video_url ? `<span class="text-[10px] bg-cyan-100 text-cyan-700 px-1 rounded" title="${escapeHtml(TELARIS_EDIT.badgeVidTitle)}">${escapeHtml(TELARIS_EDIT.badgeVid)}</span>` : ''}
                             </div>
                         </div>
                         <div class="col-span-1 text-xs">
@@ -988,7 +1112,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <div class="flex flex-wrap gap-1">${keywordsDisplay}</div>
                         </div>
                         <div class="col-span-1 text-center">
-                            ${node.is_accentuated ? '<span class="text-yellow-600 font-bold" title="Accentuated">✓</span>' : '<span class="text-gray-300">—</span>'}
+                            ${node.is_accentuated ? `<span class="text-yellow-600 font-bold" title="${escapeHtml(TELARIS_EDIT.titleAccentuated)}">✓</span>` : '<span class="text-gray-300">—</span>'}
                         </div>
                         <div class="col-span-1 text-xs text-gray-500 whitespace-nowrap">
                             ${createdDate}
@@ -1002,11 +1126,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
                                 </label>
                                 <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-44">
-                                    <li><a onclick="event.stopPropagation(); viewNode(${node.id})" class="text-gray-700 text-xs">View Wormhole</a></li>
-                                    <li><a onclick="event.stopPropagation(); viewConstellation(${node.constellation_id})" class="text-gray-700 text-xs">View Galaxy</a></li>
-                                    <li class="border-t border-gray-100 mt-1 pt-1"><a onclick="event.stopPropagation(); editNode(${node.id})" class="text-gray-700 text-xs">Edit</a></li>
-                                    <li><a onclick="event.stopPropagation(); openDuplicateModal(${node.id})" class="text-gray-700 text-xs">Duplicate</a></li>
-                                    <li class="node-edit-action"><a onclick="event.stopPropagation(); deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="text-red-600 text-xs">Delete</a></li>
+                                    <li><a onclick="event.stopPropagation(); viewNode(${node.id})" class="text-gray-700 text-xs">${escapeHtml(TELARIS_EDIT.actionViewWormhole)}</a></li>
+                                    <li><a onclick="event.stopPropagation(); viewConstellation(${node.constellation_id})" class="text-gray-700 text-xs">${escapeHtml(TELARIS_EDIT.actionViewGalaxy)}</a></li>
+                                    <li class="border-t border-gray-100 mt-1 pt-1"><a onclick="event.stopPropagation(); editNode(${node.id})" class="text-gray-700 text-xs">${escapeHtml(TELARIS_EDIT.actionEdit)}</a></li>
+                                    <li><a onclick="event.stopPropagation(); openDuplicateModal(${node.id})" class="text-gray-700 text-xs">${escapeHtml(TELARIS_EDIT.actionDuplicate)}</a></li>
+                                    <li class="node-edit-action"><a onclick="event.stopPropagation(); deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="text-red-600 text-xs">${escapeHtml(TELARIS_EDIT.actionDelete)}</a></li>
                                 </ul>
                             </div>
                         </div>
@@ -1027,7 +1151,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     }
                 }
             } catch (error) {
-                listDiv.innerHTML = '<p class="text-red-600">Error displaying wormholes: ' + escapeHtml(error.message) + '</p>';
+                listDiv.innerHTML = '<p class="text-red-600">' + escapeHtml(tFmt(TELARIS_EDIT.errorCouldNotLoad, error.message)) + '</p>';
             }
         }
 
@@ -1399,7 +1523,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     if (!response.ok) throw new Error('Failed to fetch node');
                     node = await response.json();
                 } catch (e) {
-                    showMessage('Error loading wormhole: ' + e.message, 'error');
+                    showMessage(tFmt(TELARIS_EDIT.errorLoadingNode, e.message), 'error');
                     return;
                 }
             }
@@ -1544,17 +1668,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const nodeName = document.getElementById('edit-name').value.trim();
             
             if (!nodeName) {
-                showMessage('Wormhole name is required', 'error');
+                showMessage(TELARIS_EDIT.errorNameRequired, 'error');
                 return;
             }
-            
+
             if (!API_KEY) {
-                showMessage('API key is missing.', 'error');
+                showMessage(TELARIS_EDIT.errorApiKeyMissing, 'error');
                 return;
             }
 
             const node = allNodes.find(n => n.id === nodeId);
-            
+
             const formData = new FormData();
             formData.append('id', nodeId);
             formData.append('name', nodeName);
@@ -1665,7 +1789,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
                 if (xhr.status >= 200 && xhr.status < 300) {
                     document.getElementById(modalId).close();
-                    let successMsg = `Wormhole ${context === 'edit' ? 'updated' : 'created'} successfully`;
+                    let successMsg = context === 'edit' ? TELARIS_EDIT.toastUpdatedSuccess : TELARIS_EDIT.toastCreatedSuccess;
                     try {
                         const resp = JSON.parse(xhr.responseText);
                         if (resp.notice) successMsg += '. ' + resp.notice;
@@ -1673,7 +1797,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     showMessage(successMsg);
                     loadNodes();
                 } else {
-                    let errorMsg = `Failed to ${context === 'edit' ? 'update' : 'create'} wormhole`;
+                    let errorMsg = context === 'edit' ? TELARIS_EDIT.errorFailedUpdate : TELARIS_EDIT.errorFailedCreate;
                     try {
                         const response = JSON.parse(xhr.responseText);
                         errorMsg = response.error || errorMsg;
@@ -1687,7 +1811,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 submitBtn.disabled = false;
                 loader.classList.add('hidden');
                 progressWrap.classList.add('hidden');
-                showMessage('Network error occurred during upload', 'error');
+                showMessage(TELARIS_EDIT.errorNetworkUpload, 'error');
             };
 
             xhr.send(formData);
@@ -1718,16 +1842,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const nodeId = document.getElementById('edit-id').value;
             if (!nodeId) return;
 
-            confirmAction(`Are you sure you want to delete this uploaded ${type} file?`, async () => {
+            confirmAction(tFmt(TELARIS_EDIT.confirmDeleteFile, type), async () => {
                 try {
                     const response = await fetch(`${API_BASE}?id=${nodeId}&file_type=${type}`, {
                         method: 'DELETE',
                         headers: { 'X-API-Key': API_KEY }
                     });
-                    
+
                     if (!response.ok) throw new Error('Failed to delete file');
-                    
-                    showMessage(`${type.charAt(0).toUpperCase() + type.slice(1)} file deleted`);
+
+                    showMessage(tFmt(TELARIS_EDIT.toastFileDeleted, type.charAt(0).toUpperCase() + type.slice(1)));
                     
                     // Update UI in modal
                     document.getElementById(`edit-${type}-file-wrap`).classList.remove('hidden');
@@ -1745,14 +1869,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     }
                     
                 } catch (error) {
-                    showMessage('Error deleting file: ' + error.message, 'error');
+                    showMessage(tFmt(TELARIS_EDIT.errorDeletingFile, error.message), 'error');
                 }
             });
         }
 
         // Delete node
         async function deleteNode(id, name) {
-            confirmAction(`Are you sure you want to delete "${name}"? This action cannot be undone.`, async () => {
+            confirmAction(tFmt(TELARIS_EDIT.confirmDeleteNode, name), async () => {
                 try {
                     const response = await fetch(`${API_BASE}?id=${id}`, {
                         method: 'DELETE',
@@ -1760,16 +1884,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             'X-API-Key': API_KEY
                         }
                     });
-                    
+
                     if (!response.ok) {
                         const error = await response.json();
-                        throw new Error(error.error || 'Failed to delete wormhole');
+                        throw new Error(error.error || TELARIS_EDIT.errorDeleteWormhole);
                     }
-                    
-                    showMessage('Wormhole deleted successfully');
+
+                    showMessage(TELARIS_EDIT.toastDeletedSuccess);
                     loadNodes();
                 } catch (error) {
-                    showMessage('Error deleting wormhole: ' + error.message, 'error');
+                    showMessage(tFmt(TELARIS_EDIT.errorDeletingWormhole, error.message), 'error');
                 }
             });
         }
@@ -1800,12 +1924,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             
             const nodeName = document.getElementById('node-name').value.trim();
             if (!nodeName) {
-                showMessage('Wormhole name is required', 'error');
+                showMessage(TELARIS_EDIT.errorNameRequired, 'error');
                 return;
             }
 
             if (!API_KEY) {
-                showMessage('API key is missing.', 'error');
+                showMessage(TELARIS_EDIT.errorApiKeyMissing, 'error');
                 return;
             }
 
@@ -1886,13 +2010,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 loadNodes().catch(error => {
                     const listDiv = document.getElementById('nodes-list');
                     if (listDiv) {
-                        listDiv.innerHTML = '<p class="text-red-600">Fatal error loading wormholes: ' + escapeHtml(error.message) + '</p>';
+                        listDiv.innerHTML = '<p class="text-red-600">' + escapeHtml(tFmt(TELARIS_EDIT.errorFatalLoading, error.message)) + '</p>';
                     }
                 });
             } catch (error) {
                 const listDiv = document.getElementById('nodes-list');
                 if (listDiv) {
-                    listDiv.innerHTML = '<p class="text-red-600">Error: Could not load wormholes. ' + escapeHtml(error.message) + '</p>';
+                    listDiv.innerHTML = '<p class="text-red-600">' + escapeHtml(tFmt(TELARIS_EDIT.errorCouldNotLoad, error.message)) + '</p>';
                 }
             }
         });
@@ -2211,7 +2335,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             loadNodes().catch(error => {
                 const listDiv = document.getElementById('nodes-list');
                 if (listDiv) {
-                    listDiv.innerHTML = `<p class="text-red-600">Fatal error loading wormholes: ${escapeHtml(error.message)}</p>`;
+                    listDiv.innerHTML = `<p class="text-red-600">${escapeHtml(tFmt(TELARIS_EDIT.errorFatalLoading, error.message))}</p>`;
                 }
             });
             setupLiveValidation();
@@ -2221,37 +2345,37 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="create_node_modal" class="modal">
         <div class="modal-box max-w-4xl bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Add New Wormhole</h3>
+                <h3 class="font-bold text-xl"><?= t('editor_modal_heading_add_wormhole', 'Add New Wormhole') ?></h3>
             </div>
             <form id="create-node-form" class="space-y-4 mt-4" onsubmit="saveNewNode(event)">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label for="node-name" class="block mb-1.5 text-gray-800 font-medium text-sm">Name *</label>
+                        <label for="node-name" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_name_required', 'Name *') ?></label>
                         <input type="text" id="node-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span id="node-name-error" class="text-xs text-red-600 mt-1 hidden">This wormhole name already exists in this galaxy.</span>
-                        <span class="text-xs text-gray-500 mt-1 block">Primary title of the wormhole shown in the network.</span>
+                        <span id="node-name-error" class="text-xs text-red-600 mt-1 hidden"><?= t('editor_error_name_exists', 'This wormhole name already exists in this galaxy.') ?></span>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_name', 'Primary title of the wormhole shown in the network.') ?></span>
                     </div>
                     <div>
-                        <label for="node-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Galaxy</label>
+                        <label for="node-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_galaxy', 'Galaxy') ?></label>
                         <select id="node-constellation" name="constellation_id" class="select select-bordered select-sm w-full bg-white">
                             <?php foreach ($constellations as $c): ?>
                                 <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <span class="text-xs text-gray-500 mt-1 block">Which galaxy this wormhole belongs to.</span>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_constellation', 'Which galaxy this wormhole belongs to.') ?></span>
                     </div>
                     <div>
-                        <label for="node-type" class="block mb-1.5 text-gray-800 font-medium text-sm">Wormhole type</label>
+                        <label for="node-type" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_wormhole_type', 'Wormhole type') ?></label>
                         <select id="node-type" name="node_type" onchange="toggleTargetConstellation(this.value, 'create')" class="select select-bordered select-sm w-full bg-white">
-                            <option value="object">Object</option>
-                            <option value="portal">Portal</option>
+                            <option value="object"><?= t('editor_label_node_type_object', 'Object') ?></option>
+                            <option value="portal"><?= t('editor_label_node_type_portal', 'Portal') ?></option>
                         </select>
-                        <span class="text-xs text-gray-500 mt-1 block">Object is a standard item; Portal links to another galaxy.</span>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_node_type', 'Object is a standard item; Portal links to another galaxy.') ?></span>
                     </div>
                     <div>
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_keywords', 'Keywords') ?></label>
                         <div id="keywords-container-create" class="relative flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
-                            <input type="text" id="node-keywords-input" placeholder="Add keyword..."
+                            <input type="text" id="node-keywords-input" placeholder="<?= t_attr('editor_placeholder_add_keyword', 'Add keyword...') ?>"
                                    onkeydown="handleKeywordInput(event, 'create')"
                                    oninput="if(this.value.includes(',')) { addKeywords(this.value, 'create'); this.value = ''; } else { updateKeywordSuggestions('create'); }"
                                    onfocus="updateKeywordSuggestions('create')"
@@ -2260,117 +2384,117 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <div id="keyword-suggestions-create" class="hidden absolute left-0 right-0 top-full mt-1 z-[100] max-h-56 overflow-y-auto overscroll-contain rounded border border-gray-300 bg-white shadow-lg text-sm"></div>
                         </div>
                         <input type="hidden" id="node-keywords" name="keywords">
-                        <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords. Suggestions surface keywords already used in this galaxy and in sibling galaxies sharing your <code>[XX]</code> prefix.</span>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_keywords_add', 'Type and press Enter or comma to add keywords. Suggestions surface keywords already used in this galaxy and in sibling galaxies sharing your `[XX]` prefix.') ?></span>
                     </div>
                     <div class="flex flex-col justify-center">
                         <label class="label cursor-pointer justify-start gap-4">
                             <input type="checkbox" id="node-accentuated" name="is_accentuated" class="toggle toggle-neutral">
-                            <span class="label-text font-medium text-gray-800">Accentuate Wormhole</span>
+                            <span class="label-text font-medium text-gray-800"><?= t('editor_label_accentuate_wormhole', 'Accentuate Wormhole') ?></span>
                         </label>
-                        <span class="text-xs text-gray-500 block ml-1">Make this wormhole larger and more prominent in the network.</span>
+                        <span class="text-xs text-gray-500 block ml-1"><?= t('editor_help_accentuate', 'Make this wormhole larger and more prominent in the network.') ?></span>
                     </div>
                     <div class="flex flex-col justify-center">
                         <label class="label cursor-pointer justify-start gap-4">
                             <input type="checkbox" id="node-show-keywords" name="show_keywords" class="toggle toggle-neutral">
-                            <span class="label-text font-medium text-gray-800">Show Keywords</span>
+                            <span class="label-text font-medium text-gray-800"><?= t('editor_label_show_keywords', 'Show Keywords') ?></span>
                         </label>
-                        <span class="text-xs text-gray-500 block ml-1">Display this wormhole's keywords in its info window.</span>
+                        <span class="text-xs text-gray-500 block ml-1"><?= t('editor_help_show_keywords', "Display this wormhole's keywords in its info window.") ?></span>
                     </div>
                 </div>
                 <div id="create-target-constellation-wrap" class="hidden">
                     <div class="flex flex-wrap items-end gap-2 mb-2">
                         <div class="min-w-[200px] flex-1">
-                            <label for="node-target-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Target Galaxy</label>
+                            <label for="node-target-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_target_galaxy', 'Target Galaxy') ?></label>
                             <select id="node-target-constellation" name="target_constellation_id" class="select select-bordered select-sm w-full bg-white">
                                 <?php foreach ($constellations as $c): ?>
                                     <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <span class="text-xs text-gray-500 mt-1 block">The destination galaxy this portal leads to.</span>
+                            <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_target_galaxy', 'The destination galaxy this portal leads to.') ?></span>
                         </div>
-                        <button type="button" onclick="createNewConstellation('create')" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">Create New Galaxy</button>
+                        <button type="button" onclick="createNewConstellation('create')" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap"><?= t('editor_btn_create_new_galaxy', 'Create New Galaxy') ?></button>
                     </div>
                 </div>
                 <div>
-                    <label for="node-description" class="block mb-1.5 text-gray-800 font-medium text-sm">Description</label>
+                    <label for="node-description" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_description', 'Description') ?></label>
                     <textarea id="node-description" name="description" rows="3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
-                    <span class="text-xs text-gray-500 mt-1 block">Detailed text displayed when the wormhole is selected.</span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_description', 'Detailed text displayed when the wormhole is selected.') ?></span>
                 </div>
                 <div>
-                    <label for="node-url" class="block mb-1.5 text-gray-800 font-medium text-sm">URL</label>
-                    <input type="url" id="node-url" name="url" placeholder="https://example.com" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">URL to open when the wormhole is clicked (optional).</span>
+                    <label for="node-url" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_url', 'URL') ?></label>
+                    <input type="url" id="node-url" name="url" placeholder="<?= t_attr('editor_placeholder_url', 'https://example.com') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_url', 'URL to open when the wormhole is clicked (optional).') ?></span>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Left column: Primary visual (Image / Video / PDF — mutually exclusive). -->
+                    <!-- Left column: Primary visual (Image / Video / PDF, mutually exclusive). -->
                     <div class="flex flex-col">
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Primary visual</label>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_primary_visual', 'Primary visual') ?></label>
                         <div class="tabs tabs-bordered mb-2">
-                            <button type="button" id="create-image-tab" onclick="switchVisualTab('image', 'create')" class="tab tab-sm tab-active">Image</button>
-                            <button type="button" id="create-video-tab" onclick="switchVisualTab('video', 'create')" class="tab tab-sm">Video (MP4)</button>
-                            <button type="button" id="create-pdf-tab" onclick="switchVisualTab('pdf', 'create')" class="tab tab-sm">PDF</button>
+                            <button type="button" id="create-image-tab" onclick="switchVisualTab('image', 'create')" class="tab tab-sm tab-active"><?= t('editor_tab_image', 'Image') ?></button>
+                            <button type="button" id="create-video-tab" onclick="switchVisualTab('video', 'create')" class="tab tab-sm"><?= t('editor_tab_video', 'Video (MP4)') ?></button>
+                            <button type="button" id="create-pdf-tab" onclick="switchVisualTab('pdf', 'create')" class="tab tab-sm"><?= t('editor_tab_pdf', 'PDF') ?></button>
                         </div>
                         <input type="hidden" id="create-visual-type" value="image">
-                        <span class="text-xs text-gray-500 mt-0 mb-2 block">Pick one. Switching tabs and saving clears the others.</span>
+                        <span class="text-xs text-gray-500 mt-0 mb-2 block"><?= t('editor_help_visual_mutex', 'Pick one. Switching tabs and saving clears the others.') ?></span>
 
                         <!-- Image content (default visible) -->
                         <div id="create-image-content">
                             <div class="flex items-center justify-between mb-1.5 gap-2">
-                                <label for="node-image-url" class="text-gray-800 font-medium text-xs">Image URL / File</label>
+                                <label for="node-image-url" class="text-gray-800 font-medium text-xs"><?= t('editor_label_image_url_file', 'Image URL / File') ?></label>
                                 <label class="label cursor-pointer justify-end gap-2 py-0">
-                                    <span class="label-text text-xs text-gray-700">Use as wormhole icon</span>
+                                    <span class="label-text text-xs text-gray-700"><?= t('editor_label_use_as_icon', 'Use as wormhole icon') ?></span>
                                     <input type="checkbox" id="node-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral toggle-sm">
                                 </label>
                             </div>
-                            <input type="text" id="node-image-url" name="image_url" placeholder="https://example.com/image.jpg" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="text" id="node-image-url" name="image_url" placeholder="<?= t_attr('editor_placeholder_image_url', 'https://example.com/image.jpg') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                             <input type="file" id="node-image-file" name="image_file" accept="image/*,video/*" class="text-xs">
                         </div>
 
                         <!-- Video content -->
                         <div id="create-video-content" class="hidden">
-                            <input type="text" id="node-video-url" name="video_url" placeholder="https://example.com/video.mp4" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="text" id="node-video-url" name="video_url" placeholder="<?= t_attr('editor_placeholder_video_url', 'https://example.com/video.mp4') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                             <input type="file" id="node-video-file" name="video_file" accept="video/mp4" class="text-xs">
                             <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
                                 <input type="checkbox" id="node-video-autoplay" name="video_autoplay" checked>
-                                Autoplay video
+                                <?= t('editor_label_autoplay_video', 'Autoplay video') ?>
                             </label>
                         </div>
 
                         <!-- PDF content -->
                         <div id="create-pdf-content" class="hidden">
-                            <input type="text" id="node-pdf-url" name="pdf_url" placeholder="https://example.com/document.pdf" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="text" id="node-pdf-url" name="pdf_url" placeholder="<?= t_attr('editor_placeholder_pdf_url', 'https://example.com/document.pdf') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                             <input type="file" id="node-pdf-file" name="pdf_file" accept="application/pdf,.pdf" class="text-xs">
-                            <span class="text-xs text-gray-500 mt-1 block">Upload a PDF or provide a link.</span>
+                            <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_pdf', 'Upload a PDF or provide a link.') ?></span>
                         </div>
 
                         <!-- Credit (applies to whichever visual is active). Stored on nodes.image_attribution. -->
-                        <input type="text" id="node-image-attribution" name="image_attribution" placeholder="Credit / attribution..." class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-3" maxlength="255">
-                        <span class="text-xs text-gray-500 mt-0.5 block">Optional credit shown on the visual in the info box (image, video, or PDF).</span>
+                        <input type="text" id="node-image-attribution" name="image_attribution" placeholder="<?= t_attr('editor_placeholder_credit', 'Credit / attribution...') ?>" class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-3" maxlength="255">
+                        <span class="text-xs text-gray-500 mt-0.5 block"><?= t('editor_help_credit', 'Optional credit shown on the visual in the info box (image, video, or PDF).') ?></span>
                     </div>
 
-                    <!-- Right column: Icon (top), Audio (bottom — independent of the visual mutex). -->
+                    <!-- Right column: Icon (top), Audio (bottom, independent of the visual mutex). -->
                     <div class="flex flex-col gap-4">
                         <div>
-                            <label for="node-icon-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Icon URL / File</label>
-                            <input type="text" id="node-icon-url" name="icon_url" placeholder="https://example.com/icon.png" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <label for="node-icon-url" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_icon_url_file', 'Icon URL / File') ?></label>
+                            <input type="text" id="node-icon-url" name="icon_url" placeholder="<?= t_attr('editor_placeholder_icon_url', 'https://example.com/icon.png') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                             <input type="file" id="node-icon-file" name="icon_file" accept="image/*" class="text-xs">
-                            <span class="text-xs text-gray-500 mt-1 block">Custom icon displayed in the 3D scene (overrides theme icon).</span>
+                            <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_icon', 'Custom icon displayed in the 3D scene (overrides theme icon).') ?></span>
                         </div>
                         <div>
-                            <label for="node-audio-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Audio URL / File</label>
-                            <input type="text" id="node-audio-url" name="audio_url" placeholder="https://example.com/audio.mp3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <label for="node-audio-url" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_audio_url_file', 'Audio URL / File') ?></label>
+                            <input type="text" id="node-audio-url" name="audio_url" placeholder="<?= t_attr('editor_placeholder_audio_url', 'https://example.com/audio.mp3') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                             <input type="file" id="node-audio-file" name="audio_file" accept="audio/*" class="text-xs">
                             <div class="flex items-center gap-4 mt-2">
                                 <label class="flex items-center gap-2 text-xs text-gray-700">
                                     <input type="checkbox" id="node-audio-autoplay" name="audio_autoplay" checked>
-                                    Autoplay
+                                    <?= t('editor_label_autoplay', 'Autoplay') ?>
                                 </label>
                                 <label class="flex items-center gap-2 text-xs text-gray-700">
                                     <input type="checkbox" id="node-audio-loop" name="audio_loop">
-                                    Loop
+                                    <?= t('editor_label_loop', 'Loop') ?>
                                 </label>
                             </div>
-                            <span class="text-xs text-gray-500 mt-1 block">Independent of the primary visual — audio can pair with image, video, or PDF.</span>
+                            <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_audio', 'Independent of the primary visual: audio can pair with image, video, or PDF.') ?></span>
                         </div>
                     </div>
                 </div>
@@ -2381,7 +2505,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div>
                 <div id="create-progress-wrap" class="hidden space-y-2">
                     <div class="flex justify-between text-xs font-medium">
-                        <span>Uploading...</span>
+                        <span><?= t('editor_text_uploading', 'Uploading...') ?></span>
                         <span id="create-progress-text">0%</span>
                     </div>
                     <progress id="create-progress-bar" class="progress progress-neutral w-full" value="0" max="100"></progress>
@@ -2389,9 +2513,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 <div class="modal-action">
                     <button type="submit" id="create-submit-btn" class="btn btn-neutral">
                         <span class="loading loading-spinner hidden" id="create-submit-loader"></span>
-                        Add Wormhole
+                        <?= t('editor_btn_add_wormhole', 'Add Wormhole') ?>
                     </button>
-                    <button type="button" class="btn" onclick="document.getElementById('create_node_modal').close()">Cancel</button>
+                    <button type="button" class="btn" onclick="document.getElementById('create_node_modal').close()"><?= t('editor_btn_cancel', 'Cancel') ?></button>
                 </div>
             </form>
         </div>
@@ -2401,19 +2525,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="edit_modal" class="modal">
         <div class="modal-box max-w-4xl bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-                <h3 class="font-bold text-xl">Edit Wormhole</h3>
+                <h3 class="font-bold text-xl"><?= t('editor_modal_heading_edit_wormhole', 'Edit Wormhole') ?></h3>
                 <span id="edit-node-constellation-badge" class="text-xs opacity-70 font-mono"></span>
             </div>
             <form id="edit-node-form" class="space-y-4 mt-4" onsubmit="saveNodeEdit(event)">
                 <input type="hidden" id="edit-id" name="id">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Name *</label>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_name_required', 'Name *') ?></label>
                         <input type="text" id="edit-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span id="edit-name-error" class="text-xs text-red-600 mt-1 hidden">This wormhole name already exists in this galaxy.</span>
+                        <span id="edit-name-error" class="text-xs text-red-600 mt-1 hidden"><?= t('editor_error_name_exists', 'This wormhole name already exists in this galaxy.') ?></span>
                     </div>
                     <div>
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Galaxy</label>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_galaxy', 'Galaxy') ?></label>
                         <select id="edit-constellation" name="constellation_id" class="select select-bordered select-sm w-full bg-white">
                             <?php foreach ($constellations as $c): ?>
                                 <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
@@ -2421,16 +2545,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </select>
                     </div>
                     <div>
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Wormhole type</label>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_wormhole_type', 'Wormhole type') ?></label>
                         <select id="edit-node-type" name="node_type" onchange="toggleTargetConstellation(this.value, 'modal')" class="select select-bordered select-sm w-full bg-white">
-                            <option value="object">Object</option>
-                            <option value="portal">Portal</option>
+                            <option value="object"><?= t('editor_label_node_type_object', 'Object') ?></option>
+                            <option value="portal"><?= t('editor_label_node_type_portal', 'Portal') ?></option>
                         </select>
                     </div>
                     <div>
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords</label>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_keywords', 'Keywords') ?></label>
                         <div id="keywords-container-modal" class="relative flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
-                            <input type="text" id="edit-keywords-input-modal" placeholder="Add keyword..."
+                            <input type="text" id="edit-keywords-input-modal" placeholder="<?= t_attr('editor_placeholder_add_keyword', 'Add keyword...') ?>"
                                    onkeydown="handleKeywordInput(event, 'modal')"
                                    oninput="if(this.value.includes(',')) { addKeywords(this.value, 'modal'); this.value = ''; } else { updateKeywordSuggestions('modal'); }"
                                    onfocus="updateKeywordSuggestions('modal')"
@@ -2439,141 +2563,141 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <div id="keyword-suggestions-modal" class="hidden absolute left-0 right-0 top-full mt-1 z-[100] max-h-56 overflow-y-auto overscroll-contain rounded border border-gray-300 bg-white shadow-lg text-sm"></div>
                         </div>
                         <input type="hidden" id="edit-keywords-hidden" name="keywords">
-                        <span class="text-xs text-gray-500 mt-1 block">Type and press Enter or comma to add keywords. Suggestions surface keywords already used in this galaxy and in sibling galaxies sharing your <code>[XX]</code> prefix.</span>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_keywords_add', 'Type and press Enter or comma to add keywords. Suggestions surface keywords already used in this galaxy and in sibling galaxies sharing your `[XX]` prefix.') ?></span>
                     </div>
                     <div class="flex flex-col justify-center">
                         <label class="label cursor-pointer justify-start gap-4">
                             <input type="checkbox" id="edit-accentuated" name="is_accentuated" class="toggle toggle-neutral">
-                            <span class="label-text font-medium text-gray-800">Accentuate Wormhole</span>
+                            <span class="label-text font-medium text-gray-800"><?= t('editor_label_accentuate_wormhole', 'Accentuate Wormhole') ?></span>
                         </label>
-                        <span class="text-xs text-gray-500 block ml-1">Make this wormhole larger and more prominent in the network.</span>
+                        <span class="text-xs text-gray-500 block ml-1"><?= t('editor_help_accentuate', 'Make this wormhole larger and more prominent in the network.') ?></span>
                     </div>
                     <div class="flex flex-col justify-center">
                         <label class="label cursor-pointer justify-start gap-4">
                             <input type="checkbox" id="edit-show-keywords" name="show_keywords" class="toggle toggle-neutral">
-                            <span class="label-text font-medium text-gray-800">Show Keywords</span>
+                            <span class="label-text font-medium text-gray-800"><?= t('editor_label_show_keywords', 'Show Keywords') ?></span>
                         </label>
-                        <span class="text-xs text-gray-500 block ml-1">Display this wormhole's keywords in its info window.</span>
+                        <span class="text-xs text-gray-500 block ml-1"><?= t('editor_help_show_keywords', "Display this wormhole's keywords in its info window.") ?></span>
                     </div>
                 </div>
                 <div id="edit-target-constellation-wrap-modal" class="hidden">
                     <div class="flex flex-wrap items-end gap-2 mb-2">
                         <div class="min-w-[200px] flex-1">
-                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Target Galaxy</label>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_target_galaxy', 'Target Galaxy') ?></label>
                             <select id="edit-target-constellation-modal" name="target_constellation_id" class="select select-bordered select-sm w-full bg-white"></select>
                         </div>
-                        <button type="button" onclick="createNewConstellation('modal')" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap">Create New Galaxy</button>
+                        <button type="button" onclick="createNewConstellation('modal')" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap"><?= t('editor_btn_create_new_galaxy', 'Create New Galaxy') ?></button>
                     </div>
                 </div>
                 <div>
-                    <label class="block mb-1.5 text-gray-800 font-medium text-sm">Description</label>
+                    <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_description', 'Description') ?></label>
                     <textarea id="edit-description" name="description" rows="3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
                 </div>
                 <div>
-                    <label class="block mb-1.5 text-gray-800 font-medium text-sm">URL</label>
-                    <input type="url" id="edit-url" name="url" placeholder="https://example.com" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_url', 'URL') ?></label>
+                    <input type="url" id="edit-url" name="url" placeholder="<?= t_attr('editor_placeholder_url', 'https://example.com') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                 </div>
-                <div class="divider text-gray-400 text-xs">Media</div>
+                <div class="divider text-gray-400 text-xs"><?= t('editor_divider_media', 'Media') ?></div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Left column: Primary visual (Image / Video / PDF — mutually exclusive). -->
+                    <!-- Left column: Primary visual (Image / Video / PDF, mutually exclusive). -->
                     <div class="flex flex-col">
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm">Primary visual</label>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_primary_visual', 'Primary visual') ?></label>
                         <div class="tabs tabs-bordered mb-2">
-                            <button type="button" id="edit-image-tab" onclick="switchVisualTab('image', 'edit')" class="tab tab-sm tab-active">Image</button>
-                            <button type="button" id="edit-video-tab" onclick="switchVisualTab('video', 'edit')" class="tab tab-sm">Video (MP4)</button>
-                            <button type="button" id="edit-pdf-tab" onclick="switchVisualTab('pdf', 'edit')" class="tab tab-sm">PDF</button>
+                            <button type="button" id="edit-image-tab" onclick="switchVisualTab('image', 'edit')" class="tab tab-sm tab-active"><?= t('editor_tab_image', 'Image') ?></button>
+                            <button type="button" id="edit-video-tab" onclick="switchVisualTab('video', 'edit')" class="tab tab-sm"><?= t('editor_tab_video', 'Video (MP4)') ?></button>
+                            <button type="button" id="edit-pdf-tab" onclick="switchVisualTab('pdf', 'edit')" class="tab tab-sm"><?= t('editor_tab_pdf', 'PDF') ?></button>
                         </div>
                         <input type="hidden" id="edit-visual-type" value="image">
-                        <span class="text-xs text-gray-500 mt-0 mb-2 block">Pick one. Switching tabs and saving clears the others.</span>
+                        <span class="text-xs text-gray-500 mt-0 mb-2 block"><?= t('editor_help_visual_mutex', 'Pick one. Switching tabs and saving clears the others.') ?></span>
 
                         <!-- Image content -->
                         <div id="edit-image-content">
                             <div class="flex items-center justify-between mb-1.5 gap-2">
-                                <label for="edit-image-url" class="text-gray-800 font-medium text-xs">Image URL / File</label>
+                                <label for="edit-image-url" class="text-gray-800 font-medium text-xs"><?= t('editor_label_image_url_file', 'Image URL / File') ?></label>
                                 <label class="label cursor-pointer justify-end gap-2 py-0">
-                                    <span class="label-text text-xs text-gray-700">Use as wormhole icon</span>
+                                    <span class="label-text text-xs text-gray-700"><?= t('editor_label_use_as_icon', 'Use as wormhole icon') ?></span>
                                     <input type="checkbox" id="edit-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral toggle-sm">
                                 </label>
                             </div>
                             <div id="edit-image-file-wrap">
-                                <input type="text" id="edit-image-url" name="image_url" placeholder="https://example.com/image.jpg" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                <input type="text" id="edit-image-url" name="image_url" placeholder="<?= t_attr('editor_placeholder_image_url', 'https://example.com/image.jpg') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                                 <input type="file" id="edit-image-file" name="image_file" accept="image/*,video/*" class="text-xs">
                             </div>
                             <div id="edit-image-existing" class="hidden flex items-center gap-2 mb-2">
                                 <input type="text" id="edit-image-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
-                                <button type="button" onclick="deleteModalFile('image')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                                <button type="button" onclick="deleteModalFile('image')" class="btn btn-error btn-sm btn-outline"><?= t('editor_btn_delete_file', 'Delete') ?></button>
                             </div>
                         </div>
 
                         <!-- Video content -->
                         <div id="edit-video-content" class="hidden">
                             <div id="edit-video-file-wrap">
-                                <input type="text" id="edit-video-url" name="video_url" placeholder="https://example.com/video.mp4" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                <input type="text" id="edit-video-url" name="video_url" placeholder="<?= t_attr('editor_placeholder_video_url', 'https://example.com/video.mp4') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                                 <input type="file" id="edit-video-file" name="video_file" accept="video/mp4" class="text-xs">
                             </div>
                             <div id="edit-video-existing" class="hidden flex items-center gap-2 mb-2">
                                 <input type="text" id="edit-video-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
-                                <button type="button" onclick="deleteModalFile('video')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                                <button type="button" onclick="deleteModalFile('video')" class="btn btn-error btn-sm btn-outline"><?= t('editor_btn_delete_file', 'Delete') ?></button>
                             </div>
                             <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
                                 <input type="checkbox" id="edit-video-autoplay" name="video_autoplay">
-                                Autoplay video
+                                <?= t('editor_label_autoplay_video', 'Autoplay video') ?>
                             </label>
                         </div>
 
                         <!-- PDF content -->
                         <div id="edit-pdf-content" class="hidden">
                             <div id="edit-pdf-file-wrap">
-                                <input type="text" id="edit-pdf-url" name="pdf_url" placeholder="https://example.com/document.pdf" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                <input type="text" id="edit-pdf-url" name="pdf_url" placeholder="<?= t_attr('editor_placeholder_pdf_url', 'https://example.com/document.pdf') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                                 <input type="file" id="edit-pdf-file" name="pdf_file" accept="application/pdf,.pdf" class="text-xs">
                             </div>
                             <div id="edit-pdf-existing" class="hidden flex items-center gap-2 mb-2">
                                 <input type="text" id="edit-pdf-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
-                                <button type="button" onclick="deleteModalFile('pdf')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                                <button type="button" onclick="deleteModalFile('pdf')" class="btn btn-error btn-sm btn-outline"><?= t('editor_btn_delete_file', 'Delete') ?></button>
                             </div>
                         </div>
 
                         <!-- Credit (applies to whichever visual is active). Stored on nodes.image_attribution. -->
-                        <input type="text" id="edit-image-attribution" name="image_attribution" placeholder="Credit / attribution..." class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-3" maxlength="255">
-                        <span class="text-xs text-gray-500 mt-0.5 block">Optional credit shown on the visual in the info box (image, video, or PDF).</span>
+                        <input type="text" id="edit-image-attribution" name="image_attribution" placeholder="<?= t_attr('editor_placeholder_credit', 'Credit / attribution...') ?>" class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-3" maxlength="255">
+                        <span class="text-xs text-gray-500 mt-0.5 block"><?= t('editor_help_credit', 'Optional credit shown on the visual in the info box (image, video, or PDF).') ?></span>
                     </div>
 
-                    <!-- Right column: Icon (top), Audio (middle), Embed code (bottom — independent of mutex). -->
+                    <!-- Right column: Icon (top), Audio (middle), Embed code (bottom, independent of mutex). -->
                     <div class="flex flex-col gap-4">
                         <div id="edit-icon-container">
-                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Icon URL / File</label>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_icon_url_file', 'Icon URL / File') ?></label>
                             <div id="edit-icon-file-wrap">
-                                <input type="text" id="edit-icon-url" name="icon_url" placeholder="https://example.com/icon.png" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                <input type="text" id="edit-icon-url" name="icon_url" placeholder="<?= t_attr('editor_placeholder_icon_url', 'https://example.com/icon.png') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                                 <input type="file" id="edit-icon-file" name="icon_file" accept="image/*" class="text-xs">
                             </div>
                             <div id="edit-icon-existing" class="hidden flex items-center gap-2 mb-2">
                                 <input type="text" id="edit-icon-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
-                                <button type="button" onclick="deleteModalFile('icon')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                                <button type="button" onclick="deleteModalFile('icon')" class="btn btn-error btn-sm btn-outline"><?= t('editor_btn_delete_file', 'Delete') ?></button>
                             </div>
-                            <span class="text-xs text-gray-500 mt-1 block">Custom icon displayed in the 3D scene (overrides theme icon).</span>
+                            <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_icon', 'Custom icon displayed in the 3D scene (overrides theme icon).') ?></span>
                         </div>
 
                         <div>
-                            <label for="edit-audio-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Audio URL / File</label>
+                            <label for="edit-audio-url" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_audio_url_file', 'Audio URL / File') ?></label>
                             <div id="edit-audio-file-wrap">
-                                <input type="text" id="edit-audio-url" name="audio_url" placeholder="https://example.com/audio.mp3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                                <input type="text" id="edit-audio-url" name="audio_url" placeholder="<?= t_attr('editor_placeholder_audio_url', 'https://example.com/audio.mp3') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
                                 <input type="file" id="edit-audio-file" name="audio_file" accept="audio/*" class="text-xs">
                             </div>
                             <div id="edit-audio-existing" class="hidden flex items-center gap-2 mb-2">
                                 <input type="text" id="edit-audio-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
-                                <button type="button" onclick="deleteModalFile('audio')" class="btn btn-error btn-sm btn-outline">Delete</button>
+                                <button type="button" onclick="deleteModalFile('audio')" class="btn btn-error btn-sm btn-outline"><?= t('editor_btn_delete_file', 'Delete') ?></button>
                             </div>
                             <div class="flex items-center gap-4 mt-2">
                                 <label class="flex items-center gap-2 text-xs text-gray-700">
                                     <input type="checkbox" id="edit-audio-autoplay" name="audio_autoplay">
-                                    Autoplay
+                                    <?= t('editor_label_autoplay', 'Autoplay') ?>
                                 </label>
                                 <label class="flex items-center gap-2 text-xs text-gray-700">
                                     <input type="checkbox" id="edit-audio-loop" name="audio_loop">
-                                    Loop
+                                    <?= t('editor_label_loop', 'Loop') ?>
                                 </label>
                             </div>
-                            <span class="text-xs text-gray-500 mt-1 block">Independent of the primary visual — pairs with image, video, or PDF.</span>
+                            <span class="text-xs text-gray-500 mt-1 block"><?= t('editor_help_audio', 'Independent of the primary visual: audio can pair with image, video, or PDF.') ?></span>
                         </div>
 
                         <!-- Embed code is hidden from the editor for now (unused in practice).
@@ -2585,7 +2709,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div>
                 <div id="edit-progress-wrap" class="hidden space-y-2">
                     <div class="flex justify-between text-xs font-medium">
-                        <span>Uploading...</span>
+                        <span><?= t('editor_text_uploading', 'Uploading...') ?></span>
                         <span id="edit-progress-text">0%</span>
                     </div>
                     <progress id="edit-progress-bar" class="progress progress-neutral w-full" value="0" max="100"></progress>
@@ -2593,9 +2717,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 <div class="modal-action">
                     <button type="submit" id="edit-submit-btn" class="btn btn-neutral">
                         <span class="loading loading-spinner hidden" id="edit-submit-loader"></span>
-                        Update Wormhole
+                        <?= t('editor_btn_update_wormhole', 'Update Wormhole') ?>
                     </button>
-                    <button type="button" class="btn" onclick="document.getElementById('edit_modal').close()">Cancel</button>
+                    <button type="button" class="btn" onclick="document.getElementById('edit_modal').close()"><?= t('editor_btn_cancel', 'Cancel') ?></button>
                 </div>
             </form>
         </div>
@@ -2608,12 +2732,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="delete_confirm_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-error text-error-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Confirm Deletion</h3>
+                <h3 class="font-bold text-xl"><?= t('editor_modal_heading_confirm_delete', 'Confirm Deletion') ?></h3>
             </div>
             <p id="delete-confirm-message" class="text-gray-600 mb-6 mt-4"></p>
             <div class="modal-action">
-                <button id="delete-confirm-btn" class="btn btn-error text-white">Delete</button>
-                <button type="button" class="btn" onclick="document.getElementById('delete_confirm_modal').close()">Cancel</button>
+                <button id="delete-confirm-btn" class="btn btn-error text-white"><?= t('editor_btn_delete', 'Delete') ?></button>
+                <button type="button" class="btn" onclick="document.getElementById('delete_confirm_modal').close()"><?= t('editor_btn_cancel', 'Cancel') ?></button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -2623,12 +2747,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="bulk_move_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Move Wormholes</h3>
+                <h3 class="font-bold text-xl"><?= t('editor_modal_heading_move_wormholes', 'Move Wormholes') ?></h3>
             </div>
-            <p class="text-gray-600 mb-4 mt-4">Move <span id="bulk-move-count" class="font-bold">0</span> selected wormholes to another galaxy.</p>
+            <p class="text-gray-600 mb-4 mt-4" id="bulk-move-description"></p>
 
             <div class="mb-6">
-                <label for="bulk-move-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Galaxy</label>
+                <label for="bulk-move-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_destination_galaxy', 'Destination Galaxy') ?></label>
                 <select id="bulk-move-constellation" class="select select-bordered select-sm w-full bg-white">
                     <?php foreach ($constellations as $c): ?>
                         <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
@@ -2637,8 +2761,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </div>
 
             <div class="modal-action">
-                <button onclick="bulkMove()" class="btn btn-neutral">Move Wormholes</button>
-                <button type="button" class="btn" onclick="document.getElementById('bulk_move_modal').close()">Cancel</button>
+                <button onclick="bulkMove()" class="btn btn-neutral"><?= t('editor_btn_move_wormholes', 'Move Wormholes') ?></button>
+                <button type="button" class="btn" onclick="document.getElementById('bulk_move_modal').close()"><?= t('editor_btn_cancel', 'Cancel') ?></button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -2648,14 +2772,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="duplicate_node_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-                <h3 class="font-bold text-xl">Duplicate Wormhole</h3>
+                <h3 class="font-bold text-xl"><?= t('editor_modal_heading_duplicate_wormhole', 'Duplicate Wormhole') ?></h3>
                 <span id="duplicate-node-constellation-badge" class="text-xs opacity-70 font-mono"></span>
             </div>
             <input type="hidden" id="duplicate-source-id" value="">
-            <p class="text-gray-600 mb-4 mt-4">Duplicate "<span id="duplicate-source-name" class="font-semibold"></span>" to:</p>
+            <p class="text-gray-600 mb-4 mt-4" id="duplicate-source-prompt"></p>
 
             <div class="mb-6">
-                <label for="duplicate-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Galaxy</label>
+                <label for="duplicate-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_destination_galaxy', 'Destination Galaxy') ?></label>
                 <select id="duplicate-constellation" class="select select-bordered select-sm w-full bg-white">
                     <?php foreach ($constellations as $c): ?>
                         <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
@@ -2664,8 +2788,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </div>
 
             <div class="modal-action">
-                <button onclick="confirmDuplicate()" class="btn btn-neutral">Duplicate</button>
-                <button type="button" class="btn" onclick="document.getElementById('duplicate_node_modal').close()">Cancel</button>
+                <button onclick="confirmDuplicate()" class="btn btn-neutral"><?= t('editor_btn_duplicate', 'Duplicate') ?></button>
+                <button type="button" class="btn" onclick="document.getElementById('duplicate_node_modal').close()"><?= t('editor_btn_cancel', 'Cancel') ?></button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -2675,12 +2799,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="bulk_duplicate_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Duplicate Wormholes</h3>
+                <h3 class="font-bold text-xl"><?= t('editor_modal_heading_duplicate_wormholes', 'Duplicate Wormholes') ?></h3>
             </div>
-            <p class="text-gray-600 mb-4 mt-4">Duplicate <span id="bulk-duplicate-count" class="font-bold">0</span> selected wormholes to:</p>
+            <p class="text-gray-600 mb-4 mt-4" id="bulk-duplicate-description"></p>
 
             <div class="mb-6">
-                <label for="bulk-duplicate-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm">Destination Galaxy</label>
+                <label for="bulk-duplicate-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_destination_galaxy', 'Destination Galaxy') ?></label>
                 <select id="bulk-duplicate-constellation" class="select select-bordered select-sm w-full bg-white">
                     <?php foreach ($constellations as $c): ?>
                         <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
@@ -2689,8 +2813,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </div>
 
             <div class="modal-action">
-                <button onclick="bulkDuplicate()" class="btn btn-neutral">Duplicate Wormholes</button>
-                <button type="button" class="btn" onclick="document.getElementById('bulk_duplicate_modal').close()">Cancel</button>
+                <button onclick="bulkDuplicate()" class="btn btn-neutral"><?= t('editor_btn_duplicate_wormholes', 'Duplicate Wormholes') ?></button>
+                <button type="button" class="btn" onclick="document.getElementById('bulk_duplicate_modal').close()"><?= t('editor_btn_cancel', 'Cancel') ?></button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -2757,7 +2881,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <!-- URL / Action Button -->
                     <div id="preview-url-wrap" class="hidden pt-4">
                         <a id="preview-url-button" href="#" target="_blank" class="block w-full py-3 bg-transparent border border-white/20 text-[#00ffcc] text-xs font-bold uppercase tracking-[0.22em] text-center transition-all hover:bg-white/10 rounded no-underline">
-                            Open Link
+                            <?= t('editor_btn_open_link', 'Open Link') ?>
                         </a>
                     </div>
                 </div>
@@ -2772,43 +2896,43 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="bulk_by_keyword_modal" class="modal">
         <div class="modal-box bg-white !pt-0 max-w-lg">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Bulk action by keyword</h3>
+                <h3 class="font-bold text-xl"><?= t('editor_modal_heading_bulk_keyword', 'Bulk action by keyword') ?></h3>
             </div>
             <p class="text-sm text-gray-600 mt-4">
-                Pick a keyword in the current galaxy. Then choose to delete every wormhole carrying it, or move them all to another galaxy.
+                <?= t('editor_text_bulk_keyword_help', 'Pick a keyword in the current galaxy. Then choose to delete every wormhole carrying it, or move them all to another galaxy.') ?>
             </p>
 
             <div class="mt-4">
-                <label for="bulk-kw-keyword" class="block mb-1.5 text-gray-800 font-medium text-sm">Keyword</label>
+                <label for="bulk-kw-keyword" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_keyword', 'Keyword') ?></label>
                 <select id="bulk-kw-keyword" class="select select-bordered select-sm w-full bg-white">
-                    <option value="">Loading…</option>
+                    <option value=""><?= t('editor_option_loading', 'Loading…') ?></option>
                 </select>
             </div>
 
             <div class="mt-4">
-                <label class="block mb-1.5 text-gray-800 font-medium text-sm">Action</label>
+                <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_action', 'Action') ?></label>
                 <div class="space-y-1">
                     <label class="flex items-center gap-2 text-sm cursor-pointer">
                         <input type="radio" name="bulk-kw-op" value="delete" class="radio radio-neutral radio-sm" checked>
-                        <span>Delete the matching wormholes</span>
+                        <span><?= t('editor_option_delete_matching', 'Delete the matching wormholes') ?></span>
                     </label>
                     <label class="flex items-center gap-2 text-sm cursor-pointer">
                         <input type="radio" name="bulk-kw-op" value="move" class="radio radio-neutral radio-sm">
-                        <span>Move them to another galaxy</span>
+                        <span><?= t('editor_option_move_matching', 'Move them to another galaxy') ?></span>
                     </label>
                 </div>
             </div>
 
             <div id="bulk-kw-target-row" class="mt-4 hidden">
-                <label for="bulk-kw-target" class="block mb-1.5 text-gray-800 font-medium text-sm">Target galaxy</label>
+                <label for="bulk-kw-target" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('editor_label_target_galaxy', 'Target galaxy') ?></label>
                 <select id="bulk-kw-target" class="select select-bordered select-sm w-full bg-white"></select>
             </div>
 
-            <p id="bulk-kw-preview" class="text-xs text-gray-600 mt-4">Pick a keyword to see the count.</p>
+            <p id="bulk-kw-preview" class="text-xs text-gray-600 mt-4"><?= t('editor_text_pick_keyword', 'Pick a keyword to see the count.') ?></p>
 
             <div class="modal-action">
-                <button type="button" id="bulk-kw-apply" class="btn btn-neutral" disabled>Apply</button>
-                <button type="button" class="btn" onclick="document.getElementById('bulk_by_keyword_modal').close()">Cancel</button>
+                <button type="button" id="bulk-kw-apply" class="btn btn-neutral" disabled><?= t('editor_btn_apply', 'Apply') ?></button>
+                <button type="button" class="btn" onclick="document.getElementById('bulk_by_keyword_modal').close()"><?= t('editor_btn_cancel', 'Cancel') ?></button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -2821,7 +2945,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const sel = document.getElementById('current-constellation');
             const cid = parseInt(sel?.value, 10);
             if (!cid || isNaN(cid)) {
-                showMessage('Pick a specific galaxy first (not "All galaxies").', 'error');
+                showMessage(TELARIS_EDIT.errorPickSpecificGalaxy, 'error');
                 return;
             }
 
@@ -2829,9 +2953,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const targetSelect = document.getElementById('bulk-kw-target');
             const preview = document.getElementById('bulk-kw-preview');
             const applyBtn = document.getElementById('bulk-kw-apply');
-            kwSelect.innerHTML = '<option value="">Loading…</option>';
+            kwSelect.innerHTML = `<option value="">${escapeHtmlEdit(TELARIS_EDIT.optionLoading)}</option>`;
             targetSelect.innerHTML = '';
-            preview.textContent = 'Pick a keyword to see the count.';
+            preview.textContent = TELARIS_EDIT.textPickKeyword;
             preview.style.color = '';
             applyBtn.disabled = true;
             document.querySelector('input[name="bulk-kw-op"][value="delete"]').checked = true;
@@ -2843,20 +2967,20 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 if (!r.ok) throw new Error('Failed to load keywords');
                 bulkKwAvailable = await r.json();
                 if (!Array.isArray(bulkKwAvailable) || bulkKwAvailable.length === 0) {
-                    kwSelect.innerHTML = '<option value="">(no keywords in this galaxy)</option>';
+                    kwSelect.innerHTML = `<option value="">${escapeHtmlEdit(TELARIS_EDIT.optionNoKeywords)}</option>`;
                 } else {
-                    kwSelect.innerHTML = '<option value="">— pick one —</option>' + bulkKwAvailable
+                    kwSelect.innerHTML = `<option value="">${escapeHtmlEdit(TELARIS_EDIT.optionPickOne)}</option>` + bulkKwAvailable
                         .sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0) || String(a.keyword).localeCompare(String(b.keyword)))
                         .map(k => `<option value="${k.id}">${escapeHtmlEdit(k.keyword)} (${k.usage_count || 0})</option>`)
                         .join('');
                 }
             } catch (e) {
-                kwSelect.innerHTML = '<option value="">Error loading keywords</option>';
+                kwSelect.innerHTML = `<option value="">${escapeHtmlEdit(TELARIS_EDIT.optionErrorKeywords)}</option>`;
             }
 
             // Target galaxy list (excludes current galaxy itself).
             if (Array.isArray(window.TELARIS_GALAXIES)) {
-                targetSelect.innerHTML = '<option value="">— pick a galaxy —</option>' + window.TELARIS_GALAXIES
+                targetSelect.innerHTML = `<option value="">${escapeHtmlEdit(TELARIS_EDIT.optionPickGalaxy)}</option>` + window.TELARIS_GALAXIES
                     .filter(g => g.id !== cid)
                     .map(g => `<option value="${g.id}">${escapeHtmlEdit(g.name)}</option>`)
                     .join('');
@@ -2880,7 +3004,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const refreshPreview = () => {
                 const kid = parseInt(kwSelect.value, 10);
                 if (!kid || isNaN(kid)) {
-                    preview.textContent = 'Pick a keyword to see the count.';
+                    preview.textContent = TELARIS_EDIT.textPickKeyword;
                     applyBtn.disabled = true;
                     return;
                 }
@@ -2889,12 +3013,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const op = (document.querySelector('input[name="bulk-kw-op"]:checked') || {}).value || 'delete';
                 if (op === 'move') {
                     const tid = parseInt(targetSelect.value, 10);
-                    preview.textContent = tid && !isNaN(tid)
-                        ? `Will move ${count} wormhole${count === 1 ? '' : 's'} to the chosen galaxy.`
-                        : `Will move ${count} wormhole${count === 1 ? '' : 's'} — pick a target galaxy first.`;
+                    if (tid && !isNaN(tid)) {
+                        preview.textContent = count === 1 ? TELARIS_EDIT.previewMoveOne : tFmt(TELARIS_EDIT.previewMoveMany, count);
+                    } else {
+                        preview.textContent = count === 1 ? TELARIS_EDIT.previewMovePickTargetOne : tFmt(TELARIS_EDIT.previewMovePickTargetMany, count);
+                    }
                     applyBtn.disabled = !(tid && !isNaN(tid)) || count === 0;
                 } else {
-                    preview.textContent = `Will permanently delete ${count} wormhole${count === 1 ? '' : 's'}.`;
+                    preview.textContent = count === 1 ? TELARIS_EDIT.previewDeleteOne : tFmt(TELARIS_EDIT.previewDeleteMany, count);
                     applyBtn.disabled = count === 0;
                 }
             };
@@ -2915,9 +3041,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 if (!cid || !kid || !op) return;
                 const entry = bulkKwAvailable.find(k => k.id === kid);
                 const count = entry ? (entry.usage_count || 0) : 0;
-                const msg = op === 'delete'
-                    ? `Permanently delete ${count} wormhole${count === 1 ? '' : 's'} carrying "${entry?.keyword || ''}"? This cannot be undone.`
-                    : `Move ${count} wormhole${count === 1 ? '' : 's'} carrying "${entry?.keyword || ''}" to the selected galaxy?`;
+                const kw = entry?.keyword || '';
+                let msg;
+                if (op === 'delete') {
+                    msg = count === 1
+                        ? tFmt(TELARIS_EDIT.confirmBulkDeleteKeywordOne, kw)
+                        : tFmt(TELARIS_EDIT.confirmBulkDeleteKeywordMany, count, kw);
+                } else {
+                    msg = count === 1
+                        ? tFmt(TELARIS_EDIT.confirmBulkMoveKeywordOne, kw)
+                        : tFmt(TELARIS_EDIT.confirmBulkMoveKeywordMany, count, kw);
+                }
                 if (!window.confirm(msg)) return;
 
                 applyBtn.disabled = true;
@@ -2931,11 +3065,18 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     });
                     const json = await r.json();
                     if (!r.ok) throw new Error(json?.error || 'Bulk action failed');
-                    showMessage(`${op === 'delete' ? 'Deleted' : 'Moved'} ${json.affected} wormhole${json.affected === 1 ? '' : 's'}.`);
+                    const n = json.affected;
+                    let okMsg;
+                    if (op === 'delete') {
+                        okMsg = n === 1 ? TELARIS_EDIT.toastBulkDeletedOne : tFmt(TELARIS_EDIT.toastBulkDeletedMany, n);
+                    } else {
+                        okMsg = n === 1 ? TELARIS_EDIT.toastBulkMovedOne : tFmt(TELARIS_EDIT.toastBulkMovedMany, n);
+                    }
+                    showMessage(okMsg);
                     document.getElementById('bulk_by_keyword_modal').close();
                     loadNodes();
                 } catch (e) {
-                    showMessage('Bulk action failed: ' + e.message, 'error');
+                    showMessage(tFmt(TELARIS_EDIT.toastBulkActionFailed, e.message), 'error');
                 } finally {
                     applyBtn.disabled = false;
                 }
@@ -2947,21 +3088,21 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="shortcuts_modal" class="modal">
         <div class="modal-box bg-white !pt-0 max-w-md">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Keyboard shortcuts</h3>
+                <h3 class="font-bold text-xl"><?= t('editor_modal_heading_shortcuts', 'Keyboard shortcuts') ?></h3>
             </div>
             <table class="w-full mt-4 text-sm">
                 <tbody class="divide-y divide-gray-200">
-                    <tr><td class="py-2"><kbd class="kbd kbd-sm">N</kbd></td><td class="text-gray-700">New wormhole</td></tr>
-                    <tr><td class="py-2"><kbd class="kbd kbd-sm">/</kbd></td><td class="text-gray-700">Focus the search box</td></tr>
-                    <tr><td class="py-2"><kbd class="kbd kbd-sm">T</kbd></td><td class="text-gray-700">Toggle "Touched today" filter</td></tr>
-                    <tr><td class="py-2"><kbd class="kbd kbd-sm">G</kbd></td><td class="text-gray-700">Open galaxy settings (current galaxy)</td></tr>
-                    <tr><td class="py-2"><kbd class="kbd kbd-sm">Esc</kbd></td><td class="text-gray-700">Close any open modal</td></tr>
-                    <tr><td class="py-2"><kbd class="kbd kbd-sm">?</kbd></td><td class="text-gray-700">Open this help</td></tr>
+                    <tr><td class="py-2"><kbd class="kbd kbd-sm">N</kbd></td><td class="text-gray-700"><?= t('editor_shortcut_new_wormhole', 'New wormhole') ?></td></tr>
+                    <tr><td class="py-2"><kbd class="kbd kbd-sm">/</kbd></td><td class="text-gray-700"><?= t('editor_shortcut_focus_search', 'Focus the search box') ?></td></tr>
+                    <tr><td class="py-2"><kbd class="kbd kbd-sm">T</kbd></td><td class="text-gray-700"><?= t('editor_shortcut_toggle_touched', 'Toggle "Touched today" filter') ?></td></tr>
+                    <tr><td class="py-2"><kbd class="kbd kbd-sm">G</kbd></td><td class="text-gray-700"><?= t('editor_shortcut_galaxy_settings', 'Open galaxy settings (current galaxy)') ?></td></tr>
+                    <tr><td class="py-2"><kbd class="kbd kbd-sm">Esc</kbd></td><td class="text-gray-700"><?= t('editor_shortcut_close_modal', 'Close any open modal') ?></td></tr>
+                    <tr><td class="py-2"><kbd class="kbd kbd-sm">?</kbd></td><td class="text-gray-700"><?= t('editor_shortcut_open_help', 'Open this help') ?></td></tr>
                 </tbody>
             </table>
-            <p class="text-xs text-gray-500 mt-4">Shortcuts are ignored while typing in a text field.</p>
+            <p class="text-xs text-gray-500 mt-4"><?= t('editor_note_shortcuts_typing', 'Shortcuts are ignored while typing in a text field.') ?></p>
             <div class="modal-action">
-                <button type="button" class="btn btn-neutral" onclick="document.getElementById('shortcuts_modal').close()">Close</button>
+                <button type="button" class="btn btn-neutral" onclick="document.getElementById('shortcuts_modal').close()"><?= t('editor_btn_close', 'Close') ?></button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
