@@ -330,10 +330,15 @@ function backup_resolve_upload_path(string $url): ?string {
  */
 function backup_write_to_file(array $dump, string $outputPath): array {
     $json = json_encode($dump, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    // Free the dump array before gzip allocates its buffer. Peak memory
+    // becomes max(json, gz) instead of dump + json + gz. The streaming
+    // refactor that drops $json itself is queued separately.
+    unset($dump);
     $gz = gzencode($json, 6);
     if ($gz === false) {
         throw new RuntimeException('Failed to gzip the backup payload.');
     }
+    unset($json);
     $dir = dirname($outputPath);
     // Pre-flight: surface the real cause (missing dir, wrong perms, fallback
     // path, etc.) instead of a generic file_put_contents=false later on.

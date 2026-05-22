@@ -15,6 +15,13 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/backup.php';
 
+/**
+ * Thrown when the snapshot lock cannot be acquired. Cron catches this and
+ * skips the cycle; manual triggers surface it to the operator as "another
+ * snapshot is in progress."
+ */
+final class SnapshotLockHeldException extends RuntimeException {}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -25,6 +32,59 @@ function snapshot_filename_for(string $stamp): string {
 
 function snapshot_full_path(string $filename): string {
     return rtrim(backup_snapshots_dir(), '/') . '/' . basename($filename);
+}
+
+/**
+ * Acquire a per-instance snapshot lock. Two layers:
+ *   1. flock on a per-snapshot-dir lockfile — blocks overlapping processes on
+ *      the same host.
+ *   2. MySQL GET_LOCK — covers the case where the DB is shared across hosts
+ *      (it isn't here, but cheap defence-in-depth).
+ * Returns a lock handle for snapshot_release_lock, or throws
+ * SnapshotLockHeldException when the lock is unavailable.
+ */
+function snapshot_acquire_lock(): array {
+    $lockPath = rtrim(backup_snapshots_dir(), '/') . '/.snapshot.lock';
+    $fp = @fopen($lockPath, 'c');
+    if ($fp === false) {
+        throw new RuntimeException("Cannot open snapshot lock file: {$lockPath}");
+    }
+    if (!flock($fp, LOCK_EX | LOCK_NB)) {
+        fclose($fp);
+        throw new SnapshotLockHeldException('Another snapshot is in progress (file lock held).');
+    }
+    $mysqlKey = 'telaris_snapshot';
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->prepare("SELECT GET_LOCK(?, 0)");
+        $stmt->execute([$mysqlKey]);
+        $got = (int)$stmt->fetchColumn();
+    } catch (Throwable $e) {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        throw $e;
+    }
+    if ($got !== 1) {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        throw new SnapshotLockHeldException('Another snapshot is in progress (DB lock held).');
+    }
+    return ['fp' => $fp, 'mysql_key' => $mysqlKey];
+}
+
+function snapshot_release_lock(array $lock): void {
+    if (isset($lock['mysql_key'])) {
+        try {
+            $stmt = getDB()->prepare("SELECT RELEASE_LOCK(?)");
+            $stmt->execute([$lock['mysql_key']]);
+        } catch (Throwable $_) {
+            // Best-effort.
+        }
+    }
+    if (isset($lock['fp']) && is_resource($lock['fp'])) {
+        @flock($lock['fp'], LOCK_UN);
+        @fclose($lock['fp']);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -50,35 +110,45 @@ function snapshot_create(?string $note = null, string $trigger = 'manual', ?stri
     // Allow long FPM requests too. CLI ignores this.
     @set_time_limit(0);
 
-    $stamp = gmdate('Y-m-d\TH-i-s');
-    // Avoid collision if two snapshots are taken in the same second
-    $base = snapshot_filename_for($stamp);
-    $filename = $base;
-    $i = 2;
-    while (file_exists(snapshot_full_path($filename))) {
-        $filename = preg_replace('/\.telaris-backup$/', '-' . $i . '.telaris-backup', $base);
-        $i++;
+    // Hold the per-instance lock for the full duration. Throws
+    // SnapshotLockHeldException if another snapshot is already running, which
+    // snapshot_run_if_due treats as "skip this cycle".
+    $lock = snapshot_acquire_lock();
+
+    try {
+        $stamp = gmdate('Y-m-d\TH-i-s');
+        // Avoid collision if two snapshots are taken in the same second
+        $base = snapshot_filename_for($stamp);
+        $filename = $base;
+        $i = 2;
+        while (file_exists(snapshot_full_path($filename))) {
+            $filename = preg_replace('/\.telaris-backup$/', '-' . $i . '.telaris-backup', $base);
+            $i++;
+        }
+
+        $dump = backup_build_dump([
+            'include_galaxies' => true,
+            'include_users' => true,
+            'galaxy_ids' => [],
+            'media_mode' => 'embedded',
+        ]);
+        $path = snapshot_full_path($filename);
+        $written = backup_write_to_file($dump, $path);
+        unset($dump);
+
+        $pdo = getDB();
+        $stmt = $pdo->prepare("INSERT INTO snapshots (filename, size_bytes, created_by, trigger_type, note) VALUES (:f, :s, :u, :t, :n)");
+        $stmt->execute([
+            ':f' => $filename,
+            ':s' => $written['size_bytes'],
+            ':u' => $userId,
+            ':t' => $trigger,
+            ':n' => $note !== null && $note !== '' ? $note : null,
+        ]);
+        return (int)$pdo->lastInsertId();
+    } finally {
+        snapshot_release_lock($lock);
     }
-
-    $dump = backup_build_dump([
-        'include_galaxies' => true,
-        'include_users' => true,
-        'galaxy_ids' => [],
-        'media_mode' => 'embedded',
-    ]);
-    $path = snapshot_full_path($filename);
-    $written = backup_write_to_file($dump, $path);
-
-    $pdo = getDB();
-    $stmt = $pdo->prepare("INSERT INTO snapshots (filename, size_bytes, created_by, trigger_type, note) VALUES (:f, :s, :u, :t, :n)");
-    $stmt->execute([
-        ':f' => $filename,
-        ':s' => $written['size_bytes'],
-        ':u' => $userId,
-        ':t' => $trigger,
-        ':n' => $note !== null && $note !== '' ? $note : null,
-    ]);
-    return (int)$pdo->lastInsertId();
 }
 
 // ---------------------------------------------------------------------------
@@ -251,7 +321,12 @@ function snapshot_run_if_due(): ?int {
 
     if (!$isDue) return null;
 
-    $newId = snapshot_create(null, 'scheduled', null);
+    try {
+        $newId = snapshot_create(null, 'scheduled', null);
+    } catch (SnapshotLockHeldException $e) {
+        error_log('snapshot_run_if_due: ' . $e->getMessage() . '; skipping this cycle');
+        return null;
+    }
     snapshot_trim_scheduled((int)$sch['keep_days']);
 
     $pdo = getDB();
