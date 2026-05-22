@@ -300,10 +300,16 @@ try {
                     return;
                 }
                 if ($op === 'delete') {
-                    foreach ($ids as $nid) {
-                        try { db_delete_node($nid); } catch (Throwable $e) { /* keep going */ }
+                    // Single bulk DELETE + one SELECT for the asset paths.
+                    // Pre-fix this was a foreach of db_delete_node = 2 queries
+                    // per node, which N+1'd at scale.
+                    try {
+                        $affected = db_bulk_delete_nodes_by_ids($ids);
+                    } catch (Throwable $e) {
+                        error_log('nodes.php bulk delete failed: ' . $e->getMessage());
+                        $affected = 0;
                     }
-                    echo json_encode(['success' => true, 'op' => 'delete', 'affected' => count($ids)], JSON_THROW_ON_ERROR);
+                    echo json_encode(['success' => true, 'op' => 'delete', 'affected' => $affected], JSON_THROW_ON_ERROR);
                     return;
                 }
                 // op === 'move'

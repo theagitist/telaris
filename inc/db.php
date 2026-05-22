@@ -7629,6 +7629,38 @@ function db_get_constellation_by_id(int $id): ?array {
     ];
 }
 
+/**
+ * Bulk variant of db_get_constellation_by_id. Returns an array indexed by id
+ * so callers can look up each member without per-row queries. The visitor
+ * multigalaxy bootstrap previously fired one query per cluster member; this
+ * collapses that fan-out to a single round trip.
+ *
+ * @return array<int, array{name:string, tagline:string, slug:?string, theme:string, import_source:?string, type:string, show_galaxy_list:bool}>
+ */
+function db_get_constellations_by_ids(array $ids): array {
+    $ids = array_values(array_unique(array_map('intval', array_filter($ids, fn($v) => (int)$v > 0))));
+    if ($ids === []) return [];
+    db_ensure_constellations_import_source_column();
+    db_ensure_constellations_type_and_cluster_members();
+    $pdo = getDB();
+    $place = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("SELECT id, name, tagline, slug, theme, import_source, `type`, show_galaxy_list FROM constellations WHERE id IN ($place)");
+    $stmt->execute($ids);
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $out[(int)$row['id']] = [
+            'name' => (string)($row['name'] ?? ''),
+            'tagline' => (string)($row['tagline'] ?? ''),
+            'slug' => $row['slug'],
+            'theme' => (string)($row['theme'] ?? 'cosmic'),
+            'import_source' => $row['import_source'] ?? null,
+            'type' => (string)($row['type'] ?? 'galaxy'),
+            'show_galaxy_list' => (bool)($row['show_galaxy_list'] ?? false),
+        ];
+    }
+    return $out;
+}
+
 function db_set_constellation_import_source(int $id, ?string $importSource): void {
     $pdo = getDB();
     $stmt = $pdo->prepare("UPDATE constellations SET import_source = :import_source WHERE id = :id");
@@ -7987,6 +8019,61 @@ function db_get_constellation_tour_config(int $id): ?array {
         'related_nodes_enabled' => (bool)$row['related_nodes_enabled'],
         'show_2d_view' => (bool)$row['show_2d_view'],
     ];
+}
+
+/**
+ * Bulk variant of db_get_constellation_tour_config. Returns an array indexed
+ * by constellation id; absent ids yield no entry. Folds the per-cluster-member
+ * fan-out in the multigalaxy bootstrap (two queries per member) into two
+ * queries total: one for the tour columns, one for the tour-keyword rows.
+ *
+ * @return array<int, array{tour_enabled:bool, tour_start_mode:string, tour_idle_seconds:int, tour_node_selection:string, tour_random_count:int, tour_default_dwell:int, tour_loop:bool, tour_keyword_ids:list<int>, keyword_chips_enabled:bool, idle_spotlight_enabled:bool, idle_spotlight_selection:string, idle_spotlight_idle_seconds:int, related_nodes_enabled:bool, show_2d_view:bool}>
+ */
+function db_get_tour_configs_for_ids(array $ids): array {
+    $ids = array_values(array_unique(array_map('intval', array_filter($ids, fn($v) => (int)$v > 0))));
+    if ($ids === []) return [];
+    db_ensure_constellations_tour_columns();
+    $pdo = getDB();
+    $place = implode(',', array_fill(0, count($ids), '?'));
+
+    $stmt = $pdo->prepare("
+        SELECT id, tour_enabled, tour_start_mode, tour_idle_seconds, tour_node_selection,
+               tour_random_count, tour_default_dwell, tour_loop, keyword_chips_enabled,
+               idle_spotlight_enabled, idle_spotlight_selection, idle_spotlight_idle_seconds,
+               related_nodes_enabled, show_2d_view
+        FROM constellations WHERE id IN ($place)
+    ");
+    $stmt->execute($ids);
+    $configs = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $cid = (int)$row['id'];
+        $configs[$cid] = [
+            'tour_enabled' => (bool)$row['tour_enabled'],
+            'tour_start_mode' => (string)$row['tour_start_mode'],
+            'tour_idle_seconds' => (int)$row['tour_idle_seconds'],
+            'tour_node_selection' => (string)$row['tour_node_selection'],
+            'tour_random_count' => (int)$row['tour_random_count'],
+            'tour_default_dwell' => (int)$row['tour_default_dwell'],
+            'tour_loop' => (bool)$row['tour_loop'],
+            'tour_keyword_ids' => [],
+            'keyword_chips_enabled' => (bool)$row['keyword_chips_enabled'],
+            'idle_spotlight_enabled' => (bool)$row['idle_spotlight_enabled'],
+            'idle_spotlight_selection' => (string)$row['idle_spotlight_selection'],
+            'idle_spotlight_idle_seconds' => (int)$row['idle_spotlight_idle_seconds'],
+            'related_nodes_enabled' => (bool)$row['related_nodes_enabled'],
+            'show_2d_view' => (bool)$row['show_2d_view'],
+        ];
+    }
+    if ($configs === []) return [];
+
+    $foundIds = array_keys($configs);
+    $place2 = implode(',', array_fill(0, count($foundIds), '?'));
+    $kstmt = $pdo->prepare("SELECT constellation_id, keyword_id FROM constellation_tour_keywords WHERE constellation_id IN ($place2) ORDER BY constellation_id, keyword_id");
+    $kstmt->execute($foundIds);
+    foreach ($kstmt->fetchAll(PDO::FETCH_ASSOC) as $kr) {
+        $configs[(int)$kr['constellation_id']]['tour_keyword_ids'][] = (int)$kr['keyword_id'];
+    }
+    return $configs;
 }
 
 /**
@@ -8999,18 +9086,37 @@ function db_bulk_set_nodes_use_image_as_node(int $constellationId, bool $value):
 }
 
 function db_delete_node(int $id): void {
-    $pdo = getDB();
+    db_bulk_delete_nodes_by_ids([$id]);
+}
 
-    // Collect file paths to delete AFTER the DB row is removed
+/**
+ * Bulk-delete every node whose id is in $ids. Reads all asset paths in one
+ * query, runs a single DELETE, then unlinks files after the DB commits.
+ * Mirrors db_bulk_delete_nodes_by_constellation but scoped by id list.
+ * node_keywords cascades from nodes.id.
+ *
+ * Replaces the api/nodes.php bulk-by-keyword delete loop (one round trip per
+ * node) with a constant number of round trips regardless of $ids count.
+ */
+function db_bulk_delete_nodes_by_ids(array $ids): int {
+    $ids = array_values(array_unique(array_map('intval', array_filter($ids, fn($v) => (int)$v > 0))));
+    if ($ids === []) return 0;
+    $pdo = getDB();
+    $place = implode(',', array_fill(0, count($ids), '?'));
+
+    // 1. Read every asset path in one SELECT.
+    $stmt = $pdo->prepare("SELECT image_url, icon_url, audio_url, video_url, pdf_url FROM nodes WHERE id IN ($place)");
+    $stmt->execute($ids);
+    $rows = $stmt->fetchAll();
+    if ($rows === []) return 0;
+
+    $uploadDir = UPLOAD_DIR;
     $filesToDelete = [];
-    $stmt = $pdo->prepare("SELECT image_url, icon_url, audio_url, video_url, pdf_url FROM nodes WHERE id = :id LIMIT 1");
-    $stmt->execute([':id' => $id]);
-    $row = $stmt->fetch();
-    if ($row) {
-        $uploadDir = UPLOAD_DIR;
+    foreach ($rows as $row) {
         foreach (['image_url', 'icon_url', 'audio_url', 'video_url', 'pdf_url'] as $col) {
-            if ($row[$col] && str_starts_with($row[$col], 'uploads/')) {
-                $fullPath = str_replace('uploads/', $uploadDir . '/', $row[$col]);
+            $val = $row[$col] ?? null;
+            if ($val && str_starts_with((string)$val, 'uploads/')) {
+                $fullPath = str_replace('uploads/', $uploadDir . '/', (string)$val);
                 if (file_exists($fullPath)) {
                     $filesToDelete[] = $fullPath;
                 }
@@ -9018,14 +9124,16 @@ function db_delete_node(int $id): void {
         }
     }
 
-    // Delete DB row first
-    $stmt = $pdo->prepare("DELETE FROM nodes WHERE id = :id");
-    $stmt->execute([':id' => $id]);
+    // 2. Single batch DELETE; node_keywords cascade on nodes.id.
+    $del = $pdo->prepare("DELETE FROM nodes WHERE id IN ($place)");
+    $del->execute($ids);
+    $deleted = $del->rowCount();
 
-    // Delete files only after DB deletion succeeds
+    // 3. Unlink files only after the DB delete succeeded.
     foreach ($filesToDelete as $path) {
         @unlink($path);
     }
+    return $deleted;
 }
 
 function db_delete_node_file(int $id, string $type): void {

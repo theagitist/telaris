@@ -481,12 +481,20 @@ if (!empty($multiGalaxyIds)) {
         $relatedNodesEnabled = false;
         $idleSpotlightConfig['enabled'] = false;
 
+        // Batch every member galaxy's tour config in one round trip; pre-fix
+        // this fan-out fired (2 queries × N members) per visitor scene-load.
+        $unionMemberIds = array_values(array_filter(array_map('intval', $multiGalaxyIds), fn($v) => $v !== (int)$constellationId));
+        $firstId = (int)($multiGalaxyIds[0] ?? 0);
+        $idsToFetch = $unionMemberIds;
+        if ($firstId > 0 && !in_array($firstId, $idsToFetch, true)) {
+            $idsToFetch[] = $firstId;
+        }
+        $memberCfgs = $idsToFetch === [] ? [] : db_get_tour_configs_for_ids($idsToFetch);
+
         $chipsOn = !empty($tourConfig['keyword_chips_enabled']);
         if (!$chipsOn) {
-            foreach ($multiGalaxyIds as $memberId) {
-                $mid = (int) $memberId;
-                if ($mid === (int) $constellationId) continue;
-                $memberCfg = db_get_constellation_tour_config($mid);
+            foreach ($unionMemberIds as $mid) {
+                $memberCfg = $memberCfgs[$mid] ?? null;
                 if ($memberCfg !== null && !empty($memberCfg['keyword_chips_enabled'])) {
                     $chipsOn = true;
                     break;
@@ -500,9 +508,8 @@ if (!empty($multiGalaxyIds)) {
         // spec). The "first" galaxy is the head of $multiGalaxyIds, which
         // reflects whatever order the route resolved (prefix lookup, tag
         // join order, explicit ?galaxies=).
-        $firstId = (int)($multiGalaxyIds[0] ?? 0);
         if ($firstId > 0) {
-            $firstCfg = db_get_constellation_tour_config($firstId);
+            $firstCfg = $memberCfgs[$firstId] ?? null;
             $show2dView = $firstCfg !== null && !empty($firstCfg['show_2d_view']);
             $tourConfig['show_2d_view'] = $show2dView;
         }
@@ -524,8 +531,11 @@ if (!empty($multiGalaxyIds)) {
         $galaxyListEnabled = true;
     }
     if ($galaxyListEnabled) {
+        // Batch every member galaxy's row in one round trip; pre-fix this was
+        // one query per member which N+1'd the visitor scene-load.
+        $infosById = db_get_constellations_by_ids(array_map('intval', $multiGalaxyIds));
         foreach ($multiGalaxyIds as $gid) {
-            $info = db_get_constellation_by_id((int) $gid);
+            $info = $infosById[(int)$gid] ?? null;
             if (!$info) continue;
             $galaxyListMembers[] = [
                 'id' => (int) $gid,
