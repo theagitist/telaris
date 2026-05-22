@@ -105,7 +105,7 @@ final class ClusteringTest extends TestCase
         $this->assertCount(100, $result, 'Dominant group (90%) should cause clustering to be skipped');
     }
 
-    public function testNonMocambosCascadeUsesMediaType(): void
+    public function testCascadeWithoutMucuaUsesMediaType(): void
     {
         // 200 nodes with no mucua but different media types
         $types = ['imagem', 'video', 'audio', 'arquivo', 'blog'];

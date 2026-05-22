@@ -25,7 +25,8 @@ define('MAIL_SMTP_SECURE', 'tls');
 
 // Bridges. Each entry is the name of a handler in inc/bridges/{name}.php and
 // enables the matching "Import from..." surface in admin. Default empty.
-// Example: ['mocambos'] on telaris.baobaxia.net.
+// Add a bridge name (e.g. define('TELARIS_BRIDGES', ['some-bridge'])) to
+// enable that bridge's admin button, modal, JS, and CLI on this instance.
 define('TELARIS_BRIDGES', []);
 
 require_once __DIR__ . '/inc/db.php';

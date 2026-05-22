@@ -597,7 +597,7 @@ function db_ensure_nodes_pdf_url_column(): void {
  * Ensure an index covers nodes.node_type. Hot filters live in db_get_related_nodes
  * (excludes node_type='cluster') and db_get_referencing_portals (where
  * node_type='portal'); without an index those scan the whole table, which gets
- * expensive once Mocambos imports push the row count past tens of thousands.
+ * expensive once bridge imports push the row count past tens of thousands.
  */
 function db_ensure_nodes_node_type_index(): void {
     static $checked = false;

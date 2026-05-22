@@ -7,6 +7,8 @@ declare(strict_types=1);
  * Pulls galaxias from a Mocambos / Baobáxia instance into Telaris constellations.
  * Entry points are mocambos_handle_request() for HTTP (called by api/bridge.php)
  * and mocambos_run_cli() for the shell (called by admin/cli/import_bridge.php).
+ * mocambos_cli_args_from_source() is the optional refresh hook called by
+ * admin/cli/refresh_constellation.php.
  *
  * The actual per-galaxia import is in _mocambos_import_galaxia(); both entry
  * points produce a streamMsg / logger callback pair and delegate to it.
@@ -37,15 +39,52 @@ function mocambos_handle_request(): void {
     }
 }
 
+// ── Optional presentation hooks ──────────────────────────────────────────────
+
+/**
+ * Visitor-side: the icon URL applied to auto-generated cluster pseudo-nodes
+ * in constellations this bridge imported. Called from api/nodes.php via
+ * bridges_cluster_icon_url_for().
+ */
+function mocambos_cluster_icon_url(): string {
+    return 'img/baobaxia-cluster.svg';
+}
+
+// ── Refresh hook (optional handler interface) ────────────────────────────────
+
+/**
+ * Build the CLI argv tail that re-imports a constellation whose
+ * import_source JSON was stamped by this bridge. Returns null if the
+ * stored source cannot be refreshed (missing fields, etc.). Used by
+ * admin/cli/refresh_constellation.php to route refresh from a stored
+ * source back through the bridge-specific import path.
+ */
+function mocambos_cli_args_from_source(array $source): ?array {
+    $apiBase = $source['api_base'] ?? '';
+    $galaxiaSlug = $source['galaxia_slug'] ?? '';
+    if ($apiBase === '' || $galaxiaSlug === '') {
+        return null;
+    }
+    return [
+        '--api-base=' . $apiBase,
+        '--galaxia=' . $galaxiaSlug,
+    ];
+}
+
 // ── CLI entry point ──────────────────────────────────────────────────────────
 
 /**
- * @param array $opts getopt result; recognised keys: api-base, galaxia, list,
- *                   no-media, limit, quiet, full.
- * @param bool  $interactive Whether to prompt for missing values.
- * @return int Exit code.
+ * CLI entry point. Parses Mocambos-specific flags via getopt() on the global
+ * $argv (PHP getopt ignores the bridge-name positional automatically) and
+ * runs the import. Returns the process exit code.
+ *
+ * Recognised flags: --api-base=URL, --galaxia=SLUG, --list, --no-media,
+ * --limit=N, --quiet, --full. With no flags, drops into interactive mode.
  */
-function mocambos_run_cli(array $opts, bool $interactive): int {
+function mocambos_run_cli(): int {
+    $opts = getopt('', ['api-base:', 'galaxia:', 'list', 'no-media', 'limit:', 'quiet', 'full']);
+    $interactive = empty($opts) || (count($opts) === 1 && isset($opts['quiet']));
+
     $quiet = isset($opts['quiet']);
     $fullRefresh = isset($opts['full']);
     $apiBase = trim($opts['api-base'] ?? '');

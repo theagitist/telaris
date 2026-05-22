@@ -229,7 +229,8 @@ function compute_clusters(array $nodes, int $threshold = 80): array {
         return $nodes;
     }
 
-    // Detect if this is Mocambos data (any node has mucua_name)
+    // If the mucua_name column is populated on any node, use it as the
+    // first clustering axis (it's the strongest grouping when present).
     $hasMucua = false;
     foreach ($nodes as $node) {
         if (!empty($node['mucua_name'])) {
@@ -324,7 +325,7 @@ function filter_nodes_by_cluster(array $nodes, string $clusterKey, int $threshol
     // Determine remaining cascade based on what's already been filtered
     $usedLevels = array_map(fn($f) => $f['level'], $filters);
 
-    // Detect Mocambos
+    // Detect whether the mucua_name column is populated on this slice.
     $hasMucua = false;
     foreach ($filtered as $node) {
         if (!empty($node['mucua_name'])) {

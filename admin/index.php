@@ -20,6 +20,11 @@ header("X-Frame-Options: DENY");
 header("X-Content-Type-Options: nosniff");
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../inc/bridges/_lib.php';
+
+// Load each active bridge's admin partial (inc/bridges/{name}-admin.php) so
+// the render hooks below can call into them.
+bridges_admin_load_all();
 
 $appVersion = trim(@file_get_contents(__DIR__ . '/../VERSION') ?: '0.0.0');
 
@@ -931,9 +936,7 @@ $fieldMeta = [
                         <div class="flex items-center gap-3">
                             <h2 class="text-gray-800 text-base font-semibold">Galaxies (<span id="constellations-count">...</span>)</h2>
                             <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base">New Galaxy</button>
-                            <?php if (defined('TELARIS_BRIDGES') && in_array('mocambos', TELARIS_BRIDGES, true)): ?>
-                                <button type="button" onclick="openMocambosImportModal()" class="text-purple-600 hover:text-purple-800 font-medium text-base">Import from Mocambos</button>
-                            <?php endif; ?>
+                            <?php bridges_admin_render('button'); ?>
                         </div>
 
                         <!-- Top Pagination -->
@@ -1311,8 +1314,24 @@ $fieldMeta = [
         const API_KEY = <?php echo json_encode(getDefaultApiKey()); ?>;
         const CSRF_TOKEN = <?php echo json_encode($csrfToken); ?>;
         const API_URL = '../api/validate.php';
-        const MOCAMBOS_API = '../api/bridge.php?name=mocambos';
-        let mocambosApiBase = '';
+
+        // Generic dispatcher for the per-galaxy Refresh link. Each bridge's
+        // admin partial registers its refresh handler in window.BRIDGES_REFRESH_UI;
+        // this function looks up the active bridge from the constellation's
+        // import_source and routes the click to it.
+        function bridgeRefreshConstellation(constId, name) {
+            const source = (window.constImportSources || {})[constId];
+            if (!source || !source.source) {
+                showMessage('No import source recorded for this galaxy.', 'error');
+                return;
+            }
+            const handler = (window.BRIDGES_REFRESH_UI || {})[source.source];
+            if (!handler) {
+                showMessage("Bridge '" + source.source + "' has no refresh UI on this instance.", 'error');
+                return;
+            }
+            handler(constId, name);
+        }
 
         function closeAllDropdowns(except) {
             document.querySelectorAll('.dropdown').forEach(d => {
@@ -1321,302 +1340,6 @@ $fieldMeta = [
             });
         }
         document.addEventListener('click', () => closeAllDropdowns(null));
-
-        function openMocambosImportModal() {
-            showMocambosUrlStep();
-            document.getElementById('mocambos_import_modal').showModal();
-        }
-
-        function showMocambosUrlStep() {
-            document.getElementById('mocambos-url-step').classList.remove('hidden');
-            document.getElementById('mocambos-loading').classList.add('hidden');
-            document.getElementById('mocambos-error').classList.add('hidden');
-            document.getElementById('mocambos-list').classList.add('hidden');
-            document.getElementById('mocambos-import-btn').classList.add('hidden');
-            document.getElementById('mocambos-import-progress').classList.add('hidden');
-            document.getElementById('mocambos-import-result').classList.add('hidden');
-            document.getElementById('refresh-confirm-step').classList.add('hidden');
-        }
-
-        function buildValidationReport(apiBase, checks) {
-            const statusIcon = { ok: '✅', warn: '⚠️', fail: '❌' };
-            let lines = [];
-            lines.push('Mocambos API Validation Report');
-            lines.push('URL: ' + apiBase);
-            lines.push('Date: ' + new Date().toISOString());
-            lines.push('---');
-            checks.forEach(c => {
-                lines.push(`${statusIcon[c.status] || '?'} ${c.endpoint} (HTTP ${c.http_status || '—'})`);
-                lines.push(`   ${c.detail}`);
-            });
-            return lines.join('\n');
-        }
-
-        async function fetchMocambosGalaxias() {
-            const urlInput = document.getElementById('mocambos-api-url');
-            const apiBase = urlInput.value.trim().replace(/\/+$/, '').replace(/\/docs#?.*$/i, '');
-            if (!apiBase) {
-                showMessage('Please enter a Mocambos API URL.', 'error');
-                return;
-            }
-            mocambosApiBase = apiBase;
-
-            const urlStep = document.getElementById('mocambos-url-step');
-            const loading = document.getElementById('mocambos-loading');
-            const errorDiv = document.getElementById('mocambos-error');
-            const errorMsg = document.getElementById('mocambos-error-message');
-            const listDiv = document.getElementById('mocambos-list');
-            const galaxiasDiv = document.getElementById('mocambos-galaxias');
-            const importBtn = document.getElementById('mocambos-import-btn');
-            const resultDiv = document.getElementById('mocambos-import-result');
-            const progressDiv = document.getElementById('mocambos-import-progress');
-
-            urlStep.classList.add('hidden');
-            loading.classList.remove('hidden');
-            loading.querySelector('p').textContent = 'Validating API...';
-            errorDiv.classList.add('hidden');
-            listDiv.classList.add('hidden');
-            importBtn.classList.add('hidden');
-            progressDiv.classList.add('hidden');
-            resultDiv.classList.add('hidden');
-            resultDiv.innerHTML = '';
-            galaxiasDiv.innerHTML = '';
-
-            // Step 1: Validate
-            try {
-                const valResp = await fetch(`${MOCAMBOS_API}&action=validate&api_base=${encodeURIComponent(mocambosApiBase)}`, {
-                    headers: { 'X-API-Key': API_KEY }
-                });
-                const valData = await valResp.json();
-
-                if (!valResp.ok || !valData.valid) {
-                    loading.classList.add('hidden');
-                    const checks = valData.checks || [];
-                    const report = buildValidationReport(mocambosApiBase, checks);
-
-                    let html = '<div class="text-left">';
-                    html += '<p class="font-medium text-red-700 mb-2">API validation failed. The following issues were found:</p>';
-                    html += '<div class="space-y-2 mb-3">';
-                    checks.forEach(c => {
-                        const color = c.status === 'ok' ? 'green' : c.status === 'warn' ? 'yellow' : 'red';
-                        const icon = c.status === 'ok' ? '✓' : c.status === 'warn' ? '⚠' : '✗';
-                        html += `<div class="p-2 rounded bg-${color}-50 border border-${color}-200">`;
-                        html += `<p class="text-sm font-mono"><span class="font-bold">${icon}</span> <strong>${c.endpoint}</strong> <span class="text-gray-500">(HTTP ${c.http_status || '—'})</span></p>`;
-                        html += `<p class="text-xs text-gray-700 mt-0.5">${c.detail}</p>`;
-                        html += '</div>';
-                    });
-                    html += '</div>';
-                    html += `<button type="button" onclick="navigator.clipboard.writeText(this.dataset.report).then(() => { this.textContent = 'Copied!'; setTimeout(() => { this.textContent = 'Copy report to clipboard'; }, 1500); })" data-report="${report.replace(/"/g, '&quot;')}" class="btn btn-sm btn-outline text-xs">Copy report to clipboard</button>`;
-                    html += '</div>';
-
-                    if (!valData.valid && valData.error) {
-                        html = `<p class="text-red-700 font-medium">${valData.error}</p>`;
-                    }
-
-                    errorMsg.innerHTML = html;
-                    errorDiv.classList.remove('hidden');
-                    return;
-                }
-            } catch (e) {
-                loading.classList.add('hidden');
-                errorMsg.textContent = 'Could not validate: ' + (e.message || 'Network error');
-                errorDiv.classList.remove('hidden');
-                return;
-            }
-
-            // Step 2: Fetch galaxias
-            loading.querySelector('p').textContent = 'Fetching available galaxias...';
-            try {
-                const resp = await fetch(`${MOCAMBOS_API}&action=galaxias&api_base=${encodeURIComponent(mocambosApiBase)}`, {
-                    headers: { 'X-API-Key': API_KEY }
-                });
-                if (!resp.ok) {
-                    const err = await resp.json().catch(() => ({}));
-                    throw new Error(err.error || 'Failed to fetch galaxias');
-                }
-                const galaxias = await resp.json();
-                loading.classList.add('hidden');
-
-                if (!Array.isArray(galaxias) || galaxias.length === 0) {
-                    errorMsg.textContent = 'No galaxias found at this URL.';
-                    errorDiv.classList.remove('hidden');
-                    return;
-                }
-
-                document.getElementById('mocambos-connected-url').textContent = mocambosApiBase;
-
-                galaxias.forEach((g, i) => {
-                    const div = document.createElement('label');
-                    div.className = 'flex items-center gap-3 p-2 rounded hover:bg-gray-50 cursor-pointer';
-                    div.innerHTML = `
-                        <input type="checkbox" class="checkbox checkbox-sm checkbox-primary mocambos-galaxia-cb"
-                               data-slug="${g.slug}" data-smid="${g.smid}" data-mucua="${g.mucua_slug}" data-name="${g.name}">
-                        <span class="flex-1 text-sm font-medium text-gray-800">${g.name}</span>
-                        ${g.imported ? '<span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">Imported</span>' : ''}
-                    `;
-                    galaxiasDiv.appendChild(div);
-                });
-
-                listDiv.classList.remove('hidden');
-                importBtn.classList.remove('hidden');
-            } catch (e) {
-                loading.classList.add('hidden');
-                errorMsg.textContent = e.message || 'Failed to connect to Mocambos API';
-                errorDiv.classList.remove('hidden');
-            }
-        }
-
-        async function doMocambosImport() {
-            const checkboxes = document.querySelectorAll('.mocambos-galaxia-cb:checked');
-            if (checkboxes.length === 0) {
-                showMessage('Please select at least one galaxia to import.', 'error');
-                return;
-            }
-
-            const selected = [];
-            const reimportNames = [];
-            checkboxes.forEach(cb => {
-                selected.push({
-                    galaxia_slug: cb.dataset.slug,
-                    galaxia_smid: cb.dataset.smid,
-                    mucua_slug: cb.dataset.mucua
-                });
-                const badge = cb.closest('label').querySelector('.bg-purple-100');
-                if (badge) reimportNames.push(cb.dataset.name);
-            });
-
-            if (reimportNames.length > 0) {
-                const confirmed = confirm(
-                    'The following galaxies will be refreshed, replacing all current content including any edits:\n\n' +
-                    reimportNames.join('\n') +
-                    '\n\nContinue?'
-                );
-                if (!confirmed) return;
-            }
-
-            const importBtn = document.getElementById('mocambos-import-btn');
-            const progressDiv = document.getElementById('mocambos-import-progress');
-            const resultDiv = document.getElementById('mocambos-import-result');
-            const logDiv = document.getElementById('mocambos-log');
-            const statusEl = document.getElementById('mocambos-progress-status');
-
-            importBtn.classList.add('hidden');
-            progressDiv.classList.remove('hidden');
-            resultDiv.classList.add('hidden');
-            logDiv.innerHTML = '';
-
-            const colorMap = {
-                info: 'text-blue-300',
-                success: 'text-green-400',
-                error: 'text-red-400',
-                warning: 'text-yellow-400',
-                node: 'text-purple-300',
-                download: 'text-gray-400',
-                done: 'text-green-300 font-bold',
-            };
-
-            function appendLog(msg, type) {
-                const line = document.createElement('div');
-                line.className = colorMap[type] || 'text-gray-300';
-                line.textContent = msg;
-                logDiv.appendChild(line);
-                logDiv.scrollTop = logDiv.scrollHeight;
-            }
-
-            try {
-                const resp = await fetch(`${MOCAMBOS_API}&action=import`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-Key': API_KEY
-                    },
-                    body: JSON.stringify({
-                        api_base: mocambosApiBase,
-                        galaxias: selected
-                    })
-                });
-
-                if (!resp.ok && resp.headers.get('content-type')?.includes('application/json')) {
-                    const err = await resp.json();
-                    throw new Error(err.error || 'Import failed');
-                }
-
-                // Read streamed newline-delimited JSON
-                const reader = resp.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-                let finalData = null;
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    buffer += decoder.decode(value, { stream: true });
-
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop(); // keep incomplete line in buffer
-
-                    for (const line of lines) {
-                        if (!line.trim()) continue;
-                        try {
-                            const evt = JSON.parse(line);
-                            appendLog(evt.message, evt.type);
-                            if (evt.type === 'node') {
-                                statusEl.textContent = evt.message.replace(/^\(\d+\/\d+\)\s*/, '');
-                            } else if (evt.type === 'info' || evt.type === 'success') {
-                                statusEl.textContent = evt.message;
-                            }
-                            if (evt.type === 'done') {
-                                finalData = evt;
-                            }
-                        } catch (e) { /* skip unparseable lines */ }
-                    }
-                }
-
-                // Process any remaining buffer
-                if (buffer.trim()) {
-                    try {
-                        const evt = JSON.parse(buffer);
-                        appendLog(evt.message, evt.type);
-                        if (evt.type === 'done') finalData = evt;
-                    } catch (e) { /* skip */ }
-                }
-
-                // Hide spinner, show summary
-                statusEl.textContent = 'Import complete';
-                document.querySelector('#mocambos-import-progress .loading')?.classList.add('hidden');
-
-                if (finalData && finalData.results) {
-                    let html = '<div class="space-y-2 mt-3">';
-                    let hasErrors = false;
-                    finalData.results.forEach(r => {
-                        const status = r.is_new ? 'New' : 'Refreshed';
-                        const countInfo = `${r.imported_count} of ${r.expected_count} items`;
-                        const errCount = (r.errors || []).length;
-                        html += `<div class="p-2 rounded ${errCount > 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'}">`;
-                        html += `<p class="text-sm font-medium">${status}: <strong>${r.galaxia_slug}</strong> — ${countInfo}</p>`;
-                        if (errCount > 0) {
-                            hasErrors = true;
-                            html += `<ul class="text-xs text-red-600 mt-1 list-disc list-inside">`;
-                            r.errors.forEach(e => { html += `<li>${e}</li>`; });
-                            html += `</ul>`;
-                        }
-                        html += `</div>`;
-                    });
-                    html += '</div>';
-                    resultDiv.innerHTML = html;
-                    resultDiv.classList.remove('hidden');
-
-                    showMessage('Import completed' + (hasErrors ? ' with some errors.' : ' successfully.'), hasErrors ? 'error' : 'success');
-                    setTimeout(() => { window.location.reload(); }, 3000);
-                }
-
-            } catch (e) {
-                appendLog('Error: ' + e.message, 'error');
-                statusEl.textContent = 'Import failed';
-                document.querySelector('#mocambos-import-progress .loading')?.classList.add('hidden');
-                importBtn.classList.remove('hidden');
-            }
-        }
 
         async function validateField(type, params) {
             if (!API_KEY) return { valid: true }; // Skip if no API key (shouldn't happen)
@@ -1987,143 +1710,6 @@ $fieldMeta = [
             document.getElementById('duplicate-constellation-tagline').value = c.tagline;
             document.getElementById('duplicate-constellation-id-badge').textContent = '#' + c.id;
             document.getElementById('duplicate_constellation_modal').showModal();
-        }
-
-        function refreshImportedConstellation(id, name) {
-            const source = constImportSources[id];
-            if (!source || !source.api_base || !source.galaxia_slug) {
-                showMessage('Missing import source info for this galaxy.', 'error');
-                return;
-            }
-
-            // Show confirmation step in the modal
-            const modal = document.getElementById('mocambos_import_modal');
-            const urlStep = document.getElementById('mocambos-url-step');
-            const galaxiasList = document.getElementById('mocambos-list');
-            const loading = document.getElementById('mocambos-loading');
-            const errorDiv = document.getElementById('mocambos-error');
-            const progressDiv = document.getElementById('mocambos-import-progress');
-            const resultDiv = document.getElementById('mocambos-import-result');
-            const importBtn = document.getElementById('mocambos-import-btn');
-            const confirmStep = document.getElementById('refresh-confirm-step');
-            const confirmInput = document.getElementById('refresh-confirm-input');
-            const confirmBtn = document.getElementById('refresh-confirm-btn');
-            const confirmName = document.getElementById('refresh-confirm-name');
-
-            // Hide everything, show confirmation step
-            urlStep.classList.add('hidden');
-            galaxiasList.classList.add('hidden');
-            loading.classList.add('hidden');
-            errorDiv.classList.add('hidden');
-            resultDiv.classList.add('hidden');
-            progressDiv.classList.add('hidden');
-            if (importBtn) importBtn.classList.add('hidden');
-
-            confirmName.textContent = name;
-            confirmInput.value = '';
-            confirmBtn.disabled = true;
-            confirmInput.oninput = () => {
-                confirmBtn.disabled = confirmInput.value.trim() !== name;
-            };
-            confirmBtn.onclick = () => {
-                confirmStep.classList.add('hidden');
-                doRefreshImport(id, name);
-            };
-            confirmStep.classList.remove('hidden');
-            modal.showModal();
-            confirmInput.focus();
-        }
-
-        async function doRefreshImport(id, name) {
-            const source = constImportSources[id];
-            const modal = document.getElementById('mocambos_import_modal');
-            const galaxiasList = document.getElementById('mocambos-list');
-            const progressDiv = document.getElementById('mocambos-import-progress');
-            const resultDiv = document.getElementById('mocambos-import-result');
-            const logDiv = document.getElementById('mocambos-log');
-            const statusEl = document.getElementById('mocambos-progress-status');
-            const importBtn = document.getElementById('mocambos-import-btn');
-
-            // Show progress
-            if (importBtn) importBtn.classList.add('hidden');
-            galaxiasList.classList.remove('hidden');
-            document.getElementById('mocambos-galaxias').classList.add('hidden');
-            galaxiasList.querySelectorAll(':scope > p').forEach(p => p.classList.add('hidden'));
-            resultDiv.classList.add('hidden');
-            progressDiv.classList.remove('hidden');
-            logDiv.innerHTML = '';
-            if (statusEl) statusEl.textContent = `Refreshing "${name}"...`;
-
-            const colorMap = {
-                info: 'text-blue-300', success: 'text-green-400', error: 'text-red-400',
-                warning: 'text-yellow-400', node: 'text-purple-300', download: 'text-gray-400',
-                done: 'text-green-300 font-bold',
-            };
-            function appendLog(msg, type) {
-                const line = document.createElement('div');
-                line.className = colorMap[type] || 'text-gray-300';
-                line.textContent = msg;
-                logDiv.appendChild(line);
-                logDiv.scrollTop = logDiv.scrollHeight;
-            }
-
-            try {
-                const resp = await fetch(`${MOCAMBOS_API}&action=import`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
-                    body: JSON.stringify({
-                        api_base: source.api_base,
-                        galaxias: [{
-                            galaxia_slug: source.galaxia_slug,
-                            galaxia_smid: source.galaxia_smid || '',
-                            mucua_slug: source.mucua_slug || ''
-                        }]
-                    })
-                });
-
-                if (!resp.ok && resp.headers.get('content-type')?.includes('application/json')) {
-                    const err = await resp.json();
-                    throw new Error(err.error || 'Refresh failed');
-                }
-
-                const reader = resp.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop();
-                    for (const line of lines) {
-                        if (!line.trim()) continue;
-                        try {
-                            const msg = JSON.parse(line);
-                            appendLog(msg.message || line, msg.type || 'info');
-                        } catch (e) {
-                            appendLog(line, 'info');
-                        }
-                    }
-                }
-                if (buffer.trim()) {
-                    try {
-                        const msg = JSON.parse(buffer);
-                        appendLog(msg.message || buffer, msg.type || 'info');
-                    } catch (e) {
-                        appendLog(buffer, 'info');
-                    }
-                }
-
-                appendLog('Refresh complete.', 'done');
-                if (statusEl) statusEl.textContent = 'Refresh complete';
-                loadConstellations();
-            } catch (e) {
-                appendLog('Error: ' + (e.message || 'Unknown error'), 'error');
-                if (statusEl) statusEl.textContent = 'Refresh failed';
-                resultDiv.innerHTML = '<button type="button" onclick="document.getElementById(\'mocambos_import_modal\').close()" class="btn btn-sm mt-3">Close</button>';
-                resultDiv.classList.remove('hidden');
-            }
         }
 
         // ---------- Bulk users modal ----------
@@ -2653,7 +2239,10 @@ $fieldMeta = [
         let constFilter = '';
         let constTotalPages = 0;
 
-        const constImportSources = {}; // id → import_source object
+        // Exposed on window so bridge admin partials can read it without
+        // depending on the lexical scope of this script block.
+        window.constImportSources = {}; // id : import_source object
+        const constImportSources = window.constImportSources;
         const pastelPalette = ['#FEF2F2','#F0FAF0','#EFF6FF','#FFF8F0','#F8F5FF','#F0FDFA','#FEFEF0','#FFF5F5','#F5F5F7','#F5FAE8'];
         const groupColorMap = {};
         let groupColorIdx = 0;
@@ -2866,7 +2455,7 @@ $fieldMeta = [
                                         <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">Copy URL</a></li>
                                         <li><a href="../edit/keyword-canvas.php?galaxy_id=${c.id}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">Keyword canvas</a></li>
                                         <li><a onclick="event.stopPropagation(); duplicateConstellation(${cJsonAttr})" class="text-gray-700 text-xs">Duplicate</a></li>
-                                        ${c.import_source ? `<li><a onclick="event.stopPropagation(); refreshImportedConstellation(${c.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-purple-600 text-xs">Refresh</a></li>` : ''}
+                                        ${c.import_source ? `<li><a onclick="event.stopPropagation(); bridgeRefreshConstellation(${c.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-purple-600 text-xs">Refresh</a></li>` : ''}
                                         ${!c.is_default ? `<li><a onclick="event.stopPropagation(); triggerDelete('delete_constellation', '${c.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">Delete</a></li>` : ''}
                                     </ul>
                                 </div>
@@ -3728,6 +3317,10 @@ $fieldMeta = [
             }
         }
     </script>
+
+    <?php /* Per-bridge JS contributions. Each active bridge emits its own <script> block. */ ?>
+    <?php bridges_admin_render('js'); ?>
+
     <!-- Bulk Users Import Modal -->
     <dialog id="bulk_users_modal" class="modal">
         <div class="modal-box bg-white !pt-0 max-w-3xl">
@@ -3990,59 +3583,7 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
-    <!-- Mocambos Import Modal -->
-    <dialog id="mocambos_import_modal" class="modal">
-        <div class="modal-box bg-white max-w-lg !pt-0">
-            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Import from Mocambos</h3>
-            </div>
-            <!-- Step 1: API URL -->
-            <div id="mocambos-url-step" class="mt-4">
-                <label for="mocambos-api-url" class="block mb-1.5 text-gray-800 font-medium text-sm">Mocambos API URL</label>
-                <input type="url" id="mocambos-api-url" placeholder="https://timbuktu.mocambos.net/api/v2" value="" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-1">
-                <span class="text-xs text-gray-500 block mb-4">The base API URL of the Mocambos instance (e.g. https://hostname/api/v2). You can also paste the docs URL — /docs will be stripped automatically.</span>
-                <button type="button" id="mocambos-fetch-btn" onclick="fetchMocambosGalaxias()" class="btn bg-purple-600 hover:bg-purple-700 text-white btn-sm">Connect</button>
-            </div>
-            <!-- Step 2: Loading -->
-            <div id="mocambos-loading" class="hidden text-center py-8">
-                <span class="loading loading-spinner loading-lg text-purple-600"></span>
-                <p class="text-gray-600 mt-2">Fetching available galaxias...</p>
-            </div>
-            <div id="mocambos-error" class="hidden text-center py-8">
-                <p class="text-red-600 font-medium" id="mocambos-error-message"></p>
-                <button type="button" onclick="showMocambosUrlStep()" class="btn btn-sm btn-outline mt-3">Back</button>
-            </div>
-            <!-- Step 3: Galaxia selection + import -->
-            <div id="mocambos-list" class="hidden">
-                <p class="text-sm text-gray-600 mb-1">Connected to: <strong id="mocambos-connected-url" class="font-mono text-xs"></strong></p>
-                <p class="text-sm text-gray-600 mb-3">Select galaxias to import. Each will become a new galaxy. Already-imported ones will be refreshed.</p>
-                <div id="mocambos-galaxias" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded p-3 mb-4"></div>
-                <div id="mocambos-import-progress" class="hidden">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="loading loading-spinner loading-sm text-purple-600"></span>
-                        <span class="text-sm font-medium text-gray-700" id="mocambos-progress-status">Starting import...</span>
-                    </div>
-                    <div id="mocambos-log" class="bg-gray-900 text-gray-200 rounded p-3 font-mono text-xs h-64 overflow-y-auto space-y-0.5"></div>
-                </div>
-                <div id="mocambos-import-result" class="hidden mb-4"></div>
-            </div>
-            <!-- Refresh confirmation step -->
-            <div id="refresh-confirm-step" class="hidden">
-                <p class="text-gray-700 mb-2">This will sync wormholes with the remote Mocambos source (incremental update).</p>
-                <p class="text-gray-700 mb-4">To confirm, type the galaxy name <strong id="refresh-confirm-name" class="text-gray-900"></strong> below:</p>
-                <input type="text" id="refresh-confirm-input" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500 mb-4" placeholder="Type galaxy name to confirm" autocomplete="off">
-                <div class="flex justify-end gap-2">
-                    <button type="button" id="refresh-confirm-btn" class="btn bg-purple-600 hover:bg-purple-700 text-white btn-sm" disabled>Refresh</button>
-                    <button type="button" class="btn btn-sm" onclick="document.getElementById('mocambos_import_modal').close()">Cancel</button>
-                </div>
-            </div>
-            <div class="modal-action">
-                <button type="button" id="mocambos-import-btn" class="btn bg-purple-600 hover:bg-purple-700 text-white hidden" onclick="doMocambosImport()">Import Selected</button>
-                <button type="button" class="btn" onclick="document.getElementById('mocambos_import_modal').close()">Close</button>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop"><button>close</button></form>
-    </dialog>
+    <?php bridges_admin_render("modal"); ?>
 
     <!-- Create Constellation Modal -->
     <dialog id="create_constellation_modal" class="modal">

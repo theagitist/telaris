@@ -192,7 +192,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         <!-- Nodes List -->
         <div id="read-only-banner" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 text-yellow-800 text-sm" style="display: none;">
-            This galaxy was imported from Mocambos and is read-only. Use the Mocambos import tool to refresh its content.
+            This galaxy was imported from an external source and is read-only. Use the Refresh action in the admin galaxy list to sync changes.
         </div>
         <div class="bg-white rounded-lg shadow-md mb-6">
             <div class="p-6 border-b border-gray-200">
@@ -2756,7 +2756,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
                     <!-- URL / Action Button -->
                     <div id="preview-url-wrap" class="hidden pt-4">
-                        <a id="preview-url-button" href="#" target="_blank" class="block w-full py-3 bg-transparent border border-white/20 text-[#00ffcc] text-xs font-bold uppercase tracking-widest text-center transition-all hover:bg-white/10 rounded no-underline">
+                        <a id="preview-url-button" href="#" target="_blank" class="block w-full py-3 bg-transparent border border-white/20 text-[#00ffcc] text-xs font-bold uppercase tracking-[0.22em] text-center transition-all hover:bg-white/10 rounded no-underline">
                             Open Link
                         </a>
                     </div>

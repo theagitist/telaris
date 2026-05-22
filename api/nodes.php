@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../inc/bridges/_lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../utils/auth.php';
 require_once __DIR__ . '/../inc/clustering.php';
@@ -263,18 +264,22 @@ try {
                 }
             }
 
-            // Set Baobáxia icon on cluster nodes for Mocambos constellations
+            // If this constellation was imported by a bridge that wants to
+            // customize cluster-node iconography, apply the bridge's icon.
             if ($isClustered && $constellationId !== null) {
                 $importSource = db_get_constellation_import_source($constellationId);
                 if ($importSource !== null) {
                     $src = json_decode($importSource, true);
-                    if (is_array($src) && ($src['source'] ?? '') === 'mocambos') {
-                        foreach ($formatted as &$item) {
-                            if (($item['node_type'] ?? '') === 'cluster') {
-                                $item['icon_url'] = 'img/baobaxia-cluster.svg';
+                    if (is_array($src) && isset($src['source'])) {
+                        $iconUrl = bridges_cluster_icon_url_for((string)$src['source']);
+                        if ($iconUrl !== null) {
+                            foreach ($formatted as &$item) {
+                                if (($item['node_type'] ?? '') === 'cluster') {
+                                    $item['icon_url'] = $iconUrl;
+                                }
                             }
+                            unset($item);
                         }
-                        unset($item);
                     }
                 }
             }

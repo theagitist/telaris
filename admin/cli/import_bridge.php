@@ -6,18 +6,15 @@ declare(strict_types=1);
  * Generic bridge import CLI.
  *
  * Usage:
- *   php admin/cli/import_bridge.php <bridge> [options...]
+ *   php admin/cli/import_bridge.php <bridge> [bridge-specific flags...]
  *
- * The first positional argument selects the bridge handler. Remaining flags
- * are bridge-specific.
+ * The first positional argument selects the bridge handler. The dispatcher
+ * does not parse any flags; each bridge owns its own flag vocabulary and
+ * parses with getopt() inside its own {name}_run_cli() function.
  *
- * For Mocambos (the first bridge):
- *   php admin/cli/import_bridge.php mocambos
- *   php admin/cli/import_bridge.php mocambos --api-base=URL --list
- *   php admin/cli/import_bridge.php mocambos --api-base=URL --galaxia=SLUG [--no-media] [--limit=N] [--quiet] [--full]
- *
- * Running with no flags after the bridge name drops into interactive mode if
- * the bridge supports it.
+ * Running with no flags after the bridge name typically drops into the
+ * bridge's interactive mode if it supports one. See the per-bridge
+ * documentation for the available flags and behaviour.
  */
 
 require_once __DIR__ . '/cli_auth.php';
@@ -29,7 +26,7 @@ require_once __DIR__ . '/../../inc/bridges/_lib.php';
 set_time_limit(0);
 ini_set('memory_limit', '512M');
 
-// First positional arg = bridge name; strip it before getopt sees argv.
+// First positional arg = bridge name.
 $bridgeName = '';
 foreach (array_slice($argv, 1) as $arg) {
     if (str_starts_with($arg, '--') || str_starts_with($arg, '-')) continue;
@@ -38,7 +35,7 @@ foreach (array_slice($argv, 1) as $arg) {
 }
 
 if ($bridgeName === '') {
-    fwrite(STDERR, "Usage: php admin/cli/import_bridge.php <bridge> [options...]\n");
+    fwrite(STDERR, "Usage: php admin/cli/import_bridge.php <bridge> [bridge-specific flags...]\n");
     if (count(bridges_active()) === 0) {
         fwrite(STDERR, "No bridges are enabled in this instance's config.php (TELARIS_BRIDGES).\n");
     } else {
@@ -68,8 +65,4 @@ if (!function_exists($runFn)) {
     exit(1);
 }
 
-// Parse remaining flags. getopt() ignores positional args automatically.
-$opts = getopt('', ['api-base:', 'galaxia:', 'list', 'no-media', 'limit:', 'quiet', 'full']);
-$interactive = empty($opts) || (count($opts) === 1 && isset($opts['quiet']));
-
-exit($runFn($opts, $interactive));
+exit($runFn());

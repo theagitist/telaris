@@ -2,16 +2,18 @@
 declare(strict_types=1);
 
 /**
- * Bridge framework — shared library.
+ * Bridge framework: shared library.
  *
- * A "bridge" pulls content from a non-Telaris source (Mocambos / Baobáxia is
- * the first one) into a local constellation. Each named bridge corresponds to
- * a handler file at inc/bridges/{name}.php that declares two entry points:
+ * A "bridge" pulls content from a non-Telaris source into a local
+ * constellation. Each named bridge corresponds to a handler file at
+ * inc/bridges/{name}.php that declares two entry points:
  *
- *   {name}_handle_request()                    // HTTP, called by api/bridge.php
- *   {name}_run_cli(array $opts, bool $interactive): int   // CLI, called by admin/cli/import_bridge.php
+ *   {name}_handle_request(): void  // HTTP, called by api/bridge.php
+ *   {name}_run_cli(): int          // CLI, called by admin/cli/import_bridge.php
  *
  * Bridges enabled on this instance are listed in TELARIS_BRIDGES in config.php.
+ * The framework code here knows about no specific bridge by name; concrete
+ * bridges are self-contained plug-ins under inc/bridges/{name}*.php.
  *
  * Per the federation plan: bridge imports are not federation. They run on a
  * single Telaris instance and pull content from outside the network.
@@ -67,4 +69,67 @@ function bridges_load(string $name): bool {
     }
     require_once $path;
     return true;
+}
+
+/**
+ * Load the optional admin-UI partial for each active bridge
+ * (inc/bridges/{name}-admin.php), if it ships one. A bridge with no admin
+ * surface (CLI-only, for example) is allowed to skip the file entirely.
+ *
+ * The admin partial may define any subset of the per-hook render functions
+ * (see bridges_admin_render()). It must namespace them with the `{name}_`
+ * prefix just like the main handler file.
+ */
+function bridges_admin_load_all(): void {
+    foreach (bridges_active() as $name) {
+        if (!bridges_name_is_valid($name)) continue;
+        $path = __DIR__ . '/' . $name . '-admin.php';
+        if (is_file($path)) {
+            require_once $path;
+        }
+    }
+}
+
+/**
+ * Look up the cluster-icon URL that a bridge wants applied to its imported
+ * constellations' auto-generated cluster nodes. Returns null if the bridge
+ * is not active, has no handler file, or does not define the optional
+ * `{name}_cluster_icon_url()` function. Used by api/nodes.php to let a
+ * bridge customize the visitor-side rendering of cluster pseudo-nodes
+ * inside galaxies it imported.
+ */
+function bridges_cluster_icon_url_for(string $bridgeName): ?string {
+    if (!bridges_is_active($bridgeName)) return null;
+    if (!bridges_load($bridgeName)) return null;
+    $fn = $bridgeName . '_cluster_icon_url';
+    if (!function_exists($fn)) return null;
+    $url = $fn();
+    return is_string($url) && $url !== '' ? $url : null;
+}
+
+/**
+ * Render hook: call {name}_admin_render_{hook}() for every active bridge
+ * that defines it. The current hooks are:
+ *
+ *   - 'button': contribute a button to the galaxy-list header.
+ *   - 'modal':  contribute a <dialog> / modal element to the page body.
+ *   - 'js':     contribute a <script> block (consts, functions, and the
+ *               window.BRIDGES_REFRESH_UI[{name}] registration if the
+ *               bridge supports refresh-from-stored-source).
+ *
+ * Each render function echoes (does not return) its contribution. Hooks
+ * a bridge does not implement are skipped silently. The hook name must
+ * match `[a-z][a-z0-9_]*` (no separators, no path-shaped input).
+ */
+function bridges_admin_render(string $hook): void {
+    if (preg_match('/^[a-z][a-z0-9_]*$/', $hook) !== 1) {
+        return;
+    }
+    foreach (bridges_active() as $name) {
+        if (!bridges_name_is_valid($name)) continue;
+        $fn = $name . '_admin_render_' . $hook;
+        if (function_exists($fn)) {
+            $fn();
+        }
+    }
 }
