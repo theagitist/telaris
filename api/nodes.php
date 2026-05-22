@@ -71,29 +71,6 @@ function effectivePdfMaxBytes(): int {
     return MAX_PDF_BYTES_DEFAULT;
 }
 
-/**
- * If the current session belongs to an editor (not admin), verify they have access
- * to the given constellation. Returns an error message or null on success.
- */
-function checkEditorConstellationAccess(int $constellationId): ?string {
-    if (!isEditorOrAdminLoggedIn()) {
-        return null; // API-key-only callers are not session-restricted
-    }
-    if (isAdminLoggedIn()) {
-        return null; // Admins have access to all constellations
-    }
-    $userId = $_SESSION['admin_user_id'] ?? null;
-    if (!$userId) {
-        return null;
-    }
-    $allowed = db_get_constellations_for_user($userId, false);
-    $allowedIds = array_column($allowed, 'id');
-    if (!in_array($constellationId, $allowedIds, true)) {
-        return 'Access denied to this constellation';
-    }
-    return null;
-}
-
 $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'POST' && isset($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']) && strtoupper($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']) === 'PUT') {
     $method = 'PUT';

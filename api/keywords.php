@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/../utils/auth.php';
 require_once __DIR__ . '/../inc/db.php';
 require_once __DIR__ . '/../inc/api-error.php';
 
@@ -69,10 +70,28 @@ try {
             if (empty($keyword)) {
                 api_error('400.012', 'A keyword is required.');
             }
-            $keywordId = db_create_keyword($keyword);
+            // Keywords are per-galaxy; the caller must name the galaxy and have a seat
+            // on it. Pre-fix this endpoint created keywords against the default galaxy
+            // with no scope check, letting any editor add vocabulary to galaxies they
+            // had no access to.
+            $constellationId = $data['constellation_id'] ?? null;
+            if ($constellationId === null || !is_numeric($constellationId) || (int)$constellationId <= 0) {
+                api_error('400.010', 'A constellation id is required.');
+            }
+            $constellationId = (int)$constellationId;
+            if (db_get_constellation_by_id($constellationId) === null) {
+                api_error('404.008', 'The target galaxy does not exist.');
+            }
+            $accessError = checkEditorConstellationAccess($constellationId);
+            if ($accessError !== null) {
+                error_log('keywords.php access (create): ' . $accessError);
+                api_error('403.005', 'Access denied.');
+            }
+            $createdBy = $_SESSION['admin_user_id'] ?? null;
+            $keywordId = db_create_keyword($keyword, $constellationId, $createdBy);
             echo json_encode(['id' => $keywordId, 'keyword' => $keyword, 'success' => true], JSON_THROW_ON_ERROR);
         })(),
-        
+
         'DELETE' => (function(): void {
             requireWriteAccess();
             $id = $_GET['id'] ?? null;
@@ -86,6 +105,14 @@ try {
             $actualConstellationId = db_get_keyword_constellation_id((int)$id);
             if ($actualConstellationId === null || $actualConstellationId !== (int)$constellationId) {
                 api_error('400.014', 'The keyword does not belong to the specified constellation.');
+            }
+            // Source-of-truth seat check against the keyword's actual galaxy. Pre-fix
+            // any editor could delete any keyword in any galaxy because the access
+            // gate was missing entirely.
+            $accessError = checkEditorConstellationAccess($actualConstellationId);
+            if ($accessError !== null) {
+                error_log('keywords.php access (delete): ' . $accessError);
+                api_error('403.005', 'Access denied.');
             }
             db_delete_keyword((int)$id);
             echo json_encode(['success' => true], JSON_THROW_ON_ERROR);

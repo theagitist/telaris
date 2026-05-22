@@ -49,10 +49,35 @@ function isEditorLoggedIn(): bool {
  * Check if user is logged in as editor or admin
  */
 function isEditorOrAdminLoggedIn(): bool {
-    return isset($_SESSION['admin_user_id']) && 
-           isset($_SESSION['admin_user_type']) && 
-           ((int)$_SESSION['admin_user_type'] === USER_TYPE_EDITOR || 
+    return isset($_SESSION['admin_user_id']) &&
+           isset($_SESSION['admin_user_type']) &&
+           ((int)$_SESSION['admin_user_type'] === USER_TYPE_EDITOR ||
             (int)$_SESSION['admin_user_type'] === USER_TYPE_ADMIN);
+}
+
+/**
+ * If the current session belongs to an editor (not admin), verify they have
+ * a seat on the given constellation. Admins and API-key-only callers are not
+ * restricted at this layer. Returns an error message string when the editor
+ * is denied, or null when allowed.
+ */
+function checkEditorConstellationAccess(int $constellationId): ?string {
+    if (!isEditorOrAdminLoggedIn()) {
+        return null;
+    }
+    if (isAdminLoggedIn()) {
+        return null;
+    }
+    $userId = $_SESSION['admin_user_id'] ?? null;
+    if (!$userId) {
+        return null;
+    }
+    $allowed = db_get_constellations_for_user($userId, false);
+    $allowedIds = array_column($allowed, 'id');
+    if (!in_array($constellationId, $allowedIds, true)) {
+        return 'Access denied to this constellation';
+    }
+    return null;
 }
 
 /**
