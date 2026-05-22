@@ -183,7 +183,7 @@
         hideGalaxyTagSuggestions();
         try {
             const r = await fetch(`${tagsApiUrl()}?galaxy_id=${galaxyId}`, { headers: { 'X-API-Key': getApiKey() } });
-            if (!r.ok) throw new Error('Failed to load tags');
+            if (!r.ok) throw new Error('GXM_LOAD_TAGS_FAILED');
             const data = await r.json();
             galaxyTagState.suggestions.current = (data.current || []).map(t => ({ label: t.label, slug: t.slug }));
             galaxyTagState.suggestions.siblings = (data.siblings || []).map(t => ({ label: t.label, slug: t.slug, count: t.count }));
@@ -279,7 +279,7 @@
             const r = await fetch(`${getApiUrl()}?action=tour_config&id=${constellationId}`, {
                 headers: { 'X-API-Key': getApiKey() }
             });
-            if (!r.ok) throw new Error('Failed to load tour config');
+            if (!r.ok) throw new Error('GXM_LOAD_TOUR_CONFIG_FAILED');
             const cfg = await r.json();
 
             enabled.checked = !!cfg.tour_enabled;
