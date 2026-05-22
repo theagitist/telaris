@@ -200,13 +200,13 @@ header("X-Content-Type-Options: nosniff");
              show_2d_view). Visitor preference persists in localStorage. -->
         <div id="view-mode-switch" class="fixed top-3 left-1/2 -translate-x-1/2 z-[220] flex items-center gap-0 bg-black/50 border border-white/20 rounded-full backdrop-blur-sm" style="padding: 2px;">
             <button type="button" id="view-mode-3d" data-mode="3d"
-                    class="text-xs uppercase tracking-wider px-3 py-1 rounded-full transition-colors"
+                    class="text-xs uppercase tracking-[0.18em] px-3 py-1 rounded-full transition-colors"
                     aria-pressed="true"
                     style="color: #000; background: #fff;">
                 3D
             </button>
             <button type="button" id="view-mode-2d" data-mode="2d"
-                    class="text-xs uppercase tracking-wider px-3 py-1 rounded-full transition-colors"
+                    class="text-xs uppercase tracking-[0.18em] px-3 py-1 rounded-full transition-colors"
                     aria-pressed="false"
                     style="color: #fff; background: transparent;">
                 2D
@@ -255,14 +255,14 @@ header("X-Content-Type-Options: nosniff");
         </div>
 
         <!-- Auto-tour HUD: Play button (manual start) and during-tour player overlay -->
-        <button id="tour-play-btn" class="hidden fixed bottom-6 right-6 z-[260] bg-black/70 hover:bg-black/90 border border-white/30 hover:border-[#00ffcc] text-white text-xs uppercase tracking-wider px-4 py-2 rounded transition-all" type="button" aria-label="Start tour">
+        <button id="tour-play-btn" class="hidden fixed bottom-6 right-6 z-[260] bg-black/70 hover:bg-black/90 border border-white/30 hover:border-[#00ffcc] text-white text-xs uppercase tracking-[0.18em] px-4 py-2 rounded-[2px] transition-all" type="button" aria-label="Start tour">
             <span class="inline-flex items-center gap-2">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
                 <span id="tour-play-btn-label">Tour</span>
             </span>
         </button>
 
-        <div id="tour-hud" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[260] bg-black/80 border border-white/30 rounded-lg px-4 py-2 text-white text-xs uppercase tracking-wider flex items-center gap-3" role="status" aria-live="polite">
+        <div id="tour-hud" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[260] bg-black/80 border border-white/30 rounded px-4 py-2 text-white text-xs uppercase tracking-[0.18em] flex items-center gap-3" role="status" aria-live="polite">
             <span id="tour-hud-progress" class="font-mono text-[#00ffcc]">1 / 1</span>
             <div class="w-32 h-1 bg-white/10 rounded overflow-hidden">
                 <div id="tour-hud-progress-bar" class="h-full bg-[#00ffcc] transition-all" style="width: 0%"></div>
@@ -371,7 +371,7 @@ header("X-Content-Type-Options: nosniff");
 
                         <!-- URL / Action Button -->
                         <div id="rm-url-wrap" class="hidden pt-4">
-                            <button id="rm-url-button" class="w-full py-3 bg-transparent border text-xs font-bold uppercase tracking-widest transition-all hover:bg-white/10"
+                            <button id="rm-url-button" class="w-full py-3 bg-transparent border text-xs font-bold uppercase tracking-[0.22em] transition-all hover:bg-white/10"
                                     style="border-color: var(--node-accent-muted); color: var(--node-accent);">
                                 <?php echo htmlspecialchars($projectLaunchButtonText ?? 'LAUNCH'); ?>...
                             </button>
@@ -379,7 +379,7 @@ header("X-Content-Type-Options: nosniff");
 
                         <!-- Related nodes (single thin row, populated by telaris-3d when galaxy enables it) -->
                         <div id="rm-related-wrap" class="hidden pt-2">
-                            <div class="text-[10px] uppercase tracking-wider text-white/40 mb-1">Related</div>
+                            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Related</div>
                             <div id="rm-related" class="flex flex-nowrap items-center gap-3 overflow-x-auto" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent;"></div>
                         </div>
                     </div>
@@ -414,20 +414,20 @@ header("X-Content-Type-Options: nosniff");
 
         <div class="space-y-2 opacity-80 mb-6 text-sm">
             <div class="flex justify-between gap-12">
-                <span class="uppercase"><?php echo htmlspecialchars($projectSystemsLabelText ?? 'Nodes:'); ?></span>
+                <span class="uppercase tracking-[0.18em]"><?php echo htmlspecialchars($projectSystemsLabelText ?? 'Nodes:'); ?></span>
                 <span id="hud-nodes" class="font-bold text-[#00ffcc]">--</span>
             </div>
             <div class="flex justify-between gap-12">
-                <span class="uppercase"><?php echo htmlspecialchars($projectHyperlinksLabelText ?? 'Hyperlinks:'); ?></span>
+                <span class="uppercase tracking-[0.18em]"><?php echo htmlspecialchars($projectHyperlinksLabelText ?? 'Hyperlinks:'); ?></span>
                 <span id="hud-connections" class="font-bold text-[#00ffcc]">--</span>
             </div>
             <div class="flex justify-between gap-12">
-                <span class="uppercase"><?php echo htmlspecialchars($projectSoundLabelText ?? 'Sound:'); ?></span>
-                <button id="hud-sound-toggle" class="font-bold text-[#00ffcc] hover:text-white transition-colors cursor-pointer uppercase" data-on="<?php echo htmlspecialchars($projectSoundOnText ?? 'ON'); ?>" data-off="<?php echo htmlspecialchars($projectSoundOffText ?? 'OFF'); ?>"><?php echo htmlspecialchars($projectSoundOnText ?? 'ON'); ?></button>
+                <span class="uppercase tracking-[0.18em]"><?php echo htmlspecialchars($projectSoundLabelText ?? 'Sound:'); ?></span>
+                <button id="hud-sound-toggle" class="font-bold text-[#00ffcc] hover:text-white transition-colors cursor-pointer uppercase tracking-[0.18em]" data-on="<?php echo htmlspecialchars($projectSoundOnText ?? 'ON'); ?>" data-off="<?php echo htmlspecialchars($projectSoundOffText ?? 'OFF'); ?>"><?php echo htmlspecialchars($projectSoundOnText ?? 'ON'); ?></button>
             </div>
             <div class="flex justify-between gap-12">
-                <span class="uppercase">Lang:</span>
-                <span class="font-bold text-xs uppercase tracking-wider"><?php
+                <span class="uppercase tracking-[0.18em]">Lang:</span>
+                <span class="font-bold text-xs uppercase tracking-[0.18em]"><?php
                     $locales = ['en', 'es', 'pt'];
                     $links = [];
                     foreach ($locales as $loc) {
