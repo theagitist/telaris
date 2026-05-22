@@ -175,20 +175,34 @@ Key relationships:
 
 Constellations with many nodes are dynamically grouped into navigable clusters by `inc/clustering.php`. Adaptive logic: base threshold 80 nodes; skip when the result would be fewer than 3 groups, one dominant group >80%, or more than half single-node promotions. Cascade: **Mucua** (Mocambos) → **Media type** (imagem/video/audio/arquivo/blog) → **Date** (year, then year-month) → **Alphabetical** (A-F, G-L, M-R, S-Z). Each cluster is a special 3D node; clicking drills in (back button + breadcrumb navigate the hierarchy). API: `&cluster=KEY`, `&no_cluster=1`.
 
-### Bridges (Mocambos is the first one)
+### Bridges (plug-in architecture; Mocambos is the first instance)
 
-A **Bridge** pulls content from a non-Telaris source into a local constellation. Bridges run on a single instance and are not federation. Each bridge is a handler at `inc/bridges/{name}.php` exporting `{name}_handle_request()` (HTTP) and `{name}_run_cli($opts, $interactive)` (CLI). Enabled bridges are listed in `TELARIS_BRIDGES` in `config.php` (default `[]`); the admin "Import from..." surface and the CLI dispatcher both gate on this list.
+A **Bridge** pulls content from a non-Telaris source into a local constellation. Bridges run on a single instance and are not federation. The framework names no specific bridge anywhere; concrete bridges are self-contained plug-ins under `inc/bridges/{name}*.php`. Enabled bridges are listed in `TELARIS_BRIDGES` in `config.php` (default `[]`).
 
-**Framework files:**
-- `inc/bridges/_lib.php`: `bridges_active()`, `bridges_is_active()`, `bridges_name_is_valid()`, `bridges_load()`
-- `api/bridge.php`: generic HTTP dispatcher (`?name=<bridge>&action=<action>`)
-- `admin/cli/import_bridge.php`: generic CLI dispatcher (first positional arg is bridge name)
+**Framework (generic; bridge-agnostic):**
+- `inc/bridges/_lib.php`: `bridges_active()`, `bridges_is_active()`, `bridges_name_is_valid()`, `bridges_load()`, `bridges_admin_load_all()`, `bridges_admin_render($hook)`, `bridges_cluster_icon_url_for($name)`
+- `api/bridge.php`: HTTP dispatcher (`?name=<bridge>&action=<action>`); auth + CORS + name validation only
+- `admin/cli/import_bridge.php`: CLI dispatcher (first positional arg is bridge name); no flag parsing
+- `admin/cli/refresh_constellation.php`: bridge-agnostic refresh; dispatches by `import_source.source` via the `{name}_cli_args_from_source()` hook
 
-**Mocambos handler files:**
-- `inc/bridges/mocambos.php`: HTTP and CLI orchestrators plus shared `_mocambos_import_galaxia()` core
+**Handler interface (required):**
+- `{name}_handle_request(): void` — HTTP entry; reads `$_SERVER['REQUEST_METHOD']` + `$_GET['action']` + body
+- `{name}_run_cli(): int` — CLI entry; parses its own flags via `getopt()`, returns exit code
+
+**Optional handler hooks:**
+- `{name}_cli_args_from_source(array $source): ?array` — CLI args to refresh a constellation this bridge imported (used by `refresh_constellation.php`)
+- `{name}_cluster_icon_url(): string` — visitor-side icon for auto-generated cluster pseudo-nodes inside this bridge's imported galaxies (called from `api/nodes.php` via `bridges_cluster_icon_url_for()`)
+
+**Optional admin UI (in `inc/bridges/{name}-admin.php`):**
+- `{name}_admin_render_button(): void` — galaxy-list-header button
+- `{name}_admin_render_modal(): void` — `<dialog>` element
+- `{name}_admin_render_js(): void` — `<script>` block; should register into `window.BRIDGES_REFRESH_UI[{name}]` if per-galaxy Refresh should route to this bridge
+
+**Mocambos plug-in (the example instance):**
+- `inc/bridges/mocambos.php`: HTTP and CLI orchestrators plus shared `_mocambos_import_galaxia()` core; defines `mocambos_cluster_icon_url()` and `mocambos_cli_args_from_source()`
 - `inc/bridges/mocambos-sync.php`: incremental diff logic (`mocambos_compute_diff`, apply_*)
 - `inc/bridges/mocambos-download.php`: streaming media download helper
-- `admin/cli/refresh_constellation.php`: CLI re-import for a known constellation (shells out to `import_bridge.php mocambos`)
+- `inc/bridges/mocambos-admin.php`: the entire admin button + modal + JS for Mocambos; registers `window.BRIDGES_REFRESH_UI['mocambos']`
 
 **Incremental refresh:** Re-imports compute a diff by matching nodes on `import_slug`. Only additions, modifications, and deletions are applied. Use `--full` flag (CLI) or `full_refresh: true` (API) to force a full re-import.
 
