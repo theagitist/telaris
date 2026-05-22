@@ -87,6 +87,7 @@ declare(strict_types=1);
  *   403.005 — access denied                                 (api/nodes.php)
  *   403.006 — only the author or admin can edit             (api/keyword-canvas.php)
  *   403.007 — only the author or admin can delete           (api/keyword-canvas.php)
+ *   403.008 — user existence check is admin-only            (api/validate.php)
  *
  *   404.001 — node not found                                (api/nodes.php)
  *   404.002 — galaxy not found                              (api/constellations.php, api/nodes.php)

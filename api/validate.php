@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/../utils/auth.php';
 require_once __DIR__ . '/../inc/db.php';
 require_once __DIR__ . '/../inc/api-error.php';
 
@@ -34,6 +35,15 @@ try {
             break;
 
         case 'user':
+            // User-existence probes are restricted to admin sessions. The public
+            // API key alone was an enumeration channel that defeated the careful
+            // stealth of utils/forgot.php.
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+            if (!isAdminLoggedIn()) {
+                api_error('403.008', 'User existence checks are restricted to administrative sessions.');
+            }
             $email = $_GET['email'] ?? '';
             $excludeId = $_GET['exclude_id'] ?? null;
             $exists = db_user_email_exists($email, $excludeId);

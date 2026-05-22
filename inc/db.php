@@ -350,7 +350,7 @@ const PROJECT_INFO_KEYS = [
     'api_error_400_044', 'api_error_400_045', 'api_error_400_046',
     'api_error_401_001', 'api_error_401_002',
     'api_error_403_001', 'api_error_403_002', 'api_error_403_003', 'api_error_403_004',
-    'api_error_403_005', 'api_error_403_006', 'api_error_403_007',
+    'api_error_403_005', 'api_error_403_006', 'api_error_403_007', 'api_error_403_008',
     'api_error_404_001', 'api_error_404_002', 'api_error_404_003', 'api_error_404_004',
     'api_error_404_005', 'api_error_404_006', 'api_error_404_007', 'api_error_404_008',
     'api_error_404_009', 'api_error_404_010', 'api_error_404_011', 'api_error_404_012',
@@ -1519,6 +1519,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_005' => 'Access denied.',
             'api_error_403_006' => 'Only the author or an admin can edit this relation.',
             'api_error_403_007' => 'Only the author or an admin can delete this relation.',
+            'api_error_403_008' => 'User existence checks are restricted to administrative sessions.',
 
             'api_error_404_001' => 'Node not found.',
             'api_error_404_002' => 'Galaxy not found.',
@@ -2621,6 +2622,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_005' => 'Acceso denegado.',
             'api_error_403_006' => 'Solo quien creó la relación o una cuenta de administración pueden editarla.',
             'api_error_403_007' => 'Solo quien creó la relación o una cuenta de administración pueden eliminarla.',
+            'api_error_403_008' => 'La verificación de la existencia de una cuenta se restringe a sesiones de administración.',
 
             'api_error_404_001' => 'Nodo no encontrado.',
             'api_error_404_002' => 'Galaxia no encontrada.',
@@ -3719,6 +3721,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_005' => 'Acesso negado.',
             'api_error_403_006' => 'Apenas quem criou a relação ou uma conta de administração pode editá-la.',
             'api_error_403_007' => 'Apenas quem criou a relação ou uma conta de administração pode apagá-la.',
+            'api_error_403_008' => 'A verificação de existência de conta é restrita a sessões de administração.',
 
             'api_error_404_001' => 'Nó não encontrado.',
             'api_error_404_002' => 'Galáxia não encontrada.',
@@ -4817,6 +4820,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_005' => 'Accès refusé.',
             'api_error_403_006' => 'Seul le compte ayant créé la relation ou un compte d\'administration peut la modifier.',
             'api_error_403_007' => 'Seul le compte ayant créé la relation ou un compte d\'administration peut la supprimer.',
+            'api_error_403_008' => 'La vérification d\'existence de compte est réservée aux sessions d\'administration.',
 
             'api_error_404_001' => 'Nœud introuvable.',
             'api_error_404_002' => 'Galaxie introuvable.',
