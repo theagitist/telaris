@@ -216,6 +216,23 @@ Static assets the bridge wants visitor-side go under `img/bridges/{name}/`.
 
 **Incremental refresh:** Re-imports compute a diff by matching nodes on `import_slug`. Only additions, modifications, and deletions are applied. Use `--full` flag (CLI) or `full_refresh: true` (API) to force a full re-import.
 
+### Localization (i18n)
+
+Three locales supported: English (default), Spanish, Portuguese. French planned next.
+
+**Single source of truth:** `PROJECT_INFO_LOCALES = ['en', 'es', 'pt']` in `inc/db.php`. Adding a locale is a two-step change: append the code here AND add a matching block in `db_default_project_info_rows()`. Nothing else in the codebase enumerates supported locales.
+
+**Locale resolution:** `locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null)` in `inc/db.php`. Reads `?lang=` query first, then `Accept-Language`. Falls back to `PROJECT_INFO_LOCALES[0]` ('en') for any unsupported value. Region suffixes (pt-BR, en-US) are normalised to the 2-letter base.
+
+**Translation lookups:**
+- Visitor surface uses ~55 `$project*Text` PHP variables declared in `inc/bootstrap.php`. Legacy pattern; works.
+- Editor and admin surfaces use the compact `t($key, $fallback)` (raw string) and `t_attr($key, $fallback)` (htmlspecialchars-escaped) helpers in `inc/db.php`. Always pass the English fallback so pages still render correctly before a key has been seeded.
+- JS gets strings through `window.TELARIS_*` globals set by the surface's PHP template (visitor already does this for ~25 keys; editor and admin will follow the same pattern as those chunks land).
+
+**Translation style** (per [[feedback-telaris-translation-style]] memory): ES tú-form, PT você-form, feminine generic, wormhole vocab is *agujero de gusano* (ES) / *buraco de minhoca* (PT), galaxy is *galaxia* / *galáxia*.
+
+**Localization in progress (2026-05-22 onward):** an exhaustive pass through editor + admin is being executed in chunks per the plan at `~/apps/obsidian/Academia/Projects/Telaris/Architecture/Localization plan.md`. Audit catalogues are inlined there (471 strings; 184 editor + 287 admin). Chunks C1-C5 cover the editor and admin surfaces; C6 lands French. Each chunk is one session, fully self-contained: read catalogue, add keys to `PROJECT_INFO_KEYS`, add EN/ES/PT defaults, wire call sites, lint, test, commit, push, deploy.
+
 ### Backup & Snapshots
 
 **Engine:** `inc/backup.php` builds, inspects, and restores `.telaris-backup` files (gzipped JSON envelope, format version 1). Cross-references inside the dump use `ref` strings (gal-N, kw-N, node-N, media-N), slugs, and emails so restores are independent of auto-increment IDs on the target instance. `inc/snapshots.php` is a thin layer that stores backups on disk and tracks them in the `snapshots` table.
