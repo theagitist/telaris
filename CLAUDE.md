@@ -23,11 +23,11 @@ Both share the codebase via the `git@github.com:theagitist/telaris.git` repo, bu
 
 The codebase uses internal names that differ from what users see in the UI:
 
-| Code / DB / API | User-Facing (EN) | User-Facing (ES) | User-Facing (PT) |
-|---|---|---|---|
-| `constellation` | Galaxy | Galaxia | Galáxia |
-| `node` | Wormhole | Agujero de Gusano | Buraco de Minhoca |
-| `portal` | Portal | Portal | Portal |
+| Code / DB / API | User-Facing (EN) | User-Facing (ES) | User-Facing (PT) | User-Facing (FR) |
+|---|---|---|---|---|
+| `constellation` | Galaxy | Galaxia | Galáxia | Galaxie |
+| `node` | Wormhole | Agujero de Gusano | Buraco de Minhoca | Trou de Ver |
+| `portal` | Portal | Portal | Portal | Portail |
 
 All DB tables, API endpoints, PHP/JS variable names, and URL parameters keep the original internal names (`constellation`, `node`, `portal`). Only UI-facing labels, titles, messages, and tooltips use the new vocabulary.
 
@@ -218,20 +218,22 @@ Static assets the bridge wants visitor-side go under `img/bridges/{name}/`.
 
 ### Localization (i18n)
 
-Three locales supported: English (default), Spanish, Portuguese. French planned next.
+Four locales supported: English (default), Spanish, Portuguese, French.
 
-**Single source of truth:** `PROJECT_INFO_LOCALES = ['en', 'es', 'pt']` in `inc/db.php`. Adding a locale is a two-step change: append the code here AND add a matching block in `db_default_project_info_rows()`. Nothing else in the codebase enumerates supported locales.
+**Single source of truth:** `PROJECT_INFO_LOCALES = ['en', 'es', 'pt', 'fr']` in `inc/db.php`. Adding a locale is a two-step change: append the code here AND add a matching block in `db_default_project_info_rows()`. Nothing else in the codebase enumerates supported locales.
 
-**Locale resolution:** `locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null)` in `inc/db.php`. Reads `?lang=` query first, then `Accept-Language`. Falls back to `PROJECT_INFO_LOCALES[0]` ('en') for any unsupported value. Region suffixes (pt-BR, en-US) are normalised to the 2-letter base.
+**Locale resolution:** `locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null)` in `inc/db.php`. Reads `?lang=` query first, then `Accept-Language`. Falls back to `PROJECT_INFO_LOCALES[0]` ('en') for any unsupported value. Region suffixes (pt-BR, en-US, fr-CA) are normalised to the 2-letter base.
 
 **Translation lookups:**
-- Visitor surface uses ~55 `$project*Text` PHP variables declared in `inc/bootstrap.php`. Legacy pattern; works.
-- Editor and admin surfaces use the compact `t($key, $fallback)` (raw string) and `t_attr($key, $fallback)` (htmlspecialchars-escaped) helpers in `inc/db.php`. Always pass the English fallback so pages still render correctly before a key has been seeded.
-- JS gets strings through `window.TELARIS_*` globals set by the surface's PHP template (visitor already does this for ~25 keys; editor and admin will follow the same pattern as those chunks land).
+- Visitor surface uses ~55 `$project*Text` PHP variables declared in `inc/bootstrap.php`. Legacy pattern; works. Fallback hardened in C7i: `?? 'identifier_key'` (locale-invariant), never `?? 'English'`.
+- Editor and admin surfaces use the compact `t($key, $fallback)` (raw string) and `t_attr($key, $fallback)` (htmlspecialchars-escaped) helpers in `inc/db.php`. **`t()` is decolonial-hardened**: when the locale row is missing or the value is empty, it returns the **key** itself (locale-invariant identifier), NOT the English fallback. The English `$fallback` argument is preserved at call sites as inline source-code documentation only.
+- JS gets strings through `window.TELARIS_*` and `window.MOCAMBOS_STRINGS` globals set by the surface's PHP template. JS fallback hardened in C7i: `window.TELARIS_X || 'TELARIS_X'` (identifier), never `|| 'English'`.
 
-**Translation style** (per [[feedback-telaris-translation-style]] memory): ES tú-form, PT você-form, feminine generic, wormhole vocab is *agujero de gusano* (ES) / *buraco de minhoca* (PT), galaxy is *galaxia* / *galáxia*.
+**API errors** adopt RFC 9457 Problem Details with a `<http-status>.<3-digit-subcode>` decimal-dotted code (e.g. `404.001`, `403.002`, `500.001`). Helper: `api_error(string $code, string $fallback, array $args = [], array $extra = []): never` in `inc/api-error.php`. Locale-invariant code, localized title. See the canonical registry comment block at the top of `inc/api-error.php`.
 
-**Localization in progress (2026-05-22 onward):** an exhaustive pass through editor + admin is being executed in chunks per the plan at `~/apps/obsidian/Academia/Projects/Telaris/Architecture/Localization plan.md`. Audit catalogues are inlined there (471 strings; 184 editor + 287 admin). Chunks C1-C5 cover the editor and admin surfaces; C6 lands French. Each chunk is one session, fully self-contained: read catalogue, add keys to `PROJECT_INFO_KEYS`, add EN/ES/PT defaults, wire call sites, lint, test, commit, push, deploy.
+**Translation style** (per [[feedback-telaris-translation-style]] memory): ES tú-form, PT você-form, FR tu-form; **gender-neutral MUST** across all three locales (verb-first, role-as-account, relational phrasing — no agent nouns); wormhole vocab is *agujero de gusano* (ES) / *buraco de minhoca* (PT) / *trou de ver* (FR); galaxy is *galaxia* / *galáxia* / *galaxie*; keyword canvas is *lienzo de palabras clave* / *tela de palavras-chave* / *toile de mots-clés*. FR specifics: Canadian-French leanings (courriel, fichier, téléversement); no median-dot inclusive writing (`éditeur·rice` is out).
+
+**Localization shipped (2026-05-22):** the exhaustive pass through every user-facing surface is complete. Plan: `~/apps/obsidian/Academia/Projects/Telaris/Architecture/Localization plan.md`. Chunks C1-C7i covered EN/ES/PT (~1090 strings, 1084 keys); C6 added French (commit `aadec46`, 1084 keys × 4 locales = 0 missing). Three adversarial audit passes (source-grep, render-and-scrape, framework-emitted) all clean. The localization machinery (`t()`, `t_attr()`, `api_error()`, the JS bundles) is the pattern for any new strings landing in the codebase: add a key to `PROJECT_INFO_KEYS`, add EN/ES/PT/FR defaults to `db_default_project_info_rows()`, use `t($key, $english_fallback)` at the call site.
 
 ### Backup & Snapshots
 
