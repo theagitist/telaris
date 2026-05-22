@@ -1324,6 +1324,18 @@ foreach ($importantExtensions as $ext => $name) {
             'toastSavedCronWarning' => t('admin_toast_saved_cron_warning', 'Saved, but scheduler could not register with cron: %s'),
             'toastScheduleSaved' => t('admin_toast_schedule_saved', 'Schedule saved.'),
             'toastSaveScheduleFailed' => t('admin_toast_save_schedule_failed', 'Save schedule failed: %s'),
+            // C4: modal JS chrome
+            'clusterModalCreateTitle' => t('admin_modal_heading_create_cluster', 'Create Cluster'),
+            'clusterModalEditTitle' => t('admin_modal_heading_edit_cluster', 'Edit Cluster'),
+            'clusterModalDuplicateTitle' => t('admin_modal_heading_duplicate_cluster', 'Duplicate Cluster'),
+            'clusterModalCreateSubmit' => t('admin_modal_btn_create_cluster', 'Create Cluster'),
+            'clusterModalUpdateSubmit' => t('admin_modal_btn_update_cluster', 'Update Cluster'),
+            'countSelectedOne' => t('admin_modal_count_selected_one', '%d selected'),
+            'countSelectedMany' => t('admin_modal_count_selected_many', '%d selected'),
+            'nameCopySuffix' => t('admin_modal_name_copy_suffix', ' (Copy)'),
+            'deletionImpactTitle' => t('admin_modal_deletion_impact_title', '⚠️ Deletion Impact:'),
+            'deletionImpactIntro' => t('admin_modal_deletion_impact_intro', 'The following portals in other galaxies point to this network and will also be deleted:'),
+            'deletionImpactRow' => t('admin_modal_deletion_impact_row', '<strong>%s</strong> (in galaxy: %s)'),
         ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
 
         const ADM = window.TELARIS_ADMIN || {};
@@ -1702,7 +1714,7 @@ foreach ($importantExtensions as $ext => $name) {
         function duplicateConstellation(c) {
             document.getElementById('duplicate-source-id').value = c.id;
             document.getElementById('duplicate-constellation-source-name').textContent = c.name;
-            document.getElementById('duplicate-constellation-name').value = c.name + ' (Copy)';
+            document.getElementById('duplicate-constellation-name').value = c.name + (ADM.nameCopySuffix || ' (Copy)');
             document.getElementById('duplicate-constellation-slug').value = (c.slug ? c.slug + '-copy' : '');
             document.getElementById('duplicate-constellation-tagline').value = c.tagline;
             document.getElementById('duplicate-constellation-id-badge').textContent = '#' + c.id;
@@ -1728,7 +1740,7 @@ foreach ($importantExtensions as $ext => $name) {
         function _refreshClusterMembersCount() {
             const checked = _clusterMemberCheckboxes().filter(cb => cb.checked).length;
             const out = document.getElementById('cluster-members-count');
-            if (out) out.textContent = checked === 1 ? '1 selected' : (checked + ' selected');
+            if (out) out.textContent = tFmtAdm(checked === 1 ? (ADM.countSelectedOne || '%d selected') : (ADM.countSelectedMany || '%d selected'), checked);
         }
         function _resetClusterDiscoveryFields() {
             // Discovery defaults — same shape as a brand-new tour_config row.
@@ -1803,7 +1815,7 @@ foreach ($importantExtensions as $ext => $name) {
         }
 
         function openClusterCreate() {
-            document.getElementById('cluster-modal-title').textContent = 'Create Cluster';
+            document.getElementById('cluster-modal-title').textContent = ADM.clusterModalCreateTitle || 'Create Cluster';
             document.getElementById('cluster-modal-id-badge').textContent = '';
             document.getElementById('cluster-form-action').value = 'create_cluster';
             document.getElementById('cluster-form-id').value = '';
@@ -1815,12 +1827,12 @@ foreach ($importantExtensions as $ext => $name) {
             if (sgl) sgl.checked = false;
             _clusterMemberCheckboxes().forEach(cb => { cb.checked = false; });
             _resetClusterDiscoveryFields();
-            document.getElementById('cluster-submit-btn').textContent = 'Create Cluster';
+            document.getElementById('cluster-submit-btn').textContent = ADM.clusterModalCreateSubmit || 'Create Cluster';
             _refreshClusterMembersCount();
             document.getElementById('cluster_modal').showModal();
         }
         async function openClusterEdit(cluster) {
-            document.getElementById('cluster-modal-title').textContent = 'Edit Cluster';
+            document.getElementById('cluster-modal-title').textContent = ADM.clusterModalEditTitle || 'Edit Cluster';
             document.getElementById('cluster-modal-id-badge').textContent = '#' + cluster.id;
             document.getElementById('cluster-form-action').value = 'update_cluster';
             document.getElementById('cluster-form-id').value = cluster.id;
@@ -1845,7 +1857,7 @@ foreach ($importantExtensions as $ext => $name) {
             }).catch(() => { /* leave members empty */ });
             const discoveryP = _loadClusterDiscoveryConfig(cluster.id);
             await Promise.all([membersP, discoveryP]);
-            document.getElementById('cluster-submit-btn').textContent = 'Update Cluster';
+            document.getElementById('cluster-submit-btn').textContent = ADM.clusterModalUpdateSubmit || 'Update Cluster';
             _refreshClusterMembersCount();
             document.getElementById('cluster_modal').showModal();
         }
@@ -1904,11 +1916,15 @@ foreach ($importantExtensions as $ext => $name) {
                         const data = await response.json();
                         if (data.referencing_portals && data.referencing_portals.length > 0) {
                             let html = `<div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 text-xs">`;
-                            html += `<p class="font-bold mb-2 uppercase tracking-wide">⚠️ Deletion Impact:</p>`;
-                            html += `<p class="mb-2">The following portals in other galaxies point to this network and will also be deleted:</p>`;
+                            html += `<p class="font-bold mb-2 uppercase tracking-wide">${escapeHtmlAdmin(ADM.deletionImpactTitle || '⚠️ Deletion Impact:')}</p>`;
+                            html += `<p class="mb-2">${escapeHtmlAdmin(ADM.deletionImpactIntro || 'The following portals in other galaxies point to this network and will also be deleted:')}</p>`;
                             html += `<ul class="list-disc list-inside space-y-1">`;
+                            const rowTpl = ADM.deletionImpactRow || '<strong>%s</strong> (in galaxy: %s)';
                             data.referencing_portals.forEach(p => {
-                                html += `<li><strong>${p.name}</strong> (in galaxy: ${p.constellation_name})</li>`;
+                                const rendered = rowTpl
+                                    .replace('%s', escapeHtmlAdmin(p.name))
+                                    .replace('%s', escapeHtmlAdmin(p.constellation_name));
+                                html += `<li>${rendered}</li>`;
                             });
                             html += `</ul></div>`;
                             impactWrap.innerHTML = html;
@@ -2686,8 +2702,8 @@ foreach ($importantExtensions as $ext => $name) {
          */
         async function duplicateCluster(cluster) {
             openClusterCreate();
-            document.getElementById('cluster-modal-title').textContent = 'Duplicate Cluster';
-            document.getElementById('cluster-name').value = (cluster.name || '') + ' (Copy)';
+            document.getElementById('cluster-modal-title').textContent = ADM.clusterModalDuplicateTitle || 'Duplicate Cluster';
+            document.getElementById('cluster-name').value = (cluster.name || '') + (ADM.nameCopySuffix || ' (Copy)');
             document.getElementById('cluster-slug').value = '';
             document.getElementById('cluster-tagline').value = cluster.tagline || '';
             document.getElementById('cluster-theme').value = cluster.theme || 'cosmic';
@@ -3304,7 +3320,7 @@ foreach ($importantExtensions as $ext => $name) {
     <dialog id="bulk_users_modal" class="modal">
         <div class="modal-box bg-white !pt-0 max-w-3xl">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Bulk import users</h3>
+                <h3 class="font-bold text-xl"><?= htmlspecialchars(t('admin_modal_heading_bulk_users', 'Bulk import users')) ?></h3>
             </div>
             <div class="mt-4">
                 <?php
@@ -3315,22 +3331,60 @@ foreach ($importantExtensions as $ext => $name) {
                 ?>
 
                 <?php if ($bulkUsersResult): ?>
-                    <p class="text-sm text-gray-700 mb-4">Imported <strong><?php echo (int)$bulkUsersResult['created']; ?></strong> user<?php echo $bulkUsersResult['created'] === 1 ? '' : 's'; ?>.<?php
+                    <p class="text-sm text-gray-700 mb-4"><?php
+                        $createdN = (int)$bulkUsersResult['created'];
+                        echo sprintf(
+                            $createdN === 1
+                                ? t('admin_modal_bulk_users_imported_one', 'Imported <strong>%d</strong> user.')
+                                : t('admin_modal_bulk_users_imported_many', 'Imported <strong>%d</strong> users.'),
+                            $createdN
+                        );
                         $g = (int)($bulkUsersResult['galaxies_created'] ?? 0);
-                        if ($g > 0) echo ' Created <strong>' . $g . '</strong> galax' . ($g === 1 ? 'y' : 'ies') . '.';
-                        if ($bulkUsersResult['skipped_exists'] > 0) echo ' Skipped <strong>' . (int)$bulkUsersResult['skipped_exists'] . '</strong> already-existing email' . ($bulkUsersResult['skipped_exists'] === 1 ? '' : 's') . '.';
-                        if ($bulkUsersResult['skipped_invalid'] > 0) echo ' Skipped <strong>' . (int)$bulkUsersResult['skipped_invalid'] . '</strong> invalid row' . ($bulkUsersResult['skipped_invalid'] === 1 ? '' : 's') . '.';
-                        if ($bulkUsersResult['mail_failed'] > 0) echo ' <strong>' . (int)$bulkUsersResult['mail_failed'] . '</strong> setup email' . ($bulkUsersResult['mail_failed'] === 1 ? '' : 's') . ' failed to send.';
+                        if ($g > 0) {
+                            echo sprintf(
+                                $g === 1
+                                    ? t('admin_modal_bulk_users_galaxies_created_one', ' Created <strong>%d</strong> galaxy.')
+                                    : t('admin_modal_bulk_users_galaxies_created_many', ' Created <strong>%d</strong> galaxies.'),
+                                $g
+                            );
+                        }
+                        $skE = (int)$bulkUsersResult['skipped_exists'];
+                        if ($skE > 0) {
+                            echo sprintf(
+                                $skE === 1
+                                    ? t('admin_modal_bulk_users_skipped_exists_one', ' Skipped <strong>%d</strong> already-existing email.')
+                                    : t('admin_modal_bulk_users_skipped_exists_many', ' Skipped <strong>%d</strong> already-existing emails.'),
+                                $skE
+                            );
+                        }
+                        $skI = (int)$bulkUsersResult['skipped_invalid'];
+                        if ($skI > 0) {
+                            echo sprintf(
+                                $skI === 1
+                                    ? t('admin_modal_bulk_users_skipped_invalid_one', ' Skipped <strong>%d</strong> invalid row.')
+                                    : t('admin_modal_bulk_users_skipped_invalid_many', ' Skipped <strong>%d</strong> invalid rows.'),
+                                $skI
+                            );
+                        }
+                        $mF = (int)$bulkUsersResult['mail_failed'];
+                        if ($mF > 0) {
+                            echo sprintf(
+                                $mF === 1
+                                    ? t('admin_modal_bulk_users_mail_failed_one', ' <strong>%d</strong> setup email failed to send.')
+                                    : t('admin_modal_bulk_users_mail_failed_many', ' <strong>%d</strong> setup emails failed to send.'),
+                                $mF
+                            );
+                        }
                     ?></p>
                     <div class="overflow-y-auto max-h-80 border border-gray-200 rounded">
                         <table class="w-full text-xs">
                             <thead class="bg-gray-50 text-gray-600 uppercase tracking-wider">
                                 <tr>
-                                    <th class="text-left py-2 px-3">Line</th>
-                                    <th class="text-left py-2 px-3">Email</th>
-                                    <th class="text-left py-2 px-3">Outcome</th>
-                                    <th class="text-left py-2 px-3">Galaxy</th>
-                                    <th class="text-left py-2 px-3">Note</th>
+                                    <th class="text-left py-2 px-3"><?= htmlspecialchars(t('admin_modal_bulk_users_col_line', 'Line')) ?></th>
+                                    <th class="text-left py-2 px-3"><?= htmlspecialchars(t('admin_modal_bulk_users_col_email', 'Email')) ?></th>
+                                    <th class="text-left py-2 px-3"><?= htmlspecialchars(t('admin_modal_bulk_users_col_outcome', 'Outcome')) ?></th>
+                                    <th class="text-left py-2 px-3"><?= htmlspecialchars(t('admin_modal_bulk_users_col_galaxy', 'Galaxy')) ?></th>
+                                    <th class="text-left py-2 px-3"><?= htmlspecialchars(t('admin_modal_bulk_users_col_note', 'Note')) ?></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -3368,22 +3422,22 @@ foreach ($importantExtensions as $ext => $name) {
                         </table>
                     </div>
                     <div class="modal-action">
-                        <button type="button" class="btn btn-neutral" onclick="document.getElementById('bulk_users_modal').close(); window.location.href='?tab=users';">Done</button>
+                        <button type="button" class="btn btn-neutral" onclick="document.getElementById('bulk_users_modal').close(); window.location.href='?tab=users';"><?= htmlspecialchars(t('admin_modal_btn_done', 'Done')) ?></button>
                     </div>
 
                 <?php elseif ($bulkUsersPreview !== null): ?>
-                    <p class="text-sm text-gray-700 mb-3">Review the parsed list. Click <strong>Confirm import</strong> to create the new accounts and email each one a one-time setup link.</p>
+                    <p class="text-sm text-gray-700 mb-3"><?= t('admin_modal_bulk_users_preview_intro', 'Review the parsed list. Click <strong>Confirm import</strong> to create the new accounts and email each one a one-time setup link.') ?></p>
                     <div class="overflow-y-auto max-h-80 border border-gray-200 rounded">
                         <table class="w-full text-xs">
                             <thead class="bg-gray-50 text-gray-600 uppercase tracking-wider">
                                 <tr>
-                                    <th class="text-left py-2 px-3">Line</th>
-                                    <th class="text-left py-2 px-3">Email</th>
-                                    <th class="text-left py-2 px-3">Name</th>
-                                    <th class="text-left py-2 px-3">Role</th>
-                                    <th class="text-left py-2 px-3">Galaxy</th>
-                                    <th class="text-left py-2 px-3">Status</th>
-                                    <th class="text-left py-2 px-3">Note</th>
+                                    <th class="text-left py-2 px-3"><?= htmlspecialchars(t('admin_modal_bulk_users_col_line', 'Line')) ?></th>
+                                    <th class="text-left py-2 px-3"><?= htmlspecialchars(t('admin_modal_bulk_users_col_email', 'Email')) ?></th>
+                                    <th class="text-left py-2 px-3"><?= htmlspecialchars(t('admin_modal_bulk_users_col_name', 'Name')) ?></th>
+                                    <th class="text-left py-2 px-3"><?= htmlspecialchars(t('admin_modal_bulk_users_col_role', 'Role')) ?></th>
+                                    <th class="text-left py-2 px-3"><?= htmlspecialchars(t('admin_modal_bulk_users_col_galaxy', 'Galaxy')) ?></th>
+                                    <th class="text-left py-2 px-3"><?= htmlspecialchars(t('admin_modal_bulk_users_col_status', 'Status')) ?></th>
+                                    <th class="text-left py-2 px-3"><?= htmlspecialchars(t('admin_modal_bulk_users_col_note', 'Note')) ?></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -3401,7 +3455,7 @@ foreach ($importantExtensions as $ext => $name) {
                                                 } else {
                                                     echo htmlspecialchars($gp);
                                                     if (!empty($r['creates_galaxy_overridden'])) {
-                                                        echo ' <span class="text-amber-700 not-italic">(row override)</span>';
+                                                        echo ' <span class="text-amber-700 not-italic">' . htmlspecialchars(t('admin_modal_bulk_users_row_override', '(row override)')) . '</span>';
                                                     }
                                                 }
                                             ?>
@@ -3429,37 +3483,37 @@ foreach ($importantExtensions as $ext => $name) {
                         <?php if ($bulkUsersDefaultCreateGalaxy): ?>
                             <input type="hidden" name="default_create_galaxy" value="1">
                         <?php endif; ?>
-                        <button type="submit" class="btn btn-neutral">Confirm import</button>
-                        <button type="button" class="btn" onclick="document.getElementById('bulk_users_modal').close(); window.location.href='?tab=users';">Cancel</button>
+                        <button type="submit" class="btn btn-neutral"><?= htmlspecialchars(t('admin_modal_btn_confirm_import', 'Confirm import')) ?></button>
+                        <button type="button" class="btn" onclick="document.getElementById('bulk_users_modal').close(); window.location.href='?tab=users';"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
                     </form>
 
                 <?php else: ?>
-                    <p class="text-sm text-gray-600 mb-3">Paste a list of users — one per line, columns comma-separated. Only the email is required; everything else is optional.</p>
+                    <p class="text-sm text-gray-600 mb-3"><?= htmlspecialchars(t('admin_modal_bulk_users_form_intro', 'Paste a list of users, one per line, columns comma-separated. Only the email is required; everything else is optional.')) ?></p>
                     <ol class="text-xs text-gray-600 mb-3 list-decimal pl-5 space-y-1">
-                        <li><strong>email</strong> — required</li>
-                        <li><strong>first name</strong></li>
-                        <li><strong>last name</strong></li>
-                        <li><strong>type</strong> — <code>Editor</code> (default) or <code>Admin</code></li>
-                        <li><strong>create galaxy?</strong> — <code>yes</code> / <code>no</code>. Empty inherits the checkbox below; a value here overrides it.</li>
+                        <li><?= t('admin_modal_bulk_users_field_email', '<strong>email</strong>: required') ?></li>
+                        <li><?= t('admin_modal_bulk_users_field_first_name', '<strong>first name</strong>') ?></li>
+                        <li><?= t('admin_modal_bulk_users_field_last_name', '<strong>last name</strong>') ?></li>
+                        <li><?= t('admin_modal_bulk_users_field_type', '<strong>type</strong>: <code>Editor</code> (default) or <code>Admin</code>') ?></li>
+                        <li><?= t('admin_modal_bulk_users_field_create_galaxy', '<strong>create galaxy?</strong>: <code>yes</code> / <code>no</code>. Empty inherits the checkbox below; a value here overrides it.') ?></li>
                     </ol>
-                    <p class="text-xs text-gray-600 mb-1"><strong>Example:</strong></p>
+                    <p class="text-xs text-gray-600 mb-1"><?= t('admin_modal_bulk_users_example_label', '<strong>Example:</strong>') ?></p>
                     <pre class="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded p-2 mb-3 font-mono">elena.fernandez@example.org, Elena, Fernández
 m.silva@example.org
 roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
-                    <p class="text-xs text-gray-500 mb-3">Each new user gets a welcome email with a one-time setup link (7-day TTL) to set their password. When a galaxy is created for them, the email also includes the galaxy URL and the login link. Existing emails are skipped; lines starting with <code>#</code> are ignored.</p>
+                    <p class="text-xs text-gray-500 mb-3"><?= t('admin_modal_bulk_users_footer_help', 'Each new user gets a welcome email with a one-time setup link (7-day TTL) to set their password. When a galaxy is created for them, the email also includes the galaxy URL and the login link. Existing emails are skipped; lines starting with <code>#</code> are ignored.') ?></p>
                     <form method="POST" action="">
                         <input type="hidden" name="action" value="bulk_users_preview">
-                        <textarea name="bulk_users_input" rows="10" class="w-full p-3 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:border-blue-500" placeholder="email, firstname, lastname, type, create-galaxy"></textarea>
+                        <textarea name="bulk_users_input" rows="10" class="w-full p-3 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:border-blue-500" placeholder="<?= t_attr('admin_modal_bulk_users_textarea_placeholder', 'email, firstname, lastname, type, create-galaxy') ?>"></textarea>
                         <label class="flex items-start gap-2 mt-3 text-sm text-gray-700 cursor-pointer">
                             <input type="checkbox" name="default_create_galaxy" value="1" class="rounded border-gray-300 mt-0.5" checked>
                             <span>
-                                <span class="font-medium">Create a galaxy for each new user</span>
-                                <span class="block text-xs text-gray-500">Slug taken from the email name (before the <code>@</code>); collisions get a short random suffix. Editors are assigned to their own galaxy; admins see every galaxy already. Override per row in the 5th column.</span>
+                                <span class="font-medium"><?= htmlspecialchars(t('admin_modal_bulk_users_label_create_galaxy_each', 'Create a galaxy for each new user')) ?></span>
+                                <span class="block text-xs text-gray-500"><?= t('admin_modal_bulk_users_help_create_galaxy_each', 'Slug taken from the email name (before the <code>@</code>); collisions get a short random suffix. Editors are assigned to their own galaxy; admins see every galaxy already. Override per row in the 5th column.') ?></span>
                             </span>
                         </label>
                         <div class="modal-action">
-                            <button type="submit" class="btn btn-neutral">Preview</button>
-                            <button type="button" class="btn" onclick="document.getElementById('bulk_users_modal').close()">Cancel</button>
+                            <button type="submit" class="btn btn-neutral"><?= htmlspecialchars(t('admin_modal_btn_preview', 'Preview')) ?></button>
+                            <button type="button" class="btn" onclick="document.getElementById('bulk_users_modal').close()"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
                         </div>
                     </form>
                 <?php endif; ?>
@@ -3472,63 +3526,63 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
     <dialog id="create_user_modal" class="modal">
         <div class="modal-box max-w-2xl bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Create New User</h3>
+                <h3 class="font-bold text-xl"><?= htmlspecialchars(t('admin_modal_heading_create_user', 'Create New User')) ?></h3>
             </div>
             <form method="POST" action="" class="mt-4">
                 <input type="hidden" name="action" value="create_user">
-                
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                        <label for="create-firstname" class="block mb-1.5 text-gray-800 font-medium">First Name *</label>
+                        <label for="create-firstname" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_first_name', 'First Name *')) ?></label>
                         <input type="text" id="create-firstname" name="firstname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span class="text-xs text-gray-500 mt-1 block">The user's given name.</span>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_first_name', "The user's given name.")) ?></span>
                     </div>
                     <div>
-                        <label for="create-lastname" class="block mb-1.5 text-gray-800 font-medium">Last Name *</label>
+                        <label for="create-lastname" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_last_name', 'Last Name *')) ?></label>
                         <input type="text" id="create-lastname" name="lastname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span class="text-xs text-gray-500 mt-1 block">The user's family name.</span>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_last_name', "The user's family name.")) ?></span>
                     </div>
                 </div>
-                
+
                 <div class="mb-4">
-                    <label for="create-email" class="block mb-1.5 text-gray-800 font-medium">Email *</label>
+                    <label for="create-email" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_email', 'Email *')) ?></label>
                     <input type="email" id="create-email" name="email" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span id="create-email-error" class="text-xs text-red-600 mt-1 hidden">This email is already in use.</span>
-                    <span class="text-xs text-gray-500 mt-1 block">Login identifier and contact address.</span>
+                    <span id="create-email-error" class="text-xs text-red-600 mt-1 hidden"><?= htmlspecialchars(t('admin_modal_err_email_in_use', 'This email is already in use.')) ?></span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_email', 'Login identifier and contact address.')) ?></span>
                 </div>
-                
+
                 <div class="mb-4">
-                    <label for="create-password" class="block mb-1.5 text-gray-800 font-medium">Password *</label>
+                    <label for="create-password" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_password', 'Password *')) ?></label>
                     <input type="password" id="create-password" name="password" required minlength="8" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">Minimum 8 characters.</span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_password_min', 'Minimum 8 characters.')) ?></span>
                 </div>
-                
+
                 <div class="mb-4">
-                    <label for="create-type" class="block mb-1.5 text-gray-800 font-medium text-sm">User Type *</label>
+                    <label for="create-type" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_user_type', 'User Type *')) ?></label>
                     <select id="create-type" name="type" required onchange="toggleCreateUserConstellations()" class="select select-bordered select-sm w-full bg-white">
-                        <option value="1">Editor</option>
-                        <option value="2">Admin</option>
+                        <option value="1"><?= htmlspecialchars(t('admin_modal_opt_user_type_editor', 'Editor')) ?></option>
+                        <option value="2"><?= htmlspecialchars(t('admin_modal_opt_user_type_admin', 'Admin')) ?></option>
                     </select>
                     <span class="text-xs text-gray-500 mt-1 block">
-                        Editor: Can edit wormholes in assigned galaxies only | Admin: Full access to all galaxies.
+                        <?= htmlspecialchars(t('admin_modal_help_user_type', 'Editor: Can edit wormholes in assigned galaxies only | Admin: Full access to all galaxies.')) ?>
                     </span>
                 </div>
-                
+
                 <div class="mb-4 p-3 border border-gray-200 rounded bg-white">
                     <label class="flex items-center gap-2 cursor-pointer mb-2">
                         <input type="checkbox" id="create_constellation_cb" name="create_constellation" value="1" class="rounded border-gray-300" checked onchange="toggleCreateNewConstellationName()">
-                        <span class="text-gray-800 font-medium">Create a new galaxy for this user</span>
+                        <span class="text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_create_galaxy_for_user', 'Create a new galaxy for this user')) ?></span>
                     </label>
-                    <p class="text-xs text-gray-500 mb-2">A new galaxy is created with the name below and the user is granted access to it (Editors only).</p>
+                    <p class="text-xs text-gray-500 mb-2"><?= htmlspecialchars(t('admin_modal_help_create_galaxy_for_user', 'A new galaxy is created with the name below and the user is granted access to it (Editors only).')) ?></p>
                     <div id="create-new-constellation-name-wrap">
-                        <label for="create_new_constellation_name" class="block mb-1 text-gray-700 text-sm">Galaxy name *</label>
-                        <input type="text" id="create_new_constellation_name" name="new_constellation_name" placeholder="Defaults to email above" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span class="text-xs text-gray-500 mt-1 block">Name for the automatically created galaxy.</span>
+                        <label for="create_new_constellation_name" class="block mb-1 text-gray-700 text-sm"><?= htmlspecialchars(t('admin_modal_label_new_galaxy_name', 'Galaxy name *')) ?></label>
+                        <input type="text" id="create_new_constellation_name" name="new_constellation_name" placeholder="<?= t_attr('admin_modal_placeholder_new_galaxy_name', 'Defaults to email above') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_new_galaxy_name', 'Name for the automatically created galaxy.')) ?></span>
                     </div>
                 </div>
-                
+
                 <div id="create-user-constellations-section" class="mb-4">
-                    <label class="block mb-1.5 text-gray-800 font-medium">Galaxy access (Editors only)</label>
+                    <label class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_galaxy_access_editors', 'Galaxy access (Editors only)')) ?></label>
                     <div class="border border-gray-200 rounded p-3 bg-white max-h-48 overflow-y-auto">
                         <?php
                         $prevGroup = false;
@@ -3550,12 +3604,12 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                         if ($prevGroup !== false && $prevGroup !== null) echo '</div>';
                         ?>
                     </div>
-                    <span class="text-xs text-gray-500 mt-1 block">Editors can only see and edit wormholes in the galaxies checked above. Admins see all galaxies.</span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_galaxy_access_editors', 'Editors can only see and edit wormholes in the galaxies checked above. Admins see all galaxies.')) ?></span>
                 </div>
-                
+
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-neutral">Create User</button>
-                    <button type="button" class="btn" onclick="document.getElementById('create_user_modal').close()">Cancel</button>
+                    <button type="submit" class="btn btn-neutral"><?= htmlspecialchars(t('admin_modal_btn_create_user', 'Create User')) ?></button>
+                    <button type="button" class="btn" onclick="document.getElementById('create_user_modal').close()"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
                 </div>
             </form>
         </div>
@@ -3568,47 +3622,47 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
     <dialog id="create_constellation_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Create New Galaxy</h3>
+                <h3 class="font-bold text-xl"><?= htmlspecialchars(t('admin_modal_heading_create_galaxy', 'Create New Galaxy')) ?></h3>
             </div>
             <form method="POST" action="" class="mt-4">
                 <input type="hidden" name="action" value="create_constellation">
-                
+
                 <div class="mb-4">
-                    <label for="create-constellation-name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
-                    <input type="text" id="create-constellation-name" name="name" required placeholder="e.g. Main network, Archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span id="create-constellation-name-error" class="text-xs text-red-600 mt-1 hidden">This name is already in use.</span>
-                    <span class="text-xs text-gray-500 mt-1 block">Unique name for the new wormhole network.</span>
+                    <label for="create-constellation-name" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_galaxy_name', 'Name *')) ?></label>
+                    <input type="text" id="create-constellation-name" name="name" required placeholder="<?= t_attr('admin_modal_placeholder_galaxy_name', 'e.g. Main network, Archive') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span id="create-constellation-name-error" class="text-xs text-red-600 mt-1 hidden"><?= htmlspecialchars(t('admin_modal_err_name_in_use', 'This name is already in use.')) ?></span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_galaxy_name', 'Unique name for the new wormhole network.')) ?></span>
                 </div>
 
                 <div class="mb-4">
-                    <label for="create-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">URL Slug</label>
-                    <input type="text" id="create-constellation-slug" name="slug" placeholder="e.g. archive" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span id="create-constellation-slug-error" class="text-xs text-red-600 mt-1 hidden">This slug is already in use.</span>
-                    <span class="text-xs text-gray-500 mt-1 block">Custom URL path. If left blank, one will be generated from the name. Letters, numbers, and hyphens only.</span>
-                </div>
-                
-                <div class="mb-4">
-                    <label for="create-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
-                    <input type="text" id="create-constellation-tagline" name="tagline" placeholder="e.g. Weaving memory" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">Shown in the main view when this galaxy is open.</span>
+                    <label for="create-constellation-slug" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_url_slug', 'URL Slug')) ?></label>
+                    <input type="text" id="create-constellation-slug" name="slug" placeholder="<?= t_attr('admin_modal_placeholder_url_slug', 'e.g. archive') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span id="create-constellation-slug-error" class="text-xs text-red-600 mt-1 hidden"><?= htmlspecialchars(t('admin_modal_err_slug_in_use', 'This slug is already in use.')) ?></span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_url_slug', 'Custom URL path. If left blank, one will be generated from the name. Letters, numbers, and hyphens only.')) ?></span>
                 </div>
 
                 <div class="mb-4">
-                    <label for="create-constellation-theme" class="block mb-1.5 text-gray-800 font-medium text-sm">Visual Theme</label>
+                    <label for="create-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_tagline', 'Tagline')) ?></label>
+                    <input type="text" id="create-constellation-tagline" name="tagline" placeholder="<?= t_attr('admin_modal_placeholder_tagline', 'e.g. Weaving memory') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_tagline', 'Shown in the main view when this galaxy is open.')) ?></span>
+                </div>
+
+                <div class="mb-4">
+                    <label for="create-constellation-theme" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_visual_theme', 'Visual Theme')) ?></label>
                     <select id="create-constellation-theme" name="theme" class="select select-bordered select-sm w-full bg-white">
-                        <option value="cosmic">Cosmic (Stars, Planets, Rockets)</option>
-                        <option value="simple">Simple (Colored Spheres)</option>
-                        <option value="abstract">Abstract (Geometric GIF Icons)</option>
-                        <option value="rectangles">Rectangles (Custom Rectangle Icons)</option>
-                        <option value="stripes">Stripes (Custom Stripe Icons)</option>
-                        <option value="tech">Tech (Circuit Board Icons)</option>
+                        <option value="cosmic"><?= htmlspecialchars(t('admin_modal_opt_theme_cosmic', 'Cosmic (Stars, Planets, Rockets)')) ?></option>
+                        <option value="simple"><?= htmlspecialchars(t('admin_modal_opt_theme_simple', 'Simple (Colored Spheres)')) ?></option>
+                        <option value="abstract"><?= htmlspecialchars(t('admin_modal_opt_theme_abstract', 'Abstract (Geometric GIF Icons)')) ?></option>
+                        <option value="rectangles"><?= htmlspecialchars(t('admin_modal_opt_theme_rectangles', 'Rectangles (Custom Rectangle Icons)')) ?></option>
+                        <option value="stripes"><?= htmlspecialchars(t('admin_modal_opt_theme_stripes', 'Stripes (Custom Stripe Icons)')) ?></option>
+                        <option value="tech"><?= htmlspecialchars(t('admin_modal_opt_theme_tech', 'Tech (Circuit Board Icons)')) ?></option>
                     </select>
-                    <span class="text-xs text-gray-500 mt-1 block">Determines the background, icons and animations.</span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_visual_theme', 'Determines the background, icons and animations.')) ?></span>
                 </div>
-                
+
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-neutral">Create Galaxy</button>
-                    <button type="button" class="btn" onclick="document.getElementById('create_constellation_modal').close()">Cancel</button>
+                    <button type="submit" class="btn btn-neutral"><?= htmlspecialchars(t('admin_modal_btn_create_galaxy', 'Create Galaxy')) ?></button>
+                    <button type="button" class="btn" onclick="document.getElementById('create_constellation_modal').close()"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
                 </div>
             </form>
         </div>
@@ -3619,7 +3673,7 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
     <dialog id="cluster_modal" class="modal">
         <div class="modal-box bg-white !pt-0 max-w-3xl">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-                <h3 id="cluster-modal-title" class="font-bold text-xl">Create Cluster</h3>
+                <h3 id="cluster-modal-title" class="font-bold text-xl"><?= htmlspecialchars(t('admin_modal_heading_create_cluster', 'Create Cluster')) ?></h3>
                 <span id="cluster-modal-id-badge" class="text-xs opacity-70 font-mono"></span>
             </div>
             <form method="POST" action="" class="mt-4">
@@ -3627,44 +3681,44 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                 <input type="hidden" name="id" id="cluster-form-id" value="">
 
                 <div class="mb-4">
-                    <label for="cluster-name" class="block mb-1.5 text-gray-800 font-medium">Name *</label>
-                    <input type="text" id="cluster-name" name="name" required placeholder="e.g. Tracing the Earth" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <label for="cluster-name" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_galaxy_name', 'Name *')) ?></label>
+                    <input type="text" id="cluster-name" name="name" required placeholder="<?= t_attr('admin_modal_placeholder_cluster_name', 'e.g. Tracing the Earth') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                 </div>
 
                 <div class="mb-4">
-                    <label for="cluster-slug" class="block mb-1.5 text-gray-800 font-medium">URL Slug</label>
-                    <input type="text" id="cluster-slug" name="slug" placeholder="e.g. tracing-the-earth" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block">Visitors land at <code>/&lt;slug&gt;</code>. If left blank, one is generated from the name.</span>
+                    <label for="cluster-slug" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_url_slug', 'URL Slug')) ?></label>
+                    <input type="text" id="cluster-slug" name="slug" placeholder="<?= t_attr('admin_modal_placeholder_cluster_slug', 'e.g. tracing-the-earth') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <span class="text-xs text-gray-500 mt-1 block"><?= t('admin_modal_help_cluster_slug', 'Visitors land at <code>/&lt;slug&gt;</code>. If left blank, one is generated from the name.') ?></span>
                 </div>
 
                 <div class="mb-4">
-                    <label for="cluster-tagline" class="block mb-1.5 text-gray-800 font-medium">Tagline</label>
-                    <input type="text" id="cluster-tagline" name="tagline" placeholder="e.g. A curated cluster" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <label for="cluster-tagline" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_tagline', 'Tagline')) ?></label>
+                    <input type="text" id="cluster-tagline" name="tagline" placeholder="<?= t_attr('admin_modal_placeholder_cluster_tagline', 'e.g. A curated cluster') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                 </div>
 
                 <div class="mb-4">
-                    <label for="cluster-theme" class="block mb-1.5 text-gray-800 font-medium text-sm">Visual Theme</label>
+                    <label for="cluster-theme" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_visual_theme', 'Visual Theme')) ?></label>
                     <select id="cluster-theme" name="theme" class="select select-bordered select-sm w-full bg-white">
-                        <option value="cosmic">Cosmic</option>
-                        <option value="abstract">Abstract</option>
-                        <option value="rectangles">Rectangles</option>
-                        <option value="stripes">Stripes</option>
-                        <option value="tech">Tech</option>
+                        <option value="cosmic"><?= htmlspecialchars(t('admin_modal_opt_cluster_theme_cosmic', 'Cosmic')) ?></option>
+                        <option value="abstract"><?= htmlspecialchars(t('admin_modal_opt_cluster_theme_abstract', 'Abstract')) ?></option>
+                        <option value="rectangles"><?= htmlspecialchars(t('admin_modal_opt_cluster_theme_rectangles', 'Rectangles')) ?></option>
+                        <option value="stripes"><?= htmlspecialchars(t('admin_modal_opt_cluster_theme_stripes', 'Stripes')) ?></option>
+                        <option value="tech"><?= htmlspecialchars(t('admin_modal_opt_cluster_theme_tech', 'Tech')) ?></option>
                     </select>
-                    <span class="text-xs text-gray-500 mt-1 block">Scene theme. Each wormhole's icon still uses its source galaxy's theme.</span>
+                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_cluster_theme', "Scene theme. Each wormhole's icon still uses its source galaxy's theme.")) ?></span>
                 </div>
 
                 <div class="mb-4 border-t border-gray-200 pt-4">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" id="cluster-show-galaxy-list" name="show_galaxy_list" value="1" class="toggle toggle-neutral toggle-sm">
-                        <span class="text-gray-800 font-medium text-sm">Show galaxy list to visitors</span>
+                        <span class="text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_show_galaxy_list', 'Show galaxy list to visitors')) ?></span>
                     </label>
-                    <p class="text-xs text-gray-500 mt-1">When on, visitors see a list of the cluster's member galaxies in the bottom-right corner; clicking dims wormholes from other galaxies. Off by default for clusters since the curated framing is usually meant to read as one experience.</p>
+                    <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(t('admin_modal_help_show_galaxy_list', "When on, visitors see a list of the cluster's member galaxies in the bottom-right corner; clicking dims wormholes from other galaxies. Off by default for clusters since the curated framing is usually meant to read as one experience.")) ?></p>
                 </div>
 
                 <div class="mb-4">
-                    <label class="block mb-1.5 text-gray-800 font-medium text-sm">Member galaxies *</label>
-                    <p class="text-xs text-gray-500 mb-2">Visitors see the union of these galaxies' wormholes. Bridges (subtle dashed lines) connect wormholes sharing keyword text across galaxies.</p>
+                    <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_member_galaxies', 'Member galaxies *')) ?></label>
+                    <p class="text-xs text-gray-500 mb-2"><?= htmlspecialchars(t('admin_modal_help_member_galaxies', "Visitors see the union of these galaxies' wormholes. Bridges (subtle dashed lines) connect wormholes sharing keyword text across galaxies.")) ?></p>
                     <div class="border border-gray-300 rounded p-2 max-h-64 overflow-y-auto bg-white">
                         <?php foreach ($constellations as $g): ?>
                             <label class="flex items-center gap-2 py-1 cursor-pointer hover:bg-gray-50 px-1 rounded">
@@ -3676,57 +3730,57 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                             </label>
                         <?php endforeach; ?>
                     </div>
-                    <p id="cluster-members-count" class="text-xs text-gray-500 mt-1">0 selected</p>
+                    <p id="cluster-members-count" class="text-xs text-gray-500 mt-1"><?= sprintf(htmlspecialchars(t('admin_modal_count_selected_many', '%d selected')), 0) ?></p>
                 </div>
 
                 <!-- Discovery features (cluster-scoped) -->
                 <div class="mb-4 border-t border-gray-200 pt-4">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" id="cluster-keyword-chips-enabled" name="keyword_chips_enabled" value="1" class="toggle toggle-neutral toggle-sm">
-                        <span class="text-gray-800 font-medium">Keyword chips</span>
+                        <span class="text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_keyword_chips', 'Keyword chips')) ?></span>
                     </label>
-                    <p class="text-xs text-gray-500 mt-1">Pool the most-used keywords across all visible wormholes (every member galaxy) into a filter chip strip at the top of the cluster. Click a chip to dim non-matching wormholes.</p>
+                    <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(t('admin_modal_help_keyword_chips', 'Pool the most-used keywords across all visible wormholes (every member galaxy) into a filter chip strip at the top of the cluster. Click a chip to dim non-matching wormholes.')) ?></p>
                 </div>
 
                 <div class="mb-4 border-t border-gray-200 pt-4">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" id="cluster-related-nodes-enabled" name="related_nodes_enabled" value="1" class="toggle toggle-neutral toggle-sm">
-                        <span class="text-gray-800 font-medium">Related wormholes</span>
+                        <span class="text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_related_wormholes', 'Related wormholes')) ?></span>
                     </label>
-                    <p class="text-xs text-gray-500 mt-1">When a wormhole's info card is open, dim unrelated ones and surface up to 5 related wormholes (sharing keywords) as click-to-jump chips at the bottom of the card. Pools across the whole cluster — chips can surface wormholes from any member galaxy.</p>
+                    <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(t('admin_modal_help_related_wormholes', "When a wormhole's info card is open, dim unrelated ones and surface up to 5 related wormholes (sharing keywords) as click-to-jump chips at the bottom of the card. Pools across the whole cluster; chips can surface wormholes from any member galaxy.")) ?></p>
                 </div>
 
                 <div class="mb-4 border-t border-gray-200 pt-4">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" id="cluster-show-2d-view" name="show_2d_view" value="1" class="toggle toggle-neutral toggle-sm">
-                        <span class="text-gray-800 font-medium">2D view switch</span>
+                        <span class="text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_2d_view', '2D view switch')) ?></span>
                     </label>
-                    <p class="text-xs text-gray-500 mt-1">Show a top-center "3D / 2D" toggle so visitors can flip from the 3D scene to a flat grid of wormhole chips. Visitor's preference persists in their browser.</p>
+                    <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(t('admin_modal_help_2d_view', "Show a top-center \"3D / 2D\" toggle so visitors can flip from the 3D scene to a flat grid of wormhole chips. Visitor's preference persists in their browser.")) ?></p>
                 </div>
 
                 <div class="mb-4 border-t border-gray-200 pt-4">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" id="cluster-idle-spotlight-enabled" name="idle_spotlight_enabled" value="1" class="toggle toggle-neutral toggle-sm">
-                        <span class="text-gray-800 font-medium">Idle spotlight</span>
+                        <span class="text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_idle_spotlight', 'Idle spotlight')) ?></span>
                     </label>
-                    <p class="text-xs text-gray-500 mt-1">When the visitor is idle, fly the camera to one random wormhole anywhere in the cluster and open its info card. Closes when media ends or after the dwell timer.</p>
+                    <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(t('admin_modal_help_idle_spotlight', 'When the visitor is idle, fly the camera to one random wormhole anywhere in the cluster and open its info card. Closes when media ends or after the dwell timer.')) ?></p>
 
                     <div id="cluster-idle-spotlight-section" class="mt-4 pl-6 border-l-2 border-gray-200 space-y-4 hidden">
                         <div>
-                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Pick from</label>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_pick_from', 'Pick from')) ?></label>
                             <div class="space-y-1">
                                 <label class="flex items-center gap-2 text-sm cursor-pointer">
                                     <input type="radio" name="idle_spotlight_selection" value="all" class="radio radio-neutral radio-sm cluster-idle-spotlight-selection">
-                                    <span>All wormholes (across every member galaxy)</span>
+                                    <span><?= htmlspecialchars(t('admin_modal_opt_pick_all_wormholes', 'All wormholes (across every member galaxy)')) ?></span>
                                 </label>
                                 <label class="flex items-center gap-2 text-sm cursor-pointer">
                                     <input type="radio" name="idle_spotlight_selection" value="accentuated" class="radio radio-neutral radio-sm cluster-idle-spotlight-selection">
-                                    <span>Only accentuated wormholes</span>
+                                    <span><?= htmlspecialchars(t('admin_modal_opt_pick_accentuated', 'Only accentuated wormholes')) ?></span>
                                 </label>
                             </div>
                         </div>
                         <div>
-                            <label for="cluster-idle-spotlight-idle-seconds" class="block mb-1.5 text-gray-800 font-medium text-sm">Trigger after (seconds idle)</label>
+                            <label for="cluster-idle-spotlight-idle-seconds" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_trigger_after_seconds', 'Trigger after (seconds idle)')) ?></label>
                             <input type="number" id="cluster-idle-spotlight-idle-seconds" name="idle_spotlight_idle_seconds" min="1" value="30" class="input input-bordered input-sm w-32 bg-white">
                         </div>
                     </div>
@@ -3736,88 +3790,88 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                     <div class="flex items-center justify-between gap-2">
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="checkbox" id="cluster-tour-enabled" name="tour_enabled" value="1" class="toggle toggle-neutral toggle-sm">
-                            <span class="text-gray-800 font-medium">Auto-tour</span>
+                            <span class="text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_auto_tour', 'Auto-tour')) ?></span>
                         </label>
-                        <button type="button" id="cluster-tour-preview" class="btn btn-xs btn-outline" title="Save first, then preview the tour in a new tab">Preview tour</button>
+                        <button type="button" id="cluster-tour-preview" class="btn btn-xs btn-outline" title="<?= t_attr('admin_modal_title_preview_tour', 'Save first, then preview the tour in a new tab') ?>"><?= htmlspecialchars(t('admin_modal_btn_preview_tour', 'Preview tour')) ?></button>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1">Automatically navigate visitors through wormholes across the cluster, opening each card and playing media. Desktop and iPad only.</p>
+                    <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(t('admin_modal_help_auto_tour', 'Automatically navigate visitors through wormholes across the cluster, opening each card and playing media. Desktop and iPad only.')) ?></p>
 
                     <div id="cluster-tour-section" class="mt-4 pl-6 border-l-2 border-gray-200 space-y-4 hidden">
                         <div>
-                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Start Mode</label>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_start_mode', 'Start Mode')) ?></label>
                             <div class="space-y-1">
                                 <label class="flex items-center gap-2 text-sm cursor-pointer">
                                     <input type="radio" name="tour_start_mode" value="manual" class="radio radio-neutral radio-sm cluster-tour-start-mode">
-                                    <span>Manual. Visitor clicks a Play button to start.</span>
+                                    <span><?= htmlspecialchars(t('admin_modal_opt_start_manual', 'Manual. Visitor clicks a Play button to start.')) ?></span>
                                 </label>
                                 <label class="flex items-center gap-2 text-sm cursor-pointer">
                                     <input type="radio" name="tour_start_mode" value="idle" class="radio radio-neutral radio-sm cluster-tour-start-mode">
-                                    <span>Idle. Start after visitor is inactive for a while.</span>
+                                    <span><?= htmlspecialchars(t('admin_modal_opt_start_idle', 'Idle. Start after visitor is inactive for a while.')) ?></span>
                                 </label>
                                 <label class="flex items-center gap-2 text-sm cursor-pointer">
                                     <input type="radio" name="tour_start_mode" value="immediate" class="radio radio-neutral radio-sm cluster-tour-start-mode">
-                                    <span>Immediate. Start a few seconds after the cluster loads.</span>
+                                    <span><?= htmlspecialchars(t('admin_modal_opt_start_immediate', 'Immediate. Start a few seconds after the cluster loads.')) ?></span>
                                 </label>
                             </div>
                         </div>
 
                         <div id="cluster-tour-idle-row" class="hidden">
-                            <label for="cluster-tour-idle-seconds" class="block mb-1.5 text-gray-800 font-medium text-sm">Idle threshold (seconds)</label>
+                            <label for="cluster-tour-idle-seconds" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_idle_threshold', 'Idle threshold (seconds)')) ?></label>
                             <input type="number" id="cluster-tour-idle-seconds" name="tour_idle_seconds" min="1" value="30" class="input input-bordered input-sm w-32 bg-white">
                         </div>
 
                         <div id="cluster-tour-immediate-warning" class="hidden alert alert-warning text-sm py-2">
-                            <span>One or more member galaxies contain audio wormholes. Browsers block autoplay-with-sound until the visitor interacts with the page, so the first audio in an immediate-start tour may stay silent or stall.</span>
+                            <span><?= htmlspecialchars(t('admin_modal_warn_immediate_audio', 'One or more member galaxies contain audio wormholes. Browsers block autoplay-with-sound until the visitor interacts with the page, so the first audio in an immediate-start tour may stay silent or stall.')) ?></span>
                         </div>
 
                         <div>
-                            <label class="block mb-1.5 text-gray-800 font-medium text-sm">Which wormholes to tour</label>
+                            <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_which_wormholes', 'Which wormholes to tour')) ?></label>
                             <div class="space-y-1">
                                 <label class="flex items-center gap-2 text-sm cursor-pointer">
                                     <input type="radio" name="tour_node_selection" value="all" class="radio radio-neutral radio-sm cluster-tour-node-selection">
-                                    <span>All wormholes (random order each run)</span>
+                                    <span><?= htmlspecialchars(t('admin_modal_opt_tour_all', 'All wormholes (random order each run)')) ?></span>
                                 </label>
                                 <label class="flex items-center gap-2 text-sm cursor-pointer">
                                     <input type="radio" name="tour_node_selection" value="accentuated" class="radio radio-neutral radio-sm cluster-tour-node-selection">
-                                    <span>Only accentuated wormholes</span>
+                                    <span><?= htmlspecialchars(t('admin_modal_opt_tour_accentuated', 'Only accentuated wormholes')) ?></span>
                                 </label>
                                 <label class="flex items-center gap-2 text-sm cursor-pointer">
                                     <input type="radio" name="tour_node_selection" value="random_n" class="radio radio-neutral radio-sm cluster-tour-node-selection">
-                                    <span>A random sample of N wormholes</span>
+                                    <span><?= htmlspecialchars(t('admin_modal_opt_tour_random_n', 'A random sample of N wormholes')) ?></span>
                                 </label>
                                 <label class="flex items-center gap-2 text-sm cursor-pointer">
                                     <input type="radio" name="tour_node_selection" value="tagged" class="radio radio-neutral radio-sm cluster-tour-node-selection">
-                                    <span>Wormholes tagged with one of these keywords</span>
+                                    <span><?= htmlspecialchars(t('admin_modal_opt_tour_tagged', 'Wormholes tagged with one of these keywords')) ?></span>
                                 </label>
                             </div>
                         </div>
 
                         <div id="cluster-tour-random-row" class="hidden">
-                            <label for="cluster-tour-random-count" class="block mb-1.5 text-gray-800 font-medium text-sm">How many wormholes per tour</label>
+                            <label for="cluster-tour-random-count" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_random_count', 'How many wormholes per tour')) ?></label>
                             <input type="number" id="cluster-tour-random-count" name="tour_random_count" min="1" value="10" class="input input-bordered input-sm w-32 bg-white">
                         </div>
 
                         <div id="cluster-tour-tagged-row" class="hidden">
-                            <label for="cluster-tour-keyword-names" class="block mb-1.5 text-gray-800 font-medium text-sm">Keywords (any match, comma-separated)</label>
-                            <input type="text" id="cluster-tour-keyword-names" name="tour_keyword_names" placeholder="e.g. Ideology, Resistance, Land" class="w-full p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            <span class="text-xs text-gray-500 mt-1 block">Matches by keyword name (case-insensitive) across every member galaxy. Useful when the same tag — e.g. <code>Ideology</code> — exists in several galaxies but with different keyword IDs.</span>
+                            <label for="cluster-tour-keyword-names" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_tour_keywords', 'Keywords (any match, comma-separated)')) ?></label>
+                            <input type="text" id="cluster-tour-keyword-names" name="tour_keyword_names" placeholder="<?= t_attr('admin_modal_placeholder_tour_keywords', 'e.g. Ideology, Resistance, Land') ?>" class="w-full p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                            <span class="text-xs text-gray-500 mt-1 block"><?= t('admin_modal_help_tour_keywords', 'Matches by keyword name (case-insensitive) across every member galaxy. Useful when the same tag (e.g. <code>Ideology</code>) exists in several galaxies but with different keyword IDs.') ?></span>
                         </div>
 
                         <div>
-                            <label for="cluster-tour-default-dwell" class="block mb-1.5 text-gray-800 font-medium text-sm">Pause on wormholes without media (seconds)</label>
+                            <label for="cluster-tour-default-dwell" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_dwell_seconds', 'Pause on wormholes without media (seconds)')) ?></label>
                             <input type="number" id="cluster-tour-default-dwell" name="tour_default_dwell" min="1" value="8" class="input input-bordered input-sm w-32 bg-white">
                         </div>
 
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="checkbox" id="cluster-tour-loop" name="tour_loop" value="1" class="toggle toggle-neutral toggle-sm">
-                            <span class="text-gray-800 font-medium text-sm">Loop the tour when it finishes</span>
+                            <span class="text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_loop_tour', 'Loop the tour when it finishes')) ?></span>
                         </label>
                     </div>
                 </div>
 
                 <div class="modal-action">
-                    <button type="submit" id="cluster-submit-btn" class="btn btn-neutral">Create Cluster</button>
-                    <button type="button" class="btn" onclick="document.getElementById('cluster_modal').close()">Cancel</button>
+                    <button type="submit" id="cluster-submit-btn" class="btn btn-neutral"><?= htmlspecialchars(t('admin_modal_btn_create_cluster', 'Create Cluster')) ?></button>
+                    <button type="button" class="btn" onclick="document.getElementById('cluster_modal').close()"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
                 </div>
             </form>
         </div>
@@ -3828,45 +3882,45 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
     <dialog id="user_modal" class="modal">
         <div class="modal-box max-w-2xl bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-                <h3 class="font-bold text-xl">Edit User</h3>
+                <h3 class="font-bold text-xl"><?= htmlspecialchars(t('admin_modal_heading_edit_user', 'Edit User')) ?></h3>
                 <span id="modal-user-id-badge" class="text-xs opacity-70 font-mono"></span>
             </div>
             <form method="POST" action="" class="mt-4">
                 <input type="hidden" name="action" value="update_user">
                 <input type="hidden" id="modal-user-id" name="id">
-                
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                        <label for="modal-firstname" class="block mb-1.5 text-gray-800 font-medium">First Name *</label>
+                        <label for="modal-firstname" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_first_name', 'First Name *')) ?></label>
                         <input type="text" id="modal-firstname" name="firstname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     </div>
                     <div>
-                        <label for="modal-lastname" class="block mb-1.5 text-gray-800 font-medium">Last Name *</label>
+                        <label for="modal-lastname" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_last_name', 'Last Name *')) ?></label>
                         <input type="text" id="modal-lastname" name="lastname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     </div>
                 </div>
-                
+
                 <div class="mb-4">
-                    <label for="modal-email" class="block mb-1.5 text-gray-800 font-medium">Email *</label>
+                    <label for="modal-email" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_email', 'Email *')) ?></label>
                     <input type="email" id="modal-email" name="email" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span id="modal-email-error" class="text-xs text-red-600 mt-1 hidden">This email is already in use.</span>
+                    <span id="modal-email-error" class="text-xs text-red-600 mt-1 hidden"><?= htmlspecialchars(t('admin_modal_err_email_in_use', 'This email is already in use.')) ?></span>
                 </div>
-                
+
                 <div class="mb-4">
-                    <label for="modal-password" class="block mb-1.5 text-gray-800 font-medium">Password (leave blank to keep current)</label>
+                    <label for="modal-password" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_password_optional', 'Password (leave blank to keep current)')) ?></label>
                     <input type="password" id="modal-password" name="password" minlength="8" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                 </div>
-                
+
                 <div class="mb-4">
-                    <label for="modal-type" class="block mb-1.5 text-gray-800 font-medium text-sm">User Type *</label>
+                    <label for="modal-type" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_user_type', 'User Type *')) ?></label>
                     <select id="modal-type" name="type" required onchange="toggleModalUserConstellations()" class="select select-bordered select-sm w-full bg-white">
-                        <option value="1">Editor</option>
-                        <option value="2">Admin</option>
+                        <option value="1"><?= htmlspecialchars(t('admin_modal_opt_user_type_editor', 'Editor')) ?></option>
+                        <option value="2"><?= htmlspecialchars(t('admin_modal_opt_user_type_admin', 'Admin')) ?></option>
                     </select>
                 </div>
-                
+
                 <div id="modal-user-constellations-section" class="mb-4 hidden">
-                    <label class="block mb-1.5 text-gray-800 font-medium">Galaxy access (Editors only)</label>
+                    <label class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_galaxy_access_editors', 'Galaxy access (Editors only)')) ?></label>
                     <div class="border border-gray-200 rounded p-3 bg-white max-h-48 overflow-y-auto">
                         <?php
                         $prevGroup2 = false;
@@ -3890,8 +3944,8 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                 </div>
                 
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-neutral">Update User</button>
-                    <button type="button" class="btn" onclick="document.getElementById('user_modal').close()">Cancel</button>
+                    <button type="submit" class="btn btn-neutral"><?= htmlspecialchars(t('admin_modal_btn_update_user', 'Update User')) ?></button>
+                    <button type="button" class="btn" onclick="document.getElementById('user_modal').close()"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
                 </div>
             </form>
         </div>
@@ -3905,34 +3959,34 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
     <dialog id="duplicate_constellation_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-                <h3 class="font-bold text-xl">Duplicate Galaxy</h3>
+                <h3 class="font-bold text-xl"><?= htmlspecialchars(t('admin_modal_heading_duplicate_galaxy', 'Duplicate Galaxy')) ?></h3>
                 <span id="duplicate-constellation-id-badge" class="text-xs opacity-70 font-mono"></span>
             </div>
-            <p class="text-sm text-gray-600 mb-4 mt-4">Duplicating: <strong id="duplicate-constellation-source-name"></strong></p>
+            <p class="text-sm text-gray-600 mb-4 mt-4"><?= htmlspecialchars(t('admin_modal_label_duplicating', 'Duplicating:')) ?> <strong id="duplicate-constellation-source-name"></strong></p>
             <form method="POST" action="">
                 <input type="hidden" name="action" value="duplicate_constellation">
                 <input type="hidden" id="duplicate-source-id" name="source_id">
                 
                 <div class="mb-4">
-                    <label for="duplicate-constellation-name" class="block mb-1.5 text-gray-800 font-medium">New Name *</label>
+                    <label for="duplicate-constellation-name" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_new_name', 'New Name *')) ?></label>
                     <input type="text" id="duplicate-constellation-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span id="duplicate-constellation-name-error" class="text-xs text-red-600 mt-1 hidden">This name is already in use.</span>
+                    <span id="duplicate-constellation-name-error" class="text-xs text-red-600 mt-1 hidden"><?= htmlspecialchars(t('admin_modal_err_name_in_use', 'This name is already in use.')) ?></span>
                 </div>
 
                 <div class="mb-4">
-                    <label for="duplicate-constellation-slug" class="block mb-1.5 text-gray-800 font-medium">New URL Slug</label>
+                    <label for="duplicate-constellation-slug" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_new_url_slug', 'New URL Slug')) ?></label>
                     <input type="text" id="duplicate-constellation-slug" name="slug" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span id="duplicate-constellation-slug-error" class="text-xs text-red-600 mt-1 hidden">This slug is already in use.</span>
+                    <span id="duplicate-constellation-slug-error" class="text-xs text-red-600 mt-1 hidden"><?= htmlspecialchars(t('admin_modal_err_slug_in_use', 'This slug is already in use.')) ?></span>
                 </div>
                 
                 <div class="mb-4">
-                    <label for="duplicate-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium">New Tagline</label>
+                    <label for="duplicate-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_new_tagline', 'New Tagline')) ?></label>
                     <input type="text" id="duplicate-constellation-tagline" name="tagline" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                 </div>
 
                 <div class="modal-action">
-                    <button type="submit" class="btn btn-neutral">Duplicate</button>
-                    <button type="button" class="btn" onclick="document.getElementById('duplicate_constellation_modal').close()">Cancel</button>
+                    <button type="submit" class="btn btn-neutral"><?= htmlspecialchars(t('admin_modal_btn_duplicate', 'Duplicate')) ?></button>
+                    <button type="button" class="btn" onclick="document.getElementById('duplicate_constellation_modal').close()"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
                 </div>
             </form>
         </div>
@@ -3943,18 +3997,18 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
     <dialog id="delete_confirm_modal" class="modal">
         <div class="modal-box bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-error text-error-content rounded-t-2xl">
-                <h3 class="font-bold text-xl">Confirm Deletion</h3>
+                <h3 class="font-bold text-xl"><?= htmlspecialchars(t('admin_modal_heading_confirm_deletion', 'Confirm Deletion')) ?></h3>
             </div>
             <div id="delete-confirm-message" class="text-gray-600 mb-6 mt-4"></div>
 
             <div id="delete-impact-wrap" class="mb-6 hidden"></div>
 
             <div id="delete-name-confirm-wrap" class="mb-6 hidden">
-                <label for="delete-confirm-name-input" class="block mb-2 text-sm font-medium text-gray-700">Please type the name of the galaxy to confirm:</label>
-                <input type="text" 
-                       id="delete-confirm-name-input" 
+                <label for="delete-confirm-name-input" class="block mb-2 text-sm font-medium text-gray-700"><?= htmlspecialchars(t('admin_modal_label_type_galaxy_name', 'Please type the name of the galaxy to confirm:')) ?></label>
+                <input type="text"
+                       id="delete-confirm-name-input"
                        oninput="checkDeleteConfirmName(this)"
-                       placeholder="Type name here..."
+                       placeholder="<?= t_attr('admin_modal_placeholder_type_name', 'Type name here...') ?>"
                        class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-error">
             </div>
 
@@ -3962,9 +4016,9 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                 <form id="delete-form" method="POST" action="">
                     <input type="hidden" name="action" id="delete-action" value="">
                     <input type="hidden" name="id" id="delete-id" value="">
-                    <button type="submit" id="delete-confirm-btn" class="btn btn-error text-white">Delete</button>
+                    <button type="submit" id="delete-confirm-btn" class="btn btn-error text-white"><?= htmlspecialchars(t('admin_modal_btn_delete', 'Delete')) ?></button>
                 </form>
-                <button type="button" class="btn" onclick="document.getElementById('delete_confirm_modal').close()">Cancel</button>
+                <button type="button" class="btn" onclick="document.getElementById('delete_confirm_modal').close()"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
