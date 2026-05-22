@@ -62,7 +62,12 @@ if (!function_exists($handlerFn)) {
 try {
     $handlerFn();
 } catch (Throwable $e) {
-    http_response_code(500);
+    // Log the detail to the server log; emit a generic envelope to the
+    // client so DB error text / internal paths do not surface in API
+    // responses. Operators tracking down failures look at the server log.
     error_log("bridge.php ({$bridgeName}): " . $e->getMessage());
-    echo json_encode(['error' => 'Internal server error: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
+    if (!headers_sent()) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Internal server error'], JSON_THROW_ON_ERROR);
+    }
 }

@@ -180,15 +180,15 @@ Constellations with many nodes are dynamically grouped into navigable clusters b
 A **Bridge** pulls content from a non-Telaris source into a local constellation. Bridges run on a single instance and are not federation. Each bridge is a handler at `inc/bridges/{name}.php` exporting `{name}_handle_request()` (HTTP) and `{name}_run_cli($opts, $interactive)` (CLI). Enabled bridges are listed in `TELARIS_BRIDGES` in `config.php` (default `[]`); the admin "Import from..." surface and the CLI dispatcher both gate on this list.
 
 **Framework files:**
-- `inc/bridges/_lib.php` — `bridges_active()`, `bridges_is_active()`, `bridges_name_is_valid()`, `bridges_load()`
-- `api/bridge.php` — generic HTTP dispatcher: `?name=<bridge>&action=<action>`
-- `admin/cli/import_bridge.php` — generic CLI dispatcher: first positional arg is bridge name
+- `inc/bridges/_lib.php`: `bridges_active()`, `bridges_is_active()`, `bridges_name_is_valid()`, `bridges_load()`
+- `api/bridge.php`: generic HTTP dispatcher (`?name=<bridge>&action=<action>`)
+- `admin/cli/import_bridge.php`: generic CLI dispatcher (first positional arg is bridge name)
 
 **Mocambos handler files:**
-- `inc/bridges/mocambos.php` — HTTP and CLI orchestrators plus shared `_mocambos_import_galaxia()` core
-- `inc/bridges/mocambos-sync.php` — incremental diff logic (`mocambos_compute_diff`, apply_*)
-- `inc/bridges/mocambos-download.php` — streaming media download helper
-- `admin/cli/refresh_constellation.php` — CLI re-import for a known constellation (shells out to `import_bridge.php mocambos`)
+- `inc/bridges/mocambos.php`: HTTP and CLI orchestrators plus shared `_mocambos_import_galaxia()` core
+- `inc/bridges/mocambos-sync.php`: incremental diff logic (`mocambos_compute_diff`, apply_*)
+- `inc/bridges/mocambos-download.php`: streaming media download helper
+- `admin/cli/refresh_constellation.php`: CLI re-import for a known constellation (shells out to `import_bridge.php mocambos`)
 
 **Incremental refresh:** Re-imports compute a diff by matching nodes on `import_slug`. Only additions, modifications, and deletions are applied. Use `--full` flag (CLI) or `full_refresh: true` (API) to force a full re-import.
 

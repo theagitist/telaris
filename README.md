@@ -136,6 +136,54 @@ The schema is authoritative in `SCHEMA.sql`; the runtime helpers in `inc/db.php`
 
 For the rhizome-vs-tree design choice and how that lands in the schema, see [`Architecture/Rhizomatic database.md`](https://github.com/theagitist/telaris-documentation) in the documentation working notes.
 
+## Bridges
+
+A **Bridge** pulls content from a non-Telaris source into a local galaxy. The first Bridge is **Mocambos**, which imports from a [Baobáxia](https://baobaxia.org/) instance (the Brazilian quilombola digital archive system). Bridges run on a single Telaris instance and are not federation; the federation that subsequently shares the imported galaxies between Telaris instances is a separate layer that lands later.
+
+### Enabling a bridge
+
+Bridges are off by default. To enable one, edit `config.php`:
+
+```php
+define('TELARIS_BRIDGES', ['mocambos']);
+```
+
+The constant is a flat array of handler names. Each name corresponds to a file at `inc/bridges/{name}.php`. With no enabled bridges, the admin *Import from...* surface is hidden and the CLI dispatcher refuses unknown names.
+
+### Importing from Mocambos
+
+With `mocambos` enabled, an operator can import either through the admin UI (the *Import from Mocambos* button in `/admin/`, which walks through URL validation, galaxia selection, and live progress) or from the command line:
+
+```sh
+# Interactive
+php admin/cli/import_bridge.php mocambos
+
+# List galaxias available from a source
+php admin/cli/import_bridge.php mocambos --api-base=https://oya.mocambos.net/api/v2 --list
+
+# Import one galaxia by slug
+php admin/cli/import_bridge.php mocambos \
+    --api-base=https://oya.mocambos.net/api/v2 \
+    --galaxia=acervo-do-coletivo-x
+```
+
+Useful flags: `--no-media` (skip downloads, fast preview), `--limit=N` (test runs), `--quiet` (machine-readable output), `--full` (delete and re-import rather than incremental diff).
+
+Re-imports are incremental by default: nodes are matched on `import_slug`, and only added / modified / deleted items hit the database. A galaxy that was imported earlier can be refreshed with `admin/cli/refresh_constellation.php`.
+
+### Adding a new bridge
+
+A bridge handler is a PHP file at `inc/bridges/{name}.php` that exports two functions:
+
+```php
+function {name}_handle_request(): void;
+function {name}_run_cli(array $opts, bool $interactive): int;
+```
+
+The HTTP dispatcher at `api/bridge.php` and the CLI dispatcher at `admin/cli/import_bridge.php` handle authentication, CORS, name validation, and the active-bridge check before calling the handler. The handler owns its own action vocabulary (e.g. for Mocambos: `validate`, `galaxias`, `import`) and reads its parameters from `$_GET` / `$_POST` / `$opts`.
+
+The framework lib at `inc/bridges/_lib.php` exposes `bridges_active()`, `bridges_is_active()`, `bridges_name_is_valid()`, `bridges_load()`. Bridge names must match `^[a-z][a-z0-9_-]*$` and are checked before any file system access; this is verified in `tests/php/Unit/BridgesLibTest.php`.
+
 ## Testing
 
 ```sh
