@@ -14,7 +14,7 @@ final class MocambosSyncTest extends TestCase
             'name' => $name,
             'description' => $desc,
             'media_type' => $type,
-            'mucua_name' => $mucua,
+            'source_facet' => $mucua,
             'source_created_at' => $date,
             'keywords' => $keywords,
             'url' => 'https://example.com/permalink/acervo/' . $slug,
@@ -184,7 +184,7 @@ final class MocambosSyncTest extends TestCase
         $diff = mocambos_compute_diff($existing, $api, $mucuaMap);
 
         $this->assertCount(1, $diff['modified']);
-        $this->assertContains('mucua_name', $diff['modified'][0]['changes']);
+        $this->assertContains('source_facet', $diff['modified'][0]['changes']);
     }
 
     public function testMultipleChangesDetected(): void

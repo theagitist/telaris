@@ -155,7 +155,7 @@ function backup_build_dump(array $opts): array {
                     'target_galaxy_slug' => $n['target_constellation_slug'] ?? null,
                     'is_accentuated' => (bool)$n['is_accentuated'],
                     'show_keywords' => (bool)$n['show_keywords'],
-                    'mucua_name' => $n['mucua_name'] ?? null,
+                    'source_facet' => $n['source_facet'] ?? null,
                     'media_type' => $n['media_type'] ?? null,
                     'source_created_at' => $n['source_created_at'] ?? null,
                     'import_slug' => $n['import_slug'] ?? null,

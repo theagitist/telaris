@@ -1103,17 +1103,30 @@ function _poisson_disc_next_point(array $existing, float $w, float $h, float $mi
     return $bestPoint ?? [mt_rand(0, (int)$w) * 1.0, mt_rand(0, (int)$h) * 1.0];
 }
 
-/** Ensure nodes clustering columns exist (mucua_name, media_type, source_created_at). */
+/**
+ * Ensure nodes clustering columns exist (source_facet, media_type,
+ * source_created_at). source_facet was previously called mucua_name (a
+ * bridge-vocabulary holdover from before the bridge framework existed);
+ * on instances that still carry the old column name, it gets renamed in
+ * place so the data follows.
+ */
 function db_ensure_nodes_clustering_columns(): void {
     static $checked = false;
     if ($checked) return;
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'mucua_name'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE nodes ADD COLUMN mucua_name VARCHAR(255) NULL AFTER show_keywords, ADD COLUMN media_type VARCHAR(50) NULL AFTER mucua_name, ADD COLUMN source_created_at VARCHAR(30) NULL AFTER media_type");
+        $hasSourceFacet = (bool)$pdo->query("SHOW COLUMNS FROM nodes LIKE 'source_facet'")->fetch();
+        if ($hasSourceFacet) return;
+
+        $hasMucuaName = (bool)$pdo->query("SHOW COLUMNS FROM nodes LIKE 'mucua_name'")->fetch();
+        if ($hasMucuaName) {
+            // Old schema: rename the column so existing data carries over.
+            $pdo->exec("ALTER TABLE nodes CHANGE COLUMN mucua_name source_facet VARCHAR(255) NULL");
+            return;
         }
+
+        $pdo->exec("ALTER TABLE nodes ADD COLUMN source_facet VARCHAR(255) NULL AFTER show_keywords, ADD COLUMN media_type VARCHAR(50) NULL AFTER source_facet, ADD COLUMN source_created_at VARCHAR(30) NULL AFTER media_type");
     } catch (PDOException $e) {
         error_log('db_ensure_nodes_clustering_columns: ' . $e->getMessage());
     }
@@ -1198,12 +1211,12 @@ function db_ensure_nodes_import_slug_column(): void {
 
 /**
  * Get all nodes for a constellation keyed by import_slug.
- * Returns [slug => ['id' => int, 'name' => string, 'description' => string, 'media_type' => string, 'mucua_name' => string, 'source_created_at' => string, 'keywords' => string[]]].
+ * Returns [slug => ['id' => int, 'name' => string, 'description' => string, 'media_type' => string, 'source_facet' => string, 'source_created_at' => string, 'keywords' => string[]]].
  */
 function db_get_nodes_by_import_slug(int $constellationId): array {
     db_ensure_nodes_import_slug_column();
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT id, name, description, import_slug, media_type, mucua_name, source_created_at, url FROM nodes WHERE constellation_id = :cid AND import_slug IS NOT NULL");
+    $stmt = $pdo->prepare("SELECT id, name, description, import_slug, media_type, source_facet, source_created_at, url FROM nodes WHERE constellation_id = :cid AND import_slug IS NOT NULL");
     $stmt->execute([':cid' => $constellationId]);
     $nodes = $stmt->fetchAll();
 
@@ -1221,7 +1234,7 @@ function db_get_nodes_by_import_slug(int $constellationId): array {
             'name' => $node['name'] ?? '',
             'description' => $node['description'] ?? '',
             'media_type' => $node['media_type'] ?? '',
-            'mucua_name' => $node['mucua_name'] ?? '',
+            'source_facet' => $node['source_facet'] ?? '',
             'source_created_at' => $node['source_created_at'] ?? '',
             'keywords' => $keywordsMap[$nodeId] ?? [],
             'url' => $node['url'] ?? '',
@@ -1253,12 +1266,12 @@ function db_backfill_import_slugs(int $constellationId): int {
 }
 
 /** Set clustering metadata on a node. */
-function db_set_node_clustering_metadata(int $nodeId, ?string $mucuaName, ?string $mediaType, ?string $sourceCreatedAt): void {
+function db_set_node_clustering_metadata(int $nodeId, ?string $sourceFacet, ?string $mediaType, ?string $sourceCreatedAt): void {
     $pdo = getDB();
-    $stmt = $pdo->prepare("UPDATE nodes SET mucua_name = :mucua_name, media_type = :media_type, source_created_at = :source_created_at WHERE id = :id");
+    $stmt = $pdo->prepare("UPDATE nodes SET source_facet = :source_facet, media_type = :media_type, source_created_at = :source_created_at WHERE id = :id");
     $stmt->execute([
         ':id' => $nodeId,
-        ':mucua_name' => $mucuaName,
+        ':source_facet' => $sourceFacet,
         ':media_type' => $mediaType,
         ':source_created_at' => $sourceCreatedAt,
     ]);
@@ -3342,7 +3355,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         $stmt = $pdo->query("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.pdf_url, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords, n.use_image_as_node,
-                   n.mucua_name, n.media_type, n.source_created_at,
+                   n.source_facet, n.media_type, n.source_created_at,
                    c.name AS constellation_name,
                    tc.slug AS target_constellation_slug
             FROM nodes n
@@ -3366,7 +3379,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         $stmt = $pdo->prepare("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.pdf_url, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords, n.use_image_as_node,
-                   n.mucua_name, n.media_type, n.source_created_at,
+                   n.source_facet, n.media_type, n.source_created_at,
                    c.name AS constellation_name,
                    tc.slug AS target_constellation_slug
             FROM nodes n
@@ -3384,7 +3397,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         $stmt = $pdo->prepare("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.pdf_url, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords, n.use_image_as_node,
-                   n.mucua_name, n.media_type, n.source_created_at,
+                   n.source_facet, n.media_type, n.source_created_at,
                    c.name AS constellation_name,
                    tc.slug AS target_constellation_slug
             FROM nodes n
@@ -3422,7 +3435,7 @@ function db_get_nodes_for_constellations(array $constellationIds): array {
     $stmt = $pdo->prepare("
         SELECT n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.pdf_url, n.animation, n.created_at, n.updated_at, n.constellation_id,
                n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords, n.use_image_as_node,
-               n.mucua_name, n.media_type, n.source_created_at,
+               n.source_facet, n.media_type, n.source_created_at,
                c.name AS constellation_name,
                c.theme AS constellation_theme,
                tc.slug AS target_constellation_slug
@@ -3450,7 +3463,7 @@ function db_get_node_by_id(int $nodeId): ?array {
     $stmt = $pdo->prepare("
         SELECT n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.pdf_url, n.animation, n.created_at, n.updated_at, n.constellation_id,
                n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords,
-               n.mucua_name, n.media_type, n.source_created_at,
+               n.source_facet, n.media_type, n.source_created_at,
                c.name AS constellation_name,
                tc.slug AS target_constellation_slug
         FROM nodes n
@@ -3489,7 +3502,7 @@ function db_get_nodes_paginated(
 
     $columns = "n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.pdf_url, n.animation, n.created_at, n.updated_at, n.constellation_id,
                n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords, n.use_image_as_node,
-               n.mucua_name, n.media_type, n.source_created_at,
+               n.source_facet, n.media_type, n.source_created_at,
                c.name AS constellation_name,
                tc.slug AS target_constellation_slug";
 
@@ -3677,7 +3690,7 @@ function db_format_nodes_bulk(array $nodes): array {
             'is_accentuated' => (bool)($node['is_accentuated'] ?? false),
             'show_keywords' => (bool)($node['show_keywords'] ?? false),
             'use_image_as_node' => (bool)($node['use_image_as_node'] ?? false),
-            'mucua_name' => isset($node['mucua_name']) && $node['mucua_name'] !== null && $node['mucua_name'] !== '' ? (string)$node['mucua_name'] : null,
+            'source_facet' => isset($node['source_facet']) && $node['source_facet'] !== null && $node['source_facet'] !== '' ? (string)$node['source_facet'] : null,
             'media_type' => isset($node['media_type']) && $node['media_type'] !== null && $node['media_type'] !== '' ? (string)$node['media_type'] : null,
             'source_created_at' => isset($node['source_created_at']) && $node['source_created_at'] !== null && $node['source_created_at'] !== '' ? (string)$node['source_created_at'] : null,
         ];
@@ -3770,7 +3783,7 @@ function db_format_node(array $node): array {
         'is_accentuated' => (bool)($node['is_accentuated'] ?? false),
         'show_keywords' => (bool)($node['show_keywords'] ?? false),
         'use_image_as_node' => (bool)($node['use_image_as_node'] ?? false),
-        'mucua_name' => isset($node['mucua_name']) && $node['mucua_name'] !== null && $node['mucua_name'] !== '' ? (string)$node['mucua_name'] : null,
+        'source_facet' => isset($node['source_facet']) && $node['source_facet'] !== null && $node['source_facet'] !== '' ? (string)$node['source_facet'] : null,
         'media_type' => isset($node['media_type']) && $node['media_type'] !== null && $node['media_type'] !== '' ? (string)$node['media_type'] : null,
         'source_created_at' => isset($node['source_created_at']) && $node['source_created_at'] !== null && $node['source_created_at'] !== '' ? (string)$node['source_created_at'] : null,
     ];
@@ -3854,7 +3867,7 @@ function db_save_node_keywords(int $nodeId, array $keywords, ?string $createdBy 
 /**
  * Duplicate a node to the same or a different constellation.
  * Copies all content fields and keywords. Generates fresh animation values.
- * Does NOT copy import_slug, mucua_name, media_type, or source_created_at.
+ * Does NOT copy import_slug, source_facet, media_type, or source_created_at.
  */
 function db_duplicate_node(int $sourceNodeId, ?int $targetConstellationId = null): int {
     $pdo = getDB();
@@ -4485,7 +4498,7 @@ function db_get_galaxy_for_dump(int $id): ?array {
                embed_code, audio_url, audio_autoplay, audio_loop,
                video_url, video_autoplay, pdf_url, animation,
                node_type, target_constellation_id, is_accentuated, show_keywords, use_image_as_node,
-               mucua_name, media_type, source_created_at, import_slug, created_by
+               source_facet, media_type, source_created_at, import_slug, created_by
         FROM nodes WHERE constellation_id = :id ORDER BY id
     ");
     $nodeStmt->execute([':id' => $id]);
@@ -4652,14 +4665,14 @@ function db_create_node_for_restore(int $constellationId, array $node): int {
             audio_url, audio_autoplay, audio_loop,
             video_url, video_autoplay, pdf_url, animation,
             node_type, target_constellation_id, is_accentuated, show_keywords,
-            mucua_name, media_type, source_created_at, import_slug, created_by
+            source_facet, media_type, source_created_at, import_slug, created_by
         ) VALUES (
             :constellation_id, :name, :description, :url,
             :image_url, :image_attribution, :icon_url, :embed_code,
             :audio_url, :audio_autoplay, :audio_loop,
             :video_url, :video_autoplay, :pdf_url, :animation,
             :node_type, :target_constellation_id, :is_accentuated, :show_keywords,
-            :mucua_name, :media_type, :source_created_at, :import_slug, :created_by
+            :source_facet, :media_type, :source_created_at, :import_slug, :created_by
         )
     ");
     $stmt->execute([
@@ -4682,7 +4695,7 @@ function db_create_node_for_restore(int $constellationId, array $node): int {
         ':target_constellation_id' => isset($node['target_constellation_id']) && $node['target_constellation_id'] !== null && $node['target_constellation_id'] !== '' ? (int)$node['target_constellation_id'] : null,
         ':is_accentuated' => !empty($node['is_accentuated']) ? 1 : 0,
         ':show_keywords' => !empty($node['show_keywords']) ? 1 : 0,
-        ':mucua_name' => $node['mucua_name'] ?? null,
+        ':source_facet' => $node['source_facet'] ?? null,
         ':media_type' => $node['media_type'] ?? null,
         ':source_created_at' => $node['source_created_at'] ?? null,
         ':import_slug' => $node['import_slug'] ?? null,

@@ -25,7 +25,7 @@ function mocambos_compute_diff(array $existingBySlug, array $apiItems, array $mu
             'name' => $item['title'] ?? $slug,
             'description' => $item['description'] ?? '',
             'media_type' => ($item['_source_type'] ?? '') === 'blog' ? 'blog' : ($item['type'] ?? 'arquivo'),
-            'mucua_name' => _mocambos_resolve_mucua($item, $mucuaNameMap),
+            'source_facet' => _mocambos_resolve_mucua($item, $mucuaNameMap),
             'source_created_at' => $item['created'] ?? '',
             'tags' => _mocambos_normalize_tags($item['tags'] ?? []),
         ];
@@ -83,8 +83,8 @@ function mocambos_apply_additions(
     if (empty($additions)) return [];
 
     $insertStmt = $pdo->prepare("
-        INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, audio_autoplay, video_autoplay, mucua_name, media_type, source_created_at, import_slug)
-        VALUES (:name, :description, :url, :animation, :constellation_id, 'object', 1, 1, :mucua_name, :media_type, :source_created_at, :import_slug)
+        INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, audio_autoplay, video_autoplay, source_facet, media_type, source_created_at, import_slug)
+        VALUES (:name, :description, :url, :animation, :constellation_id, 'object', 1, 1, :source_facet, :media_type, :source_created_at, :import_slug)
     ");
     $kwInsertStmt = $pdo->prepare("INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :cid) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)");
     $kwLookupStmt = $pdo->prepare("SELECT id FROM keywords WHERE keyword = :keyword AND constellation_id = :cid LIMIT 1");
@@ -113,7 +113,7 @@ function mocambos_apply_additions(
             ':url' => $nodeUrl,
             ':animation' => $animation,
             ':constellation_id' => $constellationId,
-            ':mucua_name' => $apiData['mucua_name'] ?: null,
+            ':source_facet' => $apiData['source_facet'] ?: null,
             ':media_type' => $apiData['media_type'] ?: null,
             ':source_created_at' => $apiData['source_created_at'] ?: null,
             ':import_slug' => $slug,
@@ -147,7 +147,7 @@ function mocambos_apply_additions(
 function mocambos_apply_modifications(array $modifications, int $constellationId, PDO $pdo): void {
     if (empty($modifications)) return;
 
-    $updateStmt = $pdo->prepare("UPDATE nodes SET name = :name, description = :description, media_type = :media_type, mucua_name = :mucua_name, source_created_at = :source_created_at WHERE id = :id");
+    $updateStmt = $pdo->prepare("UPDATE nodes SET name = :name, description = :description, media_type = :media_type, source_facet = :source_facet, source_created_at = :source_created_at WHERE id = :id");
 
     foreach ($modifications as $mod) {
         $api = $mod['api'];
@@ -158,7 +158,7 @@ function mocambos_apply_modifications(array $modifications, int $constellationId
             ':name' => $api['name'],
             ':description' => $api['description'] ?: null,
             ':media_type' => $api['media_type'] ?: null,
-            ':mucua_name' => $api['mucua_name'] ?: null,
+            ':source_facet' => $api['source_facet'] ?: null,
             ':source_created_at' => $api['source_created_at'] ?: null,
         ]);
 
@@ -212,7 +212,7 @@ function _mocambos_detect_changes(array $existing, array $api): array {
     if (($existing['name'] ?? '') !== ($api['name'] ?? '')) $changes[] = 'name';
     if (($existing['description'] ?? '') !== ($api['description'] ?? '')) $changes[] = 'description';
     if (($existing['media_type'] ?? '') !== ($api['media_type'] ?? '')) $changes[] = 'media_type';
-    if (($existing['mucua_name'] ?? '') !== ($api['mucua_name'] ?? '')) $changes[] = 'mucua_name';
+    if (($existing['source_facet'] ?? '') !== ($api['source_facet'] ?? '')) $changes[] = 'source_facet';
     if (($existing['source_created_at'] ?? '') !== ($api['source_created_at'] ?? '')) $changes[] = 'source_created_at';
 
     $existingTags = $existing['keywords'] ?? [];

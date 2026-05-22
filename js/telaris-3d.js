@@ -4068,7 +4068,7 @@ class TelarisNetwork {
                     nameHtml = escapeHtml(name);
                 }
 
-                const meta = [r.mucua_name, r.media_type].filter(Boolean).join(' / ');
+                const meta = [r.source_facet, r.media_type].filter(Boolean).join(' / ');
                 const clusterLabel = r.cluster_path ? r.cluster_path.split('/').map(s => { const c = s.indexOf(':'); return c >= 0 ? s.substring(c + 1) : s; }).join(' > ') : '';
 
                 item.innerHTML = `

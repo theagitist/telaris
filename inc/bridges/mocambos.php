@@ -606,7 +606,7 @@ function _mocambos_http_import(): void {
  * Import a single galaxia. Used by both the HTTP and CLI entry points.
  *
  * $params keys: api_base, galaxia_slug, galaxia_smid, galaxia_name,
- *               galaxia_desc, mucua_slug, galaxia_items, mucua_name_map,
+ *               galaxia_desc, mucua_slug, galaxia_items, source_facet_map,
  *               mucua_slug_map, mucua_uri_map, full_refresh (bool),
  *               skip_media (bool).
  *
@@ -713,8 +713,8 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
     $streamMsg('info', $isIncremental ? "Adding {$expectedCount} new nodes..." : "Phase 1: Creating {$expectedCount} nodes...");
     $pdo = getDB();
     $insertStmt = $pdo->prepare("
-        INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, audio_autoplay, video_autoplay, mucua_name, media_type, source_created_at, import_slug)
-        VALUES (:name, :description, :url, :animation, :constellation_id, 'object', 1, 1, :mucua_name, :media_type, :source_created_at, :import_slug)
+        INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, audio_autoplay, video_autoplay, source_facet, media_type, source_created_at, import_slug)
+        VALUES (:name, :description, :url, :animation, :constellation_id, 'object', 1, 1, :source_facet, :media_type, :source_created_at, :import_slug)
     ");
     $kwInsertStmt = $pdo->prepare("INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :cid) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)");
     $kwLookupStmt = $pdo->prepare("SELECT id FROM keywords WHERE keyword = :keyword AND constellation_id = :cid LIMIT 1");
@@ -749,7 +749,7 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
                 ':url' => $nodeUrl,
                 ':animation' => $animation,
                 ':constellation_id' => $constellationId,
-                ':mucua_name' => $resolvedMucuaName,
+                ':source_facet' => $resolvedMucuaName,
                 ':media_type' => $itemMediaType,
                 ':source_created_at' => $item['created'] ?? null,
                 ':import_slug' => $item['slug'] ?? null,

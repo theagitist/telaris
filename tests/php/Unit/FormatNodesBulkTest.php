@@ -34,7 +34,7 @@ final class FormatNodesBulkTest extends TestCase
             'target_constellation_id' => null,
             'is_accentuated' => 0,
             'show_keywords' => 0,
-            'mucua_name' => null,
+            'source_facet' => null,
             'media_type' => null,
             'source_created_at' => null,
         ], $overrides);
@@ -84,7 +84,7 @@ final class FormatNodesBulkTest extends TestCase
             'constellation_id', 'constellation_name',
             'node_type', 'target_constellation_id',
             'is_accentuated', 'show_keywords',
-            'mucua_name', 'media_type', 'source_created_at',
+            'source_facet', 'media_type', 'source_created_at',
         ];
 
         foreach ($expectedKeys as $key) {
@@ -142,13 +142,13 @@ final class FormatNodesBulkTest extends TestCase
 
     public function testMucuaNamePreservedWhenSet(): void
     {
-        $result = db_format_nodes_bulk([$this->makeNode(['mucua_name' => 'TestMucua'])]);
-        $this->assertSame('TestMucua', $result[0]['mucua_name']);
+        $result = db_format_nodes_bulk([$this->makeNode(['source_facet' => 'TestSource'])]);
+        $this->assertSame('TestSource', $result[0]['source_facet']);
     }
 
     public function testMucuaNameNullWhenEmpty(): void
     {
-        $result = db_format_nodes_bulk([$this->makeNode(['mucua_name' => ''])]);
-        $this->assertNull($result[0]['mucua_name']);
+        $result = db_format_nodes_bulk([$this->makeNode(['source_facet' => ''])]);
+        $this->assertNull($result[0]['source_facet']);
     }
 }

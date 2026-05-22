@@ -57,7 +57,7 @@ function make_cluster_summary(string $clusterKey, string $name, int $count, stri
         'cluster_key' => $clusterKey,
         'cluster_count' => $count,
         'cluster_level' => $level,
-        'mucua_name' => null,
+        'source_facet' => null,
         'media_type' => null,
         'source_created_at' => null,
     ];
@@ -123,8 +123,8 @@ function cluster_recursive(array $nodes, string $parentKey, array $cascade, int 
     $groups = [];
 
     switch ($criterion) {
-        case 'mucua':
-            $groups = group_nodes_by($nodes, 'mucua_name');
+        case 'source':
+            $groups = group_nodes_by($nodes, 'source_facet');
             break;
         case 'type':
             $groups = group_nodes_by($nodes, 'media_type');
@@ -165,7 +165,7 @@ function cluster_recursive(array $nodes, string $parentKey, array $cascade, int 
         }
 
         $levelLabel = match($criterion) {
-            'mucua' => 'mucua',
+            'source' => 'source',
             'type' => 'type',
             'date_year' => 'date',
             'date_month' => 'date',
@@ -229,18 +229,18 @@ function compute_clusters(array $nodes, int $threshold = 80): array {
         return $nodes;
     }
 
-    // If the mucua_name column is populated on any node, use it as the
+    // If the source_facet column is populated on any node, use it as the
     // first clustering axis (it's the strongest grouping when present).
     $hasMucua = false;
     foreach ($nodes as $node) {
-        if (!empty($node['mucua_name'])) {
+        if (!empty($node['source_facet'])) {
             $hasMucua = true;
             break;
         }
     }
 
     if ($hasMucua) {
-        $cascade = ['mucua', 'type', 'date_year', 'date_month', 'alpha'];
+        $cascade = ['source', 'type', 'date_year', 'date_month', 'alpha'];
     } else {
         $cascade = ['type', 'date_year', 'date_month', 'alpha'];
     }
@@ -278,7 +278,7 @@ function compute_clusters(array $nodes, int $threshold = 80): array {
  * Filter nodes matching a cluster key, then compute sub-clusters if needed.
  *
  * @param array $nodes All formatted nodes for the constellation
- * @param string $clusterKey e.g. "mucua:Abdias" or "mucua:Abdias/type:imagem"
+ * @param string $clusterKey e.g. "source:Abdias" or "source:Abdias/type:imagem"
  * @param int $threshold Max items before clustering
  * @return array Mixed array of cluster summaries and regular nodes
  */
@@ -299,8 +299,8 @@ function filter_nodes_by_cluster(array $nodes, string $clusterKey, int $threshol
     foreach ($filters as $f) {
         $filtered = array_values(array_filter($filtered, function ($node) use ($f) {
             switch ($f['level']) {
-                case 'mucua':
-                    return ($node['mucua_name'] ?? '') === $f['value'];
+                case 'source':
+                    return ($node['source_facet'] ?? '') === $f['value'];
                 case 'type':
                     return ($node['media_type'] ?? '') === $f['value'];
                 case 'date':
@@ -325,17 +325,17 @@ function filter_nodes_by_cluster(array $nodes, string $clusterKey, int $threshol
     // Determine remaining cascade based on what's already been filtered
     $usedLevels = array_map(fn($f) => $f['level'], $filters);
 
-    // Detect whether the mucua_name column is populated on this slice.
+    // Detect whether the source_facet column is populated on this slice.
     $hasMucua = false;
     foreach ($filtered as $node) {
-        if (!empty($node['mucua_name'])) {
+        if (!empty($node['source_facet'])) {
             $hasMucua = true;
             break;
         }
     }
 
     if ($hasMucua) {
-        $fullCascade = ['mucua', 'type', 'date_year', 'date_month', 'alpha'];
+        $fullCascade = ['source', 'type', 'date_year', 'date_month', 'alpha'];
     } else {
         $fullCascade = ['type', 'date_year', 'date_month', 'alpha'];
     }
@@ -384,10 +384,10 @@ function find_cluster_path_for_node(array $allNodes, int $nodeId, int $threshold
     // Detect cascade
     $hasMucua = false;
     foreach ($allNodes as $node) {
-        if (!empty($node['mucua_name'])) { $hasMucua = true; break; }
+        if (!empty($node['source_facet'])) { $hasMucua = true; break; }
     }
     $cascade = $hasMucua
-        ? ['mucua', 'type', 'date_year', 'date_month', 'alpha']
+        ? ['source', 'type', 'date_year', 'date_month', 'alpha']
         : ['type', 'date_year', 'date_month', 'alpha'];
 
     // Walk down the clustering tree to find where this node ends up visible
@@ -408,8 +408,8 @@ function _find_path_recursive(array $nodes, array $targetNode, string $parentKey
     $groups = [];
 
     switch ($criterion) {
-        case 'mucua':
-            $groups = group_nodes_by($nodes, 'mucua_name');
+        case 'source':
+            $groups = group_nodes_by($nodes, 'source_facet');
             break;
         case 'type':
             $groups = group_nodes_by($nodes, 'media_type');
@@ -440,7 +440,7 @@ function _find_path_recursive(array $nodes, array $targetNode, string $parentKey
     }
 
     $levelLabel = match($criterion) {
-        'mucua' => 'mucua', 'type' => 'type',
+        'source' => 'source', 'type' => 'type',
         'date_year', 'date_month' => 'date',
         'alpha' => 'alpha', default => $criterion,
     };

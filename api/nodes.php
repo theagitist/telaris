@@ -227,7 +227,7 @@ try {
                             'id' => $node['id'],
                             'name' => $node['name'],
                             'description' => $node['description'],
-                            'mucua_name' => $node['mucua_name'] ?? null,
+                            'source_facet' => $node['source_facet'] ?? null,
                             'media_type' => $node['media_type'] ?? null,
                             'cluster_path' => $clusterPath,
                         ];

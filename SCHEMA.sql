@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     is_accentuated BOOLEAN NOT NULL DEFAULT FALSE,
     show_keywords BOOLEAN NOT NULL DEFAULT FALSE,
     use_image_as_node BOOLEAN NOT NULL DEFAULT FALSE,
-    mucua_name VARCHAR(255) NULL,
+    source_facet VARCHAR(255) NULL,
     media_type VARCHAR(50) NULL,
     source_created_at VARCHAR(30) NULL,
     import_slug VARCHAR(255) NULL,

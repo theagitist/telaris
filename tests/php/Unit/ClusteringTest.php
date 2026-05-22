@@ -8,7 +8,7 @@ require_once __DIR__ . '/../../../inc/clustering.php';
 
 final class ClusteringTest extends TestCase
 {
-    private static function makeNode(int $id, string $name, ?string $mucua = null, ?string $mediaType = null, ?string $date = null): array
+    private static function makeNode(int $id, string $name, ?string $facet = null, ?string $mediaType = null, ?string $date = null): array
     {
         return [
             'id' => $id,
@@ -33,17 +33,17 @@ final class ClusteringTest extends TestCase
             'target_constellation_id' => null,
             'is_accentuated' => false,
             'show_keywords' => false,
-            'mucua_name' => $mucua,
+            'source_facet' => $facet,
             'media_type' => $mediaType,
             'source_created_at' => $date,
         ];
     }
 
-    private static function makeNodes(int $count, ?string $mucua = null, ?string $mediaType = null): array
+    private static function makeNodes(int $count, ?string $facet = null, ?string $mediaType = null): array
     {
         $nodes = [];
         for ($i = 1; $i <= $count; $i++) {
-            $nodes[] = self::makeNode($i, "Node {$i}", $mucua, $mediaType);
+            $nodes[] = self::makeNode($i, "Node {$i}", $facet, $mediaType);
         }
         return $nodes;
     }
@@ -69,11 +69,11 @@ final class ClusteringTest extends TestCase
 
     public function testAboveThresholdWithGoodGroupsGetsClustered(): void
     {
-        // 200 nodes across 5 mucuas = 40 each — good quality clustering
+        // 200 nodes across 5 facets = 40 each — good quality clustering
         $nodes = [];
-        $mucuas = ['alpha', 'bravo', 'charlie', 'delta', 'echo'];
+        $facets = ['alpha', 'bravo', 'charlie', 'delta', 'echo'];
         for ($i = 0; $i < 200; $i++) {
-            $nodes[] = self::makeNode($i + 1, "Node {$i}", $mucuas[$i % 5], 'imagem', '2014-01-01');
+            $nodes[] = self::makeNode($i + 1, "Node {$i}", $facets[$i % 5], 'imagem', '2014-01-01');
         }
         $result = compute_clusters($nodes);
         $this->assertLessThan(200, count($result), 'Should be clustered');
@@ -87,27 +87,27 @@ final class ClusteringTest extends TestCase
 
     public function testQualityCheckSkipsWhenTooFewGroups(): void
     {
-        // 100 nodes all in same mucua — produces only 1 group, should stay flat
-        $nodes = self::makeNodes(100, 'single-mucua', 'imagem');
+        // 100 nodes all in same source value — produces only 1 group, should stay flat
+        $nodes = self::makeNodes(100, 'single-source', 'imagem');
         $result = compute_clusters($nodes);
         $this->assertCount(100, $result, 'Single-group clustering should be skipped');
     }
 
     public function testQualityCheckSkipsDominantGroup(): void
     {
-        // 100 nodes: 90 in mucua-a, 5 in mucua-b, 5 in mucua-c
+        // 100 nodes: 90 in source-a, 5 in source-b, 5 in source-c
         $nodes = [];
-        for ($i = 0; $i < 90; $i++) $nodes[] = self::makeNode($i + 1, "A-{$i}", 'mucua-a', 'imagem');
-        for ($i = 0; $i < 5; $i++) $nodes[] = self::makeNode(91 + $i, "B-{$i}", 'mucua-b', 'imagem');
-        for ($i = 0; $i < 5; $i++) $nodes[] = self::makeNode(96 + $i, "C-{$i}", 'mucua-c', 'imagem');
+        for ($i = 0; $i < 90; $i++) $nodes[] = self::makeNode($i + 1, "A-{$i}", 'source-a', 'imagem');
+        for ($i = 0; $i < 5; $i++) $nodes[] = self::makeNode(91 + $i, "B-{$i}", 'source-b', 'imagem');
+        for ($i = 0; $i < 5; $i++) $nodes[] = self::makeNode(96 + $i, "C-{$i}", 'source-c', 'imagem');
 
         $result = compute_clusters($nodes);
         $this->assertCount(100, $result, 'Dominant group (90%) should cause clustering to be skipped');
     }
 
-    public function testCascadeWithoutMucuaUsesMediaType(): void
+    public function testCascadeWithoutFacetUsesMediaType(): void
     {
-        // 200 nodes with no mucua but different media types
+        // 200 nodes with no source_facet but different media types
         $types = ['imagem', 'video', 'audio', 'arquivo', 'blog'];
         $nodes = [];
         for ($i = 0; $i < 200; $i++) {
@@ -121,29 +121,29 @@ final class ClusteringTest extends TestCase
 
     public function testClusterSummaryFormat(): void
     {
-        $summary = make_cluster_summary('mucua:test', 'Test Mucua', 42, 'mucua');
-        $this->assertSame('cluster:mucua:test', $summary['id']);
-        $this->assertSame('Test Mucua', $summary['name']);
+        $summary = make_cluster_summary('source:test', 'Test Source', 42, 'source');
+        $this->assertSame('cluster:source:test', $summary['id']);
+        $this->assertSame('Test Source', $summary['name']);
         $this->assertSame('cluster', $summary['node_type']);
-        $this->assertSame('mucua:test', $summary['cluster_key']);
+        $this->assertSame('source:test', $summary['cluster_key']);
         $this->assertSame(42, $summary['cluster_count']);
-        $this->assertSame('mucua', $summary['cluster_level']);
+        $this->assertSame('source', $summary['cluster_level']);
         $this->assertSame([], $summary['keywords']);
         $this->assertStringContains('42', $summary['description']);
     }
 
     // ── filter_nodes_by_cluster ──────────────────────────────────────────────
 
-    public function testFilterByMucua(): void
+    public function testFilterBySourceFacet(): void
     {
         $nodes = [];
         for ($i = 0; $i < 10; $i++) $nodes[] = self::makeNode($i + 1, "A-{$i}", 'alpha');
         for ($i = 0; $i < 10; $i++) $nodes[] = self::makeNode(11 + $i, "B-{$i}", 'bravo');
 
-        $result = filter_nodes_by_cluster($nodes, 'mucua:alpha');
+        $result = filter_nodes_by_cluster($nodes, 'source:alpha');
         $this->assertCount(10, $result);
         foreach ($result as $node) {
-            $this->assertSame('alpha', $node['mucua_name']);
+            $this->assertSame('alpha', $node['source_facet']);
         }
     }
 
@@ -154,10 +154,10 @@ final class ClusteringTest extends TestCase
         for ($i = 0; $i < 5; $i++) $nodes[] = self::makeNode(6 + $i, "AV-{$i}", 'alpha', 'video');
         for ($i = 0; $i < 5; $i++) $nodes[] = self::makeNode(11 + $i, "B-{$i}", 'bravo', 'imagem');
 
-        $result = filter_nodes_by_cluster($nodes, 'mucua:alpha/type:imagem');
+        $result = filter_nodes_by_cluster($nodes, 'source:alpha/type:imagem');
         $this->assertCount(5, $result);
         foreach ($result as $node) {
-            $this->assertSame('alpha', $node['mucua_name']);
+            $this->assertSame('alpha', $node['source_facet']);
             $this->assertSame('imagem', $node['media_type']);
         }
     }
@@ -171,19 +171,19 @@ final class ClusteringTest extends TestCase
         $this->assertNull($path);
     }
 
-    public function testFindPathReturnsCorrectMucuaCluster(): void
+    public function testFindPathReturnsCorrectSourceCluster(): void
     {
-        // 200 nodes across 5 mucuas
-        $mucuas = ['alpha', 'bravo', 'charlie', 'delta', 'echo'];
+        // 200 nodes across 5 source values
+        $facets = ['alpha', 'bravo', 'charlie', 'delta', 'echo'];
         $nodes = [];
         for ($i = 0; $i < 200; $i++) {
-            $nodes[] = self::makeNode($i + 1, "Node {$i}", $mucuas[$i % 5], 'imagem');
+            $nodes[] = self::makeNode($i + 1, "Node {$i}", $facets[$i % 5], 'imagem');
         }
 
-        // Node 1 has mucua 'alpha' (index 0 % 5 = 0)
+        // Node 1 has source 'alpha' (index 0 % 5 = 0)
         $path = find_cluster_path_for_node($nodes, 1);
         $this->assertNotNull($path);
-        $this->assertStringContainsString('mucua:alpha', $path);
+        $this->assertStringContainsString('source:alpha', $path);
     }
 
     public function testFindPathReturnsNullForMissingNode(): void
@@ -209,7 +209,7 @@ final class ClusteringTest extends TestCase
     public function testClusterSummaryUsesLocalizedLabel(): void
     {
         clustering_set_labels('itens', 'Outros');
-        $summary = make_cluster_summary('mucua:x', 'X', 10, 'mucua');
+        $summary = make_cluster_summary('source:x', 'X', 10, 'source');
         $this->assertStringContainsString('itens', $summary['description']);
 
         // Reset
