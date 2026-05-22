@@ -5798,6 +5798,22 @@ function db_reset_galaxy_positions(int $galaxyId, ?string $userId): int {
 }
 
 /**
+ * Prune keyword_position_history rows older than $maxAgeDays. Append-only by
+ * design, but every canvas drag adds a row; without pruning the table dwarfs
+ * the rest of the DB after months of editorial work. Operator runs this via
+ * admin/cli/prune_history.php on a daily cron. Returns the number of rows
+ * removed.
+ */
+function db_prune_keyword_position_history(int $maxAgeDays = 90): int {
+    db_ensure_keyword_canvas_tables();
+    $pdo = getDB();
+    $age = max(1, (int)$maxAgeDays);
+    $stmt = $pdo->prepare("DELETE FROM keyword_position_history WHERE moved_at < (NOW() - INTERVAL {$age} DAY)");
+    $stmt->execute();
+    return $stmt->rowCount();
+}
+
+/**
  * Create a discrete named lateral relation between two keywords. Normalizes pair
  * order (keyword_a < keyword_b) before insert. If the pair has to be swapped
  * for canonical ordering, the anchor sides swap with it so anchor_a always
