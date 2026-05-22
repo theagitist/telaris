@@ -40,24 +40,10 @@ if (isset($_GET['edit_constellation'])) {
     $activeTab = 'constellations';
 }
 
-// Load project info for Global Settings form
+// Project info: only the default constellation id is read in this file
+// (the surviving Global Settings form references $projectAll['default_constellation_id']).
+// Per-locale strings live in project_info rows and are read by the visitor side, not edited here.
 $projectAll = db_get_project_info_all_locales() ?: [];
-
-$projectData = [];
-$defaults = db_default_project_info_rows();
-foreach (['en', 'es', 'pt'] as $l) {
-    foreach (PROJECT_INFO_KEYS as $k) {
-        $dataKey = ($l === 'en') ? $k : $k . '_' . $l;
-        $projectData[$dataKey] = $projectAll[$dataKey] ?? $defaults[$l][$k] ?? '';
-    }
-}
-// Legacy variable names for backward compatibility if needed in this file
-$projectName = $projectData['name'];
-$projectTagline = $projectData['description'];
-$projectIframeBackText = $projectData['iframe_back_text'];
-$projectAlertMessage = $projectData['alert_message'];
-$projectEditButtonText = $projectData['edit_button_text'];
-$projectLoadingText = $projectData['loading_text'];
 
 $systemVersion = 'Unknown';
 if (file_exists(__DIR__ . '/../VERSION')) {
@@ -401,52 +387,26 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             })(),
             
             'save_settings' => (function(): void {
-                global $message, $error, $settingsError, $activeTab, $projectData;
-                $en = []; $es = []; $pt = [];
-                foreach (PROJECT_INFO_KEYS as $k) {
-                    $en[$k] = trim((string)($_POST[$k] ?? ''));
-                    $es[$k] = trim((string)($_POST[$k . '_es'] ?? ''));
-                    $pt[$k] = trim((string)($_POST[$k . '_pt'] ?? ''));
-                }
-                
-                // Project name and description mapping
-                $en['name'] = trim((string) ($_POST['project_name'] ?? ''));
-                $en['description'] = trim((string) ($_POST['project_tagline'] ?? ''));
-                $es['name'] = trim((string) ($_POST['project_name_es'] ?? ''));
-                $es['description'] = trim((string) ($_POST['project_tagline_es'] ?? ''));
-                $pt['name'] = trim((string) ($_POST['project_name_pt'] ?? ''));
-                $pt['description'] = trim((string) ($_POST['project_tagline_pt'] ?? ''));
-
-                if ($en['name'] !== '' && $en['iframe_back_text'] !== '' && $en['alert_message'] !== '' && $en['edit_button_text'] !== '' && $en['loading_text'] !== '') {
-                    try {
-                        $defaultConstellationId = isset($_POST['default_constellation_id']) ? (int)$_POST['default_constellation_id'] : null;
-                        db_update_project_settings_with_locales($en, $es, $pt, $defaultConstellationId);
-                        // PDF max size: stored in MB on the form, persisted in bytes. Empty = revert to default.
-                        if (isset($_POST['pdf_max_mb'])) {
-                            $mb = trim((string)$_POST['pdf_max_mb']);
-                            if ($mb === '') {
-                                db_set_pdf_max_bytes(null);
-                            } elseif (is_numeric($mb)) {
-                                $mbNum = max(1, min(2048, (int)$mb)); // clamp to 1MB..2GB
-                                db_set_pdf_max_bytes($mbNum * 1024 * 1024);
-                            }
-                        }
-                        $lang = isset($_POST['settings_lang']) && in_array($_POST['settings_lang'], ['en', 'es', 'pt'], true) ? $_POST['settings_lang'] : 'en';
-                        header('Location: index.php?tab=settings&saved=1&lang=' . urlencode($lang));
-                        exit;
-                    } catch (Throwable $e) {
-                        $settingsError = 'Failed to save settings. Please try again. (' . htmlspecialchars($e->getMessage()) . ')';
-                        $activeTab = 'settings';
-                        foreach ($en as $k => $v) $projectData[$k] = $v;
-                        foreach ($es as $k => $v) $projectData[$k . '_es'] = $v;
-                        foreach ($pt as $k => $v) $projectData[$k . '_pt'] = $v;
+                global $settingsError, $activeTab;
+                try {
+                    if (isset($_POST['default_constellation_id']) && ctype_digit((string)$_POST['default_constellation_id'])) {
+                        db_set_default_constellation_id((int)$_POST['default_constellation_id']);
                     }
-                } else {
-                    $settingsError = 'English app name, iframe button text, alert message, Edit button label, and Loading text are required.';
+                    // PDF max size: stored in MB on the form, persisted in bytes. Empty = revert to default.
+                    if (isset($_POST['pdf_max_mb'])) {
+                        $mb = trim((string)$_POST['pdf_max_mb']);
+                        if ($mb === '') {
+                            db_set_pdf_max_bytes(null);
+                        } elseif (is_numeric($mb)) {
+                            $mbNum = max(1, min(2048, (int)$mb)); // clamp to 1MB..2GB
+                            db_set_pdf_max_bytes($mbNum * 1024 * 1024);
+                        }
+                    }
+                    header('Location: index.php?tab=settings&saved=1');
+                    exit;
+                } catch (Throwable $e) {
+                    $settingsError = 'Failed to save settings. Please try again. (' . htmlspecialchars($e->getMessage()) . ')';
                     $activeTab = 'settings';
-                    foreach ($en as $k => $v) $projectData[$k] = $v;
-                    foreach ($es as $k => $v) $projectData[$k . '_es'] = $v;
-                    foreach ($pt as $k => $v) $projectData[$k . '_pt'] = $v;
                 }
             })(),
             
@@ -554,27 +514,6 @@ foreach ($importantExtensions as $ext => $name) {
     $extensionStatus[$name] = @extension_loaded($ext);
 }
 
-$fieldMeta = [
-    'name' => ['label' => 'App name', 'desc' => 'Project title shown in the main view and in page metadata.', 'type' => 'text', 'post_name' => 'project_name'],
-    'description' => ['label' => 'Description', 'desc' => 'Tagline or short description shown under the title and in page metadata.', 'type' => 'text', 'post_name' => 'project_tagline'],
-    'iframe_back_text' => ['label' => 'Iframe button text', 'desc' => 'Text on the "Go back" button in the link window.', 'type' => 'text'],
-    'alert_message' => ['label' => 'Alert message', 'desc' => 'Message when a link cannot be embedded.', 'type' => 'textarea'],
-    'edit_button_text' => ['label' => 'Edit button label', 'desc' => 'Label for the Edit link shown to editors on the main view.', 'type' => 'text'],
-    'loading_text' => ['label' => 'Loading text', 'desc' => 'Text shown in the loading overlay (e.g. "Loading").', 'type' => 'text'],
-    'back_button_text' => ['label' => 'Back button text', 'desc' => 'Text on the back button when navigating between galaxies.', 'type' => 'text'],
-    'system_online_text' => ['label' => 'System Online text', 'desc' => 'Status text shown in the HUD (e.g. "System: Online").', 'type' => 'text'],
-    'reload_system_text' => ['label' => 'Reload System text', 'desc' => 'Tooltip for the reload action.', 'type' => 'text'],
-    'scan_system_text' => ['label' => 'Scan System placeholder', 'desc' => 'Placeholder text for the search input.', 'type' => 'text'],
-    'clear_scan_text' => ['label' => 'Clear Scan tooltip', 'desc' => 'Tooltip for the clear search button.', 'type' => 'text'],
-    'systems_label_text' => ['label' => 'Systems label', 'desc' => 'Label for the wormholes count in the HUD.', 'type' => 'text'],
-    'hyperlinks_label_text' => ['label' => 'Hyperlinks label', 'desc' => 'Label for the connections count in the HUD.', 'type' => 'text'],
-    'initialize_auth_text' => ['label' => 'Login label', 'desc' => 'Label for the login link (e.g. "Initialize Auth").', 'type' => 'text'],
-    'admin_label_text' => ['label' => 'Admin label', 'desc' => 'Label for the admin link.', 'type' => 'text'],
-    'logout_label_text' => ['label' => 'Logout label', 'desc' => 'Label for the logout link.', 'type' => 'text'],
-    'click_to_view_text' => ['label' => 'Click to view hint', 'desc' => 'Interaction hint shown in wormhole tooltips for mouse users.', 'type' => 'text'],
-    'tap_to_view_text' => ['label' => 'Tap to view hint', 'desc' => 'Interaction hint shown in wormhole tooltips for touch users.', 'type' => 'text'],
-    'open_portal_text' => ['label' => 'Open portal button text', 'desc' => 'Text on the button that opens a portal when it has a description.', 'type' => 'text'],
-];
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
@@ -996,7 +935,7 @@ $fieldMeta = [
             <!-- Global Settings Tab -->
             <div id="content-settings" class="p-6 <?php echo $activeTab !== 'settings' ? 'hidden' : ''; ?>">
                 <div class="flex justify-between items-center mb-4">
-                    <p class="text-gray-600 max-w-2xl">Localized content for the main app. English is required; Spanish and Portuguese are optional and fall back to English when empty.</p>
+                    <p class="text-gray-600 max-w-2xl">Instance-wide settings for the main app.</p>
                     <div class="bg-gray-100 px-3 py-1.5 rounded-md border border-gray-200">
                         <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Version</span>
                         <span class="ml-2 font-mono text-sm font-bold text-gray-700"><?php echo htmlspecialchars($systemVersion); ?></span>
@@ -1004,8 +943,7 @@ $fieldMeta = [
                 </div>
                 <form method="post" action="" class="max-w-2xl">
                     <input type="hidden" name="action" value="save_settings">
-                    <input type="hidden" name="settings_lang" id="settings_lang" value="<?php echo htmlspecialchars($_GET['lang'] ?? 'en'); ?>">
-                    
+
                     <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                         <label for="default_constellation_id" class="block mb-1.5 text-gray-800 font-medium text-sm">Default Galaxy</label>
                         <select id="default_constellation_id" name="default_constellation_id" class="select select-bordered select-sm w-full bg-white">
@@ -1027,7 +965,7 @@ $fieldMeta = [
                             if ($inOptgroup) echo '</optgroup>';
                             ?>
                         </select>
-                        <span class="text-xs text-gray-500 mt-1 block">Choose which galaxy is shown at the root of the website. The chosen galaxy will also have its name and tagline synced with the "App name" and "Description" fields below.</span>
+                        <span class="text-xs text-gray-500 mt-1 block">Choose which galaxy is shown at the root of the website.</span>
                     </div>
 
                     <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
@@ -1038,35 +976,6 @@ $fieldMeta = [
                         <span class="text-xs text-gray-500 mt-1 block">Largest PDF a wormhole can carry. Default 25 MB. Editors uploading bigger files will get a 'File exceeds maximum allowed size' error.</span>
                     </div>
 
-                    <div class="border border-gray-200 rounded-lg bg-white overflow-hidden">
-                        <div class="border-b border-gray-200 bg-gray-50">
-                            <nav class="flex">
-                                <button type="button" onclick="showSettingsLang('en')" id="settings-lang-tab-en" class="px-5 py-3 font-medium text-sm border-b-2 <?php echo ($_GET['lang'] ?? 'en') === 'en' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?>">English</button>
-                                <button type="button" onclick="showSettingsLang('es')" id="settings-lang-tab-es" class="px-5 py-3 font-medium text-sm border-b-2 <?php echo ($_GET['lang'] ?? '') === 'es' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?>">Spanish</button>
-                                <button type="button" onclick="showSettingsLang('pt')" id="settings-lang-tab-pt" class="px-5 py-3 font-medium text-sm border-b-2 <?php echo ($_GET['lang'] ?? '') === 'pt' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'; ?>">Portuguese</button>
-                            </nav>
-                        </div>
-                        <?php foreach (['en', 'es', 'pt'] as $l): ?>
-                        <div id="settings-lang-<?php echo $l; ?>" class="p-6 space-y-4 <?php echo ($_GET['lang'] ?? 'en') !== $l ? 'hidden' : ''; ?>">
-                            <?php foreach ($fieldMeta as $k => $m): ?>
-                            <?php 
-                                $inputName = ($m['post_name'] ?? $k) . ($l === 'en' ? '' : '_' . $l); 
-                                $val = $projectData[($l === 'en' ? $k : $k . '_' . $l)] ?? '';
-                                $required = ($l === 'en' && $k !== 'description');
-                            ?>
-                            <div>
-                                <label for="<?php echo $inputName; ?>" class="block mb-1.5 text-gray-800 font-medium"><?php echo htmlspecialchars($m['label']); ?></label>
-                                <?php if ($m['type'] === 'textarea'): ?>
-                                <textarea id="<?php echo $inputName; ?>" name="<?php echo $inputName; ?>" rows="2" <?php echo $required ? 'required' : ''; ?> class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"><?php echo htmlspecialchars($val); ?></textarea>
-                                <?php else: ?>
-                                <input type="text" id="<?php echo $inputName; ?>" name="<?php echo $inputName; ?>" value="<?php echo htmlspecialchars($val); ?>" <?php echo $required ? 'required' : ''; ?> class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                                <?php endif; ?>
-                                <span class="text-xs text-gray-500 mt-1 block"><?php echo htmlspecialchars($m['desc']); ?></span>
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                        <?php endforeach; ?>
-                    </div>
                     <div class="mt-4">
                         <button type="submit" class="btn btn-neutral">Save settings</button>
                     </div>
@@ -1539,27 +1448,6 @@ $fieldMeta = [
                 }
             });
         }
-        // Settings language sub-tabs (English / Spanish / Portuguese)
-        function showSettingsLang(lang) {
-            if (!['en', 'es', 'pt'].includes(lang)) lang = 'en';
-            ['en', 'es', 'pt'].forEach(l => {
-                const panel = document.getElementById('settings-lang-' + l);
-                const tabBtn = document.getElementById('settings-lang-tab-' + l);
-                if (panel) panel.classList.toggle('hidden', l !== lang);
-                if (tabBtn) {
-                    if (l === lang) {
-                        tabBtn.classList.remove('border-transparent', 'text-gray-500');
-                        tabBtn.classList.add('border-blue-500', 'text-blue-600');
-                    } else {
-                        tabBtn.classList.remove('border-blue-500', 'text-blue-600');
-                        tabBtn.classList.add('border-transparent', 'text-gray-500');
-                    }
-                }
-            });
-            const langInput = document.getElementById('settings_lang');
-            if (langInput) langInput.value = lang;
-        }
-        
         const userConstellationsMap = <?php echo json_encode($userConstellationsMap); ?>;
 
         // Pagination State
@@ -1991,13 +1879,6 @@ $fieldMeta = [
             // Show selected tab
             document.getElementById('content-' + tabName).classList.remove('hidden');
             
-            // If Global Settings, restore language sub-tab from URL
-            if (tabName === 'settings') {
-                const urlParams = new URLSearchParams(window.location.search);
-                const lang = urlParams.get('lang');
-                if (lang && ['en', 'es', 'pt'].includes(lang)) showSettingsLang(lang);
-            }
-
             // Lazy-load Snapshots tab on first open
             if (tabName === 'snapshots' && typeof snapshotsLoad === 'function') {
                 snapshotsLoad();
@@ -2094,27 +1975,6 @@ $fieldMeta = [
             });
         }
 
-        // Settings language sub-tabs (English / Spanish / Portuguese)
-        function showSettingsLang(lang) {
-            if (!['en', 'es', 'pt'].includes(lang)) lang = 'en';
-            ['en', 'es', 'pt'].forEach(l => {
-                const panel = document.getElementById('settings-lang-' + l);
-                const tabBtn = document.getElementById('settings-lang-tab-' + l);
-                if (panel) panel.classList.toggle('hidden', l !== lang);
-                if (tabBtn) {
-                    if (l === lang) {
-                        tabBtn.classList.remove('border-transparent', 'text-gray-500');
-                        tabBtn.classList.add('border-blue-500', 'text-blue-600');
-                    } else {
-                        tabBtn.classList.remove('border-blue-500', 'text-blue-600');
-                        tabBtn.classList.add('border-transparent', 'text-gray-500');
-                    }
-                }
-            });
-            const langInput = document.getElementById('settings_lang');
-            if (langInput) langInput.value = lang;
-        }
-        
         function copyApiKey() {
             const input = document.getElementById('new-api-key');
             input.select();
