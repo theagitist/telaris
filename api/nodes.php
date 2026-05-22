@@ -382,14 +382,30 @@ try {
                     return;
                 }
                 $targetConstellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : null;
-                // Check editor access on target constellation (or source if same)
-                $accessCid = $targetConstellationId ?? $sourceConstellationId;
-                $accessError = checkEditorConstellationAccess($accessCid);
-                if ($accessError !== null) {
+                // Both the source and the destination must be accessible to the editor;
+                // checking only the destination was an IDOR (any node could be duplicated
+                // into any accessible galaxy, exposing content from galaxies the editor
+                // cannot see).
+                $sourceAccessError = checkEditorConstellationAccess($sourceConstellationId);
+                if ($sourceAccessError !== null) {
                     http_response_code(403);
-                    error_log('nodes.php access: ' . $accessError);
+                    error_log('nodes.php access (duplicate source): ' . $sourceAccessError);
                     api_error('403.005', 'Access denied.');
                     return;
+                }
+                if ($targetConstellationId !== null && $targetConstellationId !== $sourceConstellationId) {
+                    if (db_get_constellation_by_id($targetConstellationId) === null) {
+                        http_response_code(404);
+                        api_error('404.008', 'The target galaxy does not exist.');
+                        return;
+                    }
+                    $targetAccessError = checkEditorConstellationAccess($targetConstellationId);
+                    if ($targetAccessError !== null) {
+                        http_response_code(403);
+                        error_log('nodes.php access (duplicate target): ' . $targetAccessError);
+                        api_error('403.005', 'Access denied.');
+                        return;
+                    }
                 }
                 try {
                     $newId = db_duplicate_node($sourceId, $targetConstellationId);
@@ -694,29 +710,64 @@ try {
                     return;
                 }
             }
-            $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : null;
+            $bodyConstellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : null;
 
-            // Enforce editor constellation access — use provided or look up existing
-            $accessConstellationId = $constellationId;
-            if ($accessConstellationId === null) {
-                $accessConstellationId = db_get_node_constellation_id((int)$id);
+            // Source-of-truth seat check: resolve the node's current galaxy and check
+            // editor access against that. The body value is operator-controlled and was
+            // previously trusted; using it as the gate was an IDOR.
+            $currentConstellationId = db_get_node_constellation_id((int)$id);
+            if ($currentConstellationId === null) {
+                http_response_code(404);
+                api_error('404.001', 'Node not found.');
+                return;
             }
-            if ($accessConstellationId !== null) {
-                $accessError = checkEditorConstellationAccess($accessConstellationId);
+            $accessError = checkEditorConstellationAccess($currentConstellationId);
+            if ($accessError !== null) {
+                http_response_code(403);
+                error_log('nodes.php access (source): ' . $accessError);
+                api_error('403.005', 'Access denied.');
+                return;
+            }
+
+            // If the body requests a move into a different galaxy, seat-check the target.
+            if ($bodyConstellationId !== null && $bodyConstellationId !== $currentConstellationId) {
+                if (db_get_constellation_by_id($bodyConstellationId) === null) {
+                    http_response_code(404);
+                    api_error('404.008', 'The target galaxy does not exist.');
+                    return;
+                }
+                $accessError = checkEditorConstellationAccess($bodyConstellationId);
                 if ($accessError !== null) {
                     http_response_code(403);
-                    error_log('nodes.php access: ' . $accessError);
+                    error_log('nodes.php access (move target): ' . $accessError);
                     api_error('403.005', 'Access denied.');
                     return;
                 }
             }
 
             $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
-            if ($targetConstellationId !== null && db_get_constellation_by_id($targetConstellationId) === null) {
-                http_response_code(400);
-                api_error('404.008', 'The target galaxy does not exist.');
-                return;
+            if ($targetConstellationId !== null) {
+                if (db_get_constellation_by_id($targetConstellationId) === null) {
+                    http_response_code(400);
+                    api_error('404.008', 'The target galaxy does not exist.');
+                    return;
+                }
+                $accessError = checkEditorConstellationAccess($targetConstellationId);
+                if ($accessError !== null) {
+                    http_response_code(403);
+                    error_log('nodes.php access (portal target): ' . $accessError);
+                    api_error('403.005', 'Access denied.');
+                    return;
+                }
             }
+
+            // Effective constellation for on-disk upload paths: prefer the move target
+            // when the editor is moving the node, otherwise the current galaxy. Never
+            // the body alone, so uploads cannot be redirected to an arbitrary galaxy dir.
+            $effectiveConstellationId = $bodyConstellationId ?? $currentConstellationId;
+            // Downstream code passes $constellationId to db_update_node; null means
+            // "don't change the column".
+            $constellationId = $bodyConstellationId;
 
             $imageUrl = (isset($data['image_url']) && !empty(trim((string)$data['image_url']))) ? trim((string)$data['image_url']) : null;
             $embedCode = (isset($data['embed_code']) && !empty(trim((string)$data['embed_code']))) ? sanitizeEmbedCode((string)$data['embed_code']) : null;
@@ -743,10 +794,10 @@ try {
             applyVisualMutex($imageUrl, $videoUrl, $pdfUrl, $audioUrl);
 
             // Handle file uploads for PUT
-            if ($constellationId !== null) {
+            if ($effectiveConstellationId !== null) {
                 $uploadDir = UPLOAD_DIR;
-                $nodeRelDir = "uploads/{$constellationId}/{$id}";
-                $nodeFullDir = "{$uploadDir}/{$constellationId}/{$id}";
+                $nodeRelDir = "uploads/{$effectiveConstellationId}/{$id}";
+                $nodeFullDir = "{$uploadDir}/{$effectiveConstellationId}/{$id}";
                 if (!is_dir($nodeFullDir)) {
                     if (!mkdir($nodeFullDir, 0755, true)) {
                         http_response_code(500);
