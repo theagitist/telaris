@@ -3865,6 +3865,19 @@ document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(fo
 <script>
     window.GALAXY_EDIT_API_URL = '../api/constellations.php';
     window.GALAXY_EDIT_API_KEY = <?php echo json_encode(getDefaultApiKey()); ?>;
+    window.TELARIS_GXM = <?= json_encode([
+        'statusLoadingKeywords' => t('editor_gxm_status_loading_keywords', 'Loading…'),
+        'noKeywordsYet' => t('editor_gxm_no_keywords_yet', 'No keywords yet for this galaxy.'),
+        'loadFailedKeywords' => t('editor_gxm_load_failed_keywords', 'Failed to load.'),
+        'labelUseImagesAsIcons' => t('editor_gxm_label_use_images_as_icons', 'use images as icons'),
+        'labelRevertToThemeIcons' => t('editor_gxm_label_revert_to_theme_icons', 'revert all to theme icons'),
+        'confirmApplyToAll' => t('editor_gxm_confirm_apply_to_all', 'Apply "%s" to every wormhole in this galaxy?'),
+        'statusWorking' => t('editor_gxm_status_working', 'Working…'),
+        'statusUpdatedOne' => t('editor_gxm_status_updated_one', 'Updated %d wormhole. Reload the visitor view to see the change.'),
+        'statusUpdatedMany' => t('editor_gxm_status_updated_many', 'Updated %d wormholes. Reload the visitor view to see the change.'),
+        'labelFailedPrefix' => t('editor_gxm_label_failed_prefix', 'Failed: %s'),
+        'errUpdateFailedFallback' => t('editor_gxm_err_update_failed_fallback', 'Update failed'),
+    ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
 </script>
 <script src="../js/galaxy-edit-modal.js?v=<?php echo $appVersion; ?>"></script>
 </body>

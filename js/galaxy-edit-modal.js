@@ -37,6 +37,14 @@
     }
     'use strict';
 
+    const GXM = window.TELARIS_GXM || {};
+    // printf-style %d/%s substituter for parametric localized strings.
+    function tFmt(tpl, ...args) {
+        if (!tpl) return '';
+        let i = 0;
+        return String(tpl).replace(/%[ds]/g, () => (i < args.length ? String(args[i++]) : ''));
+    }
+
     function getApiUrl() {
         return window.GALAXY_EDIT_API_URL || '../api/constellations.php';
     }
@@ -261,7 +269,7 @@
         randomCount.value = 10;
         defaultDwell.value = 8;
         loop.checked = true;
-        keywordsBox.innerHTML = '<span class="text-xs text-gray-400">Loading…</span>';
+        keywordsBox.innerHTML = '<span class="text-xs text-gray-400">' + escape(GXM.statusLoadingKeywords || 'Loading…') + '</span>';
         document.querySelectorAll('input[name="tour_start_mode"]').forEach(r => r.checked = (r.value === 'manual'));
         document.querySelectorAll('input[name="tour_node_selection"]').forEach(r => r.checked = (r.value === 'all'));
         document.querySelectorAll('input[name="idle_spotlight_selection"]').forEach(r => r.checked = (r.value === 'all'));
@@ -291,7 +299,7 @@
 
             const selectedKwIds = new Set((cfg.tour_keyword_ids || []).map(Number));
             if (!cfg.available_keywords || cfg.available_keywords.length === 0) {
-                keywordsBox.innerHTML = '<span class="text-xs text-gray-500">No keywords yet for this galaxy.</span>';
+                keywordsBox.innerHTML = '<span class="text-xs text-gray-500">' + escape(GXM.noKeywordsYet || 'No keywords yet for this galaxy.') + '</span>';
             } else {
                 // Render each keyword as a pastel pill (background + border +
                 // text from the canonical palette, hashed on the keyword) so
@@ -312,7 +320,7 @@
 
             document.getElementById('modal-tour-immediate-warning').dataset.hasAudio = cfg.has_audio_nodes ? '1' : '0';
         } catch (e) {
-            keywordsBox.innerHTML = '<span class="text-xs text-red-600">Failed to load.</span>';
+            keywordsBox.innerHTML = '<span class="text-xs text-red-600">' + escape(GXM.loadFailedKeywords || 'Failed to load.') + '</span>';
             document.getElementById('modal-tour-immediate-warning').dataset.hasAudio = '0';
         }
         updateTourFieldVisibility();
@@ -348,10 +356,12 @@
         const id = parseInt(document.getElementById('modal-constellation-id')?.value, 10);
         const feedback = document.getElementById('modal-bulk-feedback');
         if (!id || isNaN(id)) return;
-        const label = value ? 'use images as icons' : 'revert all to theme icons';
-        if (!window.confirm(`Apply "${label}" to every wormhole in this galaxy?`)) return;
+        const label = value
+            ? (GXM.labelUseImagesAsIcons || 'use images as icons')
+            : (GXM.labelRevertToThemeIcons || 'revert all to theme icons');
+        if (!window.confirm(tFmt(GXM.confirmApplyToAll || 'Apply "%s" to every wormhole in this galaxy?', label))) return;
         if (button) { button.disabled = true; }
-        if (feedback) { feedback.textContent = 'Working…'; feedback.style.color = ''; }
+        if (feedback) { feedback.textContent = GXM.statusWorking || 'Working…'; feedback.style.color = ''; }
         try {
             const r = await fetch(`${getApiUrl().replace(/constellations\.php$/, 'nodes.php')}`, {
                 method: 'POST',
@@ -359,10 +369,15 @@
                 body: JSON.stringify({ action: 'bulk_use_image_as_node', constellation_id: id, value: value }),
             });
             const json = await r.json();
-            if (!r.ok) throw new Error(json?.error || 'Update failed');
-            if (feedback) feedback.textContent = `Updated ${json.updated} wormhole${json.updated === 1 ? '' : 's'}. Reload the visitor view to see the change.`;
+            if (!r.ok) throw new Error(json?.error || (GXM.errUpdateFailedFallback || 'Update failed'));
+            if (feedback) {
+                const tpl = json.updated === 1
+                    ? (GXM.statusUpdatedOne || 'Updated %d wormhole. Reload the visitor view to see the change.')
+                    : (GXM.statusUpdatedMany || 'Updated %d wormholes. Reload the visitor view to see the change.');
+                feedback.textContent = tFmt(tpl, json.updated);
+            }
         } catch (e) {
-            if (feedback) { feedback.textContent = 'Failed: ' + e.message; feedback.style.color = '#b91c1c'; }
+            if (feedback) { feedback.textContent = tFmt(GXM.labelFailedPrefix || 'Failed: %s', e.message); feedback.style.color = '#b91c1c'; }
         } finally {
             if (button) { button.disabled = false; }
         }

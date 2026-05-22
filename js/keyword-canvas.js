@@ -19,6 +19,13 @@
     'use strict';
 
     const KC = window.TELARIS_KC || {};
+    const KC_STR = KC.STRINGS || {};
+    // printf-style %d/%s substituter for parametric localized strings.
+    function tFmt(tpl, ...args) {
+        if (!tpl) return '';
+        let i = 0;
+        return String(tpl).replace(/%[ds]/g, () => (i < args.length ? String(args[i++]) : ''));
+    }
     const API_URL = '/api/keyword-canvas.php';
     const SVG_NS = 'http://www.w3.org/2000/svg';
     const CANVAS_W = 2000;
@@ -461,7 +468,7 @@
     // Hydration
     // ---------------------------------------------------------------------
     async function hydrate() {
-        setStatus('Loading…', 'idle');
+        setStatus(KC_STR.statusLoading || 'Loading…', 'idle');
         try {
             const res = await fetch(`${API_URL}?galaxy_id=${encodeURIComponent(KC.GALAXY_ID)}`, {
                 headers: { 'X-API-Key': KC.API_KEY },
@@ -476,7 +483,7 @@
             data.relations.forEach(r => state.relations.set(r.id, r));
             if (state.keywords.size === 0) {
                 if (emptyEl) emptyEl.hidden = false;
-                setStatus('No keywords yet');
+                setStatus(KC_STR.statusNoKeywords || 'No keywords yet');
                 return;
             }
             // Fit viewBox to the bbox of the data (with padding) so nodes land
@@ -491,9 +498,9 @@
             // loop also drives idle float (continuous, runs forever).
             startPhysicsLoop();
             startAnimationLoop();
-            setStatus('Ready', 'saved');
+            setStatus(KC_STR.statusReady || 'Ready', 'saved');
         } catch (err) {
-            setStatus(`Load failed: ${err.message}`, 'error');
+            setStatus(tFmt(KC_STR.statusLoadFailed || 'Load failed: %s', err.message), 'error');
             console.error('keyword-canvas hydrate', err);
         }
     }
@@ -770,7 +777,7 @@
             hit.setAttribute('data-kc-line-hit', '1');
             hit.style.cursor = 'pointer';
             const title = document.createElementNS(SVG_NS, 'title');
-            const auth = rel.created_by ? `${rel.created_by}` : '(no author)';
+            const auth = rel.created_by ? `${rel.created_by}` : (KC_STR.labelNoAuthorShort || '(no author)');
             const when = rel.created_at ? ` · ${rel.created_at}` : '';
             const note = rel.note ? `\n${rel.note}` : '';
             title.textContent = `${auth}${when}${note}`;
@@ -858,7 +865,7 @@
     function queueSavePosition(kwId, x, y) {
         state.pendingSaves.set(kwId, { x, y });
         if (state.saveTimer) clearTimeout(state.saveTimer);
-        setStatus('Saving…', 'saving');
+        setStatus(KC_STR.statusSaving || 'Saving…', 'saving');
         state.saveTimer = setTimeout(flushSaves, SAVE_DEBOUNCE_MS);
     }
 
@@ -887,13 +894,13 @@
                     }
                 })
             ));
-            setStatus('Saved', 'saved');
+            setStatus(KC_STR.statusSaved || 'Saved', 'saved');
             // Intentionally no renderNodes() here: in-place transform updates
             // during drag already reflect the new positions, and re-rendering
             // would flash the selection outline (we want it persistent so the
             // same group can be dragged again without re-selecting).
         } catch (err) {
-            setStatus(`Save failed: ${err.message}`, 'error');
+            setStatus(tFmt(KC_STR.statusSaveFailed || 'Save failed: %s', err.message), 'error');
             console.error('keyword-canvas save', err);
         }
     }
@@ -1286,7 +1293,7 @@
         state.previewLine.setAttribute('stroke-opacity', '0.85');
         state.previewLine.setAttribute('pointer-events', 'none');
         layerPreview.appendChild(state.previewLine);
-        setStatus("Drag to another anchor, or click one (Esc to cancel)");
+        setStatus(KC_STR.statusDragOrClick || 'Drag to another anchor, or click one (Esc to cancel)');
     }
     function updateLinePreview(ev) {
         if (!state.previewLine) return;
@@ -1317,7 +1324,7 @@
         svg.classList.remove('kc-drawing');
         const tagged = layerNodes && layerNodes.querySelector('[data-kc-draw-source="1"]');
         if (tagged) tagged.removeAttribute('data-kc-draw-source');
-        setStatus('Ready', 'saved');
+        setStatus(KC_STR.statusReady || 'Ready', 'saved');
     }
     async function finalizeLineDraw(targetKwId, targetSide) {
         const sourceKwId = state.drawStartKwId;
@@ -1329,14 +1336,14 @@
         const hi = Math.max(sourceKwId, targetKwId);
         for (const rel of state.relations.values()) {
             if (rel.a === lo && rel.b === hi) {
-                setStatus('Already related', 'idle');
+                setStatus(KC_STR.statusAlreadyRelated || 'Already related', 'idle');
                 return;
             }
         }
         // Prompt for an optional note before save.
         const note = await promptForNote(sourceKwId, targetKwId);
         if (note === null) return; // cancelled
-        setStatus('Saving…', 'saving');
+        setStatus(KC_STR.statusSaving || 'Saving…', 'saving');
         try {
             const res = await fetch(API_URL, {
                 method: 'POST',
@@ -1374,9 +1381,9 @@
                 setTimeout(() => newLine.classList.remove('kc-flash'), 720);
             }
             kickPhysics();
-            setStatus('Saved', 'saved');
+            setStatus(KC_STR.statusSaved || 'Saved', 'saved');
         } catch (err) {
-            setStatus(`Create failed: ${err.message}`, 'error');
+            setStatus(tFmt(KC_STR.statusCreateFailed || 'Create failed: %s', err.message), 'error');
         }
     }
 
@@ -1487,7 +1494,7 @@
         const aName = state.keywords.get(aId)?.name || '(?)';
         const bName = state.keywords.get(bId)?.name || '(?)';
         return openNoteModal({
-            title: 'New relation',
+            title: KC_STR.modalTitleNewRelation || 'New relation',
             pair: `#${aName} ↔ #${bName}`,
             initialNote: '',
         });
@@ -1542,7 +1549,7 @@
             // intermediate dialog. Recreating is cheap; the keyword's
             // metadata lives in node_keywords and gets cascade-removed.
             close();
-            setStatus('Deleting…', 'saving');
+            setStatus(KC_STR.statusDeleting || 'Deleting…', 'saving');
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
@@ -1556,16 +1563,16 @@
                 if (g) g.remove();
                 renderLines();
                 kickPhysics();
-                setStatus('Deleted', 'saved');
+                setStatus(KC_STR.statusDeleted || 'Deleted', 'saved');
             } catch (e) {
-                setStatus(`Delete failed: ${e.message}`, 'error');
+                setStatus(tFmt(KC_STR.statusDeleteFailed || 'Delete failed: %s', e.message), 'error');
             }
         };
 
         renameBtn.onclick = async () => {
             const newName = input.value.trim();
             if (!newName) {
-                err.textContent = 'Pick a non-empty name.';
+                err.textContent = KC_STR.errEmptyName || 'Pick a non-empty name.';
                 err.hidden = false;
                 input.focus();
                 return;
@@ -1585,7 +1592,7 @@
             }
             // No conflict — send the rename.
             close();
-            setStatus('Saving…', 'saving');
+            setStatus(KC_STR.statusSaving || 'Saving…', 'saving');
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
@@ -1600,16 +1607,16 @@
                         openConflictModal(kwId, parseInt(data.existing_id, 10), newName);
                         return;
                     }
-                    setStatus('That name is already taken in this galaxy', 'error');
+                    setStatus(KC_STR.errNameTakenGalaxy || 'That name is already taken in this galaxy', 'error');
                     return;
                 }
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 state.keywords.set(kwId, { ...kw, name: newName });
                 renderNodes();
                 renderLines();
-                setStatus('Renamed', 'saved');
+                setStatus(KC_STR.statusRenamed || 'Renamed', 'saved');
             } catch (e) {
-                setStatus(`Rename failed: ${e.message}`, 'error');
+                setStatus(tFmt(KC_STR.statusRenameFailed || 'Rename failed: %s', e.message), 'error');
             }
         };
 
@@ -1646,12 +1653,12 @@
             const input = document.getElementById('kc-keyword-modal-input');
             const err = document.getElementById('kc-keyword-modal-error');
             if (input) { input.value = attemptedName; input.select(); }
-            if (err) { err.textContent = 'That name is already taken — change it or merge.'; err.hidden = false; }
+            if (err) { err.textContent = KC_STR.errNameTakenConflict || 'That name is already taken; change it or merge.'; err.hidden = false; }
         };
 
         mergeBtn.onclick = async () => {
             close();
-            setStatus('Merging…', 'saving');
+            setStatus(KC_STR.statusMerging || 'Merging…', 'saving');
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
@@ -1672,9 +1679,9 @@
                 state.relations.clear();
                 physicsVelocities.clear();
                 await hydrate();
-                setStatus('Merged', 'saved');
+                setStatus(KC_STR.statusMerged || 'Merged', 'saved');
             } catch (e) {
-                setStatus(`Merge failed: ${e.message}`, 'error');
+                setStatus(tFmt(KC_STR.statusMergeFailed || 'Merge failed: %s', e.message), 'error');
             }
         };
 
@@ -1714,7 +1721,9 @@
         const pairLabel = `#${aName} ↔ #${bName}`;
         // Owner check for edit/delete: only author or admin.
         const canEdit = KC.IS_ADMIN || String(rel.created_by) === String(KC.CURRENT_USER_ID);
-        const metaLine = (rel.created_by ? `Authored by ${rel.created_by}` : 'No author recorded')
+        const metaLine = (rel.created_by
+            ? tFmt(KC_STR.labelAuthoredBy || 'Authored by %s', rel.created_by)
+            : (KC_STR.labelNoAuthorRecorded || 'No author recorded'))
             + (rel.created_at ? ` · ${rel.created_at}` : '');
 
         const action = await openLineModal({
@@ -1726,13 +1735,13 @@
 
         if (action === 'edit') {
             const newNote = await openNoteModal({
-                title: 'Edit relation note',
+                title: KC_STR.modalTitleEditRelation || 'Edit relation note',
                 pair: pairLabel,
                 initialNote: rel.note || '',
             });
             if (newNote === null) return;
             try {
-                setStatus('Saving…', 'saving');
+                setStatus(KC_STR.statusSaving || 'Saving…', 'saving');
                 const res = await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY },
@@ -1742,15 +1751,15 @@
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 rel.note = newNote || null;
                 renderLines();
-                setStatus('Saved', 'saved');
+                setStatus(KC_STR.statusSaved || 'Saved', 'saved');
             } catch (err) {
-                setStatus(`Update failed: ${err.message}`, 'error');
+                setStatus(tFmt(KC_STR.statusUpdateFailed || 'Update failed: %s', err.message), 'error');
             }
         } else if (action === 'delete') {
             // No confirmation step: recreating a relation is cheap
             // (click-anchor → click-anchor, or drag-anchor → drag-anchor).
             try {
-                setStatus('Saving…', 'saving');
+                setStatus(KC_STR.statusSaving || 'Saving…', 'saving');
                 const res = await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY },
@@ -1761,9 +1770,9 @@
                 state.relations.delete(relId);
                 renderLines();
                 kickPhysics();
-                setStatus('Deleted', 'saved');
+                setStatus(KC_STR.statusDeleted || 'Deleted', 'saved');
             } catch (err) {
-                setStatus(`Delete failed: ${err.message}`, 'error');
+                setStatus(tFmt(KC_STR.statusDeleteFailed || 'Delete failed: %s', err.message), 'error');
             }
         }
     }
@@ -1865,7 +1874,7 @@
     // Init
     // ---------------------------------------------------------------------
     if (!KC.API_KEY || !KC.GALAXY_ID) {
-        setStatus('Page configuration is missing window.TELARIS_KC', 'error');
+        setStatus(KC_STR.errMissingConfig || 'Page configuration is missing (window.TELARIS_KC)', 'error');
     } else {
         hydrate();
     }
