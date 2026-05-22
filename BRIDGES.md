@@ -9,27 +9,27 @@ The first concrete bridge is Mocambos. Use `inc/bridges/mocambos/` as a referenc
 
 ## Quick start
 
-A minimal bridge called `banana`:
+A minimal bridge called `kosmos`:
 
 ```sh
-mkdir -p inc/bridges/banana
-mkdir -p img/bridges/banana
-$EDITOR inc/bridges/banana/handler.php
+mkdir -p inc/bridges/kosmos
+mkdir -p img/bridges/kosmos
+$EDITOR inc/bridges/kosmos/handler.php
 ```
 
 Then in `config.php`:
 
 ```php
-define('TELARIS_BRIDGES', ['banana']);
+define('TELARIS_BRIDGES', ['kosmos']);
 ```
 
-That's the whole installation. The HTTP dispatcher serves `api/bridge.php?name=banana&action=...`; the CLI dispatcher accepts `admin/cli/import_bridge.php banana ...`; the admin UI iterates active bridges and renders any contributions Banana exposes; `bridges_load('banana')` requires `inc/bridges/banana/handler.php`. No edits to `admin/index.php`, `api/bridge.php`, `_lib.php`, or anywhere else.
+That's the whole installation. The HTTP dispatcher serves `api/bridge.php?name=kosmos&action=...`; the CLI dispatcher accepts `admin/cli/import_bridge.php kosmos ...`; the admin UI iterates active bridges and renders any contributions Kosmos exposes; `bridges_load('kosmos')` requires `inc/bridges/kosmos/handler.php`. No edits to `admin/index.php`, `api/bridge.php`, `_lib.php`, or anywhere else.
 
 ## File layout
 
 ```
 inc/bridges/
-└── banana/
+└── kosmos/
     ├── handler.php       REQUIRED. HTTP + CLI entry points, optional hooks.
     ├── admin.php         OPTIONAL. Admin UI render functions.
     └── ...               Any other files the bridge needs. The framework
@@ -37,7 +37,7 @@ inc/bridges/
                           from handler.php using __DIR__ . '/whatever.php'.
 
 img/bridges/
-└── banana/
+└── kosmos/
     └── ...               Per-bridge static assets (icons, themes, etc.).
                           Served by nginx as ordinary files.
 ```
@@ -51,13 +51,13 @@ The handler file is required. It exports two functions, both with no parameters,
 ### Required: HTTP entry
 
 ```php
-function banana_handle_request(): void;
+function kosmos_handle_request(): void;
 ```
 
 Called by `api/bridge.php` after auth, CORS, name validation, and the active-bridge check. The handler reads from `$_SERVER['REQUEST_METHOD']`, `$_GET['action']`, and `php://input` as it sees fit, and emits its response.
 
 Conventions:
-- Use `?action=<verb>` to dispatch within the handler. Bananas might have `validate`, `list`, `import`, `refresh`. Choose action names that make sense for the source.
+- Use `?action=<verb>` to dispatch within the handler. A Kosmos handler might have `validate`, `list`, `import`, `refresh`. Choose action names that make sense for the source.
 - For short responses, emit a single JSON object via `echo json_encode($result, JSON_THROW_ON_ERROR)`.
 - For long-running imports, switch to newline-delimited JSON streaming (one event per line). The Mocambos handler does this for the import action; see its `_mocambos_http_import()` function for the pattern.
 - Call `requireWriteAccess()` for any action that mutates state. The dispatcher only calls `requireApiKey()`; finer-grained authorisation is the handler's responsibility.
@@ -68,10 +68,10 @@ The dispatcher catches any uncaught `Throwable` and converts it into a generic H
 ### Required: CLI entry
 
 ```php
-function banana_run_cli(): int;
+function kosmos_run_cli(): int;
 ```
 
-Called by `admin/cli/import_bridge.php` after the bridge-name positional has been consumed. The dispatcher pre-parses no flags; the handler calls `getopt()` with its own flag schema. `getopt()` ignores the bridge-name positional automatically, so a command like `php admin/cli/import_bridge.php banana --query=mango` will reach `banana_run_cli()` with `getopt('', ['query:'])` returning `['query' => 'mango']`.
+Called by `admin/cli/import_bridge.php` after the bridge-name positional has been consumed. The dispatcher pre-parses no flags; the handler calls `getopt()` with its own flag schema. `getopt()` ignores the bridge-name positional automatically, so a command like `php admin/cli/import_bridge.php kosmos --query=mango` will reach `kosmos_run_cli()` with `getopt('', ['query:'])` returning `['query' => 'mango']`.
 
 Returns the process exit code (0 = success).
 
@@ -84,14 +84,14 @@ Conventions:
 
 The same `handler.php` may also export any subset of these. Each is called by the framework when the corresponding feature is invoked.
 
-#### `banana_cli_args_from_source(array $source): ?array`
+#### `kosmos_cli_args_from_source(array $source): ?array`
 
 Returns the CLI argv tail that would re-import a constellation whose `import_source` JSON was stamped by this bridge. Used by `admin/cli/refresh_constellation.php` to route refresh-from-stored-source through the bridge.
 
 The `$source` argument is the parsed `import_source` JSON. The bridge knows what shape it wrote there. Return `null` if the stored source is incomplete (missing fields, etc.). Return an array of `--flag=value` strings on success.
 
 ```php
-function banana_cli_args_from_source(array $source): ?array {
+function kosmos_cli_args_from_source(array $source): ?array {
     $apiBase = $source['api_base'] ?? '';
     $query = $source['query'] ?? '';
     if ($apiBase === '' || $query === '') return null;
@@ -101,13 +101,13 @@ function banana_cli_args_from_source(array $source): ?array {
 
 Bridges that do not implement this hook still work; their constellations cannot be refreshed via `refresh_constellation.php` and need to be re-imported by the operator running `import_bridge.php` directly.
 
-#### `banana_cluster_icon_url(): string`
+#### `kosmos_cluster_icon_url(): string`
 
 Returns a URL to apply as the icon on auto-generated cluster pseudo-nodes inside galaxies this bridge imported. Called from `api/nodes.php` via `bridges_cluster_icon_url_for()` only when the constellation's `import_source.source` matches this bridge.
 
 ```php
-function banana_cluster_icon_url(): string {
-    return 'img/bridges/banana/cluster.svg';
+function kosmos_cluster_icon_url(): string {
+    return 'img/bridges/kosmos/cluster.svg';
 }
 ```
 
@@ -117,39 +117,39 @@ If you do not implement this, cluster pseudo-nodes use the default icon.
 
 The admin partial is optional. If present, the framework loads it on every admin page render and calls any of these three functions that exist, at the matching slot. Each function echoes (does not return) its contribution.
 
-### `banana_admin_render_button(): void`
+### `kosmos_admin_render_button(): void`
 
 Contributes a button to the galaxy-list header (where *New Galaxy* and *Import from Mocambos* live). One bridge, one button is the usual shape.
 
 ```php
-function banana_admin_render_button(): void {
+function kosmos_admin_render_button(): void {
 ?>
-    <button type="button" onclick="openBananaImportModal()" class="text-yellow-600 hover:text-yellow-800 font-medium text-base">Import from Banana</button>
+    <button type="button" onclick="openKosmosImportModal()" class="text-yellow-600 hover:text-yellow-800 font-medium text-base">Import from Kosmos</button>
 <?php
 }
 ```
 
-### `banana_admin_render_modal(): void`
+### `kosmos_admin_render_modal(): void`
 
 Contributes a `<dialog>` element to the page body. This is where the bridge's import UI lives: input fields, a list of available items from the source, progress display, etc.
 
 Conventions:
-- Prefix every HTML element id and CSS class with the bridge name to avoid collisions: `<dialog id="banana_import_modal">`, `<input id="banana-query">`, etc.
-- The modal can call back to the bridge's HTTP endpoint via `fetch('../api/bridge.php?name=banana&action=...')` (see the JS slot below).
+- Prefix every HTML element id and CSS class with the bridge name to avoid collisions: `<dialog id="kosmos_import_modal">`, `<input id="kosmos-query">`, etc.
+- The modal can call back to the bridge's HTTP endpoint via `fetch('../api/bridge.php?name=kosmos&action=...')` (see the JS slot below).
 
-### `banana_admin_render_js(): void`
+### `kosmos_admin_render_js(): void`
 
 Contributes a `<script>` block. Holds the JS that drives the modal: opening it, fetching from `api/bridge.php`, rendering progress, etc.
 
 Conventions:
 - Wrap the whole block in an IIFE so the bridge does not pollute the global JS namespace beyond what it explicitly attaches to `window`.
-- The bridge's button uses inline `onclick="openBananaImportModal()"`. Expose entry points explicitly: `window.openBananaImportModal = openBananaImportModal;`.
+- The bridge's button uses inline `onclick="openKosmosImportModal()"`. Expose entry points explicitly: `window.openKosmosImportModal = openKosmosImportModal;`.
 - Use the framework-provided globals: `API_KEY` (for `X-API-Key` headers), `showMessage(text, type)` (toast helper), `loadConstellations()` (reload galaxy list after import).
 - For per-galaxy refresh, register a handler in `window.BRIDGES_REFRESH_UI`:
 
 ```js
 window.BRIDGES_REFRESH_UI = window.BRIDGES_REFRESH_UI || {};
-window.BRIDGES_REFRESH_UI['banana'] = function(constId, name) {
+window.BRIDGES_REFRESH_UI['kosmos'] = function(constId, name) {
     // Open the modal pre-populated with the constellation's stored source
     // and run the refresh import path.
 };
@@ -162,7 +162,7 @@ The generic `bridgeRefreshConstellation()` dispatcher in `admin/index.php` reads
 Anything the bridge needs beyond the two standard files goes in additional files inside the bridge directory. Names are at the bridge author's discretion. Require them from `handler.php` using `__DIR__`:
 
 ```php
-// inc/bridges/banana/handler.php
+// inc/bridges/kosmos/handler.php
 require_once __DIR__ . '/fetch.php';
 require_once __DIR__ . '/parse.php';
 ```
@@ -170,27 +170,27 @@ require_once __DIR__ . '/parse.php';
 The Mocambos bridge does this with `sync.php` (incremental-diff logic) and `download.php` (streaming media download).
 
 Naming convention for global identifiers inside these helpers:
-- Public functions used across the bridge's files: `banana_<verb>()` (e.g. `banana_compute_diff`).
-- Private helpers used only within one file: `_banana_<verb>()` (e.g. `_banana_resolve_smid`).
+- Public functions used across the bridge's files: `kosmos_<verb>()` (e.g. `kosmos_compute_diff`).
+- Private helpers used only within one file: `_kosmos_<verb>()` (e.g. `_kosmos_resolve_smid`).
 
 Do not define generic-sounding helper names like `_resolve_smid()` or `_normalize_tags()` without the bridge prefix. PHP's function table is global; two bridges declaring the same unprefixed helper fail to load together with a fatal "function already defined" error. The framework's unit tests cover the canonical Mocambos namespacing as a reference.
 
 ## Static assets
 
-Static files the bridge wants visitor-side (cluster icons, custom themes, decorations) go under `img/bridges/{name}/`. Serve them with relative URLs from PHP: `'img/bridges/banana/cluster.svg'`. Nginx handles them as ordinary files.
+Static files the bridge wants visitor-side (cluster icons, custom themes, decorations) go under `img/bridges/{name}/`. Serve them with relative URLs from PHP: `'img/bridges/kosmos/cluster.svg'`. Nginx handles them as ordinary files.
 
-The framework provides one path that consumes such an asset automatically: `banana_cluster_icon_url()` (the visitor-side cluster icon override, described above). Other assets are referenced by the bridge's own code as needed.
+The framework provides one path that consumes such an asset automatically: `kosmos_cluster_icon_url()` (the visitor-side cluster icon override, described above). Other assets are referenced by the bridge's own code as needed.
 
 ## Naming conventions
 
 | Item | Convention | Notes |
 |---|---|---|
 | Bridge name | `^[a-z][a-z0-9_-]*$` | Lowercase, starts with a letter, may contain digits, underscores, hyphens. Enforced by `bridges_name_is_valid()`. |
-| Public PHP function | `{name}_*` | `banana_handle_request`, `banana_run_cli`, `banana_compute_diff`. |
-| Private PHP function | `_{name}_*` | `_banana_resolve_smid`, `_banana_normalize_tags`. |
-| HTML element id | `{name}_*` or `{name}-*` | `banana_import_modal`, `banana-url-input`. |
-| CSS class | `{name}-*` | `banana-item-checkbox`. |
-| JS function exposed on window | `{name}*` | `openBananaImportModal`, `doBananaImport`. |
+| Public PHP function | `{name}_*` | `kosmos_handle_request`, `kosmos_run_cli`, `kosmos_compute_diff`. |
+| Private PHP function | `_{name}_*` | `_kosmos_resolve_smid`, `_kosmos_normalize_tags`. |
+| HTML element id | `{name}_*` or `{name}-*` | `kosmos_import_modal`, `kosmos-url-input`. |
+| CSS class | `{name}-*` | `kosmos-item-checkbox`. |
+| JS function exposed on window | `{name}*` | `openKosmosImportModal`, `doKosmosImport`. |
 | Bridge's JS registry entry | `window.BRIDGES_REFRESH_UI['{name}']` | The framework registry name is fixed; the key is the bridge name. |
 | Static asset path | `img/bridges/{name}/...` | Per-bridge subdirectory under the standard image folder. |
 
@@ -210,13 +210,13 @@ The bridge also stamps the constellation's `import_source` column with a JSON ob
 
 ```json
 {
-  "source": "banana",
+  "source": "kosmos",
   "api_base": "https://example.com/api",
   "query": "..."
 }
 ```
 
-The `source` field must equal the bridge name (so refresh dispatch and other framework-level lookups work). The rest of the object is the bridge's choice; whatever you put there will come back to you in `banana_cli_args_from_source()`.
+The `source` field must equal the bridge name (so refresh dispatch and other framework-level lookups work). The rest of the object is the bridge's choice; whatever you put there will come back to you in `kosmos_cli_args_from_source()`.
 
 Set the import_source via `db_set_constellation_import_source($constellationId, $jsonString)`. Read it back with `db_get_constellation_import_source($constellationId)`.
 
@@ -227,7 +227,7 @@ Set the import_source via `db_set_constellation_import_source($constellationId, 
 ```php
 define('TELARIS_BRIDGES', []);                       // no bridges (default)
 define('TELARIS_BRIDGES', ['mocambos']);             // one bridge
-define('TELARIS_BRIDGES', ['mocambos', 'banana']);   // two bridges
+define('TELARIS_BRIDGES', ['mocambos', 'kosmos']);   // two bridges
 ```
 
 When a bridge is not in this array:
@@ -239,12 +239,12 @@ When a bridge is not in this array:
 
 ## Testing
 
-Bridges should ship tests under `tests/php/Unit/`. Convention: name the test file after the bridge (`BananaSyncTest.php`, `BananaParseTest.php`).
+Bridges should ship tests under `tests/php/Unit/`. Convention: name the test file after the bridge (`KosmosSyncTest.php`, `KosmosParseTest.php`).
 
 Required path from the test file to the bridge:
 
 ```php
-require_once __DIR__ . '/../../../inc/bridges/banana/sync.php';
+require_once __DIR__ . '/../../../inc/bridges/kosmos/sync.php';
 ```
 
 The framework's own contract is verified by `BridgesLibTest`. Bridges don't need to retest framework invariants (name validation, defence-in-depth in `bridges_load()`, etc.); they test their own internal logic.
@@ -271,7 +271,7 @@ These functions live in `inc/bridges/_lib.php` and are available to anything tha
 
 ## What not to do
 
-- **Do not name your bridge in any generic file.** No literal `'banana'` in `admin/index.php`, `api/bridge.php`, `inc/clustering.php`, etc. Generic code locates bridges via `TELARIS_BRIDGES` membership and the framework lib. If you find yourself wanting to write `if ($source === 'banana')` somewhere outside `inc/bridges/banana/`, the correct shape is a new optional hook on the handler interface plus a generic dispatcher that calls it.
+- **Do not name your bridge in any generic file.** No literal `'kosmos'` in `admin/index.php`, `api/bridge.php`, `inc/clustering.php`, etc. Generic code locates bridges via `TELARIS_BRIDGES` membership and the framework lib. If you find yourself wanting to write `if ($source === 'kosmos')` somewhere outside `inc/bridges/kosmos/`, the correct shape is a new optional hook on the handler interface plus a generic dispatcher that calls it.
 - **Do not skip the bridge-name prefix on global identifiers.** PHP's function table is global; collisions are fatal at load time.
 - **Do not bypass the dispatcher.** Reach the HTTP entry through `api/bridge.php?name=...` and the CLI entry through `admin/cli/import_bridge.php <name> ...`. Direct calls into the handler file from elsewhere defeat the active-bridge gating and the name validation.
 - **Do not write Mocambos-shaped data into `source_facet` for a different bridge.** The column is neutral; put whatever facet your source provides there.
