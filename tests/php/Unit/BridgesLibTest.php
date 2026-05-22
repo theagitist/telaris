@@ -78,4 +78,18 @@ final class BridgesLibTest extends TestCase
     {
         $this->assertFalse(bridges_load('nonexistent-bridge-xyz'));
     }
+
+    /**
+     * bridges_load() applies the same name validation as the dispatchers do,
+     * so a caller that forgets to validate cannot weaponize it as a path
+     * traversal primitive.
+     */
+    public function testLoadRejectsInvalidNames(): void
+    {
+        $this->assertFalse(bridges_load(''));
+        $this->assertFalse(bridges_load('../etc/passwd'));
+        $this->assertFalse(bridges_load('foo/bar'));
+        $this->assertFalse(bridges_load('foo.bar'));
+        $this->assertFalse(bridges_load('Mocambos'));
+    }
 }

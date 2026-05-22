@@ -46,11 +46,21 @@ function bridges_name_is_valid(string $name): bool {
 }
 
 /**
- * Load the handler file for a bridge. Caller must check bridges_is_active()
- * and bridges_name_is_valid() first; this function does not. Returns true on
- * success, false if the handler file is missing.
+ * Load the handler file for a bridge. The dispatchers also call
+ * bridges_is_active() before invoking this; this function additionally
+ * revalidates the name as defence-in-depth so it cannot be used as a path
+ * traversal primitive by any future caller that forgets the check. Returns
+ * true on success, false if the name is invalid or the handler file is
+ * missing.
+ *
+ * Bridge handler files MUST namespace their global function definitions
+ * with the `{name}_` (or `_{name}_` for private helpers) prefix to avoid
+ * collisions in the PHP function table when multiple bridges load together.
  */
 function bridges_load(string $name): bool {
+    if (!bridges_name_is_valid($name)) {
+        return false;
+    }
     $path = __DIR__ . '/' . $name . '.php';
     if (!is_file($path)) {
         return false;

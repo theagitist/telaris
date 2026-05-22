@@ -25,9 +25,9 @@ function mocambos_compute_diff(array $existingBySlug, array $apiItems, array $mu
             'name' => $item['title'] ?? $slug,
             'description' => $item['description'] ?? '',
             'media_type' => ($item['_source_type'] ?? '') === 'blog' ? 'blog' : ($item['type'] ?? 'arquivo'),
-            'mucua_name' => _resolve_mucua($item, $mucuaNameMap),
+            'mucua_name' => _mocambos_resolve_mucua($item, $mucuaNameMap),
             'source_created_at' => $item['created'] ?? '',
-            'tags' => _normalize_tags($item['tags'] ?? []),
+            'tags' => _mocambos_normalize_tags($item['tags'] ?? []),
         ];
     }
 
@@ -43,7 +43,7 @@ function mocambos_compute_diff(array $existingBySlug, array $apiItems, array $mu
             continue;
         }
         $existing = $existingBySlug[$slug];
-        $changes = _detect_changes($existing, $apiData);
+        $changes = _mocambos_detect_changes($existing, $apiData);
         if (!empty($changes)) {
             $modified[] = [
                 'node_id' => $existing['id'],
@@ -188,7 +188,7 @@ function mocambos_apply_deletions(array $deletions, int $constellationId, PDO $p
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
-function _resolve_mucua(array $item, array $mucuaNameMap): string {
+function _mocambos_resolve_mucua(array $item, array $mucuaNameMap): string {
     $smid = $item['mucua_smid'] ?? null;
     if ($smid !== null && isset($mucuaNameMap[$smid])) {
         return $mucuaNameMap[$smid];
@@ -196,7 +196,7 @@ function _resolve_mucua(array $item, array $mucuaNameMap): string {
     return '';
 }
 
-function _normalize_tags(mixed $tags): array {
+function _mocambos_normalize_tags(mixed $tags): array {
     if (!is_array($tags)) return [];
     $out = [];
     foreach ($tags as $t) {
@@ -207,7 +207,7 @@ function _normalize_tags(mixed $tags): array {
     return $out;
 }
 
-function _detect_changes(array $existing, array $api): array {
+function _mocambos_detect_changes(array $existing, array $api): array {
     $changes = [];
     if (($existing['name'] ?? '') !== ($api['name'] ?? '')) $changes[] = 'name';
     if (($existing['description'] ?? '') !== ($api['description'] ?? '')) $changes[] = 'description';
