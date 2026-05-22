@@ -177,7 +177,7 @@ Constellations with many nodes are dynamically grouped into navigable clusters b
 
 ### Bridges (plug-in architecture; Mocambos is the first instance)
 
-A **Bridge** pulls content from a non-Telaris source into a local constellation. Bridges run on a single instance and are not federation. The framework names no specific bridge anywhere; concrete bridges are self-contained plug-ins under `inc/bridges/{name}*.php`. Enabled bridges are listed in `TELARIS_BRIDGES` in `config.php` (default `[]`).
+A **Bridge** pulls content from a non-Telaris source into a local constellation. Bridges run on a single instance and are not federation. The framework names no specific bridge anywhere; each concrete bridge is a self-contained plug-in directory under `inc/bridges/{name}/` with standard filenames. Enabled bridges are listed in `TELARIS_BRIDGES` in `config.php` (default `[]`).
 
 **Framework (generic; bridge-agnostic):**
 - `inc/bridges/_lib.php`: `bridges_active()`, `bridges_is_active()`, `bridges_name_is_valid()`, `bridges_load()`, `bridges_admin_load_all()`, `bridges_admin_render($hook)`, `bridges_cluster_icon_url_for($name)`
@@ -193,16 +193,26 @@ A **Bridge** pulls content from a non-Telaris source into a local constellation.
 - `{name}_cli_args_from_source(array $source): ?array` — CLI args to refresh a constellation this bridge imported (used by `refresh_constellation.php`)
 - `{name}_cluster_icon_url(): string` — visitor-side icon for auto-generated cluster pseudo-nodes inside this bridge's imported galaxies (called from `api/nodes.php` via `bridges_cluster_icon_url_for()`)
 
-**Optional admin UI (in `inc/bridges/{name}-admin.php`):**
+**Standard file layout per bridge:**
+```
+inc/bridges/{name}/
+├── handler.php       REQUIRED: handle_request, run_cli, optional hooks
+├── admin.php         OPTIONAL: admin_render_button/modal/js
+└── ...               any other files the bridge needs (helpers, fixtures)
+```
+Static assets the bridge wants visitor-side go under `img/bridges/{name}/`.
+
+**Optional admin UI (in `inc/bridges/{name}/admin.php`):**
 - `{name}_admin_render_button(): void` — galaxy-list-header button
 - `{name}_admin_render_modal(): void` — `<dialog>` element
 - `{name}_admin_render_js(): void` — `<script>` block; should register into `window.BRIDGES_REFRESH_UI[{name}]` if per-galaxy Refresh should route to this bridge
 
 **Mocambos plug-in (the example instance):**
-- `inc/bridges/mocambos.php`: HTTP and CLI orchestrators plus shared `_mocambos_import_galaxia()` core; defines `mocambos_cluster_icon_url()` and `mocambos_cli_args_from_source()`
-- `inc/bridges/mocambos-sync.php`: incremental diff logic (`mocambos_compute_diff`, apply_*)
-- `inc/bridges/mocambos-download.php`: streaming media download helper
-- `inc/bridges/mocambos-admin.php`: the entire admin button + modal + JS for Mocambos; registers `window.BRIDGES_REFRESH_UI['mocambos']`
+- `inc/bridges/mocambos/handler.php`: HTTP and CLI orchestrators plus shared `_mocambos_import_galaxia()` core; defines `mocambos_cluster_icon_url()` and `mocambos_cli_args_from_source()`
+- `inc/bridges/mocambos/sync.php`: incremental diff logic (`mocambos_compute_diff`, apply_*)
+- `inc/bridges/mocambos/download.php`: streaming media download helper
+- `inc/bridges/mocambos/admin.php`: the entire admin button + modal + JS for Mocambos; registers `window.BRIDGES_REFRESH_UI['mocambos']`
+- `img/bridges/mocambos/cluster.svg`: visitor-side cluster icon
 
 **Incremental refresh:** Re-imports compute a diff by matching nodes on `import_slug`. Only additions, modifications, and deletions are applied. Use `--full` flag (CLI) or `full_refresh: true` (API) to force a full re-import.
 

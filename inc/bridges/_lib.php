@@ -5,15 +5,28 @@ declare(strict_types=1);
  * Bridge framework: shared library.
  *
  * A "bridge" pulls content from a non-Telaris source into a local
- * constellation. Each named bridge corresponds to a handler file at
- * inc/bridges/{name}.php that declares two entry points:
+ * constellation. Each named bridge is a subdirectory under inc/bridges/
+ * with a standard file layout:
  *
- *   {name}_handle_request(): void  // HTTP, called by api/bridge.php
- *   {name}_run_cli(): int          // CLI, called by admin/cli/import_bridge.php
+ *   inc/bridges/{name}/
+ *     handler.php       REQUIRED. Exports {name}_handle_request(): void
+ *                       (HTTP, called by api/bridge.php) and
+ *                       {name}_run_cli(): int (CLI, called by
+ *                       admin/cli/import_bridge.php). May also export
+ *                       optional hooks: {name}_cli_args_from_source(),
+ *                       {name}_cluster_icon_url().
+ *     admin.php         OPTIONAL. Exports any subset of:
+ *                       {name}_admin_render_button(),
+ *                       {name}_admin_render_modal(),
+ *                       {name}_admin_render_js().
+ *     ...               Any other files the bridge needs (sync helpers,
+ *                       download helpers, etc.) are at the bridge author's
+ *                       discretion. The framework only knows about the
+ *                       two standard names above.
  *
  * Bridges enabled on this instance are listed in TELARIS_BRIDGES in config.php.
  * The framework code here knows about no specific bridge by name; concrete
- * bridges are self-contained plug-ins under inc/bridges/{name}*.php.
+ * bridges are self-contained plug-ins under inc/bridges/{name}/.
  *
  * Per the federation plan: bridge imports are not federation. They run on a
  * single Telaris instance and pull content from outside the network.
@@ -48,12 +61,12 @@ function bridges_name_is_valid(string $name): bool {
 }
 
 /**
- * Load the handler file for a bridge. The dispatchers also call
- * bridges_is_active() before invoking this; this function additionally
- * revalidates the name as defence-in-depth so it cannot be used as a path
- * traversal primitive by any future caller that forgets the check. Returns
- * true on success, false if the name is invalid or the handler file is
- * missing.
+ * Load the handler file (inc/bridges/{name}/handler.php) for a bridge. The
+ * dispatchers also call bridges_is_active() before invoking this; this
+ * function additionally revalidates the name as defence-in-depth so it
+ * cannot be used as a path traversal primitive by any future caller that
+ * forgets the check. Returns true on success, false if the name is invalid
+ * or the handler file is missing.
  *
  * Bridge handler files MUST namespace their global function definitions
  * with the `{name}_` (or `_{name}_` for private helpers) prefix to avoid
@@ -63,7 +76,7 @@ function bridges_load(string $name): bool {
     if (!bridges_name_is_valid($name)) {
         return false;
     }
-    $path = __DIR__ . '/' . $name . '.php';
+    $path = __DIR__ . '/' . $name . '/handler.php';
     if (!is_file($path)) {
         return false;
     }
@@ -72,9 +85,9 @@ function bridges_load(string $name): bool {
 }
 
 /**
- * Load the optional admin-UI partial for each active bridge
- * (inc/bridges/{name}-admin.php), if it ships one. A bridge with no admin
- * surface (CLI-only, for example) is allowed to skip the file entirely.
+ * Load the optional admin-UI partial (inc/bridges/{name}/admin.php) for each
+ * active bridge, if it ships one. A bridge with no admin surface (CLI-only,
+ * for example) is allowed to skip the file entirely.
  *
  * The admin partial may define any subset of the per-hook render functions
  * (see bridges_admin_render()). It must namespace them with the `{name}_`
@@ -83,7 +96,7 @@ function bridges_load(string $name): bool {
 function bridges_admin_load_all(): void {
     foreach (bridges_active() as $name) {
         if (!bridges_name_is_valid($name)) continue;
-        $path = __DIR__ . '/' . $name . '-admin.php';
+        $path = __DIR__ . '/' . $name . '/admin.php';
         if (is_file($path)) {
             require_once $path;
         }

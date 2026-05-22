@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__ . '/../../../inc/bridges/mocambos-sync.php';
+require_once __DIR__ . '/../../../inc/bridges/mocambos/sync.php';
 
 final class MocambosSyncTest extends TestCase
 {

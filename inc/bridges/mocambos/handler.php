@@ -14,8 +14,8 @@ declare(strict_types=1);
  * points produce a streamMsg / logger callback pair and delegate to it.
  */
 
-require_once __DIR__ . '/mocambos-download.php';
-require_once __DIR__ . '/mocambos-sync.php';
+require_once __DIR__ . '/download.php';
+require_once __DIR__ . '/sync.php';
 
 // ── HTTP entry point ─────────────────────────────────────────────────────────
 
