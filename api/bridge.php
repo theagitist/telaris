@@ -16,6 +16,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../utils/auth.php';
+require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/api-error.php';
 require_once __DIR__ . '/../inc/bridges/_lib.php';
 
 if (php_sapi_name() !== 'cli') {
@@ -35,28 +37,20 @@ requireApiKey();
 
 $bridgeName = trim($_GET['name'] ?? '');
 if (!bridges_name_is_valid($bridgeName)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Missing or invalid bridge name'], JSON_THROW_ON_ERROR);
-    exit();
+    api_error('400.033', 'Missing or invalid bridge name.');
 }
 
 if (!bridges_is_active($bridgeName)) {
-    http_response_code(404);
-    echo json_encode(['error' => "Bridge '{$bridgeName}' is not enabled on this instance"], JSON_THROW_ON_ERROR);
-    exit();
+    api_error('400.034', "Bridge '%s' is not enabled on this instance.", [$bridgeName]);
 }
 
 if (!bridges_load($bridgeName)) {
-    http_response_code(500);
-    echo json_encode(['error' => "Bridge '{$bridgeName}' handler file is missing"], JSON_THROW_ON_ERROR);
-    exit();
+    api_error('404.010', "Bridge '%s' handler file is missing.", [$bridgeName]);
 }
 
 $handlerFn = $bridgeName . '_handle_request';
 if (!function_exists($handlerFn)) {
-    http_response_code(500);
-    echo json_encode(['error' => "Bridge '{$bridgeName}' has no request handler"], JSON_THROW_ON_ERROR);
-    exit();
+    api_error('404.011', "Bridge '%s' has no request handler.", [$bridgeName]);
 }
 
 try {
@@ -67,7 +61,6 @@ try {
     // responses. Operators tracking down failures look at the server log.
     error_log("bridge.php ({$bridgeName}): " . $e->getMessage());
     if (!headers_sent()) {
-        http_response_code(500);
-        echo json_encode(['error' => 'Internal server error'], JSON_THROW_ON_ERROR);
+        api_error('500.001', 'Internal server error.');
     }
 }

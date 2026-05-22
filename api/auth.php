@@ -7,6 +7,8 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/api-error.php';
 
 /**
  * Validate API key and return true if valid, false otherwise
@@ -81,23 +83,11 @@ function requireWriteAccess(): void {
         session_start();
     }
     if (empty($_SESSION['admin_user_id']) || empty($_SESSION['admin_user_type'])) {
-        http_response_code(403);
-        header('Content-Type: application/json');
-        echo json_encode([
-            'error' => 'Forbidden',
-            'message' => 'Write operations require an authenticated session. Please log in.',
-        ], JSON_THROW_ON_ERROR);
-        exit();
+        api_error('403.001', 'Write operations require an authenticated session. Please log in.');
     }
     $type = (int)$_SESSION['admin_user_type'];
     if ($type !== 1 && $type !== 2) { // 1=editor, 2=admin
-        http_response_code(403);
-        header('Content-Type: application/json');
-        echo json_encode([
-            'error' => 'Forbidden',
-            'message' => 'Insufficient permissions for write operations.',
-        ], JSON_THROW_ON_ERROR);
-        exit();
+        api_error('403.002', 'Insufficient permissions for write operations.');
     }
 }
 
@@ -109,22 +99,10 @@ function requireApiKey(): void {
     $apiKey = getApiKeyFromRequest();
     
     if (!$apiKey) {
-        http_response_code(401);
-        header('Content-Type: application/json');
-        echo json_encode([
-            'error' => 'Unauthorized',
-            'message' => 'API key is missing. Provide API key via X-API-Key header, Authorization: Bearer <key> header, or ?api_key= query parameter.',
-        ], JSON_THROW_ON_ERROR);
-        exit();
+        api_error('401.001', 'API key is missing. Provide it via the X-API-Key header, the Authorization: Bearer header, or the api_key query parameter.');
     }
-    
+
     if (!db_validate_api_key($apiKey)) {
-        http_response_code(401);
-        header('Content-Type: application/json');
-        echo json_encode([
-            'error' => 'Unauthorized',
-            'message' => 'Invalid API key.',
-        ], JSON_THROW_ON_ERROR);
-        exit();
+        api_error('401.002', 'Invalid API key.');
     }
 }

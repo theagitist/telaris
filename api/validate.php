@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/api-error.php';
 
 if (php_sapi_name() !== 'cli') {
     header('Content-Type: application/json');
@@ -44,9 +46,7 @@ try {
             $excludeId = isset($_GET['exclude_id']) ? (int)$_GET['exclude_id'] : null;
             
             if ($constellationId === null) {
-                http_response_code(400);
-                echo json_encode(['error' => 'constellation_id is required'], JSON_THROW_ON_ERROR);
-                return;
+                api_error('400.010', 'A constellation id is required.');
             }
             
             $exists = db_node_exists($name, $constellationId, $excludeId);
@@ -54,12 +54,9 @@ try {
             break;
 
         default:
-            http_response_code(400);
-            echo json_encode(['error' => 'Invalid validation type'], JSON_THROW_ON_ERROR);
-            break;
+            api_error('400.035', 'Invalid validation type.');
     }
 } catch (Throwable $e) {
-    http_response_code(500);
     error_log('validate.php error: ' . $e->getMessage());
-    echo json_encode(['error' => 'Internal server error'], JSON_THROW_ON_ERROR);
+    api_error('500.001', 'Internal server error.');
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../utils/auth.php';
 requireAdminLogin();
 require_once __DIR__ . '/../../config.php';
+require_once __DIR__ . '/../../inc/db.php';
+require_once __DIR__ . '/../../inc/api-error.php';
 require_once __DIR__ . '/../../inc/snapshots.php';
 require_once __DIR__ . '/../../inc/cron.php';
 
@@ -24,6 +26,6 @@ try {
         'cron' => cron_status_summary(),
     ]);
 } catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    error_log('snapshots/list.php: ' . $e->getMessage());
+    api_error('500.001', 'Internal server error.');
 }

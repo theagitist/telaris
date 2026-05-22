@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/api-error.php';
 
 if (php_sapi_name() !== 'cli') {
     header('Content-Type: application/json');
@@ -42,9 +44,7 @@ try {
                 $id = (int)$_GET['id'];
                 $info = db_get_constellation_by_id($id);
                 if (!$info || ($info['type'] ?? 'galaxy') !== 'cluster') {
-                    http_response_code(404);
-                    echo json_encode(['error' => 'Cluster not found'], JSON_THROW_ON_ERROR);
-                    return;
+                    api_error('404.006', 'Cluster not found.');
                 }
                 echo json_encode(['member_ids' => db_get_cluster_member_ids($id)], JSON_THROW_ON_ERROR);
                 return;
@@ -54,9 +54,7 @@ try {
                 $id = (int)$_GET['id'];
                 $config = db_get_constellation_tour_config($id);
                 if ($config === null) {
-                    http_response_code(404);
-                    echo json_encode(['error' => 'Galaxy not found'], JSON_THROW_ON_ERROR);
-                    return;
+                    api_error('404.002', 'Galaxy not found.');
                 }
                 $info = db_get_constellation_by_id($id);
                 $isCluster = $info && ($info['type'] ?? 'galaxy') === 'cluster';
@@ -152,21 +150,15 @@ try {
             requireWriteAccess();
             $input = stream_get_contents(fopen('php://input', 'r'), 1048576);
             if ($input === '' || $input === false) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Request body is empty'], JSON_THROW_ON_ERROR);
-                return;
+                api_error('400.006', 'Request body is empty.');
             }
             $data = json_decode($input, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Invalid JSON: ' . json_last_error_msg()], JSON_THROW_ON_ERROR);
-                return;
+                api_error('400.001', 'Invalid JSON: %s', [json_last_error_msg()]);
             }
             $name = isset($data['name']) ? trim((string)$data['name']) : '';
             if ($name === '') {
-                http_response_code(400);
-                echo json_encode(['error' => 'Constellation name is required'], JSON_THROW_ON_ERROR);
-                return;
+                api_error('400.011', 'A constellation name is required.');
             }
             $tagline = isset($data['tagline']) ? trim((string)$data['tagline']) : '';
             $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech'];
@@ -185,13 +177,9 @@ try {
             ], JSON_THROW_ON_ERROR);
         })(),
 
-        default => (function(): void {
-            http_response_code(405);
-            echo json_encode(['error' => 'Method not allowed'], JSON_THROW_ON_ERROR);
-        })(),
+        default => api_error('405.001', 'Method not allowed.'),
     };
 } catch (Throwable $e) {
-    http_response_code(500);
     error_log('constellations.php error: ' . $e->getMessage());
-    echo json_encode(['error' => 'Internal server error'], JSON_THROW_ON_ERROR);
+    api_error('500.001', 'Internal server error.');
 }

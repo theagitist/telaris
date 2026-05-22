@@ -14,6 +14,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/api-error.php';
 
 header('Content-Type: application/json');
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -30,7 +32,7 @@ requireApiKey();
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-        throw new RuntimeException('Method not allowed', 405);
+        api_error('405.001', 'Method not allowed.');
     }
 
     $galaxyId = isset($_GET['galaxy_id']) && ctype_digit((string)$_GET['galaxy_id']) ? (int)$_GET['galaxy_id'] : null;
@@ -67,13 +69,12 @@ try {
 
     echo json_encode(db_get_all_tags_with_counts(), JSON_THROW_ON_ERROR);
 } catch (PDOException $e) {
-    http_response_code(500);
     error_log('tags.php PDOException: ' . $e->getMessage());
-    echo json_encode(['error' => 'Database error']);
+    api_error('500.002', 'Database error.');
 } catch (RuntimeException $e) {
-    http_response_code($e->getCode() ?: 405);
-    echo json_encode(['error' => $e->getMessage()]);
+    error_log('tags.php RuntimeException: ' . $e->getMessage());
+    api_error('500.001', 'Internal server error.');
 } catch (JsonException $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Encoding error']);
+    error_log('tags.php JsonException: ' . $e->getMessage());
+    api_error('400.041', 'Encoding error.');
 }

@@ -5,6 +5,8 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../inc/bridges/_lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../utils/auth.php';
+require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/api-error.php';
 require_once __DIR__ . '/../inc/clustering.php';
 require_once __DIR__ . '/../inc/media-optimize.php';
 
@@ -108,16 +110,14 @@ try {
                 $row = db_get_node_by_id((int)$_GET['id']);
                 if ($row === null) {
                     http_response_code(404);
-                    echo json_encode(['error' => 'Node not found'], JSON_THROW_ON_ERROR);
+                    api_error('404.001', 'Node not found.');
                     return;
                 }
                 if (!$isAdmin && $currentUserId !== null) {
                     $allowed = db_get_constellations_for_user($currentUserId, false);
                     $allowedIds = array_column($allowed, 'id');
                     if (!in_array((int)$row['constellation_id'], $allowedIds, true)) {
-                        http_response_code(403);
-                        echo json_encode(['error' => 'Access denied'], JSON_THROW_ON_ERROR);
-                        return;
+                        api_error('403.005', 'Access denied.');
                     }
                 }
                 echo json_encode(db_format_node($row), JSON_THROW_ON_ERROR);
@@ -136,7 +136,7 @@ try {
                 $source = db_get_node_by_id($sourceId);
                 if ($source === null) {
                     http_response_code(404);
-                    echo json_encode(['error' => 'Source node not found'], JSON_THROW_ON_ERROR);
+                    api_error('404.007', 'Source node not found.');
                     return;
                 }
                 $sourceGalaxyId = (int) $source['constellation_id'];
@@ -173,7 +173,7 @@ try {
             // since this is a public read-only visitor feature. Reject explicitly so callers know.
             if (!empty($multiGalaxyIds) && (isset($_GET['page']) || isset($_GET['id']))) {
                 http_response_code(400);
-                echo json_encode(['error' => 'galaxies= is incompatible with page/id'], JSON_THROW_ON_ERROR);
+                api_error('400.005', 'The galaxies parameter is incompatible with page/id.');
                 return;
             }
 
@@ -237,7 +237,7 @@ try {
             // Validate cluster key format (alphanumeric, colons, slashes, hyphens, underscores, dots, spaces)
             if ($clusterKey !== '' && !preg_match('/^[a-zA-Z0-9:\/\-_. ]+$/', $clusterKey)) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Invalid cluster key format'], JSON_THROW_ON_ERROR);
+                api_error('400.004', 'Invalid cluster key format.');
                 return;
             }
 
@@ -293,7 +293,7 @@ try {
                     $data = json_decode($input, true);
                     if (json_last_error() !== JSON_ERROR_NONE) {
                         http_response_code(400);
-                        echo json_encode(['error' => 'Invalid JSON: ' . json_last_error_msg()], JSON_THROW_ON_ERROR);
+                        api_error('400.001', 'Invalid JSON: %s', [json_last_error_msg()]);
                         return;
                     }
                 }
@@ -305,7 +305,7 @@ try {
                 $op = (string)($data['op'] ?? '');
                 if ($constellationId <= 0 || $keywordId <= 0 || !in_array($op, ['delete', 'move', 'count'], true)) {
                     http_response_code(400);
-                    echo json_encode(['error' => 'constellation_id, keyword_id, and op (delete|move|count) are required'], JSON_THROW_ON_ERROR);
+                    api_error('400.031', 'constellation_id, keyword_id, and op (delete|move|count) are required.');
                     return;
                 }
                 $userId = $_SESSION['admin_user_id'] ?? null;
@@ -313,7 +313,7 @@ try {
                     $allowed = $userId ? db_get_user_constellation_ids($userId) : [];
                     if (!in_array($constellationId, $allowed, true)) {
                         http_response_code(403);
-                        echo json_encode(['error' => 'No access to this galaxy'], JSON_THROW_ON_ERROR);
+                        api_error('403.004', 'No edit access to this galaxy.');
                         return;
                     }
                 }
@@ -333,14 +333,14 @@ try {
                 $target = (int)($data['target_constellation_id'] ?? 0);
                 if ($target <= 0) {
                     http_response_code(400);
-                    echo json_encode(['error' => 'target_constellation_id is required for move'], JSON_THROW_ON_ERROR);
+                    api_error('400.032', 'target_constellation_id is required for move.');
                     return;
                 }
                 if (!isAdminLoggedIn()) {
                     $allowed = $userId ? db_get_user_constellation_ids($userId) : [];
                     if (!in_array($target, $allowed, true)) {
                         http_response_code(403);
-                        echo json_encode(['error' => 'No access to the target galaxy'], JSON_THROW_ON_ERROR);
+                        api_error('403.004', 'No edit access to this galaxy.');
                         return;
                     }
                 }
@@ -354,7 +354,7 @@ try {
                 $constellationId = (int)($data['constellation_id'] ?? 0);
                 if ($constellationId <= 0) {
                     http_response_code(400);
-                    echo json_encode(['error' => 'constellation_id required'], JSON_THROW_ON_ERROR);
+                    api_error('400.010', 'A constellation id is required.');
                     return;
                 }
                 $userId = $_SESSION['admin_user_id'] ?? null;
@@ -362,7 +362,7 @@ try {
                     $allowed = $userId ? db_get_user_constellation_ids($userId) : [];
                     if (!in_array($constellationId, $allowed, true)) {
                         http_response_code(403);
-                        echo json_encode(['error' => 'No access to this galaxy'], JSON_THROW_ON_ERROR);
+                        api_error('403.004', 'No edit access to this galaxy.');
                         return;
                     }
                 }
@@ -378,7 +378,7 @@ try {
                 $sourceConstellationId = db_get_node_constellation_id($sourceId);
                 if ($sourceConstellationId === null) {
                     http_response_code(404);
-                    echo json_encode(['error' => 'Source node not found'], JSON_THROW_ON_ERROR);
+                    api_error('404.007', 'Source node not found.');
                     return;
                 }
                 $targetConstellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : null;
@@ -387,7 +387,8 @@ try {
                 $accessError = checkEditorConstellationAccess($accessCid);
                 if ($accessError !== null) {
                     http_response_code(403);
-                    echo json_encode(['error' => $accessError], JSON_THROW_ON_ERROR);
+                    error_log('nodes.php access: ' . $accessError);
+                    api_error('403.005', 'Access denied.');
                     return;
                 }
                 try {
@@ -395,14 +396,15 @@ try {
                     echo json_encode(['id' => $newId, 'success' => true, 'duplicated_from' => $sourceId], JSON_THROW_ON_ERROR);
                 } catch (RuntimeException $e) {
                     http_response_code(500);
-                    echo json_encode(['error' => $e->getMessage()], JSON_THROW_ON_ERROR);
+                    error_log('nodes.php exception: ' . $e->getMessage());
+                    api_error('500.001', 'Internal server error.');
                 }
                 return;
             }
 
             if (empty($data['name'])) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Node name is required'], JSON_THROW_ON_ERROR);
+                api_error('400.007', 'Node name is required.');
                 return;
             }
             try {
@@ -417,12 +419,12 @@ try {
                 $animation = json_encode($animationArray, JSON_THROW_ON_ERROR);
             } catch (JsonException $e) {
                 http_response_code(500);
-                echo json_encode(['error' => 'Failed to encode animation data'], JSON_THROW_ON_ERROR);
+                api_error('500.013', 'Failed to encode the animation data.');
                 return;
             }
             if (!is_string($animation)) {
                 http_response_code(500);
-                echo json_encode(['error' => 'Failed to encode JSON data'], JSON_THROW_ON_ERROR);
+                api_error('500.014', 'Failed to encode the JSON data.');
                 return;
             }
             $description = null;
@@ -435,14 +437,14 @@ try {
                 $url = trim((string)$data['url']);
                 if (!validateSafeUrl($url)) {
                     http_response_code(400);
-                    echo json_encode(['error' => 'Invalid URL: only http and https URLs are allowed'], JSON_THROW_ON_ERROR);
+                    api_error('400.003', 'Invalid URL: only http and https URLs are allowed.');
                     return;
                 }
             }
             $name = trim((string)$data['name']);
             if (empty($name)) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Node name cannot be empty'], JSON_THROW_ON_ERROR);
+                api_error('400.008', 'Node name cannot be empty.');
                 return;
             }
             $constellationId = isset($data['constellation_id']) ? (int)$data['constellation_id'] : db_get_default_constellation_id();
@@ -450,15 +452,14 @@ try {
             // Enforce editor constellation access
             $accessError = checkEditorConstellationAccess($constellationId);
             if ($accessError !== null) {
-                http_response_code(403);
-                echo json_encode(['error' => $accessError], JSON_THROW_ON_ERROR);
-                return;
+                error_log('nodes.php access: ' . $accessError);
+                api_error('403.005', 'Access denied.');
             }
 
             $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
             if ($targetConstellationId !== null && db_get_constellation_by_id($targetConstellationId) === null) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Target constellation does not exist'], JSON_THROW_ON_ERROR);
+                api_error('404.008', 'The target galaxy does not exist.');
                 return;
             }
 
@@ -485,7 +486,7 @@ try {
             $nodeId = db_create_node($name, $description, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode, $pdfUrl, $createdBy);
             if ($nodeId === 0) {
                 http_response_code(500);
-                echo json_encode(['error' => 'Failed to create node: Could not retrieve node ID'], JSON_THROW_ON_ERROR);
+                api_error('500.012', 'Failed to create the node: could not retrieve its id.');
                 return;
             }
 
@@ -495,7 +496,7 @@ try {
             if (!is_dir($nodeFullDir)) {
                 if (!mkdir($nodeFullDir, 0755, true)) {
                     http_response_code(500);
-                    echo json_encode(['error' => 'Failed to create upload directory. Check server permissions.'], JSON_THROW_ON_ERROR);
+                    api_error('500.003', 'Failed to create the upload directory. Check server permissions.');
                     return;
                 }
             }
@@ -522,18 +523,19 @@ try {
                             } else {
                                 @unlink($tmpVideo);
                                 http_response_code(400);
-                                echo json_encode(['error' => 'Could not extract a frame from the uploaded video'], JSON_THROW_ON_ERROR);
+                                api_error('500.010', 'Could not extract a frame from the uploaded video.');
                                 return;
                             }
                             @unlink($tmpVideo);
                         } else {
                             http_response_code(500);
-                            echo json_encode(['error' => 'Failed to save uploaded file'], JSON_THROW_ON_ERROR);
+                            api_error('500.004', 'Failed to save the uploaded file.');
                             return;
                         }
                     } else {
                         http_response_code(400);
-                        echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                        error_log('nodes.php validation: ' . $err);
+                        api_error('500.004', 'Failed to save the uploaded file.');
                         return;
                     }
                 } else {
@@ -546,7 +548,7 @@ try {
                         $uploadedFiles = true;
                     } else {
                         http_response_code(500);
-                        echo json_encode(['error' => 'Failed to save uploaded image'], JSON_THROW_ON_ERROR);
+                        api_error('500.005', 'Failed to save the uploaded image.');
                         return;
                     }
                 }
@@ -556,7 +558,8 @@ try {
                 $err = validateUploadedFile($_FILES['icon_file'], ALLOWED_IMAGE_MIMES, MAX_IMAGE_BYTES, $detectedMime);
                 if ($err !== null) {
                     http_response_code(400);
-                    echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                    error_log('nodes.php validation: ' . $err);
+                    api_error('500.004', 'Failed to save the uploaded file.');
                     return;
                 }
                 $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
@@ -568,7 +571,7 @@ try {
                     $uploadedFiles = true;
                 } else {
                     http_response_code(500);
-                    echo json_encode(['error' => 'Failed to save uploaded icon'], JSON_THROW_ON_ERROR);
+                    api_error('500.006', 'Failed to save the uploaded icon.');
                     return;
                 }
             }
@@ -577,7 +580,8 @@ try {
                 $err = validateUploadedFile($_FILES['audio_file'], ALLOWED_AUDIO_MIMES, MAX_AUDIO_BYTES, $detectedMime);
                 if ($err !== null) {
                     http_response_code(400);
-                    echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                    error_log('nodes.php validation: ' . $err);
+                    api_error('500.004', 'Failed to save the uploaded file.');
                     return;
                 }
                 $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
@@ -590,7 +594,7 @@ try {
                     $uploadedFiles = true;
                 } else {
                     http_response_code(500);
-                    echo json_encode(['error' => 'Failed to save uploaded audio'], JSON_THROW_ON_ERROR);
+                    api_error('500.007', 'Failed to save the uploaded audio.');
                     return;
                 }
             }
@@ -599,7 +603,8 @@ try {
                 $err = validateUploadedFile($_FILES['video_file'], ALLOWED_VIDEO_MIMES, MAX_VIDEO_BYTES, $detectedMime);
                 if ($err !== null) {
                     http_response_code(400);
-                    echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                    error_log('nodes.php validation: ' . $err);
+                    api_error('500.004', 'Failed to save the uploaded file.');
                     return;
                 }
                 $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
@@ -612,7 +617,7 @@ try {
                     $uploadedFiles = true;
                 } else {
                     http_response_code(500);
-                    echo json_encode(['error' => 'Failed to save uploaded video'], JSON_THROW_ON_ERROR);
+                    api_error('500.008', 'Failed to save the uploaded video.');
                     return;
                 }
             }
@@ -621,12 +626,13 @@ try {
                 $err = validateUploadedFile($_FILES['pdf_file'], ALLOWED_PDF_MIMES, effectivePdfMaxBytes(), $detectedMime);
                 if ($err !== null) {
                     http_response_code(400);
-                    echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                    error_log('nodes.php validation: ' . $err);
+                    api_error('500.004', 'Failed to save the uploaded file.');
                     return;
                 }
                 if (!fileHasPdfMagic($_FILES['pdf_file']['tmp_name'])) {
                     http_response_code(400);
-                    echo json_encode(['error' => 'File does not look like a valid PDF'], JSON_THROW_ON_ERROR);
+                    api_error('500.011', 'The file does not look like a valid PDF.');
                     return;
                 }
                 $pdfRelPath = "{$nodeRelDir}/document.pdf";
@@ -636,7 +642,7 @@ try {
                     $uploadedFiles = true;
                 } else {
                     http_response_code(500);
-                    echo json_encode(['error' => 'Failed to save uploaded PDF'], JSON_THROW_ON_ERROR);
+                    api_error('500.009', 'Failed to save the uploaded PDF.');
                     return;
                 }
             }
@@ -674,7 +680,7 @@ try {
             $id = $data['id'] ?? null;
             if (!$id) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Node ID required'], JSON_THROW_ON_ERROR);
+                api_error('400.009', 'Node id is required.');
                 return;
             }
             $animation = (isset($data['animation'])) ? (is_array($data['animation']) ? json_encode($data['animation'], JSON_THROW_ON_ERROR) : $data['animation']) : null;
@@ -684,7 +690,7 @@ try {
                 $url = trim((string)$data['url']);
                 if (!validateSafeUrl($url)) {
                     http_response_code(400);
-                    echo json_encode(['error' => 'Invalid URL: only http and https URLs are allowed'], JSON_THROW_ON_ERROR);
+                    api_error('400.003', 'Invalid URL: only http and https URLs are allowed.');
                     return;
                 }
             }
@@ -699,7 +705,8 @@ try {
                 $accessError = checkEditorConstellationAccess($accessConstellationId);
                 if ($accessError !== null) {
                     http_response_code(403);
-                    echo json_encode(['error' => $accessError], JSON_THROW_ON_ERROR);
+                    error_log('nodes.php access: ' . $accessError);
+                    api_error('403.005', 'Access denied.');
                     return;
                 }
             }
@@ -707,7 +714,7 @@ try {
             $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
             if ($targetConstellationId !== null && db_get_constellation_by_id($targetConstellationId) === null) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Target constellation does not exist'], JSON_THROW_ON_ERROR);
+                api_error('404.008', 'The target galaxy does not exist.');
                 return;
             }
 
@@ -743,7 +750,7 @@ try {
                 if (!is_dir($nodeFullDir)) {
                     if (!mkdir($nodeFullDir, 0755, true)) {
                         http_response_code(500);
-                        echo json_encode(['error' => 'Failed to create upload directory. Check server permissions.'], JSON_THROW_ON_ERROR);
+                        api_error('500.003', 'Failed to create the upload directory. Check server permissions.');
                         return;
                     }
                 }
@@ -768,18 +775,19 @@ try {
                                 } else {
                                     @unlink($tmpVideo);
                                     http_response_code(400);
-                                    echo json_encode(['error' => 'Could not extract a frame from the uploaded video'], JSON_THROW_ON_ERROR);
+                                    api_error('500.010', 'Could not extract a frame from the uploaded video.');
                                     return;
                                 }
                                 @unlink($tmpVideo);
                             } else {
                                 http_response_code(500);
-                                echo json_encode(['error' => 'Failed to save uploaded file'], JSON_THROW_ON_ERROR);
+                                api_error('500.004', 'Failed to save the uploaded file.');
                                 return;
                             }
                         } else {
                             http_response_code(400);
-                            echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                            error_log('nodes.php validation: ' . $err);
+                        api_error('500.004', 'Failed to save the uploaded file.');
                             return;
                         }
                     } else {
@@ -791,7 +799,7 @@ try {
                             $imageUrl = $imageRelPath;
                         } else {
                             http_response_code(500);
-                            echo json_encode(['error' => 'Failed to save uploaded image'], JSON_THROW_ON_ERROR);
+                            api_error('500.005', 'Failed to save the uploaded image.');
                             return;
                         }
                     }
@@ -801,7 +809,8 @@ try {
                     $err = validateUploadedFile($_FILES['icon_file'], ALLOWED_IMAGE_MIMES, MAX_IMAGE_BYTES, $detectedMime);
                     if ($err !== null) {
                         http_response_code(400);
-                        echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                        error_log('nodes.php validation: ' . $err);
+                        api_error('500.004', 'Failed to save the uploaded file.');
                         return;
                     }
                     $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
@@ -812,7 +821,7 @@ try {
                         $iconUrl = $iconRelPath;
                     } else {
                         http_response_code(500);
-                        echo json_encode(['error' => 'Failed to save uploaded icon'], JSON_THROW_ON_ERROR);
+                        api_error('500.006', 'Failed to save the uploaded icon.');
                         return;
                     }
                 }
@@ -821,7 +830,8 @@ try {
                     $err = validateUploadedFile($_FILES['audio_file'], ALLOWED_AUDIO_MIMES, MAX_AUDIO_BYTES, $detectedMime);
                     if ($err !== null) {
                         http_response_code(400);
-                        echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                        error_log('nodes.php validation: ' . $err);
+                        api_error('500.004', 'Failed to save the uploaded file.');
                         return;
                     }
                     $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
@@ -833,7 +843,7 @@ try {
                         $videoUrl = null; // Enforce exclusivity
                     } else {
                         http_response_code(500);
-                        echo json_encode(['error' => 'Failed to save uploaded audio'], JSON_THROW_ON_ERROR);
+                        api_error('500.007', 'Failed to save the uploaded audio.');
                         return;
                     }
                 }
@@ -842,7 +852,8 @@ try {
                     $err = validateUploadedFile($_FILES['video_file'], ALLOWED_VIDEO_MIMES, MAX_VIDEO_BYTES, $detectedMime);
                     if ($err !== null) {
                         http_response_code(400);
-                        echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                        error_log('nodes.php validation: ' . $err);
+                        api_error('500.004', 'Failed to save the uploaded file.');
                         return;
                     }
                     $ext = MIME_TO_EXT[$detectedMime] ?? 'bin';
@@ -854,7 +865,7 @@ try {
                         $audioUrl = null; // Enforce exclusivity
                     } else {
                         http_response_code(500);
-                        echo json_encode(['error' => 'Failed to save uploaded video'], JSON_THROW_ON_ERROR);
+                        api_error('500.008', 'Failed to save the uploaded video.');
                         return;
                     }
                 }
@@ -863,12 +874,13 @@ try {
                     $err = validateUploadedFile($_FILES['pdf_file'], ALLOWED_PDF_MIMES, effectivePdfMaxBytes(), $detectedMime);
                     if ($err !== null) {
                         http_response_code(400);
-                        echo json_encode(['error' => $err], JSON_THROW_ON_ERROR);
+                        error_log('nodes.php validation: ' . $err);
+                        api_error('500.004', 'Failed to save the uploaded file.');
                         return;
                     }
                     if (!fileHasPdfMagic($_FILES['pdf_file']['tmp_name'])) {
                         http_response_code(400);
-                        echo json_encode(['error' => 'File does not look like a valid PDF'], JSON_THROW_ON_ERROR);
+                        api_error('500.011', 'The file does not look like a valid PDF.');
                         return;
                     }
                     $pdfRelPath = "{$nodeRelDir}/document.pdf";
@@ -877,7 +889,7 @@ try {
                         $pdfUrl = $pdfRelPath;
                     } else {
                         http_response_code(500);
-                        echo json_encode(['error' => 'Failed to save uploaded PDF'], JSON_THROW_ON_ERROR);
+                        api_error('500.009', 'Failed to save the uploaded PDF.');
                         return;
                     }
                 }
@@ -904,7 +916,7 @@ try {
             $fileType = $_GET['file_type'] ?? null;
             if (!$id) {
                 http_response_code(400);
-                echo json_encode(['error' => 'Node ID required'], JSON_THROW_ON_ERROR);
+                api_error('400.009', 'Node id is required.');
                 return;
             }
 
@@ -918,7 +930,7 @@ try {
                         $allowedIds = array_column($allowed, 'id');
                         if (!in_array($nodeConstellationId, $allowedIds, true)) {
                             http_response_code(403);
-                            echo json_encode(['error' => 'Access denied to this constellation'], JSON_THROW_ON_ERROR);
+                            api_error('403.005', 'Access denied.');
                             return;
                         }
                     }
@@ -934,15 +946,14 @@ try {
             echo json_encode(['success' => true], JSON_THROW_ON_ERROR);
         })(),
 
-        default => throw new RuntimeException('Method not allowed', 405)
+        default => api_error('405.001', 'Method not allowed.')
     };
 } catch (JsonException $e) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid JSON: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
+    api_error('400.001', 'Invalid JSON: %s', [$e->getMessage()]);
 } catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Database error'], JSON_THROW_ON_ERROR);
+    error_log('nodes.php PDOException: ' . $e->getMessage());
+    api_error('500.002', 'Database error.');
 } catch (RuntimeException $e) {
-    http_response_code($e->getCode() ?: 405);
-    echo json_encode(['error' => $e->getMessage()], JSON_THROW_ON_ERROR);
+    error_log('nodes.php RuntimeException: ' . $e->getMessage());
+    api_error('500.001', 'Internal server error.');
 }

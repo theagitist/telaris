@@ -24,21 +24,19 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../utils/auth.php';
 requireAdminLogin();
 require_once __DIR__ . '/../../config.php';
+require_once __DIR__ . '/../../inc/db.php';
+require_once __DIR__ . '/../../inc/api-error.php';
 require_once __DIR__ . '/../../inc/backup.php';
 
 header('Content-Type: application/json');
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['ok' => false, 'error' => 'Method Not Allowed']);
-    exit;
+    api_error('405.001', 'Method not allowed.');
 }
 
 $phase = $_GET['phase'] ?? '';
 if ($phase !== 'inspect' && $phase !== 'commit') {
-    http_response_code(400);
-    echo json_encode(['ok' => false, 'error' => 'Missing or invalid phase parameter']);
-    exit;
+    api_error('400.037', 'Missing or invalid phase parameter.');
 }
 
 function backup_import_temp_path(string $tempId): string {
@@ -51,16 +49,12 @@ function backup_import_temp_path(string $tempId): string {
 if ($phase === 'inspect') {
     $csrf = $_POST['csrf_token'] ?? '';
     if (empty($_SESSION['csrf_token']) || !hash_equals((string)$_SESSION['csrf_token'], (string)$csrf)) {
-        http_response_code(403);
-        echo json_encode(['ok' => false, 'error' => 'Invalid security token']);
-        exit;
+        api_error('403.003', 'Invalid security token. Reload the page and try again.');
     }
 
     if (!isset($_FILES['backup_file']) || ($_FILES['backup_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
         $err = $_FILES['backup_file']['error'] ?? UPLOAD_ERR_NO_FILE;
-        http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'File upload failed (code ' . (int)$err . ')']);
-        exit;
+        api_error('400.036', 'File upload failed (code %d).', [(int)$err]);
     }
 
     $tmp = $_FILES['backup_file']['tmp_name'];
@@ -68,9 +62,7 @@ if ($phase === 'inspect') {
     $dest = backup_import_temp_path($tempId);
 
     if (!@move_uploaded_file($tmp, $dest)) {
-        http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => 'Could not save uploaded file']);
-        exit;
+        api_error('500.015', 'Could not save the uploaded backup file.');
     }
     @chmod($dest, 0600);
 
@@ -78,9 +70,8 @@ if ($phase === 'inspect') {
         $summary = backup_inspect_file($dest);
     } catch (Throwable $e) {
         @unlink($dest);
-        http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
-        exit;
+        error_log('backup/import.php inspect: ' . $e->getMessage());
+        api_error('500.001', 'Internal server error.');
     }
 
     // Track the temp id in the session so we know which files belong to this admin
@@ -100,30 +91,22 @@ if (!is_array($payload)) $payload = [];
 
 $csrf = $payload['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
 if (empty($_SESSION['csrf_token']) || !hash_equals((string)$_SESSION['csrf_token'], (string)$csrf)) {
-    http_response_code(403);
-    echo json_encode(['ok' => false, 'error' => 'Invalid security token']);
-    exit;
+    api_error('403.003', 'Invalid security token. Reload the page and try again.');
 }
 
 $tempId = (string)($payload['temp_id'] ?? '');
 $tracked = $_SESSION['backup_imports'][$tempId] ?? null;
 if ($tracked === null) {
-    http_response_code(400);
-    echo json_encode(['ok' => false, 'error' => 'Unknown or expired upload. Please re-select the file.']);
-    exit;
+    api_error('404.012', 'Unknown or expired upload. Please re-select the file.');
 }
 $path = $tracked['path'];
 if (!is_file($path)) {
     unset($_SESSION['backup_imports'][$tempId]);
-    http_response_code(400);
-    echo json_encode(['ok' => false, 'error' => 'Uploaded file is missing. Please re-select.']);
-    exit;
+    api_error('404.013', 'Uploaded file is missing. Please re-select it.');
 }
 
 if (empty($payload['confirm'])) {
-    http_response_code(400);
-    echo json_encode(['ok' => false, 'error' => 'Confirmation required']);
-    exit;
+    api_error('400.038', 'Confirmation required.');
 }
 
 $mode = (string)($payload['mode'] ?? 'granular');
@@ -142,9 +125,8 @@ $opts = [
 try {
     $report = backup_restore_from_file($path, $opts);
 } catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
-    exit;
+    error_log('backup/import.php commit: ' . $e->getMessage());
+    api_error('500.001', 'Internal server error.');
 }
 
 // Clean up the temp file after a successful commit

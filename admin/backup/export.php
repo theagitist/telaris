@@ -12,12 +12,14 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../utils/auth.php';
 requireAdminLogin();
 require_once __DIR__ . '/../../config.php';
+require_once __DIR__ . '/../../inc/db.php';
 require_once __DIR__ . '/../../inc/backup.php';
+locale_init_strings();
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);
     header('Content-Type: text/plain');
-    echo "Method Not Allowed\n";
+    echo "405.001 " . t('api_error_405_001', 'Method not allowed.') . "\n";
     exit;
 }
 
@@ -25,7 +27,7 @@ $csrf = $_POST['csrf_token'] ?? '';
 if (empty($_SESSION['csrf_token']) || !hash_equals((string)$_SESSION['csrf_token'], (string)$csrf)) {
     http_response_code(403);
     header('Content-Type: text/plain');
-    echo "Invalid security token. Reload the admin page and try again.\n";
+    echo "403.003 " . t('api_error_403_003', 'Invalid security token. Reload the page and try again.') . "\n";
     exit;
 }
 
@@ -35,7 +37,7 @@ $includeUsers = !empty($_POST['include_users']);
 if (!$includeGalaxies && !$includeUsers) {
     http_response_code(400);
     header('Content-Type: text/plain');
-    echo "Select at least galaxies or users to back up.\n";
+    echo "400.043 " . t('api_error_400_043', 'Select at least galaxies or users to back up.') . "\n";
     exit;
 }
 
@@ -78,8 +80,9 @@ try {
     echo $gz;
     exit;
 } catch (Throwable $e) {
+    error_log('backup/export.php: ' . $e->getMessage());
     http_response_code(500);
     header('Content-Type: text/plain');
-    echo "Backup failed: " . $e->getMessage() . "\n";
+    echo "500.001 " . t('api_error_500_001', 'Internal server error.') . "\n";
     exit;
 }

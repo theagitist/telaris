@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/api-error.php';
 
 header('Content-Type: application/json');
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -65,9 +67,7 @@ try {
             $data = json_decode(stream_get_contents(fopen('php://input', 'r'), 1048576), true, flags: JSON_THROW_ON_ERROR);
             $keyword = trim($data['keyword'] ?? '');
             if (empty($keyword)) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Keyword required'], JSON_THROW_ON_ERROR);
-                return;
+                api_error('400.012', 'A keyword is required.');
             }
             $keywordId = db_create_keyword($keyword);
             echo json_encode(['id' => $keywordId, 'keyword' => $keyword, 'success' => true], JSON_THROW_ON_ERROR);
@@ -78,35 +78,27 @@ try {
             $id = $_GET['id'] ?? null;
             $constellationId = $_GET['constellation_id'] ?? null;
             if (!$id) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Keyword ID required'], JSON_THROW_ON_ERROR);
-                return;
+                api_error('400.013', 'A keyword id is required.');
             }
             if ($constellationId === null || !ctype_digit((string)$constellationId)) {
-                http_response_code(400);
-                echo json_encode(['error' => 'constellation_id required'], JSON_THROW_ON_ERROR);
-                return;
+                api_error('400.010', 'A constellation id is required.');
             }
             $actualConstellationId = db_get_keyword_constellation_id((int)$id);
             if ($actualConstellationId === null || $actualConstellationId !== (int)$constellationId) {
-                http_response_code(403);
-                echo json_encode(['error' => 'Keyword does not belong to the specified constellation'], JSON_THROW_ON_ERROR);
-                return;
+                api_error('400.014', 'The keyword does not belong to the specified constellation.');
             }
             db_delete_keyword((int)$id);
             echo json_encode(['success' => true], JSON_THROW_ON_ERROR);
         })(),
         
-        default => throw new RuntimeException('Method not allowed', 405)
+        default => api_error('405.001', 'Method not allowed.')
     };
 } catch (JsonException $e) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid JSON: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
+    api_error('400.001', 'Invalid JSON: %s', [$e->getMessage()]);
 } catch (PDOException $e) {
-    http_response_code(500);
     error_log('keywords.php PDOException: ' . $e->getMessage());
-    echo json_encode(['error' => 'Database error'], JSON_THROW_ON_ERROR);
+    api_error('500.002', 'Database error.');
 } catch (RuntimeException $e) {
-    http_response_code($e->getCode() ?: 405);
-    echo json_encode(['error' => $e->getMessage()], JSON_THROW_ON_ERROR);
+    error_log('keywords.php RuntimeException: ' . $e->getMessage());
+    api_error('500.001', 'Internal server error.');
 }

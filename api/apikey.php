@@ -7,6 +7,8 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/api-error.php';
 
 header('Content-Type: application/json');
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -24,10 +26,9 @@ try {
     if ($apiKey) {
         echo json_encode(['api_key' => $apiKey], JSON_THROW_ON_ERROR);
     } else {
-        http_response_code(404);
-        echo json_encode(['error' => 'API key not found'], JSON_THROW_ON_ERROR);
+        api_error('404.009', 'API key not found.');
     }
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Server error'], JSON_THROW_ON_ERROR);
+    error_log('apikey.php: ' . $e->getMessage());
+    api_error('500.001', 'Internal server error.');
 }

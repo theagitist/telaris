@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/api-error.php';
 
 header('Content-Type: application/json');
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -35,16 +37,14 @@ try {
             echo json_encode($connections, JSON_THROW_ON_ERROR);
         })(),
         
-        default => throw new RuntimeException('Method not allowed. Connections are calculated automatically based on shared keywords.', 405)
+        default => api_error('405.001', 'Method not allowed.')
     };
 } catch (JsonException $e) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid JSON: ' . $e->getMessage()], JSON_THROW_ON_ERROR);
+    api_error('400.001', 'Invalid JSON: %s', [$e->getMessage()]);
 } catch (PDOException $e) {
-    http_response_code(500);
     error_log('connections.php PDOException: ' . $e->getMessage());
-    echo json_encode(['error' => 'Database error'], JSON_THROW_ON_ERROR);
+    api_error('500.002', 'Database error.');
 } catch (RuntimeException $e) {
-    http_response_code($e->getCode() ?: 405);
-    echo json_encode(['error' => $e->getMessage()], JSON_THROW_ON_ERROR);
+    error_log('connections.php RuntimeException: ' . $e->getMessage());
+    api_error('500.001', 'Internal server error.');
 }
