@@ -149,11 +149,17 @@ function api_error(string $code, string $fallback, array $args = [], array $extr
     }
 
     $key = 'api_error_' . $statusStr . '_' . $subcode;
-    // t() fallback chain: project_info row for current locale -> $fallback -> the code itself.
-    $title = function_exists('t') ? t($key, $fallback !== '' ? $fallback : $code) : $fallback;
-    if ($title === '' || $title === null) {
-        $title = $code;
+    // Decolonial-identifier fallback: when the locale row is missing,
+    // surface the locale-invariant code itself (e.g. "404.001"), not
+    // an English source string. t() returns the key when the locale
+    // row is missing; we detect that and substitute the code.
+    if (function_exists('locale_init_strings')) {
+        $strings = locale_init_strings();
+        $localized = $strings[$key] ?? '';
+    } else {
+        $localized = '';
     }
+    $title = $localized !== '' ? (string)$localized : $code;
     if (!empty($args)) {
         $title = vsprintf($title, $args);
     }

@@ -360,6 +360,12 @@ const PROJECT_INFO_KEYS = [
     'api_error_500_005', 'api_error_500_006', 'api_error_500_007', 'api_error_500_008',
     'api_error_500_009', 'api_error_500_010', 'api_error_500_011', 'api_error_500_012',
     'api_error_500_013', 'api_error_500_014', 'api_error_500_015',
+
+    // C7c: inc/galaxy-update.php result messages (rendered as editor/admin toasts).
+    'galaxy_update_missing_id', 'galaxy_update_not_authorized', 'galaxy_update_no_access',
+    'galaxy_update_name_required',
+    'galaxy_update_duplicate_name', 'galaxy_update_duplicate_slug', 'galaxy_update_duplicate_both',
+    'galaxy_update_success',
 ];
 
 /**
@@ -424,10 +430,19 @@ function locale_init_strings(): array {
 }
 
 /**
- * Translate a single project_info key against the current locale, falling
- * back to the supplied English string if the key is missing or empty.
- * The fallback ensures pages still render correctly when a key has not
- * yet been added to project_info (e.g. between deploys).
+ * Translate a single project_info key against the current locale.
+ *
+ * When the locale row for the key is missing or empty, returns the key
+ * itself, NOT the supplied English fallback. This implements the
+ * decolonial-identifier stance: no user-facing string defaults to
+ * English. When a translation is missing the worst-case visible token
+ * is the locale-invariant key (a documented identifier), not an
+ * unstated English default that would re-enroll English as the global
+ * lingua franca.
+ *
+ * The $fallback parameter is preserved for the function signature and
+ * serves as inline source-code documentation for the developer reading
+ * the call site. It is not used in production rendering.
  *
  * Returns a raw string. Wrap in htmlspecialchars() at the call site for
  * HTML output. Use t_attr() in HTML attributes.
@@ -435,7 +450,7 @@ function locale_init_strings(): array {
 function t(string $key, string $fallback = ''): string {
     $strings = locale_init_strings();
     $val = $strings[$key] ?? '';
-    return $val !== '' ? (string)$val : $fallback;
+    return $val !== '' ? (string)$val : $key;
 }
 
 /**
@@ -1420,6 +1435,16 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_500_013' => 'Failed to encode the animation data.',
             'api_error_500_014' => 'Failed to encode the JSON data.',
             'api_error_500_015' => 'Could not save the uploaded backup file.',
+
+            // C7c: galaxy-update result messages.
+            'galaxy_update_missing_id' => 'Missing galaxy id.',
+            'galaxy_update_not_authorized' => 'Not authorized.',
+            'galaxy_update_no_access' => 'You do not have access to this galaxy.',
+            'galaxy_update_name_required' => 'Galaxy name is required.',
+            'galaxy_update_duplicate_name' => 'A galaxy with the name "%s" already exists.',
+            'galaxy_update_duplicate_slug' => 'A galaxy with the slug "%s" already exists.',
+            'galaxy_update_duplicate_both' => 'A galaxy with the name "%s" and slug "%s" already exists.',
+            'galaxy_update_success' => 'Galaxy updated successfully.',
         ],
         'es' => [
             'name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 
@@ -2316,6 +2341,16 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_500_013' => 'No se pudieron codificar los datos de animación.',
             'api_error_500_014' => 'No se pudieron codificar los datos JSON.',
             'api_error_500_015' => 'No se pudo guardar el archivo de respaldo subido.',
+
+            // C7c: mensajes del resultado de actualización de galaxia.
+            'galaxy_update_missing_id' => 'Falta el id de la galaxia.',
+            'galaxy_update_not_authorized' => 'Sin autorización.',
+            'galaxy_update_no_access' => 'Sin acceso a esta galaxia.',
+            'galaxy_update_name_required' => 'El nombre de la galaxia es obligatorio.',
+            'galaxy_update_duplicate_name' => 'Ya existe una galaxia con el nombre "%s".',
+            'galaxy_update_duplicate_slug' => 'Ya existe una galaxia con la ruta "%s".',
+            'galaxy_update_duplicate_both' => 'Ya existe una galaxia con el nombre "%s" y la ruta "%s".',
+            'galaxy_update_success' => 'Galaxia actualizada correctamente.',
         ],
         'pt' => [
             'name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 
@@ -3212,6 +3247,16 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_500_013' => 'Não foi possível codificar os dados de animação.',
             'api_error_500_014' => 'Não foi possível codificar os dados JSON.',
             'api_error_500_015' => 'Não foi possível salvar o arquivo de backup enviado.',
+
+            // C7c: mensagens do resultado da atualização da galáxia.
+            'galaxy_update_missing_id' => 'Falta o id da galáxia.',
+            'galaxy_update_not_authorized' => 'Sem autorização.',
+            'galaxy_update_no_access' => 'Sem acesso a esta galáxia.',
+            'galaxy_update_name_required' => 'O nome da galáxia é obrigatório.',
+            'galaxy_update_duplicate_name' => 'Já existe uma galáxia com o nome "%s".',
+            'galaxy_update_duplicate_slug' => 'Já existe uma galáxia com o caminho "%s".',
+            'galaxy_update_duplicate_both' => 'Já existe uma galáxia com o nome "%s" e o caminho "%s".',
+            'galaxy_update_success' => 'Galáxia atualizada com sucesso.',
         ],
     ];
 }

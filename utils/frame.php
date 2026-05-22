@@ -5,17 +5,20 @@ declare(strict_types=1);
  * Simplified Launch Interface: clean text and countdown.
  */
 
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/api-error.php';
+
 $cspNonce = base64_encode(random_bytes(16));
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$cspNonce}' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://cloudflareinsights.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors *");
 header("X-Content-Type-Options: nosniff");
 
 $url = isset($_GET['url']) ? trim((string) $_GET['url']) : '';
-// Validate URL scheme — only allow http/https to prevent open redirect abuse
+// Validate URL scheme; only allow http/https to prevent open redirect abuse.
 if ($url !== '') {
     $scheme = strtolower((string)(parse_url($url, PHP_URL_SCHEME) ?? ''));
     if (!in_array($scheme, ['http', 'https'], true)) {
-        http_response_code(400);
-        die('Invalid URL: only http and https URLs are allowed.');
+        api_error('400.003', 'Invalid URL: only http and https URLs are allowed.');
     }
 }
 $r = isset($_GET['r']) ? max(0, min(255, (int) $_GET['r'])) : 0;

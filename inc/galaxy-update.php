@@ -18,22 +18,22 @@ declare(strict_types=1);
 function handle_galaxy_update_post(array $post, ?string $userId, bool $isAdmin): array {
     $id = (int)($post['id'] ?? -1);
     if ($id < 0) {
-        return ['ok' => false, 'message' => 'Missing galaxy id.'];
+        return ['ok' => false, 'message' => t('galaxy_update_missing_id', 'Missing galaxy id.')];
     }
 
     if (!$isAdmin) {
         if ($userId === null || $userId === '') {
-            return ['ok' => false, 'message' => 'Not authorized.'];
+            return ['ok' => false, 'message' => t('galaxy_update_not_authorized', 'Not authorized.')];
         }
         $allowed = db_get_user_constellation_ids($userId);
         if (!in_array($id, $allowed, true)) {
-            return ['ok' => false, 'message' => 'You do not have access to this galaxy.'];
+            return ['ok' => false, 'message' => t('galaxy_update_no_access', 'You do not have access to this galaxy.')];
         }
     }
 
     $name = trim((string)($post['name'] ?? ''));
     if ($name === '') {
-        return ['ok' => false, 'message' => 'Galaxy name is required.'];
+        return ['ok' => false, 'message' => t('galaxy_update_name_required', 'Galaxy name is required.')];
     }
     $tagline = trim((string)($post['tagline'] ?? ''));
 
@@ -56,10 +56,24 @@ function handle_galaxy_update_post(array $post, ?string $userId, bool $isAdmin):
 
     $exists = db_constellation_exists($name, $finalSlug, $id);
     if ($exists['name'] || $exists['slug']) {
-        $errs = [];
-        if ($exists['name']) $errs[] = 'name "' . htmlspecialchars($name) . '"';
-        if ($exists['slug']) $errs[] = 'slug "' . htmlspecialchars($finalSlug) . '"';
-        return ['ok' => false, 'message' => 'A galaxy with this ' . implode(' and ', $errs) . ' already exists.'];
+        if ($exists['name'] && $exists['slug']) {
+            $msg = sprintf(
+                t('galaxy_update_duplicate_both', 'A galaxy with the name "%s" and slug "%s" already exists.'),
+                htmlspecialchars($name),
+                htmlspecialchars($finalSlug)
+            );
+        } elseif ($exists['name']) {
+            $msg = sprintf(
+                t('galaxy_update_duplicate_name', 'A galaxy with the name "%s" already exists.'),
+                htmlspecialchars($name)
+            );
+        } else {
+            $msg = sprintf(
+                t('galaxy_update_duplicate_slug', 'A galaxy with the slug "%s" already exists.'),
+                htmlspecialchars($finalSlug)
+            );
+        }
+        return ['ok' => false, 'message' => $msg];
     }
 
     db_update_constellation($id, $name, $tagline, $slug !== '' ? $slug : null, $theme);
@@ -93,5 +107,5 @@ function handle_galaxy_update_post(array $post, ?string $userId, bool $isAdmin):
         db_set_tags_for_galaxy($id, $labels, $createdBy);
     }
 
-    return ['ok' => true, 'message' => 'Galaxy updated successfully.'];
+    return ['ok' => true, 'message' => t('galaxy_update_success', 'Galaxy updated successfully.')];
 }
