@@ -82,8 +82,51 @@ function getDefaultApiKey(?PDO $pdo = null): ?string {
 /** Column keys for project_info (one row per locale). */
 const PROJECT_INFO_KEYS = ['name', 'description', 'iframe_back_text', 'alert_message', 'edit_button_text', 'loading_text', 'back_button_text', 'system_online_text', 'reload_system_text', 'scan_system_text', 'clear_scan_text', 'systems_label_text', 'hyperlinks_label_text', 'initialize_auth_text', 'admin_label_text', 'logout_label_text', 'click_to_view_text', 'tap_to_view_text', 'open_portal_text', 'sound_label_text', 'sound_on_text', 'sound_off_text', 'launching_text', 'mission_active_text', 'go_text', 'breadcrumb_all_text', 'launch_button_text', 'no_results_text', 'items_label_text', 'other_label_text', 'galaxies_label_text', 'galaxy_count_singular_text', 'galaxy_count_plural_text', 'pdf_loading_text', 'pdf_rendering_text', 'pdf_pages_singular_text', 'pdf_pages_plural_text', 'pdf_open_text', 'pdf_download_text', 'pdf_error_load_text', 'pdf_error_open_text'];
 
-/** Locales supported (one row per locale in project_info). */
+/**
+ * Locales supported (one row per locale in project_info). The default locale
+ * is the first entry. To add a new locale (e.g. French), append its 2-letter
+ * code here AND add a matching block in db_default_project_info_rows().
+ */
 const PROJECT_INFO_LOCALES = ['en', 'es', 'pt'];
+
+/**
+ * Pick the best supported locale from a request. Tries the explicit ?lang=
+ * query parameter first, then the Accept-Language header. Returns 'en' (or
+ * PROJECT_INFO_LOCALES[0] if that ever changes) when nothing supported is
+ * found.
+ */
+function locale_resolve_from_request(mixed $queryLang, ?string $acceptLanguage): string {
+    $default = PROJECT_INFO_LOCALES[0];
+    if (is_string($queryLang) && $queryLang !== '') {
+        $code = locale_normalize_code($queryLang);
+        if ($code !== null && in_array($code, PROJECT_INFO_LOCALES, true)) {
+            return $code;
+        }
+    }
+    if ($acceptLanguage !== null && $acceptLanguage !== '') {
+        foreach (array_map('trim', explode(',', $acceptLanguage)) as $part) {
+            $bare = trim(explode(';', $part)[0]);
+            $code = locale_normalize_code($bare);
+            if ($code !== null && in_array($code, PROJECT_INFO_LOCALES, true)) {
+                return $code;
+            }
+        }
+    }
+    return $default;
+}
+
+/**
+ * Normalize a locale token to a 2-letter lowercase code. Strips region suffix
+ * (pt-BR -> pt). Returns null on malformed input.
+ */
+function locale_normalize_code(string $raw): ?string {
+    $raw = strtolower(trim($raw));
+    if ($raw === '') return null;
+    if (preg_match('/^([a-z]{2})(?:[-_][a-z0-9]+)?$/', $raw, $m)) {
+        return $m[1];
+    }
+    return null;
+}
 
 /**
  * Get the default constellation ID from project settings.

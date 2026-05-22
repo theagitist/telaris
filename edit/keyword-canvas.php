@@ -86,25 +86,9 @@ if ($backToVisitor) {
         : '/edit/?constellation_id=' . $galaxyId;
 }
 
-// Locale detection — mirrors the bootstrap.php logic but lighter, since the
-// canvas only needs its own help strings localized (editor pages otherwise stay
-// English). Supports en, es, pt; English fallback.
-$kcLocale = 'en';
-if (!empty($_GET['lang']) && is_string($_GET['lang'])) {
-    $req = strtolower(trim($_GET['lang']));
-    if (str_starts_with($req, 'pt')) $kcLocale = 'pt';
-    elseif (str_starts_with($req, 'es')) $kcLocale = 'es';
-    elseif (str_starts_with($req, 'en')) $kcLocale = 'en';
-} elseif (!empty($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
-    foreach (array_map('trim', explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE'])) as $part) {
-        if (preg_match('/^([a-z]{2})/i', trim(explode(';', $part)[0]), $m)) {
-            $code = strtolower($m[1]);
-            if ($code === 'pt') { $kcLocale = 'pt'; break; }
-            if ($code === 'es') { $kcLocale = 'es'; break; }
-            if ($code === 'en') { $kcLocale = 'en'; break; }
-        }
-    }
-}
+// Locale detection: use the shared resolver. The supported set is
+// PROJECT_INFO_LOCALES; English is the fallback.
+$kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null);
 
 $kcStrings = [
     'en' => [

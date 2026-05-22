@@ -306,8 +306,7 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
         $defaultApiKey = generateDefaultApiKey($pdo);
         $details['default_api_key'] = $defaultApiKey;
         
-        // project_info: one row per locale (en, es, pt).
-        // Localized Edit button: en "Edit", es "Editar", pt "Editar". Loading text: en "Loading", es "Cargando", pt "Carregando"
+        // project_info: one row per locale (PROJECT_INFO_LOCALES from inc/db.php).
         try {
             $configPath = dirname(__DIR__) . '/config.php';
             if (file_exists($configPath)) {
@@ -329,7 +328,7 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
             $updateStr = implode(', ', $updates);
             
             $stmt = $pdo->prepare("INSERT INTO project_info (locale, $cols) VALUES (:locale, $placeholders) ON DUPLICATE KEY UPDATE $updateStr");
-            foreach (['en', 'es', 'pt'] as $locale) {
+            foreach (PROJECT_INFO_LOCALES as $locale) {
                 $params = [':locale' => $locale];
                 foreach ($keys as $k) {
                     $params[':' . $k] = $defaults[$locale][$k] ?? '';

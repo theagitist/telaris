@@ -428,10 +428,9 @@ header("X-Content-Type-Options: nosniff");
             <div class="flex justify-between gap-12">
                 <span class="uppercase tracking-[0.18em]">Lang:</span>
                 <span class="font-bold text-xs uppercase tracking-[0.18em]"><?php
-                    $locales = ['en', 'es', 'pt'];
                     $links = [];
-                    foreach ($locales as $loc) {
-                        if ($loc === ($currentLocale ?? 'en')) {
+                    foreach (PROJECT_INFO_LOCALES as $loc) {
+                        if ($loc === ($currentLocale ?? PROJECT_INFO_LOCALES[0])) {
                             $links[] = '<span class="text-[#00ffcc]">' . strtoupper($loc) . '</span>';
                         } else {
                             $links[] = '<a href="#" class="lang-switch opacity-40 hover:opacity-100 hover:text-[#00ffcc] transition-all cursor-pointer" data-lang="' . $loc . '">' . strtoupper($loc) . '</a>';

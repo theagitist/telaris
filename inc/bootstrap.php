@@ -104,47 +104,12 @@ try {
 require_once $root . '/utils/auth.php';
 $isEditorOrAdmin = isEditorOrAdminLoggedIn();
 
-// Detect locale for main app. Supported: en, es, pt. English is default/fallback for any unsupported language.
-$currentLocale = 'en';
-if (!empty($_GET['lang']) && is_string($_GET['lang'])) {
-    $req = strtolower(trim($_GET['lang']));
-    // Normalize pt-BR, pt-PT, etc. to pt
-    if (str_starts_with($req, 'pt')) {
-        $req = 'pt';
-    } elseif (str_starts_with($req, 'es')) {
-        $req = 'es';
-    } elseif (str_starts_with($req, 'en')) {
-        $req = 'en';
-    }
-    if (in_array($req, ['en', 'es', 'pt'], true)) {
-        $currentLocale = $req;
-    }
-} elseif (!empty($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
-    // Parse Accept-Language by preference order (e.g. "pt-BR, pt;q=0.9, en;q=0.8") and pick first supported.
-    $accept = $_SERVER['HTTP_ACCEPT_LANGUAGE'];
-    $parts = array_map('trim', explode(',', $accept));
-    foreach ($parts as $part) {
-        if (preg_match('/^([a-z]{2})(?:[-_][a-z0-9]+)?/i', trim(explode(';', $part)[0]), $m)) {
-            $code = strtolower($m[1]);
-            if ($code === 'pt' || $code === 'pt-br' || $code === 'pt-pt') {
-                $currentLocale = 'pt';
-                break;
-            }
-            if ($code === 'es') {
-                $currentLocale = 'es';
-                break;
-            }
-            if ($code === 'en') {
-                $currentLocale = 'en';
-                break;
-            }
-        }
-    }
-}
-// Ensure we never use an unsupported locale
-if (!in_array($currentLocale, ['en', 'es', 'pt'], true)) {
-    $currentLocale = 'en';
-}
+// Detect locale for main app. The supported set is PROJECT_INFO_LOCALES (defined
+// in inc/db.php); English is the default and the fallback for any unsupported
+// language. To add a new locale (e.g. French), append 'fr' to PROJECT_INFO_LOCALES
+// and add the matching block in db_default_project_info_rows(). Nothing else here
+// needs to change.
+$currentLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null);
 
 $projectStrings = db_get_project_info_for_locale($currentLocale);
 $projectName = $projectStrings['name'];

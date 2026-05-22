@@ -9,14 +9,7 @@ require_once __DIR__ . '/../inc/clustering.php';
 require_once __DIR__ . '/../inc/media-optimize.php';
 
 // Set clustering labels from locale
-$_locale = 'en';
-if (isset($_GET['lang'])) {
-    $_locale = strtolower(trim((string)$_GET['lang']));
-} elseif (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
-    $_al = strtolower($_SERVER['HTTP_ACCEPT_LANGUAGE']);
-    if (str_starts_with($_al, 'pt')) $_locale = 'pt';
-    elseif (str_starts_with($_al, 'es')) $_locale = 'es';
-}
+$_locale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null);
 $_localeStrings = db_get_project_info_for_locale($_locale);
 clustering_set_labels(
     $_localeStrings['items_label_text'] ?? 'items',
