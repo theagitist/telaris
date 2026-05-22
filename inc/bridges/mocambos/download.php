@@ -10,13 +10,22 @@ declare(strict_types=1);
 function mocambos_download_file(string $url, string $destDir, string $prefix, ?Closure $log = null): ?string {
     $log ??= function(string $level, string $msg) {};
 
+    // Same allow-list + private-IP gate as _mocambos_fetch_json. Refuse before
+    // opening any socket; redirects are disabled below so each call validates
+    // exactly one upstream.
+    $safetyError = _mocambos_validate_safe_url($url);
+    if ($safetyError !== null) {
+        $log('ERROR', "Download refused: {$safetyError} ({$url})");
+        return null;
+    }
+
     $log('DEBUG', "Download: GET {$url}");
 
     $ctx = stream_context_create([
         'http' => [
             'timeout' => 30,
-            'follow_location' => true,
-            'max_redirects' => 5,
+            'follow_location' => 0,
+            'max_redirects' => 0,
         ],
     ]);
 

@@ -347,7 +347,7 @@ const PROJECT_INFO_KEYS = [
     'api_error_400_033', 'api_error_400_034', 'api_error_400_035', 'api_error_400_036',
     'api_error_400_037', 'api_error_400_038', 'api_error_400_039', 'api_error_400_040',
     'api_error_400_041', 'api_error_400_042', 'api_error_400_043',
-    'api_error_400_044', 'api_error_400_045',
+    'api_error_400_044', 'api_error_400_045', 'api_error_400_046',
     'api_error_401_001', 'api_error_401_002',
     'api_error_403_001', 'api_error_403_002', 'api_error_403_003', 'api_error_403_004',
     'api_error_403_005', 'api_error_403_006', 'api_error_403_007',
@@ -1507,6 +1507,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_400_043' => 'Select at least galaxies or users to back up.',
             'api_error_400_044' => 'Invalid URL format. Expected a full URL like https://hostname/api/v2.',
             'api_error_400_045' => 'No galaxias specified.',
+            'api_error_400_046' => 'Refusing to fetch from this upstream: %s',
 
             'api_error_401_001' => 'API key is missing. Provide it via the X-API-Key header, the Authorization: Bearer header, or the api_key query parameter.',
             'api_error_401_002' => 'Invalid API key.',
@@ -2608,6 +2609,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_400_043' => 'Selecciona al menos galaxias o cuentas para respaldar.',
             'api_error_400_044' => 'Formato de URL no válido. Se esperaba una URL completa como https://hostname/api/v2.',
             'api_error_400_045' => 'No se especificó ninguna galaxia.',
+            'api_error_400_046' => 'Se rechaza la conexión con este servidor remoto: %s',
 
             'api_error_401_001' => 'Falta la clave de API. Proporciónala por el encabezado X-API-Key, por Authorization: Bearer, o por el parámetro api_key de la URL.',
             'api_error_401_002' => 'Clave de API no válida.',
@@ -3705,6 +3707,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_400_043' => 'Selecione ao menos galáxias ou contas para fazer o backup.',
             'api_error_400_044' => 'Formato de URL inválido. Esperava-se uma URL completa como https://hostname/api/v2.',
             'api_error_400_045' => 'Nenhuma galáxia especificada.',
+            'api_error_400_046' => 'Conexão recusada com este servidor remoto: %s',
 
             'api_error_401_001' => 'Falta a chave de API. Forneça-a pelo cabeçalho X-API-Key, por Authorization: Bearer, ou pelo parâmetro api_key da URL.',
             'api_error_401_002' => 'Chave de API inválida.',
@@ -4802,6 +4805,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_400_043' => 'Sélectionne au moins des galaxies ou des comptes à sauvegarder.',
             'api_error_400_044' => 'Format d\'URL invalide. Une URL complète est attendue, comme https://hostname/api/v2.',
             'api_error_400_045' => 'Aucune galaxie spécifiée.',
+            'api_error_400_046' => 'Connexion refusée à ce serveur distant : %s',
 
             'api_error_401_001' => 'Clé d\'API manquante. Fournis-la via l\'en-tête X-API-Key, via Authorization: Bearer, ou via le paramètre api_key de l\'URL.',
             'api_error_401_002' => 'Clé d\'API invalide.',

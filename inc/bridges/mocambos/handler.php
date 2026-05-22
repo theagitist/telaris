@@ -19,6 +19,106 @@ require_once __DIR__ . '/../../api-error.php';
 require_once __DIR__ . '/download.php';
 require_once __DIR__ . '/sync.php';
 
+// ── SSRF defence ─────────────────────────────────────────────────────────────
+
+/**
+ * The default Mocambos / Baobáxia hosts the bridge is willing to talk to.
+ * Operators override via the TELARIS_BRIDGE_MOCAMBOS_HOSTS constant in
+ * config.php. Match is exact or by trailing-dot suffix (".mocambos.net"
+ * matches "oya.mocambos.net" and "timbuktu.mocambos.net" without permitting
+ * "evilmocambos.net.attacker.tld").
+ */
+const MOCAMBOS_DEFAULT_ALLOWED_HOSTS = [
+    'mocambos.net',
+    'baobaxia.net',
+];
+
+/**
+ * Return null when $url is safe for the Mocambos bridge to fetch from, or a
+ * short reason string when it is not. Checks:
+ *   1. URL parses, scheme is http/https.
+ *   2. Host is on the operator's allow-list (or one of its subdomains).
+ *   3. Host is not an IP literal in a private/loopback/link-local range.
+ *   4. Host resolves to public IPs only; any A or AAAA in a private range
+ *      rejects the whole host (no partial trust).
+ *
+ * This narrows the SSRF surface to operator-configured upstreams. It is not
+ * TOCTOU-proof against DNS rebinding; defence in depth: redirects are
+ * disabled in download.php and _mocambos_fetch_json revalidates on each call.
+ */
+function _mocambos_validate_safe_url(string $url): ?string {
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        return 'Invalid URL format.';
+    }
+    $parts = parse_url($url);
+    if (!is_array($parts) || empty($parts['host']) || empty($parts['scheme'])) {
+        return 'URL is missing host or scheme.';
+    }
+    $scheme = strtolower($parts['scheme']);
+    if ($scheme !== 'http' && $scheme !== 'https') {
+        return 'Only http and https URLs are allowed.';
+    }
+    $host = strtolower($parts['host']);
+
+    $allow = defined('TELARIS_BRIDGE_MOCAMBOS_HOSTS') && is_array(TELARIS_BRIDGE_MOCAMBOS_HOSTS)
+        ? TELARIS_BRIDGE_MOCAMBOS_HOSTS
+        : MOCAMBOS_DEFAULT_ALLOWED_HOSTS;
+    $hostAllowed = false;
+    foreach ($allow as $entry) {
+        $entry = strtolower(trim((string)$entry));
+        if ($entry === '') continue;
+        if ($host === $entry || str_ends_with($host, '.' . $entry)) {
+            $hostAllowed = true;
+            break;
+        }
+    }
+    if (!$hostAllowed) {
+        return 'Host is not on the configured Mocambos allow-list.';
+    }
+
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        return _mocambos_ip_is_public($host) ? null : 'IP literal is in a private, loopback, or link-local range.';
+    }
+
+    $records = @dns_get_record($host, DNS_A + DNS_AAAA);
+    $resolved = [];
+    if (is_array($records)) {
+        foreach ($records as $rec) {
+            if (isset($rec['ip'])) $resolved[] = (string)$rec['ip'];
+            if (isset($rec['ipv6'])) $resolved[] = (string)$rec['ipv6'];
+        }
+    }
+    if ($resolved === []) {
+        $ipv4 = @gethostbynamel($host);
+        if (is_array($ipv4)) {
+            $resolved = $ipv4;
+        }
+    }
+    if ($resolved === []) {
+        return 'Host could not be resolved.';
+    }
+    foreach ($resolved as $ip) {
+        if (!_mocambos_ip_is_public($ip)) {
+            return 'Host resolves to a private, loopback, or link-local IP.';
+        }
+    }
+    return null;
+}
+
+/**
+ * Public-internet IP check using PHP's filter ranges:
+ *   NO_PRIV_RANGE rejects 10/8, 172.16/12, 192.168/16, fc00::/7.
+ *   NO_RES_RANGE rejects 0/8, 127/8, 169.254/16, the IANA-special documented
+ *   ranges, the multicast block, ::1, and fe80::/10.
+ */
+function _mocambos_ip_is_public(string $ip): bool {
+    return filter_var(
+        $ip,
+        FILTER_VALIDATE_IP,
+        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+    ) !== false;
+}
+
 // ── HTTP entry point ─────────────────────────────────────────────────────────
 
 function mocambos_handle_request(): void {
@@ -296,6 +396,11 @@ function _mocambos_http_validate(): void {
     if (!preg_match('#^https?://#', $apiBase)) {
         api_error('400.003', 'Invalid URL: only http and https URLs are allowed.');
     }
+    $safetyError = _mocambos_validate_safe_url($apiBase);
+    if ($safetyError !== null) {
+        error_log('mocambos.handler validate refused upstream: ' . $safetyError . ' (' . $apiBase . ')');
+        api_error('400.046', 'Refusing to fetch from this upstream: %s', [$safetyError]);
+    }
 
     $checks = [];
     $allOk = true;
@@ -425,6 +530,11 @@ function _mocambos_http_list_galaxias(): void {
     if ($apiBase === '' || !filter_var($apiBase, FILTER_VALIDATE_URL)) {
         api_error('400.044', 'Invalid URL format. Expected a full URL like https://hostname/api/v2.');
     }
+    $safetyError = _mocambos_validate_safe_url($apiBase);
+    if ($safetyError !== null) {
+        error_log('mocambos.handler list refused upstream: ' . $safetyError . ' (' . $apiBase . ')');
+        api_error('400.046', 'Refusing to fetch from this upstream: %s', [$safetyError]);
+    }
 
     $galaxias = _mocambos_fetch_json($apiBase . '/galaxia');
     if (!is_array($galaxias)) {
@@ -477,6 +587,11 @@ function _mocambos_http_import(): void {
     }
 
     $apiBase = trim($data['api_base'] ?? 'https://timbuktu.mocambos.net/api/v2');
+    $safetyError = _mocambos_validate_safe_url($apiBase);
+    if ($safetyError !== null) {
+        error_log('mocambos.handler import refused upstream: ' . $safetyError . ' (' . $apiBase . ')');
+        api_error('400.046', 'Refusing to fetch from this upstream: %s', [$safetyError]);
+    }
     $fullRefresh = !empty($data['full_refresh']);
     $galaxias = $data['galaxias'] ?? [];
     if (!is_array($galaxias) || empty($galaxias)) {
@@ -889,7 +1004,19 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
 // ── Data-fetch helpers ───────────────────────────────────────────────────────
 
 function _mocambos_fetch_json(string $url): mixed {
-    $ctx = stream_context_create(['http' => ['timeout' => 30, 'ignore_errors' => true]]);
+    $safetyError = _mocambos_validate_safe_url($url);
+    if ($safetyError !== null) {
+        error_log('mocambos.fetch_json refused: ' . $safetyError . ' (' . $url . ')');
+        return null;
+    }
+    $ctx = stream_context_create([
+        'http' => [
+            'timeout' => 30,
+            'ignore_errors' => true,
+            'follow_location' => 0,
+            'max_redirects' => 0,
+        ],
+    ]);
     $body = @file_get_contents($url, false, $ctx);
     if ($body === false) return null;
     return json_decode($body, true);

@@ -75,6 +75,7 @@ declare(strict_types=1);
  *   400.043 — must select galaxies or users for backup      (admin/backup/export.php)
  *   400.044 — invalid URL format (full URL expected)        (inc/bridges/mocambos/handler.php)
  *   400.045 — no galaxias specified                         (inc/bridges/mocambos/handler.php)
+ *   400.046 — upstream URL refused (SSRF guard)             (inc/bridges/mocambos/handler.php)
  *
  *   401.001 — api key is missing                            (api/auth.php)
  *   401.002 — invalid api key                               (api/auth.php)
