@@ -1,0 +1,301 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * bin/setup-host.php — host-level provisioning for a Telaris instance.
+ *
+ * Idempotently installs the bits admin/setup.php cannot reach because it
+ * runs as the web user without sudo:
+ *
+ *   - /etc/nginx/snippets/cloudflare-realip.conf
+ *   - /etc/logrotate.d/telaris-snapshots-<site>
+ *   - chmod 0640 + chgrp www-data on config.php
+ *
+ * Scope: Ubuntu / Debian only. Other distros need their own bridge.
+ *
+ * Modes:
+ *   sudo php bin/setup-host.php           # rewrite to canonical, reload nginx
+ *   sudo php bin/setup-host.php --check   # report what's installed, exit 1 if any gap
+ *
+ * Rewrite mode is always destructive-to-canonical: existing snippets and
+ * logrotate rules are overwritten with the repo's current content. That's
+ * the point — single source of truth, no drift.
+ *
+ * Companion: admin/setup.php is the web-context install wizard (DB, schema,
+ * first admin user); it runs as the web user and cannot install host
+ * config. This script is the missing complement.
+ */
+
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    echo "bin/setup-host.php must be run from the command line, not the web.\n";
+    exit(1);
+}
+
+if (!function_exists('posix_geteuid') || posix_geteuid() !== 0) {
+    fwrite(STDERR, "bin/setup-host.php must be run as root.\n");
+    fwrite(STDERR, "  Try: sudo php bin/setup-host.php" . (isset($argv[1]) ? ' ' . $argv[1] : '') . "\n");
+    exit(1);
+}
+
+// Distro gate: Ubuntu / Debian only. Other distros (RHEL, Alpine, ...) have
+// different nginx layouts, logrotate paths, and FPM user names. Out of scope.
+$osRelease = @parse_ini_file('/etc/os-release');
+$idLike = strtolower(trim((string)($osRelease['ID_LIKE'] ?? '')));
+$id = strtolower(trim((string)($osRelease['ID'] ?? '')));
+if ($id !== 'ubuntu' && $id !== 'debian' && !str_contains($idLike, 'debian') && !str_contains($idLike, 'ubuntu')) {
+    fwrite(STDERR, "Unsupported distro: ID={$id}, ID_LIKE={$idLike}. Ubuntu / Debian only.\n");
+    fwrite(STDERR, "  Manual install: see etc/nginx/cloudflare-realip.conf.sample header.\n");
+    exit(1);
+}
+
+$opts = getopt('', ['check', 'verbose', 'help']);
+$checkOnly = isset($opts['check']);
+$verbose = isset($opts['verbose']);
+
+if (isset($opts['help'])) {
+    echo "Usage: sudo php bin/setup-host.php [--check] [--verbose]\n";
+    echo "\n";
+    echo "  --check    Report what's installed and what's missing; exit 1 on any gap.\n";
+    echo "  --verbose  More detail per step.\n";
+    echo "  (no flag)  Rewrite host config to canonical and reload nginx.\n";
+    exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// Paths derived from the script's location. bin/setup-host.php lives inside
+// the Telaris site root; basename of that root is the site identifier used
+// for per-site filenames (logrotate, etc.).
+// ---------------------------------------------------------------------------
+
+$root = dirname(__DIR__);
+$siteName = basename($root);
+
+$cfSrc = $root . '/etc/nginx/cloudflare-realip.conf.sample';
+$cfDst = '/etc/nginx/snippets/cloudflare-realip.conf';
+
+$logrotateSrc = $root . '/etc/logrotate/telaris-snapshots.sample';
+$logrotateDst = '/etc/logrotate.d/telaris-snapshots-' . $siteName;
+
+$configPath = $root . '/config.php';
+$vhostCandidates = [
+    "/etc/nginx/sites-available/{$siteName}.conf",
+    "/etc/nginx/sites-enabled/{$siteName}.conf",
+];
+
+// ---------------------------------------------------------------------------
+// Per-task results accumulator. Each entry: ['name', 'status', 'detail',
+// 'fix' => Closure|null]. status: 'ok' | 'missing' | 'mismatch' | 'error'.
+// ---------------------------------------------------------------------------
+
+$tasks = [];
+
+// 1. nginx installed and active
+$tasks[] = (function() {
+    $bin = '/usr/sbin/nginx';
+    if (!file_exists($bin)) {
+        return ['name' => 'nginx installed', 'status' => 'missing', 'detail' => "nginx binary not at {$bin}", 'fix' => null];
+    }
+    $rc = 1;
+    @exec('systemctl is-active nginx 2>&1', $out, $rc);
+    $msg = trim(implode("\n", $out));
+    if ($rc !== 0 || $msg !== 'active') {
+        return ['name' => 'nginx service active', 'status' => 'missing', 'detail' => "systemctl is-active nginx → '{$msg}' (rc={$rc})", 'fix' => null];
+    }
+    return ['name' => 'nginx installed + active', 'status' => 'ok', 'detail' => 'active', 'fix' => null];
+})();
+
+// 2. Cloudflare real-IP snippet matches canonical (atomic write + nginx -t before commit).
+$tasks[] = (function() use ($cfSrc, $cfDst) {
+    if (!file_exists($cfSrc)) {
+        return ['name' => 'cloudflare-realip snippet', 'status' => 'error', 'detail' => "repo source missing at {$cfSrc}", 'fix' => null];
+    }
+    $canonical = file_get_contents($cfSrc);
+    $installed = file_exists($cfDst) ? file_get_contents($cfDst) : '';
+    if ($installed === $canonical) {
+        return ['name' => 'cloudflare-realip snippet', 'status' => 'ok', 'detail' => "matches {$cfSrc}", 'fix' => null];
+    }
+    $fix = function() use ($cfSrc, $cfDst, $canonical) {
+        $tmp = $cfDst . '.new.' . posix_getpid();
+        if (file_put_contents($tmp, $canonical) === false) {
+            return ['ok' => false, 'detail' => "could not write to {$tmp}"];
+        }
+        @chmod($tmp, 0644);
+        @chown($tmp, 'root');
+        @chgrp($tmp, 'root');
+        // Validate nginx config WITH the new file in place by atomic-renaming
+        // first; if nginx -t fails we restore from the backup.
+        $backup = file_exists($cfDst) ? file_get_contents($cfDst) : null;
+        if (!rename($tmp, $cfDst)) {
+            @unlink($tmp);
+            return ['ok' => false, 'detail' => "could not move {$tmp} → {$cfDst}"];
+        }
+        $rc = 1; $out = [];
+        @exec('/usr/sbin/nginx -t 2>&1', $out, $rc);
+        if ($rc !== 0) {
+            // Roll back.
+            if ($backup !== null) {
+                file_put_contents($cfDst, $backup);
+            } else {
+                @unlink($cfDst);
+            }
+            return ['ok' => false, 'detail' => "nginx -t rejected the new snippet:\n" . implode("\n", $out)];
+        }
+        return ['ok' => true, 'detail' => "wrote {$cfDst} (validated by nginx -t)"];
+    };
+    return ['name' => 'cloudflare-realip snippet', 'status' => file_exists($cfDst) ? 'mismatch' : 'missing', 'detail' => "{$cfDst} differs from canonical", 'fix' => $fix];
+})();
+
+// 3. nginx vhost for this site includes the snippet. We DON'T auto-edit the
+// vhost (too risky). Report only.
+$tasks[] = (function() use ($vhostCandidates) {
+    $present = null;
+    foreach ($vhostCandidates as $path) {
+        if (file_exists($path)) { $present = $path; break; }
+    }
+    if ($present === null) {
+        return ['name' => 'vhost includes CF snippet', 'status' => 'missing', 'detail' => 'no vhost found at ' . implode(' or ', $vhostCandidates), 'fix' => null];
+    }
+    $body = file_get_contents($present) ?: '';
+    if (str_contains($body, 'include snippets/cloudflare-realip.conf')) {
+        return ['name' => 'vhost includes CF snippet', 'status' => 'ok', 'detail' => "include found in {$present}", 'fix' => null];
+    }
+    return ['name' => 'vhost includes CF snippet', 'status' => 'missing', 'detail' => "{$present} does not include snippets/cloudflare-realip.conf — add manually inside the server { } block", 'fix' => null];
+})();
+
+// 4. Logrotate entry matches canonical (with __SITE_LOGS__ substitution).
+$tasks[] = (function() use ($logrotateSrc, $logrotateDst, $root) {
+    if (!file_exists($logrotateSrc)) {
+        return ['name' => 'logrotate snapshot rule', 'status' => 'error', 'detail' => "repo source missing at {$logrotateSrc}", 'fix' => null];
+    }
+    $template = file_get_contents($logrotateSrc);
+    $canonical = str_replace('__SITE_LOGS__', $root . '/logs', $template);
+    $installed = file_exists($logrotateDst) ? file_get_contents($logrotateDst) : '';
+    if ($installed === $canonical) {
+        return ['name' => 'logrotate snapshot rule', 'status' => 'ok', 'detail' => "matches {$logrotateDst}", 'fix' => null];
+    }
+    $fix = function() use ($logrotateDst, $canonical) {
+        $tmp = $logrotateDst . '.new.' . posix_getpid();
+        if (file_put_contents($tmp, $canonical) === false) {
+            return ['ok' => false, 'detail' => "could not write to {$tmp}"];
+        }
+        @chmod($tmp, 0644);
+        @chown($tmp, 'root');
+        @chgrp($tmp, 'root');
+        if (!rename($tmp, $logrotateDst)) {
+            @unlink($tmp);
+            return ['ok' => false, 'detail' => "could not move {$tmp} → {$logrotateDst}"];
+        }
+        // logrotate --debug to validate.
+        $rc = 1; $out = [];
+        @exec('/usr/sbin/logrotate --debug ' . escapeshellarg($logrotateDst) . ' 2>&1', $out, $rc);
+        if ($rc !== 0) {
+            return ['ok' => false, 'detail' => "logrotate --debug rejected: " . implode("\n", $out)];
+        }
+        return ['ok' => true, 'detail' => "wrote {$logrotateDst} (validated by logrotate --debug)"];
+    };
+    return ['name' => 'logrotate snapshot rule', 'status' => file_exists($logrotateDst) ? 'mismatch' : 'missing', 'detail' => "{$logrotateDst} differs from canonical", 'fix' => $fix];
+})();
+
+// 5. config.php permissions: 0640, owner www-data group.
+$tasks[] = (function() use ($configPath) {
+    if (!file_exists($configPath)) {
+        return ['name' => 'config.php exists', 'status' => 'missing', 'detail' => "{$configPath} does not exist (run admin/setup.php first)", 'fix' => null];
+    }
+    $mode = fileperms($configPath) & 0777;
+    $group = posix_getgrgid(filegroup($configPath));
+    $groupName = is_array($group) ? ($group['name'] ?? '?') : '?';
+    $modeOk = ($mode === 0640);
+    $groupOk = ($groupName === 'www-data');
+    if ($modeOk && $groupOk) {
+        return ['name' => 'config.php perms', 'status' => 'ok', 'detail' => sprintf('mode %o group %s', $mode, $groupName), 'fix' => null];
+    }
+    $fix = function() use ($configPath) {
+        $okGroup = @chgrp($configPath, 'www-data');
+        $okMode = @chmod($configPath, 0640);
+        if (!$okGroup || !$okMode) {
+            return ['ok' => false, 'detail' => 'chgrp/chmod failed; check ownership of ' . $configPath];
+        }
+        return ['ok' => true, 'detail' => "chgrp www-data + chmod 0640 on {$configPath}"];
+    };
+    return [
+        'name' => 'config.php perms',
+        'status' => 'mismatch',
+        'detail' => sprintf('mode %o group %s; want 0640 group www-data', $mode, $groupName),
+        'fix' => $fix,
+    ];
+})();
+
+// ---------------------------------------------------------------------------
+// Execute. In --check mode, only report. Otherwise, run fixes and then
+// reload nginx if any nginx-touching fix succeeded.
+// ---------------------------------------------------------------------------
+
+$header = $checkOnly
+    ? sprintf("Telaris host check — site=%s root=%s\n", $siteName, $root)
+    : sprintf("Telaris host setup — site=%s root=%s\n", $siteName, $root);
+echo $header;
+echo str_repeat('=', strlen(trim($header))) . "\n";
+
+$exitCode = 0;
+$nginxTouched = false;
+
+foreach ($tasks as $task) {
+    $status = $task['status'];
+    $name = $task['name'];
+    $detail = $task['detail'];
+
+    if ($status === 'ok') {
+        printf("  [ok]      %s%s\n", $name, $verbose ? " — {$detail}" : '');
+        continue;
+    }
+
+    // Non-ok: report + fix (if applicable + not --check).
+    printf("  [%s] %s — %s\n", $status, $name, $detail);
+
+    if ($checkOnly) {
+        $exitCode = 1;
+        continue;
+    }
+
+    if ($task['fix'] === null) {
+        printf("           (no automatic fix — operator intervention required)\n");
+        $exitCode = 1;
+        continue;
+    }
+
+    $result = ($task['fix'])();
+    if ($result['ok']) {
+        printf("           → fixed: %s\n", $result['detail']);
+        if (str_contains($name, 'cloudflare-realip')) {
+            $nginxTouched = true;
+        }
+    } else {
+        printf("           → fix FAILED: %s\n", $result['detail']);
+        $exitCode = 1;
+    }
+}
+
+// Reload nginx once at the end if any nginx-touching fix succeeded.
+if ($nginxTouched && !$checkOnly) {
+    echo "\nReloading nginx (CF snippet changed)…\n";
+    $rc = 1; $out = [];
+    @exec('systemctl reload nginx 2>&1', $out, $rc);
+    if ($rc === 0) {
+        echo "  [ok]      nginx reloaded\n";
+    } else {
+        echo "  [error]   systemctl reload nginx failed (rc={$rc}): " . implode("\n", $out) . "\n";
+        $exitCode = 1;
+    }
+}
+
+echo "\n";
+if ($exitCode === 0) {
+    echo $checkOnly ? "All checks passed.\n" : "Host setup complete.\n";
+} else {
+    echo $checkOnly
+        ? "One or more checks failed; re-run without --check to apply fixes, or address operator-intervention items first.\n"
+        : "Setup completed with errors; re-run after addressing the messages above.\n";
+}
+exit($exitCode);

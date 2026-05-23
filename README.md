@@ -82,12 +82,16 @@ For operators who want to run a Telaris instance. The Admin Manual will carry th
 
 ### Setup
 
+Setup happens in two phases — application install (web-context, no privileges) and host provisioning (CLI, requires root).
+
+**1. Application install:**
+
 ```sh
 git clone git@github.com:theagitist/telaris.git
 # Configure your web server to point at the repo root with PHP-FPM enabled.
 ```
 
-Then open the setup script in a browser at `https://your-domain.com/admin/setup.php` (or visit `/admin/` and follow the redirect). The setup script is web-only; it cannot run from the command line. Four steps:
+Then open the setup script in a browser at `https://your-domain.com/admin/setup.php` (or visit `/admin/` and follow the redirect). The web setup is four steps:
 
 1. **Database connection.** Host, port, database name, user, password. The script lists PHP version and required extensions on this screen.
 2. **Schema.** Tables are created automatically. The default galaxy (id 0) is created here and cannot be deleted.
@@ -95,6 +99,17 @@ Then open the setup script in a browser at `https://your-domain.com/admin/setup.
 4. **First admin user.** Email, password, name.
 
 If the setup script cannot write `config.php` due to filesystem permissions, it displays the configuration content in a text area for manual creation.
+
+**2. Host provisioning:**
+
+After the web install, run the host setup script as root. It writes the Cloudflare real-IP nginx snippet, installs the logrotate rule for snapshot logs, tightens the permissions on `config.php`, and reloads nginx. It's idempotent and Ubuntu/Debian-only.
+
+```sh
+sudo php bin/setup-host.php --check   # report what's installed / missing
+sudo php bin/setup-host.php           # install / rewrite to canonical
+```
+
+The host script handles the bits `admin/setup.php` cannot reach because it runs as the web user without sudo. Run `--check` any time to verify the host is in canonical state.
 
 ### Access points
 
