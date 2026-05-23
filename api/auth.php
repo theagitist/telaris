@@ -10,6 +10,37 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../inc/db.php';
 require_once __DIR__ . '/../inc/api-error.php';
 
+// API-key throttle constants (second-pass audit M3). Defined here rather
+// than in utils/auth.php because the bare API endpoints (constellations,
+// connections, tags, apikey) deliberately skip utils/auth.php to keep
+// visitor reads session-less.
+if (!defined('AUTH_API_KEY_MAX_FAILURES')) {
+    define('AUTH_API_KEY_MAX_FAILURES', 30);
+}
+if (!defined('AUTH_API_KEY_WINDOW_SECONDS')) {
+    define('AUTH_API_KEY_WINDOW_SECONDS', 300);
+}
+
+/**
+ * Resolve the client IP for throttling. Mirrors utils/auth.php's
+ * auth_client_ip() so the bare API endpoints can throttle without pulling
+ * in the session bootstrap.
+ */
+function api_client_ip(): string {
+    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'] as $key) {
+        if (!empty($_SERVER[$key])) {
+            $value = (string)$_SERVER[$key];
+            if ($key === 'HTTP_X_FORWARDED_FOR') {
+                $value = trim(explode(',', $value)[0]);
+            }
+            if (filter_var($value, FILTER_VALIDATE_IP) !== false) {
+                return $value;
+            }
+        }
+    }
+    return '-';
+}
+
 /**
  * Validate API key and return true if valid, false otherwise
  * Updates last_used_at timestamp on successful validation
@@ -131,17 +162,38 @@ function verify_csrf_token(): void {
 }
 
 /**
- * Require API key authentication
- * Exits with 401 error if API key is missing or invalid
+ * Require API key authentication. Exits 401 if missing or invalid; exits with
+ * the generic 401.002 if the source IP has burned through the per-IP failure
+ * budget for the window (second-pass audit M3).
+ *
+ * The throttle gates on the resolved client IP only — API keys aren't tied
+ * to a user account, so there's no email axis. AUTH_API_KEY_MAX_FAILURES is
+ * set well above any honest-client failure rate (visitor pages fetch the key
+ * once per session and reuse it), so an honest miss won't lock out.
  */
 function requireApiKey(): void {
+    $ip = api_client_ip();
+
+    // Pre-check: if this IP has already burned through the failure budget,
+    // refuse without doing any work. Counter is still incremented so a
+    // determined attacker pays the cost; the missing $apiKey path is a
+    // "failure" for throttling purposes too.
+    if (db_count_recent_auth_attempts('api_key', null, $ip, AUTH_API_KEY_WINDOW_SECONDS, false) >= AUTH_API_KEY_MAX_FAILURES) {
+        db_record_auth_attempt('api_key', null, $ip, false);
+        api_error('401.002', 'Invalid API key.');
+    }
+
     $apiKey = getApiKeyFromRequest();
-    
+
     if (!$apiKey) {
+        db_record_auth_attempt('api_key', null, $ip, false);
         api_error('401.001', 'API key is missing. Provide it via the X-API-Key header, the Authorization: Bearer header, or the api_key query parameter.');
     }
 
     if (!db_validate_api_key($apiKey)) {
+        db_record_auth_attempt('api_key', null, $ip, false);
         api_error('401.002', 'Invalid API key.');
     }
+
+    db_record_auth_attempt('api_key', null, $ip, true);
 }

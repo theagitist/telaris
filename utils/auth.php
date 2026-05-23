@@ -36,6 +36,11 @@ define('AUTH_FORGOT_MAX_ATTEMPTS', 5);
 define('AUTH_FORGOT_WINDOW_SECONDS', 300);
 define('AUTH_RESET_MAX_ATTEMPTS', 10);
 define('AUTH_RESET_WINDOW_SECONDS', 600);
+// API-key throttle (second-pass audit M3): legitimate visitor pages fetch
+// the public key once per session, then reuse it; sustained-rate-of-failure
+// well below this cap is what a brute-force attempt looks like.
+define('AUTH_API_KEY_MAX_FAILURES', 30);
+define('AUTH_API_KEY_WINDOW_SECONDS', 300);
 
 /**
  * Best-effort client IP for throttling. Trusts CF-Connecting-IP and

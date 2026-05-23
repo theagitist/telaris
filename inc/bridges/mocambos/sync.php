@@ -173,17 +173,20 @@ function mocambos_apply_modifications(array $modifications, int $constellationId
  * Apply deletions from the diff.
  */
 function mocambos_apply_deletions(array $deletions, int $constellationId, PDO $pdo): void {
-    foreach ($deletions as $del) {
-        db_delete_node($del['node_id']);
+    if ($deletions === []) {
+        return;
     }
+    // One SELECT for asset paths + one DELETE for the rows + unlinks; same
+    // pattern as api/nodes.php bulk-by-keyword delete. Pre-fix this was a
+    // per-row N+1 fan-out on every Mocambos re-sync.
+    $nodeIds = array_map(fn($d) => (int)$d['node_id'], $deletions);
+    db_bulk_delete_nodes_by_ids($nodeIds);
     // Clean up orphan keywords
-    if (!empty($deletions)) {
-        $pdo->prepare("
-            DELETE k FROM keywords k
-            LEFT JOIN node_keywords nk ON nk.keyword_id = k.id
-            WHERE k.constellation_id = :cid AND nk.id IS NULL
-        ")->execute([':cid' => $constellationId]);
-    }
+    $pdo->prepare("
+        DELETE k FROM keywords k
+        LEFT JOIN node_keywords nk ON nk.keyword_id = k.id
+        WHERE k.constellation_id = :cid AND nk.id IS NULL
+    ")->execute([':cid' => $constellationId]);
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────────────

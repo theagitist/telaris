@@ -456,9 +456,18 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $input = (string)($_POST['bulk_users_input'] ?? '');
                 $defaultCreateGalaxy = !empty($_POST['default_create_galaxy']);
                 $rows = bulk_users_parse($input, $defaultCreateGalaxy);
-                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                $bulkUsersResult = bulk_users_apply($rows, $scheme . '://' . $host);
+                // SITE_BASE_URL pins the host so a poisoned Host header on the
+                // request cannot embed an attacker domain into bulk-welcome emails.
+                // Same shape as utils/forgot.php; mirror them together.
+                if (defined('SITE_BASE_URL') && is_string(SITE_BASE_URL) && preg_match('#^https?://#', SITE_BASE_URL)) {
+                    $baseUrl = rtrim(SITE_BASE_URL, '/');
+                } else {
+                    error_log('admin/index.php bulk_users_commit: SITE_BASE_URL is not defined in config.php; falling back to Host header (Host-injection risk).');
+                    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                    $baseUrl = $scheme . '://' . $host;
+                }
+                $bulkUsersResult = bulk_users_apply($rows, $baseUrl);
                 $created = $bulkUsersResult['created'];
                 $galaxies = $bulkUsersResult['galaxies_created'];
                 $message = "Bulk import: {$created} user" . ($created === 1 ? '' : 's') . ' created'

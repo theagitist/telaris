@@ -8393,10 +8393,12 @@ function db_delete_constellation(int $id): void {
     $pdo = getDB();
     $pdo->beginTransaction();
     try {
-        // 1. Delete portals in OTHER constellations that point to THIS constellation
+        // 1. Delete portals in OTHER constellations that point to THIS constellation.
+        // Bulk-delete to keep the round trips constant — pre-fix this was a per-row
+        // N+1 on every galaxy delete that had referencing portals.
         $referencing = db_get_referencing_portals($id);
-        foreach ($referencing as $ref) {
-            db_delete_node((int)$ref['id']);
+        if ($referencing !== []) {
+            db_bulk_delete_nodes_by_ids(array_map(fn($r) => (int)$r['id'], $referencing));
         }
 
         // 2. Delete nodes in this constellation in a single batch (reads asset paths,
