@@ -4,6 +4,17 @@
  * Expects: $projectName, $projectTagline, $isEditorOrAdmin, $currentLocale, $projectEditButtonText, $projectLoadingText (set by bootstrap).
  */
 $cspNonce = base64_encode(random_bytes(16));
+// CSP notes:
+// - script-src uses a per-request nonce; no 'unsafe-inline' on scripts.
+// - style-src keeps 'unsafe-inline' because Tailwind + daisyui inject inline
+//   styles at runtime. Removing it requires a build step that emits a static
+//   stylesheet; design choice rather than a security gap given the lack of
+//   user-controlled content in any style context.
+// - frame-ancestors * is deliberate: Telaris promotes embedding galaxies on
+//   partner sites. SAFETY-CRITICAL: the visitor view MUST NOT add any
+//   auth-gated or otherwise sensitive click target (anything that mutates
+//   state, opens admin paths, or reveals other-user data). All current
+//   interactions are visitor-public reads.
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$cspNonce}' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://cloudflareinsights.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors *");
 header("X-Content-Type-Options: nosniff");
 ?>

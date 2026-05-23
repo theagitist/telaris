@@ -1,0 +1,27 @@
+# Sample logrotate config for Telaris snapshot-cron log.
+#
+# Without rotation, logs/snapshot_cron.log appends forever; with the cron
+# running every 15 minutes that adds up over years. This rule keeps four
+# weekly compressed rotations.
+#
+# Install per Telaris instance (the paths are per-site):
+#
+#   sudo cp etc/logrotate/telaris-snapshots.sample \
+#        /etc/logrotate.d/telaris-snapshots-<site>
+#   sudo sed -i 's|__SITE_LOGS__|/var/www/<site>/logs|g' \
+#        /etc/logrotate.d/telaris-snapshots-<site>
+#   sudo logrotate --debug /etc/logrotate.d/telaris-snapshots-<site>
+#
+# Or symlink one rule per instance into /etc/logrotate.d/ if your hosts pattern
+# tolerates a single shared file.
+
+__SITE_LOGS__/snapshot_cron.log {
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+    su www-data www-data
+    create 0644 www-data www-data
+}
