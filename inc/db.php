@@ -246,9 +246,10 @@ const PROJECT_INFO_KEYS = [
     'admin_modal_label_new_name', 'admin_modal_label_new_url_slug', 'admin_modal_label_new_tagline',
     'admin_modal_btn_duplicate',
     'admin_modal_heading_confirm_deletion',
-    'admin_modal_label_type_galaxy_name', 'admin_modal_placeholder_type_name',
+    'admin_modal_label_type_galaxy_name', 'admin_modal_label_type_to_confirm', 'admin_modal_placeholder_type_name',
     'admin_modal_btn_delete',
     'admin_modal_deletion_impact_title', 'admin_modal_deletion_impact_intro', 'admin_modal_deletion_impact_row',
+    'admin_error_user_not_found', 'admin_error_galaxy_not_found', 'admin_error_delete_confirm_mismatch',
 
     // C5: admin/setup.php (post-DB strings). Pre-DB strings live in $SETUP_PRE_DB_STRINGS
     // inside admin/setup.php itself, because they render before the project_info table exists.
@@ -1302,11 +1303,15 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_modal_btn_duplicate' => 'Duplicate',
             'admin_modal_heading_confirm_deletion' => 'Confirm Deletion',
             'admin_modal_label_type_galaxy_name' => 'Please type the name of the galaxy to confirm:',
+            'admin_modal_label_type_to_confirm' => 'To confirm, type the following exactly:',
             'admin_modal_placeholder_type_name' => 'Type name here...',
             'admin_modal_btn_delete' => 'Delete',
             'admin_modal_deletion_impact_title' => '⚠️ Deletion Impact:',
             'admin_modal_deletion_impact_intro' => 'The following portals in other galaxies point to this network and will also be deleted:',
             'admin_modal_deletion_impact_row' => '<strong>%s</strong> (in galaxy: %s)',
+            'admin_error_user_not_found' => 'User not found.',
+            'admin_error_galaxy_not_found' => 'Galaxy not found.',
+            'admin_error_delete_confirm_mismatch' => 'Confirmation does not match. Type the exact name to confirm deletion.',
 
             // C5: admin/setup.php (post-DB)
             'admin_setup_website_info_subtitle' => 'Configure your website information',
@@ -2406,11 +2411,15 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_modal_btn_duplicate' => 'Duplicar',
             'admin_modal_heading_confirm_deletion' => 'Confirmar eliminación',
             'admin_modal_label_type_galaxy_name' => 'Escribe el nombre de la galaxia para confirmar:',
+            'admin_modal_label_type_to_confirm' => 'Para confirmar, escribe exactamente lo siguiente:',
             'admin_modal_placeholder_type_name' => 'Escribe el nombre aquí...',
             'admin_modal_btn_delete' => 'Eliminar',
             'admin_modal_deletion_impact_title' => '⚠️ Impacto de la eliminación:',
             'admin_modal_deletion_impact_intro' => 'Los siguientes portales en otras galaxias apuntan a esta red y también se eliminarán:',
             'admin_modal_deletion_impact_row' => '<strong>%s</strong> (en la galaxia: %s)',
+            'admin_error_user_not_found' => 'No se encontró la cuenta.',
+            'admin_error_galaxy_not_found' => 'No se encontró la galaxia.',
+            'admin_error_delete_confirm_mismatch' => 'La confirmación no coincide. Escribe el nombre exacto para confirmar la eliminación.',
 
             // C5: admin/setup.php (post-DB)
             'admin_setup_website_info_subtitle' => 'Configura la información del sitio',
@@ -3506,11 +3515,15 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_modal_btn_duplicate' => 'Duplicar',
             'admin_modal_heading_confirm_deletion' => 'Confirmar exclusão',
             'admin_modal_label_type_galaxy_name' => 'Digite o nome da galáxia para confirmar:',
+            'admin_modal_label_type_to_confirm' => 'Para confirmar, digite exatamente o seguinte:',
             'admin_modal_placeholder_type_name' => 'Digite o nome aqui...',
             'admin_modal_btn_delete' => 'Excluir',
             'admin_modal_deletion_impact_title' => '⚠️ Impacto da exclusão:',
             'admin_modal_deletion_impact_intro' => 'Os seguintes portais em outras galáxias apontam para esta rede e também serão excluídos:',
             'admin_modal_deletion_impact_row' => '<strong>%s</strong> (na galáxia: %s)',
+            'admin_error_user_not_found' => 'Conta não encontrada.',
+            'admin_error_galaxy_not_found' => 'Galáxia não encontrada.',
+            'admin_error_delete_confirm_mismatch' => 'A confirmação não coincide. Digite o nome exato para confirmar a exclusão.',
 
             // C5: admin/setup.php (post-DB)
             'admin_setup_website_info_subtitle' => 'Configure as informações do site',
@@ -4606,11 +4619,15 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_modal_btn_duplicate' => 'Dupliquer',
             'admin_modal_heading_confirm_deletion' => 'Confirmer la suppression',
             'admin_modal_label_type_galaxy_name' => 'Tape le nom de la galaxie pour confirmer :',
+            'admin_modal_label_type_to_confirm' => 'Pour confirmer, tape exactement ce qui suit :',
             'admin_modal_placeholder_type_name' => 'Tape le nom ici...',
             'admin_modal_btn_delete' => 'Supprimer',
             'admin_modal_deletion_impact_title' => '⚠️ Impact de la suppression :',
             'admin_modal_deletion_impact_intro' => 'Les portails suivants dans d\'autres galaxies pointent vers ce réseau et seront aussi supprimés :',
             'admin_modal_deletion_impact_row' => '<strong>%s</strong> (dans la galaxie : %s)',
+            'admin_error_user_not_found' => 'Compte introuvable.',
+            'admin_error_galaxy_not_found' => 'Galaxie introuvable.',
+            'admin_error_delete_confirm_mismatch' => 'La confirmation ne correspond pas. Tape le nom exact pour confirmer la suppression.',
 
             // C5: admin/setup.php (post-DB)
             'admin_setup_website_info_subtitle' => 'Configure les informations du site',
@@ -6504,6 +6521,18 @@ function db_get_user_by_email(string $email): ?array {
         $pdo = getDB();
         $stmt = $pdo->prepare("SELECT id, email, password, firstname, lastname, type FROM users WHERE email = :email");
         $stmt->execute([':email' => $email]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+
+function db_get_user_by_id(string $userId): ?array {
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->prepare("SELECT id, email, firstname, lastname, type FROM users WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $userId]);
         $row = $stmt->fetch();
         return $row ?: null;
     } catch (PDOException $e) {

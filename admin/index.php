@@ -219,6 +219,20 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 if ($id === ($_SESSION['admin_user_id'] ?? '')) {
                     throw new Exception('You cannot delete your own account');
                 }
+                // Server-side confirmation phrase. Mirrors snapshots/restore.php.
+                // The client modal collects the operator-typed email and POSTs
+                // it as confirm_name; we recompute the expected value from the
+                // user's row (not the request body) so a tampered client can't
+                // bypass the gate.
+                $row = db_get_user_by_id($id);
+                if ($row === null) {
+                    throw new Exception(t('admin_error_user_not_found', 'User not found.'));
+                }
+                $expected = (string)($row['email'] ?? '');
+                $provided = trim((string)($_POST['confirm_name'] ?? ''));
+                if ($expected === '' || strcasecmp($provided, $expected) !== 0) {
+                    throw new Exception(t('admin_error_delete_confirm_mismatch', 'Confirmation does not match. Type the exact name to confirm deletion.'));
+                }
                 db_delete_user($id);
                 db_audit_log(
                     action: 'user.delete',
@@ -320,6 +334,18 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             'delete_constellation' => (function(): void {
                 global $message, $error, $activeTab;
                 $id = (int)($_POST['id'] ?? -1);
+                // Server-side confirmation phrase. The client modal collects
+                // the operator-typed galaxy name and POSTs it as confirm_name;
+                // we recompute the expected value from the constellation row.
+                $row = db_get_constellation_by_id($id);
+                if ($row === null) {
+                    throw new Exception(t('admin_error_galaxy_not_found', 'Galaxy not found.'));
+                }
+                $expected = (string)($row['name'] ?? '');
+                $provided = trim((string)($_POST['confirm_name'] ?? ''));
+                if ($expected === '' || strcasecmp($provided, $expected) !== 0) {
+                    throw new Exception(t('admin_error_delete_confirm_mismatch', 'Confirmation does not match. Type the exact name to confirm deletion.'));
+                }
                 db_delete_constellation($id);
                 db_audit_log(
                     action: 'galaxy.delete',
@@ -424,6 +450,12 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $existing = db_get_constellation_by_id($id);
                 if (!$existing || ($existing['type'] ?? 'galaxy') !== 'cluster') {
                     throw new Exception('Not a cluster.');
+                }
+                // Server-side confirmation phrase. See delete_constellation note.
+                $expected = (string)($existing['name'] ?? '');
+                $provided = trim((string)($_POST['confirm_name'] ?? ''));
+                if ($expected === '' || strcasecmp($provided, $expected) !== 0) {
+                    throw new Exception(t('admin_error_delete_confirm_mismatch', 'Confirmation does not match. Type the exact name to confirm deletion.'));
                 }
                 db_delete_cluster($id);
                 db_audit_log(
@@ -844,8 +876,9 @@ foreach ($importantExtensions as $ext => $name) {
                                                                 <?php
                                                                 $delMsg = sprintf(t('admin_confirm_delete_user', 'Are you sure you want to delete the user "%s"? This action cannot be undone.'), $fullName);
                                                                 $delMsgJs = htmlspecialchars(json_encode($delMsg), ENT_QUOTES, 'UTF-8');
+                                                                $delConfirmJs = htmlspecialchars(json_encode((string)($user['email'] ?? '')), ENT_QUOTES, 'UTF-8');
                                                                 ?>
-                                                                <li><a onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, null)" class="text-red-600 text-xs"><?= t('admin_action_delete', 'Delete') ?></a></li>
+                                                                <li><a onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, <?php echo $delConfirmJs; ?>)" class="text-red-600 text-xs"><?= t('admin_action_delete', 'Delete') ?></a></li>
                                                             <?php endif; ?>
                                                         </ul>
                                                     </div>
@@ -2005,6 +2038,8 @@ foreach ($importantExtensions as $ext => $name) {
                 confirmWrap.classList.remove('hidden');
                 confirmInput.value = '';
                 confirmInput.setAttribute('data-expected', confirmName);
+                const confirmHint = document.getElementById('delete-confirm-name-hint');
+                if (confirmHint) confirmHint.textContent = confirmName;
                 deleteBtn.disabled = true;
 
                 // Fetch impact for constellation deletion
@@ -4103,19 +4138,20 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
 
             <div id="delete-impact-wrap" class="mb-6 hidden"></div>
 
-            <div id="delete-name-confirm-wrap" class="mb-6 hidden">
-                <label for="delete-confirm-name-input" class="block mb-2 text-sm font-medium text-gray-700"><?= htmlspecialchars(t('admin_modal_label_type_galaxy_name', 'Please type the name of the galaxy to confirm:')) ?></label>
-                <input type="text"
-                       id="delete-confirm-name-input"
-                       oninput="checkDeleteConfirmName(this)"
-                       placeholder="<?= t_attr('admin_modal_placeholder_type_name', 'Type name here...') ?>"
-                       class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-error">
-            </div>
-
             <div class="modal-action">
                 <form id="delete-form" method="POST" action="">
                     <input type="hidden" name="action" id="delete-action" value="">
                     <input type="hidden" name="id" id="delete-id" value="">
+                    <div id="delete-name-confirm-wrap" class="mb-6 hidden w-full">
+                        <label for="delete-confirm-name-input" class="block mb-2 text-sm font-medium text-gray-700"><?= htmlspecialchars(t('admin_modal_label_type_to_confirm', 'To confirm, type the following exactly:')) ?></label>
+                        <div id="delete-confirm-name-hint" class="mb-2 px-2 py-1 bg-gray-100 border border-gray-300 rounded text-sm font-mono text-gray-800 break-all"></div>
+                        <input type="text"
+                               id="delete-confirm-name-input"
+                               name="confirm_name"
+                               oninput="checkDeleteConfirmName(this)"
+                               placeholder="<?= t_attr('admin_modal_placeholder_type_name', 'Type name here...') ?>"
+                               class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-error">
+                    </div>
                     <button type="submit" id="delete-confirm-btn" class="btn btn-error text-white"><?= htmlspecialchars(t('admin_modal_btn_delete', 'Delete')) ?></button>
                 </form>
                 <button type="button" class="btn" onclick="document.getElementById('delete_confirm_modal').close()"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
