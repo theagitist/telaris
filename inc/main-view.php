@@ -619,7 +619,7 @@ header("X-Content-Type-Options: nosniff");
         {
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"<?php /* Pinned at 0.160 (Dec 2023). The 2026-05-22 audit flagged ~24 newer minors of perf and stability fixes; a bump to 0.170+ needs a manual visual regression pass on the 3D scene (BokehPass, UnrealBloomPass, custom shaders), the Tech-theme corridor effect, and Portal-torus animations. Queued in [[Documentation/ROADMAP]] as a focused regression session. */ ?>,
                 "./telaris-3d.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-3d.js')); ?>",
                 "./network-manager.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'network-manager.js')); ?>",
                 "./geometry-manager.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'geometry-manager.js')); ?>",
