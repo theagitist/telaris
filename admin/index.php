@@ -149,6 +149,15 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     if ($type === USER_TYPE_EDITOR) {
                         db_set_user_constellations($newUser['id'], $constellationIds);
                     }
+                    db_audit_log(
+                        action: 'user.create',
+                        actorUserId: $_SESSION['admin_user_id'] ?? null,
+                        targetType: 'user',
+                        targetId: (string)$newUser['id'],
+                        details: ['type' => $type, 'galaxies' => count($constellationIds)],
+                        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                        actorEmail: $_SESSION['admin_user_email'] ?? null,
+                    );
                 }
                 $message = 'User created successfully.';
                 $activeTab = 'users';
@@ -198,6 +207,14 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     throw new Exception('You cannot delete your own account');
                 }
                 db_delete_user($id);
+                db_audit_log(
+                    action: 'user.delete',
+                    actorUserId: $_SESSION['admin_user_id'] ?? null,
+                    targetType: 'user',
+                    targetId: $id,
+                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    actorEmail: $_SESSION['admin_user_email'] ?? null,
+                );
                 $message = 'User deleted successfully.';
                 $activeTab = 'users';
             })(),
@@ -273,6 +290,14 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 global $message, $error, $activeTab;
                 $id = (int)($_POST['id'] ?? -1);
                 db_delete_constellation($id);
+                db_audit_log(
+                    action: 'galaxy.delete',
+                    actorUserId: $_SESSION['admin_user_id'] ?? null,
+                    targetType: 'galaxy',
+                    targetId: (string)$id,
+                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    actorEmail: $_SESSION['admin_user_email'] ?? null,
+                );
                 $message = 'Galaxy deleted successfully.';
                 $activeTab = 'constellations';
             })(),

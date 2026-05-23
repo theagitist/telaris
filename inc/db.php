@@ -6694,6 +6694,97 @@ function db_count_recent_auth_attempts(
     return (int)$stmt->fetchColumn();
 }
 
+// ── Audit log ────────────────────────────────────────────────────────────────
+//
+// Append-only record of meaningful operator and editorial actions: who did
+// what, to which target, when, from which IP. Distinct from auth_attempts
+// (which is about authentication rate-limiting) and the per-row created_by
+// columns (which record content authorship). The audit log captures
+// administrative actions whose history doesn't survive any single row:
+// user provisioning, snapshot restores, galaxy deletions, bridge imports,
+// schema migrations.
+//
+// Retention: opportunistic prune after 365 days (configurable via the
+// AUDIT_LOG_KEEP_DAYS constant in config.php; default 365).
+
+function db_ensure_audit_events_table(): void {
+    $pdo = getDB();
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS audit_events (
+            id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            action VARCHAR(64) NOT NULL,
+            actor_user_id VARCHAR(255) NULL,
+            actor_email_tag VARCHAR(64) NULL,
+            target_type VARCHAR(32) NULL,
+            target_id VARCHAR(64) NULL,
+            details_json JSON NULL,
+            ip VARCHAR(45) NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_action_time (action, created_at),
+            INDEX idx_actor_time (actor_user_id, created_at),
+            INDEX idx_target (target_type, target_id),
+            CONSTRAINT fk_audit_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+}
+
+/**
+ * Record an audit event. All arguments are optional except $action; failures
+ * are swallowed (audit logging must never break the work it observes). The
+ * caller can pass null for actor / target / details when they are not
+ * known or not applicable.
+ */
+function db_audit_log(
+    string $action,
+    ?string $actorUserId = null,
+    ?string $targetType = null,
+    ?string $targetId = null,
+    ?array $details = null,
+    ?string $ip = null,
+    ?string $actorEmail = null
+): void {
+    try {
+        db_ensure_audit_events_table();
+        $pdo = getDB();
+        $actorTag = null;
+        if ($actorEmail !== null && $actorEmail !== '') {
+            // Mirror mail_recipient_tag: stable SHA-256 prefix that lets ops
+            // cross-reference between a reported address and a log row without
+            // storing the address itself. Inlined to avoid coupling on
+            // inc/mail.php being loaded (the helper is fail-open by design).
+            $actorTag = 'addr:' . substr(hash('sha256', strtolower(trim($actorEmail))), 0, 12);
+        }
+        $stmt = $pdo->prepare("
+            INSERT INTO audit_events (action, actor_user_id, actor_email_tag, target_type, target_id, details_json, ip)
+            VALUES (:action, :actor, :tag, :ttype, :tid, :details, :ip)
+        ");
+        $stmt->execute([
+            ':action' => mb_substr($action, 0, 64),
+            ':actor' => $actorUserId !== null && $actorUserId !== '' ? mb_substr($actorUserId, 0, 255) : null,
+            ':tag' => $actorTag,
+            ':ttype' => $targetType !== null && $targetType !== '' ? mb_substr($targetType, 0, 32) : null,
+            ':tid' => $targetId !== null && $targetId !== '' ? mb_substr($targetId, 0, 64) : null,
+            ':details' => $details !== null ? json_encode($details, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null,
+            ':ip' => $ip !== null && $ip !== '' ? mb_substr($ip, 0, 45) : null,
+        ]);
+        // Opportunistic prune once per process: drop rows older than retention.
+        static $pruned = false;
+        if (!$pruned) {
+            $pruned = true;
+            $keepDays = defined('AUDIT_LOG_KEEP_DAYS') ? max(7, (int)AUDIT_LOG_KEEP_DAYS) : 365;
+            try {
+                $pdo->exec("DELETE FROM audit_events WHERE created_at < (NOW() - INTERVAL {$keepDays} DAY)");
+            } catch (Throwable $e) {
+                error_log('db_audit_log: prune failed: ' . $e->getMessage());
+            }
+        }
+    } catch (Throwable $e) {
+        // Audit logging never breaks the caller. Surface the failure so ops
+        // notices that the audit pipeline is broken.
+        error_log('db_audit_log failed (' . $action . '): ' . $e->getMessage());
+    }
+}
+
 /**
  * @return list<array<string, mixed>>
  */

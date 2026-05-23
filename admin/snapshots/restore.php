@@ -36,8 +36,26 @@ if ($confirmText !== 'RESTORE') {
 
 try {
     $report = snapshot_restore($id, $confirmNoAdmin);
+    db_audit_log(
+        action: 'snapshot.restore',
+        actorUserId: $_SESSION['admin_user_id'] ?? null,
+        targetType: 'snapshot',
+        targetId: (string)$id,
+        details: ['confirm_no_admin' => $confirmNoAdmin],
+        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        actorEmail: $_SESSION['admin_user_email'] ?? null,
+    );
     echo json_encode(['ok' => true, 'report' => $report]);
 } catch (Throwable $e) {
+    db_audit_log(
+        action: 'snapshot.restore.failed',
+        actorUserId: $_SESSION['admin_user_id'] ?? null,
+        targetType: 'snapshot',
+        targetId: (string)$id,
+        details: ['error' => $e->getMessage()],
+        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        actorEmail: $_SESSION['admin_user_email'] ?? null,
+    );
     error_log('snapshots/restore.php: ' . $e->getMessage());
     api_error('500.001', 'Internal server error.');
 }
