@@ -5,6 +5,15 @@ declare(strict_types=1);
  * Post-upload media optimization functions.
  * All functions optimize files IN-PLACE. If the required tool is unavailable
  * or optimization fails, the original file is left untouched.
+ *
+ * THREADING NOTE (audit Med-J, queued):
+ * Optimization currently runs synchronously inside the upload request and
+ * shells out to convert / jpegoptim / ffmpeg / cwebp. Large videos can pin
+ * an FPM worker for tens of seconds. Migrating to a background queue is a
+ * real architectural change — queue table, worker process, retry / DLQ,
+ * UI "processing" state. Tracked on ROADMAP under ^async-media-pipeline.
+ * Until then, the set_time_limit cap (inc/snapshots.php pattern) and the
+ * FPM pool's max_children are the operational safeguards.
  */
 
 /**

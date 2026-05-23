@@ -5,6 +5,21 @@ declare(strict_types=1);
  * Serves uploaded media files from the external storage directory.
  * Validates the path to prevent directory traversal attacks.
  * Supports HTTP Range requests (required for audio/video playback).
+ *
+ * AUTH POSTURE (audit Med-K, design decision):
+ * Uploads are visitor-public by design. /uploads/{const_id}/{node_id}/file
+ * paths are sequential and discoverable, which the audit flagged as a
+ * potential leak vector if an editor uploads sensitive media to test
+ * rendering. Telaris does not have a published/draft model — everything is
+ * live — and the editorial-sovereignty stance is that media is published
+ * the moment it is uploaded. Adding a wormhole-state auth gate (only serve
+ * when the parent node is "published") would impose the platform-pattern
+ * the project explicitly refuses; instead, editors are expected to upload
+ * only material they intend to publish, and the documentation surfaces
+ * this norm.
+ *
+ * If a future feature introduces a real draft concept, this is the right
+ * place to add a gate: read the parent node's state and 403 when draft.
  */
 
 require_once __DIR__ . '/config.php';
