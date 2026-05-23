@@ -260,7 +260,11 @@ function bulk_users_apply(array $rows, string $baseUrl): array {
             $r['galaxy_slug'] = $galaxySlug;
             $outRows[] = $r;
         } catch (Throwable $e) {
-            error_log('bulk_users_apply error for ' . $row['email'] . ': ' . $e->getMessage());
+            // Redact the email — error_log isn't a PII channel.
+            $tag = function_exists('mail_recipient_tag')
+                ? mail_recipient_tag((string)($row['email'] ?? ''))
+                : 'addr:' . substr(hash('sha256', strtolower(trim((string)($row['email'] ?? '')))), 0, 12);
+            error_log('bulk_users_apply error for ' . $tag . ': ' . $e->getMessage());
             $r['outcome'] = 'create_failed';
             $r['note'] = 'Internal error';
             $skippedInvalid++;

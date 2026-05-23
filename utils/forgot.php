@@ -44,9 +44,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 $user = db_get_user_by_email($email);
             if ($user) {
                 $token = db_create_password_reset_token((string)$user['id'], 86400); // 24h
-                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                $resetUrl = $scheme . '://' . $host . '/utils/reset.php?token=' . urlencode($token);
+                // SITE_BASE_URL is defined in config.php (preferred) — pinning the
+                // host prevents Host-header injection attacks on the reset email.
+                // Fallback to the request's host only when SITE_BASE_URL is unset,
+                // and log a warning so the operator knows to set it.
+                if (defined('SITE_BASE_URL') && is_string(SITE_BASE_URL) && preg_match('#^https?://#', SITE_BASE_URL)) {
+                    $base = rtrim(SITE_BASE_URL, '/');
+                } else {
+                    error_log('utils/forgot.php: SITE_BASE_URL is not defined in config.php; falling back to Host header (Host-injection risk).');
+                    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                    $base = $scheme . '://' . $host;
+                }
+                $resetUrl = $base . '/utils/reset.php?token=' . urlencode($token);
 
                 $appName = defined('MAIL_FROM_NAME') && MAIL_FROM_NAME !== '' ? (string)MAIL_FROM_NAME : 'Telaris';
                 $name = trim(((string)($user['firstname'] ?? '')) . ' ' . ((string)($user['lastname'] ?? '')));

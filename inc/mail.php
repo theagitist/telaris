@@ -8,12 +8,24 @@ declare(strict_types=1);
  * mail_is_configured(): returns true if all required constants are non-empty.
  * mail_send(): sends a single message; returns true on success, false otherwise.
  *              On failure, the PHPMailer error is written to error_log; never thrown.
+ *              Recipient address is redacted to a SHA-256 prefix in logs so the
+ *              error log is not a PII channel.
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception as PHPMailerException;
+
+/**
+ * Stable, opaque tag for an email address — first 12 hex chars of its SHA-256.
+ * Used in error_log to identify which recipient a failure relates to without
+ * writing the address itself. Hashing is deterministic so support can still
+ * cross-reference between a user-reported address and a log line.
+ */
+function mail_recipient_tag(string $to): string {
+    return 'addr:' . substr(hash('sha256', strtolower(trim($to))), 0, 12);
+}
 
 /**
  * @return bool True iff the SMTP relay constants are populated; otherwise mail_send is a no-op.
@@ -37,7 +49,7 @@ function mail_is_configured(): bool {
  */
 function mail_send(string $to, string $subject, string $html, ?string $text = null, ?string $toName = null): bool {
     if (!mail_is_configured()) {
-        error_log('mail_send: MAIL_SMTP_* not configured; skipping send to ' . $to);
+        error_log('mail_send: MAIL_SMTP_* not configured; skipping send to ' . mail_recipient_tag($to));
         return false;
     }
 
@@ -73,10 +85,10 @@ function mail_send(string $to, string $subject, string $html, ?string $text = nu
         $mail->send();
         return true;
     } catch (PHPMailerException $e) {
-        error_log('mail_send error to ' . $to . ': ' . $mail->ErrorInfo);
+        error_log('mail_send error to ' . mail_recipient_tag($to) . ': ' . $mail->ErrorInfo);
         return false;
     } catch (Throwable $e) {
-        error_log('mail_send exception to ' . $to . ': ' . $e->getMessage());
+        error_log('mail_send exception to ' . mail_recipient_tag($to) . ': ' . $e->getMessage());
         return false;
     }
 }
