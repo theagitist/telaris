@@ -339,6 +339,10 @@ function backup_write_to_file(array $dump, string $outputPath): array {
         throw new RuntimeException('Failed to gzip the backup payload.');
     }
     unset($json);
+    // Integrity hash over the gzipped payload (the exact bytes on disk). Callers
+    // that store snapshot metadata persist this and pass it back to
+    // backup_decode_file on read to detect on-disk corruption or tampering.
+    $sha256 = hash('sha256', $gz);
     $dir = dirname($outputPath);
     // Pre-flight: surface the real cause (missing dir, wrong perms, fallback
     // path, etc.) instead of a generic file_put_contents=false later on.
@@ -362,7 +366,7 @@ function backup_write_to_file(array $dump, string $outputPath): array {
         $reason = ($err && !empty($err['message'])) ? ' (' . $err['message'] . ')' : '';
         throw new RuntimeException('Failed to write backup to ' . $outputPath . $reason);
     }
-    return ['size_bytes' => $written];
+    return ['size_bytes' => $written, 'sha256' => $sha256];
 }
 
 // ---------------------------------------------------------------------------
@@ -371,8 +375,14 @@ function backup_write_to_file(array $dump, string $outputPath): array {
 
 /**
  * Read a backup file and return its decoded array.
+ *
+ * @param string $path File to read.
+ * @param ?string $expectedSha256 Optional sha256 hex string of the on-disk
+ *   gzipped bytes. When supplied (snapshot restore path), the hash is
+ *   recomputed and a mismatch throws. Operator-uploaded imports pass null
+ *   since the hash is not known in advance.
  */
-function backup_decode_file(string $path): array {
+function backup_decode_file(string $path, ?string $expectedSha256 = null): array {
     if (!is_file($path) || !is_readable($path)) {
         throw new RuntimeException('Backup file not found or unreadable.');
     }
@@ -380,9 +390,18 @@ function backup_decode_file(string $path): array {
     if ($raw === false) {
         throw new RuntimeException('Failed to read backup file.');
     }
-    // Try gzip first; fall back to plain JSON
-    $decoded = @gzdecode($raw);
-    $json = $decoded !== false ? $decoded : $raw;
+    if ($expectedSha256 !== null && $expectedSha256 !== '') {
+        $actual = hash('sha256', $raw);
+        if (!hash_equals($expectedSha256, $actual)) {
+            throw new RuntimeException('Backup integrity check failed: sha256 mismatch.');
+        }
+    }
+    // Require gzip. backup_write_to_file always gzencodes; a non-gzipped or
+    // truncated file is rejected rather than silently parsed as plain JSON.
+    $json = @gzdecode($raw);
+    if ($json === false) {
+        throw new RuntimeException('Backup file is not a valid gzip stream.');
+    }
     try {
         $arr = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
     } catch (JsonException $e) {
@@ -391,7 +410,11 @@ function backup_decode_file(string $path): array {
     if (!is_array($arr) || ($arr['format'] ?? null) !== BACKUP_FORMAT) {
         throw new RuntimeException('Not a Telaris backup file.');
     }
-    if ((int)($arr['format_version'] ?? 0) > BACKUP_FORMAT_VERSION) {
+    $fv = (int)($arr['format_version'] ?? 0);
+    if ($fv < 1) {
+        throw new RuntimeException('Backup format version is missing or invalid.');
+    }
+    if ($fv > BACKUP_FORMAT_VERSION) {
         throw new RuntimeException('Backup format version is newer than this app supports.');
     }
     return $arr;
@@ -401,8 +424,8 @@ function backup_decode_file(string $path): array {
  * Return a summary of a backup file without modifying anything.
  * Used by the import UI's inspect phase.
  */
-function backup_inspect_file(string $path): array {
-    $dump = backup_decode_file($path);
+function backup_inspect_file(string $path, ?string $expectedSha256 = null): array {
+    $dump = backup_decode_file($path, $expectedSha256);
     $galaxies = $dump['galaxies'] ?? [];
     $users = $dump['users'] ?? [];
     $blobs = $dump['media_blobs'] ?? [];
@@ -468,7 +491,8 @@ function backup_inspect_file(string $path): array {
  * @return array Outcome report.
  */
 function backup_restore_from_file(string $path, array $opts): array {
-    $dump = backup_decode_file($path);
+    $expectedSha256 = isset($opts['expected_sha256']) ? (string)$opts['expected_sha256'] : null;
+    $dump = backup_decode_file($path, $expectedSha256 !== '' ? $expectedSha256 : null);
     $mode = $opts['mode'] ?? 'granular';
     $restoreUsers = $opts['restore_users'] ?? true;
     $restoreMedia = $opts['restore_media'] ?? true;
@@ -694,6 +718,23 @@ function backup_restore_from_file(string $path, array $opts): array {
  * @return array{action: string, new_id: int, portal_updates: array, media_written: int, media_skipped: int}
  */
 function backup_restore_one_galaxy(array $g, array $dump, array $opts): array {
+    // Per-galaxy atomicity. Either every DB write for this galaxy lands, or
+    // none of them do. Without this, a mid-galaxy failure (e.g. media write
+    // throws after the constellation row is in place) left the system with a
+    // partial constellation referenced by orphan rows. On rollback, the
+    // outer per-galaxy try/catch in backup_restore_from_file records the
+    // failure into report['galaxies_failed'] and the next galaxy proceeds.
+    //
+    // Note: on-disk media written before the throw are not rolled back; they
+    // sit as orphans in uploads/<id>/ that nobody can reach (the constellation
+    // row is gone). That's a leak, not corruption, and acceptable.
+    $pdo = getDB();
+    $ownTxn = !$pdo->inTransaction();
+    if ($ownTxn) {
+        $pdo->beginTransaction();
+    }
+
+    try {
     $mode = $opts['mode'];
     $conflict = $opts['conflict'];
     $renameSuffix = $opts['rename_suffix'] ?? ' (restored)';
@@ -864,11 +905,22 @@ function backup_restore_one_galaxy(array $g, array $dump, array $opts): array {
         }
     }
 
-    return [
+    $result = [
         'action' => $action,
         'new_id' => $targetId,
         'portal_updates' => $portalUpdates,
         'media_written' => $mediaWritten,
         'media_skipped' => $mediaSkipped,
     ];
+
+        if ($ownTxn && $pdo->inTransaction()) {
+            $pdo->commit();
+        }
+        return $result;
+    } catch (Throwable $e) {
+        if ($ownTxn && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 }

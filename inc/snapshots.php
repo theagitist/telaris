@@ -139,13 +139,14 @@ function snapshot_create(?string $note = null, string $trigger = 'manual', ?stri
         unset($dump);
 
         $pdo = getDB();
-        $stmt = $pdo->prepare("INSERT INTO snapshots (filename, size_bytes, created_by, trigger_type, note) VALUES (:f, :s, :u, :t, :n)");
+        $stmt = $pdo->prepare("INSERT INTO snapshots (filename, size_bytes, created_by, trigger_type, note, sha256) VALUES (:f, :s, :u, :t, :n, :h)");
         $stmt->execute([
             ':f' => $filename,
             ':s' => $written['size_bytes'],
             ':u' => $userId,
             ':t' => $trigger,
             ':n' => $note !== null && $note !== '' ? $note : null,
+            ':h' => $written['sha256'] ?? null,
         ]);
         return (int)$pdo->lastInsertId();
     } finally {
@@ -181,7 +182,7 @@ function snapshot_list(): array {
 function snapshot_get(int $id): ?array {
     db_ensure_snapshots_tables();
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT id, filename, created_at, size_bytes, created_by, trigger_type, note FROM snapshots WHERE id = :id LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, filename, created_at, size_bytes, created_by, trigger_type, note, sha256 FROM snapshots WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch();
     return $row ?: null;
@@ -221,40 +222,63 @@ function snapshot_restore(int $id, bool $confirmNoAdmin = false): array {
     if (!file_exists($path)) {
         throw new RuntimeException('Snapshot file is missing on disk.');
     }
-    // Admin-presence guard
-    $summary = backup_inspect_file($path);
+    // Integrity hash recorded at write time. Legacy snapshots predate the
+    // column and carry NULL; in that case verification is skipped rather than
+    // refusing to restore. New snapshots always carry a value.
+    $expectedSha256 = isset($row['sha256']) && $row['sha256'] !== '' ? (string)$row['sha256'] : null;
+
+    // Admin-presence guard. backup_inspect_file also runs the integrity check
+    // when the expected hash is supplied, so a sha256 mismatch throws here
+    // before any DB mutation.
+    $summary = backup_inspect_file($path, $expectedSha256);
     if (!$confirmNoAdmin && empty($summary['has_admin_user'])) {
         throw new RuntimeException('Snapshot contains no admin user; restoring would lock everyone out. Pass confirmNoAdmin=true to override.');
     }
 
-    $report = backup_restore_from_file($path, [
-        'mode' => 'wipe_all',
-        'restore_users' => true,
-        'restore_media' => true,
-        'users_replace_existing' => false,
-        'users_replace_password' => false,
-    ]);
+    // Restore is mutually exclusive with create and with any concurrent restore.
+    // Without this lock, a cron snapshot_create and an operator-triggered
+    // snapshot_restore could interleave (cron dumps tables mid-wipe) and produce
+    // a corrupted snapshot file. Throws SnapshotLockHeldException on contention.
+    $lock = snapshot_acquire_lock();
 
-    // Delete all snapshots with created_at > this snapshot's timestamp
-    $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT id, filename FROM snapshots WHERE created_at > :t");
-    $stmt->execute([':t' => $row['created_at']]);
-    $toDelete = $stmt->fetchAll();
-    foreach ($toDelete as $d) {
-        $p = snapshot_full_path($d['filename']);
-        if (file_exists($p) && !@unlink($p)) {
-            $err = error_get_last();
-            error_log("snapshot housekeeping: unlink failed for {$p}: " . ($err['message'] ?? 'unknown'));
+    try {
+        // Bump limits to match snapshot_create — restore touches the same volume
+        // of data and runs the same path under FPM.
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(1800);
+
+        $report = backup_restore_from_file($path, [
+            'mode' => 'wipe_all',
+            'restore_users' => true,
+            'restore_media' => true,
+            'users_replace_existing' => false,
+            'users_replace_password' => false,
+            'expected_sha256' => $expectedSha256,
+        ]);
+
+        // Delete all snapshots with created_at > this snapshot's timestamp
+        $pdo = getDB();
+        $stmt = $pdo->prepare("SELECT id, filename FROM snapshots WHERE created_at > :t");
+        $stmt->execute([':t' => $row['created_at']]);
+        $toDelete = $stmt->fetchAll();
+        foreach ($toDelete as $d) {
+            $p = snapshot_full_path($d['filename']);
+            if (file_exists($p) && !@unlink($p)) {
+                $err = error_get_last();
+                error_log("snapshot housekeeping: unlink failed for {$p}: " . ($err['message'] ?? 'unknown'));
+            }
         }
+        if ($toDelete !== []) {
+            $ids = array_map(fn($d) => (int)$d['id'], $toDelete);
+            $place = implode(',', array_fill(0, count($ids), '?'));
+            $pdo->prepare("DELETE FROM snapshots WHERE id IN ($place)")->execute($ids);
+        }
+        $report['snapshots_deleted_after_restore'] = count($toDelete);
+        $report['restored_snapshot_id'] = (int)$row['id'];
+        return $report;
+    } finally {
+        snapshot_release_lock($lock);
     }
-    if ($toDelete !== []) {
-        $ids = array_map(fn($d) => (int)$d['id'], $toDelete);
-        $place = implode(',', array_fill(0, count($ids), '?'));
-        $pdo->prepare("DELETE FROM snapshots WHERE id IN ($place)")->execute($ids);
-    }
-    $report['snapshots_deleted_after_restore'] = count($toDelete);
-    $report['restored_snapshot_id'] = (int)$row['id'];
-    return $report;
 }
 
 // ---------------------------------------------------------------------------

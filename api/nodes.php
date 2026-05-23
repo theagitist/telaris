@@ -456,10 +456,19 @@ try {
             }
 
             $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
-            if ($targetConstellationId !== null && db_get_constellation_by_id($targetConstellationId) === null) {
-                http_response_code(400);
-                api_error('404.008', 'The target galaxy does not exist.');
-                return;
+            if ($targetConstellationId !== null) {
+                if (db_get_constellation_by_id($targetConstellationId) === null) {
+                    http_response_code(400);
+                    api_error('404.008', 'The target galaxy does not exist.');
+                    return;
+                }
+                $accessError = checkEditorConstellationAccess($targetConstellationId);
+                if ($accessError !== null) {
+                    http_response_code(403);
+                    error_log('nodes.php access (portal target): ' . $accessError);
+                    api_error('403.005', 'Access denied.');
+                    return;
+                }
             }
 
             $imageUrl = (isset($data['image_url']) && !empty(trim((string)$data['image_url']))) ? trim((string)$data['image_url']) : null;

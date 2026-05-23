@@ -5981,11 +5981,19 @@ function db_ensure_snapshots_tables(): void {
                 created_by VARCHAR(255) NULL,
                 trigger_type ENUM('manual','scheduled') NOT NULL DEFAULT 'manual',
                 note VARCHAR(500) NULL,
+                sha256 CHAR(64) NULL,
                 UNIQUE KEY unique_filename (filename),
                 INDEX idx_created_at (created_at),
                 FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+        // Idempotent backfill: older installs predate the integrity column.
+        // NULL means "no recorded checksum" — restore proceeds without
+        // verification rather than refusing to restore legacy snapshots.
+        $snapCols = $pdo->query("SHOW COLUMNS FROM snapshots")->fetchAll(PDO::FETCH_COLUMN, 0);
+        if (!in_array('sha256', $snapCols, true)) {
+            $pdo->exec("ALTER TABLE snapshots ADD COLUMN sha256 CHAR(64) NULL AFTER note");
+        }
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS snapshot_schedule (
                 id TINYINT NOT NULL PRIMARY KEY DEFAULT 1,
@@ -7143,7 +7151,10 @@ function db_set_tags_for_galaxy(int $constellationId, array $labels, ?string $cr
     db_ensure_galaxy_tags_table();
     db_ensure_galaxy_tags_provenance_columns();
     $pdo = getDB();
-    $pdo->beginTransaction();
+    $ownTxn = !$pdo->inTransaction();
+    if ($ownTxn) {
+        $pdo->beginTransaction();
+    }
     try {
         // Delete-then-insert means we lose prior creator attribution on tag
         // rotations. That's correct: a tag re-added after removal is a fresh
@@ -7166,9 +7177,13 @@ function db_set_tags_for_galaxy(int $constellationId, array $labels, ?string $cr
                 ':created_by' => $createdBy,
             ]);
         }
-        $pdo->commit();
+        if ($ownTxn) {
+            $pdo->commit();
+        }
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        if ($ownTxn && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $e;
     }
 }
@@ -8345,7 +8360,10 @@ function db_set_tour_keyword_ids(int $constellationId, array $keywordIds): void 
         $allowed = [];
     }
 
-    $pdo->beginTransaction();
+    $ownTxn = !$pdo->inTransaction();
+    if ($ownTxn) {
+        $pdo->beginTransaction();
+    }
     try {
         $pdo->prepare("DELETE FROM constellation_tour_keywords WHERE constellation_id = :cid")
             ->execute([':cid' => $constellationId]);
@@ -8355,9 +8373,11 @@ function db_set_tour_keyword_ids(int $constellationId, array $keywordIds): void 
                 $insert->execute([':cid' => $constellationId, ':kid' => $kid]);
             }
         }
-        $pdo->commit();
+        if ($ownTxn) {
+            $pdo->commit();
+        }
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
+        if ($ownTxn && $pdo->inTransaction()) {
             $pdo->rollBack();
         }
         throw $e;
