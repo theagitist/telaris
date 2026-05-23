@@ -89,6 +89,34 @@ function requireWriteAccess(): void {
     if ($type !== 1 && $type !== 2) { // 1=editor, 2=admin
         api_error('403.002', 'Insufficient permissions for write operations.');
     }
+    // CSRF: every write endpoint also requires the token. SameSite=Strict on the
+    // session cookie is the belt; this is the suspenders, and the right primitive
+    // when the cookie boundary shifts (subdomains, CORS, future flows).
+    verify_csrf_token();
+}
+
+/**
+ * Verify the request carries a valid CSRF token. Reads X-CSRF-Token (header)
+ * first, then csrf_token in $_POST. JSON-body callers must send the header
+ * because $_POST is empty for application/json. Session is started if not
+ * already up; the token is established on first auth-page render.
+ *
+ * Call this AFTER requireWriteAccess() on every write endpoint. SameSite=Strict
+ * already blocks cross-origin form posts, but the token is the explicit
+ * defence and the right primitive when the cookie boundary shifts (CORS,
+ * subdomains, etc.).
+ */
+function verify_csrf_token(): void {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    $expected = $_SESSION['csrf_token'] ?? '';
+    $header = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    $field = $_POST['csrf_token'] ?? '';
+    $submitted = $header !== '' ? $header : $field;
+    if ($expected === '' || $submitted === '' || !hash_equals($expected, $submitted)) {
+        api_error('403.003', 'Invalid security token. Please reload the page and try again.');
+    }
 }
 
 /**

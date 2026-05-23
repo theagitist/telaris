@@ -1228,6 +1228,7 @@ foreach ($importantExtensions as $ext => $name) {
     <script>
         const API_KEY = <?php echo json_encode(getDefaultApiKey()); ?>;
         const CSRF_TOKEN = <?php echo json_encode($csrfToken); ?>;
+        window.TELARIS_CSRF_TOKEN = CSRF_TOKEN;
         const API_URL = '../api/validate.php';
 
         window.TELARIS_ADMIN = <?= json_encode([

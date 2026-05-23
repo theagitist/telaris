@@ -9,10 +9,12 @@ requireEditorOrAdminLogin();
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../inc/db.php';
 require_once __DIR__ . '/../inc/api-error.php';
+require_once __DIR__ . '/../api/auth.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     api_error('405.001', 'Method not allowed.');
 }
+verify_csrf_token();
 
 $input = file_get_contents('php://input');
 $data = json_decode($input, true);

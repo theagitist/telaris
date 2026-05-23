@@ -15,19 +15,30 @@ require_once __DIR__ . '/../config.php';
 
 $appVersion = trim(@file_get_contents(__DIR__ . '/../VERSION') ?: '0.0.0');
 
+// Establish per-session CSRF token; mirrored to JS as CSRF_TOKEN further down.
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['csrf_token'];
+
 $galaxyEditMessage = null;
 $galaxyEditError = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_constellation') {
-    require_once __DIR__ . '/../inc/galaxy-update.php';
-    $result = handle_galaxy_update_post(
-        $_POST,
-        $_SESSION['admin_user_id'] ?? null,
-        isAdminLoggedIn()
-    );
-    if ($result['ok']) {
-        $galaxyEditMessage = $result['message'];
+    $submittedToken = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($csrfToken, $submittedToken)) {
+        $galaxyEditError = t('auth_error_invalid_request', 'Invalid request. Please reload the page and try again.');
     } else {
-        $galaxyEditError = $result['message'];
+        require_once __DIR__ . '/../inc/galaxy-update.php';
+        $result = handle_galaxy_update_post(
+            $_POST,
+            $_SESSION['admin_user_id'] ?? null,
+            isAdminLoggedIn()
+        );
+        if ($result['ok']) {
+            $galaxyEditMessage = $result['message'];
+        } else {
+            $galaxyEditError = $result['message'];
+        }
     }
 }
 
@@ -253,8 +264,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
     <script>
         const API_KEY = <?php echo $apiKey !== null ? json_encode($apiKey, JSON_THROW_ON_ERROR) : 'null'; ?>;
+        const CSRF_TOKEN = <?php echo json_encode($csrfToken); ?>;
+        window.TELARIS_CSRF_TOKEN = CSRF_TOKEN;
         const API_BASE = '../api/nodes.php';
         const CONSTELLATIONS_API = '../api/constellations.php';
+        // Header shim — every write fetch in this file already carries
+        // X-CSRF-Token alongside X-API-Key via the inline replacement below;
+        // this helper exists for ad-hoc callers.
+        function writeHeaders(extra = {}) {
+            const h = {};
+            h[String.fromCharCode(88)+'-API-Key'] = API_KEY;
+            h[String.fromCharCode(88)+'-CSRF-Token'] = CSRF_TOKEN;
+            return Object.assign(h, extra);
+        }
         const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'slug' => $c['slug'], 'import_source' => $c['import_source'] ?? null], $constellations), JSON_THROW_ON_ERROR); ?>;
 
         // Localized strings consumed by inline JS. Mirrors the visitor-side
@@ -405,7 +427,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         (function fetchConstellationsAtStart() {
             if (!API_KEY) return;
-            fetch(CONSTELLATIONS_API, { headers: { 'X-API-Key': API_KEY } })
+            fetch(CONSTELLATIONS_API, { headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN } })
                 .then(r => r.ok ? r.json() : Promise.resolve([]))
                 .then(data => { allConstellations = Array.isArray(data) ? data.map(c => ({ id: c.id, name: c.name || '' })) : []; })
                 .catch(() => {});
@@ -520,7 +542,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     return fetch(API_BASE, {
                         method: 'POST',
                         headers: {
-                            'X-API-Key': API_KEY,
+                            'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN,
                             'X-HTTP-Method-Override': 'PUT'
                         },
                         body: formData
@@ -556,7 +578,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (!node) {
                 try {
                     const response = await fetch(`${API_BASE}?id=${id}`, {
-                        headers: { 'X-API-Key': API_KEY }
+                        headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN }
                     });
                     if (!response.ok) return;
                     node = await response.json();
@@ -577,7 +599,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             try {
                 const response = await fetch(API_BASE, {
                     method: 'POST',
-                    headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' },
+                    headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ duplicate_from: sourceId, constellation_id: constellationId })
                 });
                 if (response.ok) {
@@ -616,7 +638,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const promises = ids.map(id =>
                     fetch(API_BASE, {
                         method: 'POST',
-                        headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' },
+                        headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN, 'Content-Type': 'application/json' },
                         body: JSON.stringify({ duplicate_from: id, constellation_id: constellationId })
                     }).then(r => {
                         if (r.ok) successCount++;
@@ -675,7 +697,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     const promises = ids.map(id => 
                         fetch(`${API_BASE}?id=${id}`, {
                             method: 'DELETE',
-                            headers: { 'X-API-Key': API_KEY }
+                            headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN }
                         }).then(r => {
                             if (r.ok) successCount++;
                             else errorCount++;
@@ -963,7 +985,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 }
 
                 const response = await fetch(API_BASE + '?' + params.toString(), {
-                    headers: { 'X-API-Key': API_KEY }
+                    headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN }
                 });
 
                 const responseText = await response.text();
@@ -1342,7 +1364,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             let node = allNodes.find(n => n.id === id);
             if (!node) {
                 try {
-                    const res = await fetch(`${NODES_API}?id=${id}`, { headers: { 'X-API-Key': API_KEY } });
+                    const res = await fetch(`${NODES_API}?id=${id}`, { headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN } });
                     if (res.ok) node = await res.json();
                 } catch (e) { /* ignore */ }
             }
@@ -1518,7 +1540,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 // Node not on current page — fetch from API
                 try {
                     const response = await fetch(`${API_BASE}?id=${id}`, {
-                        headers: { 'X-API-Key': API_KEY }
+                        headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN }
                     });
                     if (!response.ok) throw new Error('Failed to fetch node');
                     node = await response.json();
@@ -1846,7 +1868,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 try {
                     const response = await fetch(`${API_BASE}?id=${nodeId}&file_type=${type}`, {
                         method: 'DELETE',
-                        headers: { 'X-API-Key': API_KEY }
+                        headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN }
                     });
 
                     if (!response.ok) throw new Error('Failed to delete file');
@@ -1881,7 +1903,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     const response = await fetch(`${API_BASE}?id=${id}`, {
                         method: 'DELETE',
                         headers: {
-                            'X-API-Key': API_KEY
+                            'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN
                         }
                     });
 
@@ -2163,7 +2185,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (keywordSuggestionCache.has(cid)) return keywordSuggestionCache.get(cid);
             try {
                 const r = await fetch(`../api/keywords.php?constellation_id=${cid}&autocomplete=1`, {
-                    headers: { 'X-API-Key': API_KEY }
+                    headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN }
                 });
                 if (!r.ok) throw new Error('fetch failed');
                 const data = await r.json();
@@ -2963,7 +2985,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
             // Load keyword list for the current galaxy.
             try {
-                const r = await fetch(`../api/keywords.php?constellation_id=${cid}`, { headers: { 'X-API-Key': API_KEY } });
+                const r = await fetch(`../api/keywords.php?constellation_id=${cid}`, { headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN } });
                 if (!r.ok) throw new Error('Failed to load keywords');
                 bulkKwAvailable = await r.json();
                 if (!Array.isArray(bulkKwAvailable) || bulkKwAvailable.length === 0) {
@@ -3060,7 +3082,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     if (op === 'move') body.target_constellation_id = tid;
                     const r = await fetch(API_BASE, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+                        headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN },
                         body: JSON.stringify(body),
                     });
                     const json = await r.json();

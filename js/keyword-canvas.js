@@ -471,7 +471,7 @@
         setStatus(KC_STR.statusLoading || 'Loading…', 'idle');
         try {
             const res = await fetch(`${API_URL}?galaxy_id=${encodeURIComponent(KC.GALAXY_ID)}`, {
-                headers: { 'X-API-Key': KC.API_KEY },
+                headers: { 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
                 credentials: 'same-origin',
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -880,7 +880,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-API-Key': KC.API_KEY,
+                        'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || ''),
                     },
                     credentials: 'same-origin',
                     body: JSON.stringify({ action: 'move_keyword', keyword_id: kwId, x, y }),
@@ -1347,7 +1347,7 @@
         try {
             const res = await fetch(API_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY },
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
                 credentials: 'same-origin',
                 body: JSON.stringify({
                     action: 'create_relation',
@@ -1553,7 +1553,7 @@
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY },
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
                     credentials: 'same-origin',
                     body: JSON.stringify({ action: 'delete_keyword', keyword_id: kwId }),
                 });
@@ -1596,7 +1596,7 @@
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY },
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
                     credentials: 'same-origin',
                     body: JSON.stringify({ action: 'rename_keyword', keyword_id: kwId, new_name: newName }),
                 });
@@ -1662,7 +1662,7 @@
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY },
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
                     credentials: 'same-origin',
                     body: JSON.stringify({
                         action: 'merge_keywords',
@@ -1744,7 +1744,7 @@
                 setStatus(KC_STR.statusSaving || 'Saving…', 'saving');
                 const res = await fetch(API_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY },
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
                     credentials: 'same-origin',
                     body: JSON.stringify({ action: 'update_relation', relation_id: relId, note: newNote || null }),
                 });
@@ -1762,7 +1762,7 @@
                 setStatus(KC_STR.statusSaving || 'Saving…', 'saving');
                 const res = await fetch(API_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY },
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
                     credentials: 'same-origin',
                     body: JSON.stringify({ action: 'delete_relation', relation_id: relId }),
                 });

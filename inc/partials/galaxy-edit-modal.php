@@ -19,6 +19,7 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
         </div>
         <form method="POST" action="" class="mt-4">
             <input type="hidden" name="action" value="update_constellation">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
             <input type="hidden" id="modal-constellation-id" name="id">
 
             <div class="mb-4">

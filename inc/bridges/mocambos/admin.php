@@ -208,7 +208,7 @@ function mocambos_admin_render_js(): void {
             // Step 1: Validate
             try {
                 const valResp = await fetch(`${MOCAMBOS_API}&action=validate&api_base=${encodeURIComponent(mocambosApiBase)}`, {
-                    headers: { 'X-API-Key': API_KEY }
+                    headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN }
                 });
                 const valData = await valResp.json();
 
@@ -251,7 +251,7 @@ function mocambos_admin_render_js(): void {
             loading.querySelector('p').textContent = STR.text_loading;
             try {
                 const resp = await fetch(`${MOCAMBOS_API}&action=galaxias&api_base=${encodeURIComponent(mocambosApiBase)}`, {
-                    headers: { 'X-API-Key': API_KEY }
+                    headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN }
                 });
                 if (!resp.ok) {
                     const err = await resp.json().catch(() => ({}));
@@ -351,7 +351,7 @@ function mocambos_admin_render_js(): void {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-API-Key': API_KEY
+                        'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN
                     },
                     body: JSON.stringify({
                         api_base: mocambosApiBase,
@@ -523,7 +523,7 @@ function mocambos_admin_render_js(): void {
             try {
                 const resp = await fetch(`${MOCAMBOS_API}&action=import`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN },
                     body: JSON.stringify({
                         api_base: source.api_base,
                         galaxias: [{

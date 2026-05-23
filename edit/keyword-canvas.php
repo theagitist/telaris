@@ -24,6 +24,11 @@ header('X-Content-Type-Options: nosniff');
 
 require_once __DIR__ . '/../config.php';
 
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['csrf_token'];
+
 $appVersion = trim(@file_get_contents(__DIR__ . '/../VERSION') ?: '0.0.0');
 $pdo = getDB();
 $apiKey = getDefaultApiKey($pdo);
@@ -305,6 +310,7 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
             if (closeBtn) closeBtn.addEventListener('click', () => dlg.close());
         })();
 
+        window.TELARIS_CSRF_TOKEN = <?php echo json_encode($csrfToken); ?>;
         window.TELARIS_KC = Object.freeze({
             API_KEY: <?php echo json_encode($apiKey); ?>,
             GALAXY_ID: <?php echo (int)$galaxyId; ?>,

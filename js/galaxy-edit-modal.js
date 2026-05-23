@@ -182,7 +182,7 @@
         renderGalaxyTagChips();
         hideGalaxyTagSuggestions();
         try {
-            const r = await fetch(`${tagsApiUrl()}?galaxy_id=${galaxyId}`, { headers: { 'X-API-Key': getApiKey() } });
+            const r = await fetch(`${tagsApiUrl()}?galaxy_id=${galaxyId}`, { headers: { 'X-API-Key': getApiKey(), 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') } });
             if (!r.ok) throw new Error('GXM_LOAD_TAGS_FAILED');
             const data = await r.json();
             galaxyTagState.suggestions.current = (data.current || []).map(t => ({ label: t.label, slug: t.slug }));
@@ -277,7 +277,7 @@
 
         try {
             const r = await fetch(`${getApiUrl()}?action=tour_config&id=${constellationId}`, {
-                headers: { 'X-API-Key': getApiKey() }
+                headers: { 'X-API-Key': getApiKey(), 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') }
             });
             if (!r.ok) throw new Error('GXM_LOAD_TOUR_CONFIG_FAILED');
             const cfg = await r.json();
@@ -365,7 +365,7 @@
         try {
             const r = await fetch(`${getApiUrl().replace(/constellations\.php$/, 'nodes.php')}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-API-Key': getApiKey() },
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': getApiKey(), 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
                 body: JSON.stringify({ action: 'bulk_use_image_as_node', constellation_id: id, value: value }),
             });
             const json = await r.json();
