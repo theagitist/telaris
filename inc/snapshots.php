@@ -342,5 +342,12 @@ function snapshot_run_if_due(): ?int {
 
     $pdo = getDB();
     $pdo->exec("UPDATE snapshot_schedule SET last_run_at = CURRENT_TIMESTAMP WHERE id = 1");
+    db_audit_log(
+        action: 'snapshot.create.scheduled',
+        actorUserId: null,
+        targetType: 'snapshot',
+        targetId: (string)$newId,
+        details: ['hour' => $hour, 'keep_days' => (int)$sch['keep_days']],
+    );
     return $newId;
 }

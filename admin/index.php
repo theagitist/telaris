@@ -193,6 +193,19 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 db_update_user($id, $email, $firstname, $lastname, $type, $hashedPassword);
                 $constellationIds = array_map('intval', array_filter((array)($_POST['constellation_ids'] ?? [])));
                 db_set_user_constellations($id, $type === USER_TYPE_EDITOR ? $constellationIds : []);
+                db_audit_log(
+                    action: 'user.update',
+                    actorUserId: $_SESSION['admin_user_id'] ?? null,
+                    targetType: 'user',
+                    targetId: $id,
+                    details: [
+                        'type' => $type,
+                        'password_changed' => $hashedPassword !== null,
+                        'galaxies' => count($constellationIds),
+                    ],
+                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    actorEmail: $_SESSION['admin_user_email'] ?? null,
+                );
                 $message = 'User updated successfully.';
                 $activeTab = 'users';
             })(),
@@ -241,7 +254,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $theme = trim($_POST['theme'] ?? 'cosmic');
                 if (!in_array($theme, $allowedThemes, true)) { $theme = 'cosmic'; }
                 $createdBy = isset($_SESSION['admin_user_id']) ? (string)$_SESSION['admin_user_id'] : null;
-                db_create_constellation($name, $tagline, $slug !== '' ? $slug : null, $theme, $createdBy);
+                $newGalaxyId = db_create_constellation($name, $tagline, $slug !== '' ? $slug : null, $theme, $createdBy);
+                db_audit_log(
+                    action: 'galaxy.create',
+                    actorUserId: $_SESSION['admin_user_id'] ?? null,
+                    targetType: 'galaxy',
+                    targetId: (string)$newGalaxyId,
+                    details: ['name' => $name, 'slug' => $finalSlug, 'theme' => $theme],
+                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    actorEmail: $_SESSION['admin_user_email'] ?? null,
+                );
                 $message = 'Galaxy created successfully.';
                 $activeTab = 'constellations';
             })(),
@@ -281,7 +303,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     throw new Exception('A galaxy with this ' . implode(' and ', $errs) . ' already exists.');
                 }
 
-                db_duplicate_constellation($sourceId, $name, $tagline, $slug !== '' ? $slug : null);
+                $newDupeId = db_duplicate_constellation($sourceId, $name, $tagline, $slug !== '' ? $slug : null);
+                db_audit_log(
+                    action: 'galaxy.duplicate',
+                    actorUserId: $_SESSION['admin_user_id'] ?? null,
+                    targetType: 'galaxy',
+                    targetId: (string)($newDupeId ?: '?'),
+                    details: ['source_id' => $sourceId, 'name' => $name, 'slug' => $finalSlug],
+                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    actorEmail: $_SESSION['admin_user_email'] ?? null,
+                );
                 $message = 'Galaxy duplicated successfully.';
                 $activeTab = 'constellations';
             })(),
@@ -331,6 +362,15 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 if ($newClusterId > 0) {
                     save_cluster_discovery_config_from_post($newClusterId, $_POST);
                 }
+                db_audit_log(
+                    action: 'cluster.create',
+                    actorUserId: $_SESSION['admin_user_id'] ?? null,
+                    targetType: 'cluster',
+                    targetId: (string)$newClusterId,
+                    details: ['name' => $name, 'slug' => $finalSlug, 'theme' => $theme, 'members' => count($members)],
+                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    actorEmail: $_SESSION['admin_user_email'] ?? null,
+                );
                 $message = 'Cluster created successfully.';
                 $activeTab = 'clusters';
             })(),
@@ -364,6 +404,15 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $members = array_values(array_filter(array_map('intval', (array)($_POST['members'] ?? [])), fn($i) => $i > 0));
                 db_set_cluster_members($id, $members);
                 save_cluster_discovery_config_from_post($id, $_POST);
+                db_audit_log(
+                    action: 'cluster.update',
+                    actorUserId: $_SESSION['admin_user_id'] ?? null,
+                    targetType: 'cluster',
+                    targetId: (string)$id,
+                    details: ['name' => $name, 'slug' => $finalSlug, 'theme' => $theme, 'members' => count($members)],
+                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    actorEmail: $_SESSION['admin_user_email'] ?? null,
+                );
                 $message = 'Cluster updated successfully.';
                 $activeTab = 'clusters';
             })(),
@@ -377,6 +426,14 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     throw new Exception('Not a cluster.');
                 }
                 db_delete_cluster($id);
+                db_audit_log(
+                    action: 'cluster.delete',
+                    actorUserId: $_SESSION['admin_user_id'] ?? null,
+                    targetType: 'cluster',
+                    targetId: (string)$id,
+                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    actorEmail: $_SESSION['admin_user_email'] ?? null,
+                );
                 $message = 'Cluster deleted successfully.';
                 $activeTab = 'clusters';
             })(),

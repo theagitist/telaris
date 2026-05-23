@@ -622,6 +622,19 @@ function _mocambos_http_import(): void {
     };
 
     $writeLog('INFO', 'Import started — api_base=' . $apiBase . ', galaxias=' . json_encode(array_column($galaxias, 'galaxia_slug')));
+    db_audit_log(
+        action: 'bridge.mocambos.import.start',
+        actorUserId: $_SESSION['admin_user_id'] ?? null,
+        targetType: 'bridge',
+        targetId: 'mocambos',
+        details: [
+            'api_base' => $apiBase,
+            'galaxia_slugs' => array_column($galaxias, 'galaxia_slug'),
+            'full_refresh' => $fullRefresh,
+        ],
+        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        actorEmail: $_SESSION['admin_user_email'] ?? null,
+    );
 
     $streamMsg = function(string $type, string $message, array $extra = []) use ($writeLog) {
         $line = json_encode(array_merge(['type' => $type, 'message' => $message], $extra), JSON_THROW_ON_ERROR);
@@ -706,6 +719,28 @@ function _mocambos_http_import(): void {
         $writeLog('INFO', 'Log file: ' . $logFile);
         fclose($logFp);
     }
+    db_audit_log(
+        action: 'bridge.mocambos.import.finish',
+        actorUserId: $_SESSION['admin_user_id'] ?? null,
+        targetType: 'bridge',
+        targetId: 'mocambos',
+        details: [
+            'galaxias_processed' => count($results),
+            'totals' => array_map(
+                fn($r) => [
+                    'slug' => $r['galaxia_slug'],
+                    'constellation_id' => $r['constellation_id'],
+                    'is_new' => $r['is_new'],
+                    'imported' => $r['imported_count'],
+                    'expected' => $r['expected_count'],
+                    'errors' => count($r['errors'] ?? []),
+                ],
+                $results,
+            ),
+        ],
+        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        actorEmail: $_SESSION['admin_user_email'] ?? null,
+    );
     $streamMsg('done', t('mocambos_h_import_complete', 'Import complete.'), ['success' => true, 'results' => $results]);
 }
 

@@ -71,6 +71,22 @@ try {
     $stamp = gmdate('Y-m-d-His');
     $filename = "telaris-backup-{$stamp}.telaris-backup";
 
+    db_audit_log(
+        action: 'backup.export',
+        actorUserId: $_SESSION['admin_user_id'] ?? null,
+        targetType: 'backup',
+        targetId: $stamp,
+        details: [
+            'include_galaxies' => $includeGalaxies,
+            'include_users' => $includeUsers,
+            'galaxy_ids_count' => count($galaxyIds),
+            'media_mode' => $mediaMode,
+            'size_bytes' => strlen($gz),
+        ],
+        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        actorEmail: $_SESSION['admin_user_email'] ?? null,
+    );
+
     while (ob_get_level() > 0) ob_end_clean();
     header('Content-Type: application/gzip');
     header('Content-Disposition: attachment; filename="' . $filename . '"');

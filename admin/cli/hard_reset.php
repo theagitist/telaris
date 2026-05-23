@@ -124,6 +124,17 @@ if (!$force) {
 if ($pdo !== null) {
     $tables = getAllTables($pdo);
     if (!empty($tables)) {
+        // Audit log goes to the table that is about to be dropped, so the
+        // structured-DB record won't survive. error_log captures it in the
+        // FPM/PHP-CLI log channel instead — that's the only stable trail
+        // for a hard reset.
+        error_log(sprintf(
+            'hard_reset.php: dropping %d table(s); user=%s (%s); force=%s',
+            count($tables),
+            posix_geteuid() ? (posix_getpwuid(posix_geteuid())['name'] ?? '?') : 'root',
+            gethostname() ?: '?',
+            $force ? 'true' : 'false',
+        ));
         echo "Dropping tables...\n";
         $result = dropAllTables($pdo);
         

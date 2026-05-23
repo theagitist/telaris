@@ -125,9 +125,34 @@ $opts = [
 try {
     $report = backup_restore_from_file($path, $opts);
 } catch (Throwable $e) {
+    db_audit_log(
+        action: 'backup.import.failed',
+        actorUserId: $_SESSION['admin_user_id'] ?? null,
+        targetType: 'backup',
+        targetId: $tempId,
+        details: ['mode' => $mode, 'error' => $e->getMessage()],
+        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        actorEmail: $_SESSION['admin_user_email'] ?? null,
+    );
     error_log('backup/import.php commit: ' . $e->getMessage());
     api_error('500.001', 'Internal server error.');
 }
+
+db_audit_log(
+    action: 'backup.import',
+    actorUserId: $_SESSION['admin_user_id'] ?? null,
+    targetType: 'backup',
+    targetId: $tempId,
+    details: [
+        'mode' => $mode,
+        'restore_users' => $opts['restore_users'],
+        'restore_media' => $opts['restore_media'],
+        'galaxies_count' => count($opts['galaxies']),
+        'report_summary' => is_array($report) ? array_intersect_key($report, array_flip(['galaxies_imported', 'users_imported', 'media_imported', 'errors_count'])) : null,
+    ],
+    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+    actorEmail: $_SESSION['admin_user_email'] ?? null,
+);
 
 // Clean up the temp file after a successful commit
 @unlink($path);

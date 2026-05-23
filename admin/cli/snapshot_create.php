@@ -25,6 +25,13 @@ $quiet = isset($opts['quiet']);
 
 try {
     $id = snapshot_create($note, 'manual', null);
+    db_audit_log(
+        action: 'snapshot.create.cli',
+        actorUserId: null,
+        targetType: 'snapshot',
+        targetId: (string)$id,
+        details: ['note' => $note],
+    );
 } catch (Throwable $e) {
     fwrite(STDERR, "Snapshot create failed: " . $e->getMessage() . "\n");
     exit(1);

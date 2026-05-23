@@ -41,6 +41,15 @@ try {
     } catch (Throwable $ce) {
         $cronWarning = $ce->getMessage();
     }
+    db_audit_log(
+        action: 'snapshot.schedule.update',
+        actorUserId: $_SESSION['admin_user_id'] ?? null,
+        targetType: 'snapshot_schedule',
+        targetId: '1',
+        details: ['enabled' => $enabled, 'hour' => $hour, 'keep_days' => $keepDays],
+        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        actorEmail: $_SESSION['admin_user_email'] ?? null,
+    );
     echo json_encode([
         'ok' => true,
         'schedule' => snapshot_get_schedule(),

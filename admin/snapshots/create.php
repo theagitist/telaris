@@ -28,6 +28,15 @@ if ($note === '') $note = null;
 
 try {
     $id = snapshot_create($note, 'manual', $_SESSION['admin_user_id'] ?? null);
+    db_audit_log(
+        action: 'snapshot.create.manual',
+        actorUserId: $_SESSION['admin_user_id'] ?? null,
+        targetType: 'snapshot',
+        targetId: (string)$id,
+        details: ['note' => $note],
+        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        actorEmail: $_SESSION['admin_user_email'] ?? null,
+    );
     echo json_encode(['ok' => true, 'id' => $id]);
 } catch (Throwable $e) {
     error_log('snapshots/create.php: ' . $e->getMessage());

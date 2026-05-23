@@ -30,6 +30,14 @@ if ($id <= 0) {
 
 try {
     snapshot_delete($id);
+    db_audit_log(
+        action: 'snapshot.delete',
+        actorUserId: $_SESSION['admin_user_id'] ?? null,
+        targetType: 'snapshot',
+        targetId: (string)$id,
+        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        actorEmail: $_SESSION['admin_user_email'] ?? null,
+    );
     echo json_encode(['ok' => true]);
 } catch (Throwable $e) {
     error_log('snapshots/delete.php: ' . $e->getMessage());

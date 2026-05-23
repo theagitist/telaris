@@ -159,6 +159,15 @@ try {
     $result = createUser($pdo, $email, $hashedPassword, $firstname, $lastname, $userType);
     
     if ($result === null) {
+        $created = db_get_user_by_email($email);
+        db_audit_log(
+            action: 'user.create.cli',
+            actorUserId: null,
+            targetType: 'user',
+            targetId: (string)($created['id'] ?? '') ?: null,
+            details: ['type' => $userType],
+            actorEmail: $email,
+        );
         echo "✓ User created successfully!\n";
         echo "\nUser Details:\n";
         echo "  Name: $firstname $lastname\n";

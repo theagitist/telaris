@@ -154,6 +154,8 @@ function bulk_users_apply(array $rows, string $baseUrl): array {
     require_once __DIR__ . '/mail.php';
 
     $claimedSlugs = [];
+    // Resolved once for every audit row in the loop below.
+    $adminUserId = $_SESSION['admin_user_id'] ?? null;
 
     foreach ($rows as $row) {
         $r = $row;
@@ -259,6 +261,20 @@ function bulk_users_apply(array $rows, string $baseUrl): array {
             $r['outcome'] = $sent ? 'created' : 'created_mail_failed';
             $r['galaxy_slug'] = $galaxySlug;
             $outRows[] = $r;
+            db_audit_log(
+                action: 'user.create.bulk',
+                actorUserId: $adminUserId,
+                targetType: 'user',
+                targetId: $userId,
+                details: [
+                    'type' => $type,
+                    'created_galaxy' => $galaxyId !== null,
+                    'galaxy_slug' => $galaxySlug,
+                    'mail_sent' => $sent,
+                ],
+                ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                actorEmail: $row['email'],
+            );
         } catch (Throwable $e) {
             // Redact the email — error_log isn't a PII channel.
             $tag = function_exists('mail_recipient_tag')

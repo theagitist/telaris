@@ -51,6 +51,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 $error = t('auth_reset_invalid_token_message', 'This reset link is invalid or has expired. Please request a new one.');
             } else {
                 db_record_auth_attempt('reset', $emailForRecord, $ip, true);
+                db_audit_log(
+                    action: 'password.reset.consumed',
+                    actorUserId: (string)($tokenUser['id'] ?? '') ?: null,
+                    targetType: 'user',
+                    targetId: (string)($tokenUser['id'] ?? '') ?: null,
+                    ip: $ip,
+                    actorEmail: $emailForRecord,
+                );
                 $success = true;
                 // Rotate the CSRF token now that we've completed a sensitive action.
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
