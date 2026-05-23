@@ -7,7 +7,15 @@ header('Content-Type: text/html; charset=UTF-8');
 require_once __DIR__ . '/../utils/auth.php';
 requireEditorOrAdminLogin();
 
+// Per-request nonce for the (currently report-only) strict CSP. The enforced
+// CSP keeps 'unsafe-inline' on script-src because edit/index.php carries
+// ~76 inline event handlers (onclick=, onsubmit=, etc.). Migrating them to
+// addEventListener is queued separately as a UI refactor; the Report-Only
+// header below collects what would break before the flip, written to
+// api/csp-report.php (which logs to error_log).
+$cspEditNonce = base64_encode(random_bytes(16));
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://cloudflareinsights.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+header("Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'nonce-{$cspEditNonce}' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://cloudflareinsights.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; report-uri /api/csp-report.php");
 header("X-Frame-Options: DENY");
 header("X-Content-Type-Options: nosniff");
 
