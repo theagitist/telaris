@@ -6703,6 +6703,44 @@ function db_record_auth_attempt(string $action, ?string $email, string $ip, bool
 }
 
 /**
+ * Per-(action, IP) advisory lock around the auth-throttle gate. The audit
+ * (M-C1, third pass) flagged a TOCTOU window between
+ * db_count_recent_auth_attempts and db_record_auth_attempt: N parallel
+ * requests from the same IP could each read count=THRESHOLD-1 and each
+ * insert, exceeding the cap by N-1. Holding a per-(action, IP) MySQL named
+ * lock serializes the count + (bcrypt) + record sequence for that IP
+ * without serializing across IPs.
+ *
+ * On acquire failure (timeout, transient error) the caller treats it as
+ * "throttled" (fail closed) — a brief contention burst from a single IP
+ * is exactly the case the throttle is designed for.
+ *
+ * Connection-level locks release at end-of-request even if the caller
+ * forgets, so a fatal error mid-gate doesn't leak the lock permanently.
+ */
+function db_auth_throttle_lock_acquire(string $action, string $ip): array {
+    $pdo = getDB();
+    $key = 'telaris:auth_throttle:' . $action . ':' . ($ip !== '' ? $ip : '-');
+    // 5s wait is generous enough for normal serialization but short
+    // enough that a wedged worker can't pin the gate for long. On
+    // contention the caller fails closed (treats as throttled).
+    $stmt = $pdo->prepare("SELECT GET_LOCK(:k, 5)");
+    $stmt->execute([':k' => $key]);
+    $result = $stmt->fetchColumn();
+    return ['key' => $key, 'acquired' => $result === 1 || $result === '1'];
+}
+
+function db_auth_throttle_lock_release(array $lock): void {
+    if (empty($lock['acquired'])) return;
+    $pdo = getDB();
+    try {
+        $pdo->prepare("SELECT RELEASE_LOCK(:k)")->execute([':k' => $lock['key']]);
+    } catch (Throwable $_) {
+        // Best-effort. Connection close at end-of-request will release anyway.
+    }
+}
+
+/**
  * Count attempts in the recent window. Pass null for $email or $ip to skip
  * that axis. $successFilter null counts everything, true counts only
  * successes, false counts only failures.

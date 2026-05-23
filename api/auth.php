@@ -166,26 +166,35 @@ function verify_csrf_token(): void {
 function requireApiKey(): void {
     $ip = api_client_ip();
 
-    // Pre-check: if this IP has already burned through the failure budget,
-    // refuse without doing any work. Counter is still incremented so a
-    // determined attacker pays the cost; the missing $apiKey path is a
-    // "failure" for throttling purposes too.
-    if (db_count_recent_auth_attempts('api_key', null, $ip, AUTH_API_KEY_WINDOW_SECONDS, false) >= AUTH_API_KEY_MAX_FAILURES) {
-        db_record_auth_attempt('api_key', null, $ip, false);
-        api_error('401.002', 'Invalid API key.');
+    // Per-(action, IP) advisory lock closes the count → record TOCTOU
+    // (M-C1, audit v6.10.11). On contention or acquisition failure we
+    // refuse with 401.002, matching the over-threshold response — fail
+    // closed.
+    $lock = db_auth_throttle_lock_acquire('api_key', $ip);
+    try {
+        // Pre-check: if this IP has already burned through the failure budget,
+        // refuse without doing any work. Counter is still incremented so a
+        // determined attacker pays the cost; the missing $apiKey path is a
+        // "failure" for throttling purposes too.
+        if (!$lock['acquired'] || db_count_recent_auth_attempts('api_key', null, $ip, AUTH_API_KEY_WINDOW_SECONDS, false) >= AUTH_API_KEY_MAX_FAILURES) {
+            db_record_auth_attempt('api_key', null, $ip, false);
+            api_error('401.002', 'Invalid API key.');
+        }
+
+        $apiKey = getApiKeyFromRequest();
+
+        if (!$apiKey) {
+            db_record_auth_attempt('api_key', null, $ip, false);
+            api_error('401.001', 'API key is missing. Provide it via the X-API-Key header, the Authorization: Bearer header, or the api_key query parameter.');
+        }
+
+        if (!db_validate_api_key($apiKey)) {
+            db_record_auth_attempt('api_key', null, $ip, false);
+            api_error('401.002', 'Invalid API key.');
+        }
+
+        db_record_auth_attempt('api_key', null, $ip, true);
+    } finally {
+        db_auth_throttle_lock_release($lock);
     }
-
-    $apiKey = getApiKeyFromRequest();
-
-    if (!$apiKey) {
-        db_record_auth_attempt('api_key', null, $ip, false);
-        api_error('401.001', 'API key is missing. Provide it via the X-API-Key header, the Authorization: Bearer header, or the api_key query parameter.');
-    }
-
-    if (!db_validate_api_key($apiKey)) {
-        db_record_auth_attempt('api_key', null, $ip, false);
-        api_error('401.002', 'Invalid API key.');
-    }
-
-    db_record_auth_attempt('api_key', null, $ip, true);
 }

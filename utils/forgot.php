@@ -34,14 +34,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $ip = auth_client_ip();
             // Throttle by IP (not email — that would also be an existence
             // side channel) using a null successFilter so all attempts count.
-            if (db_count_recent_auth_attempts('forgot', null, $ip, AUTH_FORGOT_WINDOW_SECONDS, null) >= AUTH_FORGOT_MAX_ATTEMPTS) {
-                db_record_auth_attempt('forgot', $email, $ip, false);
-                // Show the same generic notice so the throttle itself doesn't
-                // signal whether the address exists. The legitimate user sees
-                // the success message; the attacker stops getting mail sent.
-                $notice = $genericNotice;
-            } else {
-                $user = db_get_user_by_email($email);
+            // Per-(action, IP) advisory lock closes the count → record TOCTOU
+            // (M-C1, audit v6.10.11).
+            $lock = db_auth_throttle_lock_acquire('forgot', $ip);
+            try {
+                if (!$lock['acquired'] || db_count_recent_auth_attempts('forgot', null, $ip, AUTH_FORGOT_WINDOW_SECONDS, null) >= AUTH_FORGOT_MAX_ATTEMPTS) {
+                    db_record_auth_attempt('forgot', $email, $ip, false);
+                    // Show the same generic notice so the throttle itself doesn't
+                    // signal whether the address exists. The legitimate user sees
+                    // the success message; the attacker stops getting mail sent.
+                    $notice = $genericNotice;
+                } else {
+                    $user = db_get_user_by_email($email);
             if ($user) {
                 $token = db_create_password_reset_token((string)$user['id'], 86400); // 24h
                 // SITE_BASE_URL is defined in config.php (preferred) — pinning the
@@ -81,6 +85,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             db_record_auth_attempt('forgot', $email, $ip, $user !== null);
             // Show the generic notice whether or not the user existed / mail succeeded.
             $notice = $genericNotice;
+                }
+            } finally {
+                db_auth_throttle_lock_release($lock);
             }
         }
     }

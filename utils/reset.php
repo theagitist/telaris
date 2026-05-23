@@ -25,45 +25,52 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $submittedCsrf = $_POST['csrf_token'] ?? '';
     $ip = auth_client_ip();
     $emailForRecord = $tokenUser['email'] ?? null;
-    if (db_count_recent_auth_attempts('reset', null, $ip, AUTH_RESET_WINDOW_SECONDS, null) >= AUTH_RESET_MAX_ATTEMPTS) {
-        db_record_auth_attempt('reset', $emailForRecord, $ip, false);
-        $error = t('auth_error_throttled', 'Too many attempts. Please try again later.');
-    } elseif (!hash_equals($_SESSION['csrf_token'], $submittedCsrf)) {
-        db_record_auth_attempt('reset', $emailForRecord, $ip, false);
-        $error = t('auth_error_invalid_request', 'Invalid request. Please reload the page and try again.');
-    } elseif (!$tokenUser) {
-        db_record_auth_attempt('reset', $emailForRecord, $ip, false);
-        $error = t('auth_reset_invalid_token_message', 'This reset link is invalid or has expired. Please request a new one.');
-    } else {
-        $pw1 = (string)($_POST['password'] ?? '');
-        $pw2 = (string)($_POST['password_confirm'] ?? '');
-        if (strlen($pw1) < 8) {
+    // Per-(action, IP) advisory lock closes the count → record TOCTOU
+    // (M-C1, audit v6.10.11).
+    $lock = db_auth_throttle_lock_acquire('reset', $ip);
+    try {
+        if (!$lock['acquired'] || db_count_recent_auth_attempts('reset', null, $ip, AUTH_RESET_WINDOW_SECONDS, null) >= AUTH_RESET_MAX_ATTEMPTS) {
             db_record_auth_attempt('reset', $emailForRecord, $ip, false);
-            $error = t('auth_reset_error_password_too_short', 'Password must be at least 8 characters.');
-        } elseif ($pw1 !== $pw2) {
+            $error = t('auth_error_throttled', 'Too many attempts. Please try again later.');
+        } elseif (!hash_equals($_SESSION['csrf_token'], $submittedCsrf)) {
             db_record_auth_attempt('reset', $emailForRecord, $ip, false);
-            $error = t('auth_reset_error_password_mismatch', 'Passwords do not match.');
+            $error = t('auth_error_invalid_request', 'Invalid request. Please reload the page and try again.');
+        } elseif (!$tokenUser) {
+            db_record_auth_attempt('reset', $emailForRecord, $ip, false);
+            $error = t('auth_reset_invalid_token_message', 'This reset link is invalid or has expired. Please request a new one.');
         } else {
-            $hash = password_hash($pw1, PASSWORD_DEFAULT);
-            $ok = db_consume_password_reset_token($token, $hash);
-            if (!$ok) {
+            $pw1 = (string)($_POST['password'] ?? '');
+            $pw2 = (string)($_POST['password_confirm'] ?? '');
+            if (strlen($pw1) < 8) {
                 db_record_auth_attempt('reset', $emailForRecord, $ip, false);
-                $error = t('auth_reset_invalid_token_message', 'This reset link is invalid or has expired. Please request a new one.');
+                $error = t('auth_reset_error_password_too_short', 'Password must be at least 8 characters.');
+            } elseif ($pw1 !== $pw2) {
+                db_record_auth_attempt('reset', $emailForRecord, $ip, false);
+                $error = t('auth_reset_error_password_mismatch', 'Passwords do not match.');
             } else {
-                db_record_auth_attempt('reset', $emailForRecord, $ip, true);
-                db_audit_log(
-                    action: 'password.reset.consumed',
-                    actorUserId: (string)($tokenUser['id'] ?? '') ?: null,
-                    targetType: 'user',
-                    targetId: (string)($tokenUser['id'] ?? '') ?: null,
-                    ip: $ip,
-                    actorEmail: $emailForRecord,
-                );
-                $success = true;
-                // Rotate the CSRF token now that we've completed a sensitive action.
-                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                $hash = password_hash($pw1, PASSWORD_DEFAULT);
+                $ok = db_consume_password_reset_token($token, $hash);
+                if (!$ok) {
+                    db_record_auth_attempt('reset', $emailForRecord, $ip, false);
+                    $error = t('auth_reset_invalid_token_message', 'This reset link is invalid or has expired. Please request a new one.');
+                } else {
+                    db_record_auth_attempt('reset', $emailForRecord, $ip, true);
+                    db_audit_log(
+                        action: 'password.reset.consumed',
+                        actorUserId: (string)($tokenUser['id'] ?? '') ?: null,
+                        targetType: 'user',
+                        targetId: (string)($tokenUser['id'] ?? '') ?: null,
+                        ip: $ip,
+                        actorEmail: $emailForRecord,
+                    );
+                    $success = true;
+                    // Rotate the CSRF token now that we've completed a sensitive action.
+                    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                }
             }
         }
+    } finally {
+        db_auth_throttle_lock_release($lock);
     }
 }
 ?>
