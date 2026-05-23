@@ -96,6 +96,17 @@ function requireWriteAccess(): void {
 }
 
 /**
+ * Default cache headers for every JSON API response. no-store keeps responses
+ * out of the browser back-cache (admin/editor surfaces contain other-user
+ * data) and out of any intermediate proxy. Individual endpoints can override
+ * by emitting their own Cache-Control after this.
+ */
+function api_no_store(): void {
+    header('Cache-Control: no-store, max-age=0');
+    header('Pragma: no-cache');
+}
+
+/**
  * Verify the request carries a valid CSRF token. Reads X-CSRF-Token (header)
  * first, then csrf_token in $_POST. JSON-body callers must send the header
  * because $_POST is empty for application/json. Session is started if not

@@ -32,7 +32,7 @@ require_once __DIR__ . '/../inc/api-error.php';
 
 // CORS-ish headers (kept minimal; same-origin in practice).
 if (php_sapi_name() !== 'cli') {
-    header('Content-Type: application/json');
+    header('Content-Type: application/json'); header('Cache-Control: no-store, max-age=0'); header('Pragma: no-cache');
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     header('Access-Control-Allow-Origin: ' . $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
     header('Access-Control-Allow-Methods: GET, POST, OPTIONS');

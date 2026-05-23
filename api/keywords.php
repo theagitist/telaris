@@ -7,7 +7,7 @@ require_once __DIR__ . '/../utils/auth.php';
 require_once __DIR__ . '/../inc/db.php';
 require_once __DIR__ . '/../inc/api-error.php';
 
-header('Content-Type: application/json');
+header('Content-Type: application/json'); header('Cache-Control: no-store, max-age=0'); header('Pragma: no-cache');
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 header('Access-Control-Allow-Origin: ' . $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
 header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');

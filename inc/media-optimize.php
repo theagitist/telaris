@@ -51,6 +51,18 @@ function optimize_image(string $filePath, int $maxWidth = 1344): void {
         if (media_tool_available('jpegoptim')) {
             exec('jpegoptim --strip-all --max=82 --quiet ' . escapeshellarg($filePath) . ' 2>/dev/null');
         }
+        // Privacy floor: if neither ImageMagick nor jpegoptim was available
+        // the image still has its EXIF block (potentially GPS coords from a
+        // phone). Re-encode through GD when it's loaded; GD does not preserve
+        // EXIF on write. This is lossy at quality 82 but the upload would
+        // otherwise carry location data straight to visitors.
+        if ($convertBin === null && !media_tool_available('jpegoptim') && extension_loaded('gd')) {
+            $img = @imagecreatefromjpeg($filePath);
+            if ($img !== false) {
+                @imagejpeg($img, $filePath, 82);
+                imagedestroy($img);
+            }
+        }
     } elseif ($mime === 'image/png') {
         // Resize with ImageMagick
         if ($convertBin !== null) {
@@ -60,6 +72,16 @@ function optimize_image(string $filePath, int $maxWidth = 1344): void {
         // Optimize with optipng
         if (media_tool_available('optipng')) {
             exec('optipng -o2 -quiet ' . escapeshellarg($filePath) . ' 2>/dev/null');
+        }
+        // PNG EXIF fallback (rare but possible; some phones embed XMP in PNGs).
+        if ($convertBin === null && !media_tool_available('optipng') && extension_loaded('gd')) {
+            $img = @imagecreatefrompng($filePath);
+            if ($img !== false) {
+                imagealphablending($img, false);
+                imagesavealpha($img, true);
+                @imagepng($img, $filePath);
+                imagedestroy($img);
+            }
         }
     } elseif ($mime === 'image/webp') {
         // Resize with ImageMagick, then re-compress with cwebp

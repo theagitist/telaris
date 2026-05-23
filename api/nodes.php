@@ -20,7 +20,7 @@ clustering_set_labels(
 
 // Set CORS headers for API responses — restrict to same origin
 if (php_sapi_name() !== 'cli') {
-    header('Content-Type: application/json');
+    header('Content-Type: application/json'); header('Cache-Control: no-store, max-age=0'); header('Pragma: no-cache');
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     header('Access-Control-Allow-Origin: ' . $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
     header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
