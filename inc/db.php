@@ -250,6 +250,7 @@ const PROJECT_INFO_KEYS = [
     'admin_modal_btn_delete',
     'admin_modal_deletion_impact_title', 'admin_modal_deletion_impact_intro', 'admin_modal_deletion_impact_row',
     'admin_error_user_not_found', 'admin_error_galaxy_not_found', 'admin_error_delete_confirm_mismatch',
+    'admin_setup_perms_heading', 'admin_setup_perms_intro', 'admin_setup_perms_advice',
 
     // C5: admin/setup.php (post-DB strings). Pre-DB strings live in $SETUP_PRE_DB_STRINGS
     // inside admin/setup.php itself, because they render before the project_info table exists.
@@ -1312,6 +1313,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_error_user_not_found' => 'User not found.',
             'admin_error_galaxy_not_found' => 'Galaxy not found.',
             'admin_error_delete_confirm_mismatch' => 'Confirmation does not match. Type the exact name to confirm deletion.',
+            'admin_setup_perms_heading' => 'Next step (host hardening):',
+            'admin_setup_perms_intro' => 'config.php is now set to mode',
+            'admin_setup_perms_advice' => 'Run sudo php bin/setup-host.php from the site root to apply canonical host configuration (nginx snippet, logrotate rule, and 0640 owner=operator on config.php).',
 
             // C5: admin/setup.php (post-DB)
             'admin_setup_website_info_subtitle' => 'Configure your website information',
@@ -2420,6 +2424,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_error_user_not_found' => 'No se encontró la cuenta.',
             'admin_error_galaxy_not_found' => 'No se encontró la galaxia.',
             'admin_error_delete_confirm_mismatch' => 'La confirmación no coincide. Escribe el nombre exacto para confirmar la eliminación.',
+            'admin_setup_perms_heading' => 'Próximo paso (fortalecimiento del host):',
+            'admin_setup_perms_intro' => 'config.php ahora tiene el modo',
+            'admin_setup_perms_advice' => 'Ejecuta sudo php bin/setup-host.php desde la raíz del sitio para aplicar la configuración canónica del host (snippet de nginx, regla de logrotate y 0640 propietario=operador en config.php).',
 
             // C5: admin/setup.php (post-DB)
             'admin_setup_website_info_subtitle' => 'Configura la información del sitio',
@@ -3524,6 +3531,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_error_user_not_found' => 'Conta não encontrada.',
             'admin_error_galaxy_not_found' => 'Galáxia não encontrada.',
             'admin_error_delete_confirm_mismatch' => 'A confirmação não coincide. Digite o nome exato para confirmar a exclusão.',
+            'admin_setup_perms_heading' => 'Próximo passo (fortalecimento do host):',
+            'admin_setup_perms_intro' => 'config.php agora está no modo',
+            'admin_setup_perms_advice' => 'Execute sudo php bin/setup-host.php a partir da raiz do site para aplicar a configuração canônica do host (snippet do nginx, regra do logrotate e 0640 proprietário=operador em config.php).',
 
             // C5: admin/setup.php (post-DB)
             'admin_setup_website_info_subtitle' => 'Configure as informações do site',
@@ -4628,6 +4638,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_error_user_not_found' => 'Compte introuvable.',
             'admin_error_galaxy_not_found' => 'Galaxie introuvable.',
             'admin_error_delete_confirm_mismatch' => 'La confirmation ne correspond pas. Tape le nom exact pour confirmer la suppression.',
+            'admin_setup_perms_heading' => 'Étape suivante (durcissement de l\'hôte) :',
+            'admin_setup_perms_intro' => 'config.php est maintenant en mode',
+            'admin_setup_perms_advice' => 'Lance sudo php bin/setup-host.php depuis la racine du site pour appliquer la configuration canonique de l\'hôte (snippet nginx, règle logrotate et 0640 propriétaire=opérateur sur config.php).',
 
             // C5: admin/setup.php (post-DB)
             'admin_setup_website_info_subtitle' => 'Configure les informations du site',

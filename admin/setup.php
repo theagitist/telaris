@@ -27,39 +27,65 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // --- Security lockout: deny access once the app is fully installed ---
-// If config.php exists, the DB is reachable, and at least one admin user exists,
-// then setup is complete and this page must require admin login to reconfigure.
+// If config.php exists, the DB is reachable, and at least one admin user
+// exists, then setup is complete and this page must require admin login to
+// reconfigure. M-E1 (third-pass audit, v6.10.12) closed the previously-open
+// first-boot window: if config.php exists but the DB is unreachable, an
+// unauthenticated attacker could submit a POST that overwrote config.php with
+// the perms PHP-FPM had on the file. The repaired path requires
+// ?reconfigure=1 AND an admin session (held over from a prior healthy DB
+// connection) before any POST is accepted in the DB-down branch.
 $configPath = __DIR__ . '/../config.php';
-if (file_exists($configPath) && !isset($_GET['reconfigure'])) {
-    // App is installed — redirect to admin console
+$configExists = file_exists($configPath);
+$dbReachable = false;
+$adminExists = false;
+
+if ($configExists) {
     try {
         require_once $configPath;
         $pdo = getDB();
         $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE type = 2");
-        if ((int)$stmt->fetchColumn() > 0) {
-            header('Location: index.php');
-            exit();
-        }
+        $adminExists = ((int)$stmt->fetchColumn() > 0);
+        $dbReachable = true;
     } catch (Throwable $e) {
-        // DB not reachable — allow setup to proceed for repair
+        // DB unreachable; handled below.
     }
-} elseif (file_exists($configPath) && isset($_GET['reconfigure'])) {
-    // Reconfigure requested — require admin authentication
-    try {
-        require_once $configPath;
+}
+
+$isPost = isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST';
+$reconfigureMode = isset($_GET['reconfigure']);
+
+if ($configExists && $dbReachable && $adminExists) {
+    if (!$reconfigureMode) {
+        header('Location: index.php');
+        exit();
+    }
+    // Reconfigure requested on an installed system — require admin session.
+    require_once __DIR__ . '/../utils/auth.php';
+    if (!isAdminLoggedIn()) {
+        header('Location: ../utils/login.php?redirect=admin');
+        exit();
+    }
+} elseif ($configExists && !$dbReachable) {
+    // DB unreachable. The repair path is real but its unauthenticated POST
+    // surface is the exact attack vector M-E1 names. POSTs must be gated
+    // behind ?reconfigure=1 AND an admin session — both signals must be
+    // present from prior interactions (the session was established when DB
+    // was healthy; the URL flag is operator-supplied).
+    if ($isPost) {
+        if (!$reconfigureMode) {
+            http_response_code(403);
+            header('Content-Type: text/plain; charset=UTF-8');
+            die("403 Forbidden\n\nconfig.php exists but the database is unreachable. To repair, append ?reconfigure=1 to the URL and authenticate as an admin (the session must already be established).\n");
+        }
         require_once __DIR__ . '/../utils/auth.php';
-        $pdo = getDB();
-        $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE type = 2");
-        if ((int)$stmt->fetchColumn() > 0) {
-            // Admin users exist — must be logged in as admin to reconfigure
-            if (!isAdminLoggedIn()) {
-                header('Location: ../utils/login.php?redirect=admin');
-                exit();
-            }
+        if (!isAdminLoggedIn()) {
+            http_response_code(403);
+            header('Content-Type: text/plain; charset=UTF-8');
+            die("403 Forbidden\n\nAdmin session required to repair config.php with the database unreachable. Restore database access first, log in normally, then return to setup.php?reconfigure=1.\n");
         }
-    } catch (Throwable $e) {
-        // DB not reachable — allow setup to proceed for repair
     }
+    // GETs continue through to show the repair form (read-only render).
 }
 
 // --- Pre-DB localization ---
@@ -690,6 +716,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             }
             $_SESSION['config_content_to_show'] = $configContentToShow;
         } else {
+            // M-E1 hardening: immediately drop write perms on config.php so a
+            // future unauthenticated POST that reached this code path (e.g.
+            // an attacker who slipped past the gate during a DB outage)
+            // cannot overwrite it. 0440 keeps owner + group read (FPM in
+            // group www-data still reads at runtime) and removes every write
+            // bit. Re-running setup.php?reconfigure=1 after this requires
+            // the operator to relax perms via shell first — the desired
+            // operational posture for a hardened install. bin/setup-host.php
+            // restores 0640 if the operator wants the looser default back.
+            @chmod($configPath, 0440);
             // Clear any stored config content on success
             if (session_status() === PHP_SESSION_NONE) {
                 session_start();
@@ -1377,6 +1413,15 @@ $tablesSkippedKey = $tablesSkippedCount === 1 ? 'admin_setup_schema_tables_exist
                 <li class="my-1.5"><?php echo t_attr('admin_setup_db_connection_label', 'Database connection:'); ?> <?php echo isset($pdo) ? t_attr('admin_setup_db_connection_connected', '✓ Connected') : t_attr('admin_setup_db_connection_failed', '✗ Failed'); ?></li>
                 <li class="my-1.5"><?php echo t_attr('admin_setup_project_info_label', 'Project info:'); ?> <?php echo $message ? t_attr('admin_setup_project_info_initialized', '✓ Initialized') : t_attr('admin_setup_project_info_not_initialized', '✗ Not initialized'); ?></li>
             </ul>
+            <?php if (file_exists($configPath)): ?>
+                <?php $configMode = fileperms($configPath) & 0777; ?>
+                <p class="mt-4 px-3 py-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-xs">
+                    <strong><?php echo t_attr('admin_setup_perms_heading', 'Next step (host hardening):'); ?></strong>
+                    <?php echo t_attr('admin_setup_perms_intro', 'config.php is now set to mode'); ?>
+                    <code class="font-mono"><?php echo sprintf('0%o', $configMode); ?></code>.
+                    <?php echo t_attr('admin_setup_perms_advice', 'Run sudo php bin/setup-host.php from the site root to apply canonical host configuration (nginx snippet, logrotate rule, and 0640 owner=theagitist on config.php).'); ?>
+                </p>
+            <?php endif; ?>
             <p class="mt-5">
                 <a href="../index.php" class="text-blue-500 hover:underline"><?php echo t_attr('admin_setup_link_go_to_telaris', 'Go to Telaris →'); ?></a> |
                 <a href="index.php" class="text-blue-500 hover:underline"><?php echo t_attr('admin_setup_link_admin_console', 'Admin Console'); ?></a> |
