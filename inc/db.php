@@ -5844,6 +5844,41 @@ function db_prune_keyword_position_history(int $maxAgeDays = 90): int {
 }
 
 /**
+ * L-third-7 (audit v6.10.13): unbounded prune of auth_attempts.
+ *
+ * The opportunistic in-process prune in db_record_auth_attempt is capped at
+ * LIMIT 10000 per call so a long-stale table doesn't hold a long row lock
+ * against concurrent INSERTs. Under high QPS the daily write rate can exceed
+ * the daily drain rate, leaving the table to grow. This helper, called from
+ * admin/cli/prune_logs.php via cron, drains the rest in one nightly pass
+ * outside the request-serving path.
+ */
+function db_prune_auth_attempts(int $maxAgeDays = 30): int {
+    db_ensure_auth_attempts_table();
+    $pdo = getDB();
+    $age = max(1, (int)$maxAgeDays);
+    $stmt = $pdo->prepare("DELETE FROM auth_attempts WHERE created_at < (NOW() - INTERVAL {$age} DAY)");
+    $stmt->execute();
+    return $stmt->rowCount();
+}
+
+/**
+ * L-third-7 (audit v6.10.13): unbounded prune of audit_events. Sibling of
+ * db_prune_auth_attempts. The default age tracks AUDIT_LOG_KEEP_DAYS
+ * (operator-tunable, default 365, minimum 7 enforced).
+ */
+function db_prune_audit_events(?int $maxAgeDays = null): int {
+    db_ensure_audit_events_table();
+    $pdo = getDB();
+    $keep = $maxAgeDays !== null
+        ? max(7, (int)$maxAgeDays)
+        : max(7, defined('AUDIT_LOG_KEEP_DAYS') ? (int)AUDIT_LOG_KEEP_DAYS : 365);
+    $stmt = $pdo->prepare("DELETE FROM audit_events WHERE created_at < (NOW() - INTERVAL {$keep} DAY)");
+    $stmt->execute();
+    return $stmt->rowCount();
+}
+
+/**
  * Create a discrete named lateral relation between two keywords. Normalizes pair
  * order (keyword_a < keyword_b) before insert. If the pair has to be swapped
  * for canonical ordering, the anchor sides swap with it so anchor_a always

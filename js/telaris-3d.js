@@ -195,18 +195,29 @@ class TelarisNetwork {
             }
         }
 
-        // Embed (server sanitizes to iframe-only; double-check client-side)
+        // Embed (server sanitizes to iframe-only; double-check client-side).
+        // L-third-5 (audit v6.10.13): rather than cloneNode(true) which would
+        // carry through every attribute on the source iframe, we construct a
+        // fresh iframe in JS and copy only an allowlist of attributes — the
+        // same allowlist the server sanitizer trusts. Defence in depth in
+        // case the sanitizer ever loosens or an injection bypasses it.
         if (embedWrap && embedEl) {
             if (d.embed_code) {
                 const tmp = document.createElement('div');
                 tmp.innerHTML = d.embed_code;
                 // Only allow <iframe> elements through
                 embedEl.innerHTML = '';
-                tmp.querySelectorAll('iframe').forEach(iframe => {
-                    const src = iframe.getAttribute('src') || '';
-                    if (src.match(/^https?:\/\//i)) {
-                        embedEl.appendChild(iframe.cloneNode(true));
-                    }
+                const allowedAttrs = ['src', 'width', 'height', 'allow', 'allowfullscreen', 'frameborder', 'loading', 'referrerpolicy', 'sandbox', 'title'];
+                tmp.querySelectorAll('iframe').forEach(srcIframe => {
+                    const src = srcIframe.getAttribute('src') || '';
+                    if (!src.match(/^https?:\/\//i)) return;
+                    const fresh = document.createElement('iframe');
+                    allowedAttrs.forEach(attr => {
+                        if (srcIframe.hasAttribute(attr)) {
+                            fresh.setAttribute(attr, srcIframe.getAttribute(attr));
+                        }
+                    });
+                    embedEl.appendChild(fresh);
                 });
                 embedWrap.classList.toggle('hidden', embedEl.children.length === 0);
             } else {

@@ -125,6 +125,26 @@ switch ($action) {
         if ($keywordId <= 0 || $x === null || $y === null) {
             api_error('400.016', 'move_keyword requires keyword_id, x, y.');
         }
+
+        // L-third-4 (audit v6.10.13): per-editor token-bucket rate limit.
+        // Each move records a row in keyword_position_history; a scripted
+        // client without throttling can flood the table at thousands of
+        // inserts/sec. Cap at ~60 writes per 60 seconds per userId via
+        // APCu (in-memory); the 90-day prune in db_prune_keyword_position_history
+        // still drains stale rows, but this gate keeps the floodable surface
+        // bounded. If APCu is unavailable, the rate limit is a no-op (current
+        // behaviour). The bucket is keyed by user id, not IP: honest editors
+        // behind a shared NAT shouldn't serialize on each other.
+        if (function_exists('apcu_inc') && $userId !== '' && $userId !== null) {
+            $bucket = 'kc_move:' . date('YmdHi') . ':' . $userId;
+            $rateOk = true;
+            $count = apcu_inc($bucket, 1, $rateOk, 120);
+            if ($count !== false && (int)$count > 60) {
+                http_response_code(429);
+                api_error('429.001', 'Too many keyword moves. Slow down and try again.');
+            }
+        }
+
         $galaxyId = db_get_keyword_constellation_id($keywordId);
         if ($galaxyId === null) api_error('404.003', 'Keyword not found.');
         if (!kc_can_edit_galaxy($galaxyId)) api_error('403.004', 'No edit access to this galaxy.');

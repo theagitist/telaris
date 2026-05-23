@@ -61,14 +61,28 @@ function bulk_users_parse(string $input, bool $defaultCreateGalaxy = true): arra
     // from different domains).
     $previewClaimedSlugs = [];
 
+    // L-third-6 (audit v6.10.13): hard cap on field length. Admin trust
+    // boundary, so this is advisory rather than security-bleeding, but
+    // unbounded names / emails could land oversized values into VARCHAR(255)
+    // columns or break downstream UI rendering. 200 chars is well above any
+    // realistic email or human name and well under the column ceiling.
+    $fieldCap = 200;
+    $truncatedLines = [];
+
     foreach ($lines as $i => $raw) {
         $raw = trim($raw);
         if ($raw === '' || str_starts_with($raw, '#')) continue;
 
         $cols = array_map('trim', explode(',', $raw));
-        $email = strtolower((string)($cols[0] ?? ''));
-        $firstname = (string)($cols[1] ?? '');
-        $lastname = (string)($cols[2] ?? '');
+        $emailRaw = (string)($cols[0] ?? '');
+        $firstRaw = (string)($cols[1] ?? '');
+        $lastRaw = (string)($cols[2] ?? '');
+        $email = strtolower(mb_substr($emailRaw, 0, $fieldCap));
+        $firstname = mb_substr($firstRaw, 0, $fieldCap);
+        $lastname = mb_substr($lastRaw, 0, $fieldCap);
+        if (mb_strlen($emailRaw) > $fieldCap || mb_strlen($firstRaw) > $fieldCap || mb_strlen($lastRaw) > $fieldCap) {
+            $truncatedLines[] = $i + 1;
+        }
         $typeRaw = strtolower((string)($cols[3] ?? ''));
         $role = ($typeRaw === 'admin') ? 'admin' : 'editor';
 
@@ -121,6 +135,10 @@ function bulk_users_parse(string $input, bool $defaultCreateGalaxy = true): arra
         } elseif (db_get_user_by_email($email) !== null) {
             $row['status'] = 'exists';
             $row['note'] = 'Email already in use';
+        }
+        if (in_array($i + 1, $truncatedLines, true)) {
+            $row['note'] = ($row['note'] !== null ? $row['note'] . ' · ' : '')
+                . 'Field truncated to ' . $fieldCap . ' chars';
         }
 
         if ($row['status'] === 'new') $seenEmails[$email] = true;

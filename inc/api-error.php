@@ -109,6 +109,8 @@ declare(strict_types=1);
  *   409.001 — keyword with that name already exists         (api/keyword-canvas.php)
  *   409.002 — a relation between these keywords already exists (api/keyword-canvas.php)
  *
+ *   429.001 — too many keyword moves (per-editor rate limit) (api/keyword-canvas.php)
+ *
  *   500.001 — internal server error                         (api/*.php, admin/*.php)
  *   500.002 — database error                                (api/*.php)
  *   500.003 — failed to create upload directory             (api/nodes.php)
