@@ -155,7 +155,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                         targetType: 'user',
                         targetId: (string)$newUser['id'],
                         details: ['type' => $type, 'galaxies' => count($constellationIds)],
-                        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                        ip: auth_client_ip(),
                         actorEmail: $_SESSION['admin_user_email'] ?? null,
                     );
                 }
@@ -203,7 +203,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                         'password_changed' => $hashedPassword !== null,
                         'galaxies' => count($constellationIds),
                     ],
-                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    ip: auth_client_ip(),
                     actorEmail: $_SESSION['admin_user_email'] ?? null,
                 );
                 $message = 'User updated successfully.';
@@ -225,7 +225,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     actorUserId: $_SESSION['admin_user_id'] ?? null,
                     targetType: 'user',
                     targetId: $id,
-                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    ip: auth_client_ip(),
                     actorEmail: $_SESSION['admin_user_email'] ?? null,
                 );
                 $message = 'User deleted successfully.';
@@ -261,7 +261,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     targetType: 'galaxy',
                     targetId: (string)$newGalaxyId,
                     details: ['name' => $name, 'slug' => $finalSlug, 'theme' => $theme],
-                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    ip: auth_client_ip(),
                     actorEmail: $_SESSION['admin_user_email'] ?? null,
                 );
                 $message = 'Galaxy created successfully.';
@@ -310,7 +310,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     targetType: 'galaxy',
                     targetId: (string)($newDupeId ?: '?'),
                     details: ['source_id' => $sourceId, 'name' => $name, 'slug' => $finalSlug],
-                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    ip: auth_client_ip(),
                     actorEmail: $_SESSION['admin_user_email'] ?? null,
                 );
                 $message = 'Galaxy duplicated successfully.';
@@ -326,7 +326,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     actorUserId: $_SESSION['admin_user_id'] ?? null,
                     targetType: 'galaxy',
                     targetId: (string)$id,
-                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    ip: auth_client_ip(),
                     actorEmail: $_SESSION['admin_user_email'] ?? null,
                 );
                 $message = 'Galaxy deleted successfully.';
@@ -368,7 +368,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     targetType: 'cluster',
                     targetId: (string)$newClusterId,
                     details: ['name' => $name, 'slug' => $finalSlug, 'theme' => $theme, 'members' => count($members)],
-                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    ip: auth_client_ip(),
                     actorEmail: $_SESSION['admin_user_email'] ?? null,
                 );
                 $message = 'Cluster created successfully.';
@@ -410,7 +410,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     targetType: 'cluster',
                     targetId: (string)$id,
                     details: ['name' => $name, 'slug' => $finalSlug, 'theme' => $theme, 'members' => count($members)],
-                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    ip: auth_client_ip(),
                     actorEmail: $_SESSION['admin_user_email'] ?? null,
                 );
                 $message = 'Cluster updated successfully.';
@@ -431,7 +431,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     actorUserId: $_SESSION['admin_user_id'] ?? null,
                     targetType: 'cluster',
                     targetId: (string)$id,
-                    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                    ip: auth_client_ip(),
                     actorEmail: $_SESSION['admin_user_email'] ?? null,
                 );
                 $message = 'Cluster deleted successfully.';

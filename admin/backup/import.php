@@ -131,7 +131,7 @@ try {
         targetType: 'backup',
         targetId: $tempId,
         details: ['mode' => $mode, 'error' => $e->getMessage()],
-        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        ip: auth_client_ip(),
         actorEmail: $_SESSION['admin_user_email'] ?? null,
     );
     error_log('backup/import.php commit: ' . $e->getMessage());
@@ -150,7 +150,7 @@ db_audit_log(
         'galaxies_count' => count($opts['galaxies']),
         'report_summary' => is_array($report) ? array_intersect_key($report, array_flip(['galaxies_imported', 'users_imported', 'media_imported', 'errors_count'])) : null,
     ],
-    ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+    ip: auth_client_ip(),
     actorEmail: $_SESSION['admin_user_email'] ?? null,
 );
 

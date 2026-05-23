@@ -10014,6 +10014,13 @@ function db_delete_galaxy_deep(int $id, bool $allowDefault = false): void {
  */
 function db_wipe_all_data(): void {
     $pdo = getDB();
+    // The ALTER TABLE … AUTO_INCREMENT = 1 statements below are implicit-COMMIT
+    // DDL under MySQL. If called inside a caller-managed transaction, the wipe
+    // would commit halfway and the outer commit/rollBack would no-op silently.
+    // No current caller does this; the guard closes a sharp edge.
+    if ($pdo->inTransaction()) {
+        throw new RuntimeException('db_wipe_all_data: must not run inside a transaction (DDL would implicit-commit).');
+    }
     try {
         $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
         $pdo->exec("DELETE FROM node_keywords");

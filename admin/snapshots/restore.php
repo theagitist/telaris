@@ -42,7 +42,7 @@ try {
         targetType: 'snapshot',
         targetId: (string)$id,
         details: ['confirm_no_admin' => $confirmNoAdmin],
-        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        ip: auth_client_ip(),
         actorEmail: $_SESSION['admin_user_email'] ?? null,
     );
     echo json_encode(['ok' => true, 'report' => $report]);
@@ -53,7 +53,7 @@ try {
         targetType: 'snapshot',
         targetId: (string)$id,
         details: ['error' => $e->getMessage()],
-        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        ip: auth_client_ip(),
         actorEmail: $_SESSION['admin_user_email'] ?? null,
     );
     error_log('snapshots/restore.php: ' . $e->getMessage());

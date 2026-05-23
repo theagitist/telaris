@@ -272,7 +272,7 @@ function bulk_users_apply(array $rows, string $baseUrl): array {
                     'galaxy_slug' => $galaxySlug,
                     'mail_sent' => $sent,
                 ],
-                ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+                ip: auth_client_ip(),
                 actorEmail: $row['email'],
             );
         } catch (Throwable $e) {

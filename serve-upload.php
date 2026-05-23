@@ -35,8 +35,11 @@ if ($relativePath === false || $relativePath === '') {
     exit;
 }
 
-// Normalize and validate: no traversal, no null bytes
-if (str_contains($relativePath, "\0") || str_contains($relativePath, '..')) {
+// Normalize and validate: no traversal, no null bytes. The realpath + prefix
+// check at line 47 is the primary defence; the segment check here is a
+// belt-and-braces gate that won't reject legitimate filenames containing '..'
+// as part of a name (e.g. 'my..file.jpg'). Looks for '..' as a path segment.
+if (str_contains($relativePath, "\0") || str_contains('/' . $relativePath, '/../')) {
     http_response_code(400);
     exit;
 }
@@ -72,7 +75,15 @@ if (isset($_SERVER['HTTP_IF_MODIFIED_SINCE'])) {
     }
 }
 
+// Defence in depth: explicit Content-Type plus nosniff so browsers never
+// downgrade to MIME sniffing on adversarial bytes. Content-Disposition
+// inline keeps the media renderable in the page; basename strips any
+// remaining path components from the filename we hand to the browser.
 header('Content-Type: ' . $mime);
+header('X-Content-Type-Options: nosniff');
+$dispositionName = basename($fullPath);
+$dispositionAscii = preg_replace('/[^A-Za-z0-9._-]/', '_', $dispositionName) ?? 'file';
+header('Content-Disposition: inline; filename="' . $dispositionAscii . '"');
 header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $lastModified) . ' GMT');
 header('Cache-Control: public, max-age=86400');
 header('Accept-Ranges: bytes');

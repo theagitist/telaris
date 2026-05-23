@@ -646,7 +646,7 @@ function _mocambos_http_import(): void {
             'galaxia_slugs' => array_column($galaxias, 'galaxia_slug'),
             'full_refresh' => $fullRefresh,
         ],
-        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        ip: auth_client_ip(),
         actorEmail: $_SESSION['admin_user_email'] ?? null,
     );
 
@@ -752,7 +752,7 @@ function _mocambos_http_import(): void {
                 $results,
             ),
         ],
-        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        ip: auth_client_ip(),
         actorEmail: $_SESSION['admin_user_email'] ?? null,
     );
     $streamMsg('done', t('mocambos_h_import_complete', 'Import complete.'), ['success' => true, 'results' => $results]);

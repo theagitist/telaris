@@ -35,7 +35,7 @@ try {
         actorUserId: $_SESSION['admin_user_id'] ?? null,
         targetType: 'snapshot',
         targetId: (string)$id,
-        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        ip: auth_client_ip(),
         actorEmail: $_SESSION['admin_user_email'] ?? null,
     );
     echo json_encode(['ok' => true]);

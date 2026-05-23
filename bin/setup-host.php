@@ -63,13 +63,33 @@ if (isset($opts['help'])) {
     exit(0);
 }
 
+// Concurrency guard. Two operators running this script in parallel could race
+// on the rename + nginx -t + rollback path. Acquire a non-blocking flock; if
+// another instance holds it, refuse with a clear message.
+$lockPath = '/run/telaris-setup-host.lock';
+$lockHandle = @fopen($lockPath, 'c');
+if ($lockHandle === false || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    fwrite(STDERR, "bin/setup-host.php is already running (lock held at {$lockPath}).\n");
+    exit(1);
+}
+// $lockHandle stays open for the rest of the run; flock releases on exit.
+
 // ---------------------------------------------------------------------------
 // Paths derived from the script's location. bin/setup-host.php lives inside
 // the Telaris site root; basename of that root is the site identifier used
 // for per-site filenames (logrotate, etc.).
+//
+// realpath() the root so a symlinked site root (e.g. blue/green deploy via
+// /var/www/<site> → /opt/releases/<ts>) still produces a stable site name
+// based on the underlying directory rather than the symlink target.
 // ---------------------------------------------------------------------------
 
-$root = dirname(__DIR__);
+$rootCandidate = dirname(__DIR__);
+$root = realpath($rootCandidate);
+if ($root === false) {
+    fwrite(STDERR, "Could not realpath the site root ({$rootCandidate}).\n");
+    exit(1);
+}
 $siteName = basename($root);
 
 $cfSrc = $root . '/etc/nginx/cloudflare-realip.conf.sample';
@@ -117,6 +137,21 @@ $tasks[] = (function() use ($cfSrc, $cfDst) {
         return ['name' => 'cloudflare-realip snippet', 'status' => 'ok', 'detail' => "matches {$cfSrc}", 'fix' => null];
     }
     $fix = function() use ($cfSrc, $cfDst, $canonical) {
+        // Refuse to write through a pre-existing symlink. Root-only on stock
+        // Debian/Ubuntu, but the provisioning helper should be paranoid: an
+        // attacker who can plant a symlink at /etc/nginx/snippets/... could
+        // redirect our write to an arbitrary path. is_link() is the canonical
+        // PHP test (doesn't follow); realpath() confirms the resolved target
+        // (if any) stays under /etc/nginx/.
+        if (is_link($cfDst)) {
+            return ['ok' => false, 'detail' => "{$cfDst} is a symlink; refusing to write through it (unlink first if intentional)"];
+        }
+        if (file_exists($cfDst)) {
+            $real = realpath($cfDst);
+            if ($real === false || !str_starts_with($real, '/etc/nginx/')) {
+                return ['ok' => false, 'detail' => "{$cfDst} resolves outside /etc/nginx/ (real='{$real}'); refusing to write"];
+            }
+        }
         $tmp = $cfDst . '.new.' . posix_getpid();
         if (file_put_contents($tmp, $canonical) === false) {
             return ['ok' => false, 'detail' => "could not write to {$tmp}"];
@@ -198,7 +233,13 @@ $tasks[] = (function() use ($logrotateSrc, $logrotateDst, $root) {
     return ['name' => 'logrotate snapshot rule', 'status' => file_exists($logrotateDst) ? 'mismatch' : 'missing', 'detail' => "{$logrotateDst} differs from canonical", 'fix' => $fix];
 })();
 
-// 5. config.php permissions: 0640, owner www-data group.
+// 5. config.php permissions: 0640, owner www-data group. Refuses to bless
+// a config.php owned by an unexpected user — chmod-on-attacker-planted-file
+// would otherwise give the malicious config exactly the perms PHP-FPM needs
+// to read it. The allowlist names the two principals that legitimately own
+// instance config: 'root' (system-installed deploys) and the deploy user
+// (operator-installed deploys; identified by SUDO_USER when this script was
+// invoked with sudo, otherwise the script's working directory owner).
 $tasks[] = (function() use ($configPath) {
     if (!file_exists($configPath)) {
         return ['name' => 'config.php exists', 'status' => 'missing', 'detail' => "{$configPath} does not exist (run admin/setup.php first)", 'fix' => null];
@@ -206,10 +247,30 @@ $tasks[] = (function() use ($configPath) {
     $mode = fileperms($configPath) & 0777;
     $group = posix_getgrgid(filegroup($configPath));
     $groupName = is_array($group) ? ($group['name'] ?? '?') : '?';
+    $ownerUid = fileowner($configPath);
+    $ownerPwd = posix_getpwuid($ownerUid);
+    $ownerName = is_array($ownerPwd) ? ($ownerPwd['name'] ?? '?') : '?';
+
+    $allowedOwners = ['root'];
+    $sudoUser = (string)($_SERVER['SUDO_USER'] ?? '');
+    if ($sudoUser !== '' && $sudoUser !== 'root') {
+        $allowedOwners[] = $sudoUser;
+    }
     $modeOk = ($mode === 0640);
     $groupOk = ($groupName === 'www-data');
-    if ($modeOk && $groupOk) {
-        return ['name' => 'config.php perms', 'status' => 'ok', 'detail' => sprintf('mode %o group %s', $mode, $groupName), 'fix' => null];
+    $ownerOk = in_array($ownerName, $allowedOwners, true);
+
+    if ($modeOk && $groupOk && $ownerOk) {
+        return ['name' => 'config.php perms', 'status' => 'ok', 'detail' => sprintf('mode %o owner %s group %s', $mode, $ownerName, $groupName), 'fix' => null];
+    }
+    if (!$ownerOk) {
+        $allow = implode(', ', $allowedOwners);
+        return [
+            'name' => 'config.php perms',
+            'status' => 'error',
+            'detail' => "config.php is owned by '{$ownerName}', not in allowlist [{$allow}]; refusing to chmod (an unexpected owner may indicate a planted file — investigate before re-running)",
+            'fix' => null,
+        ];
     }
     $fix = function() use ($configPath) {
         $okGroup = @chgrp($configPath, 'www-data');
@@ -222,7 +283,7 @@ $tasks[] = (function() use ($configPath) {
     return [
         'name' => 'config.php perms',
         'status' => 'mismatch',
-        'detail' => sprintf('mode %o group %s; want 0640 group www-data', $mode, $groupName),
+        'detail' => sprintf('mode %o owner %s group %s; want 0640 group www-data', $mode, $ownerName, $groupName),
         'fix' => $fix,
     ];
 })();

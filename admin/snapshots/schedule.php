@@ -47,7 +47,7 @@ try {
         targetType: 'snapshot_schedule',
         targetId: '1',
         details: ['enabled' => $enabled, 'hour' => $hour, 'keep_days' => $keepDays],
-        ip: function_exists('auth_client_ip') ? auth_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? null),
+        ip: auth_client_ip(),
         actorEmail: $_SESSION['admin_user_email'] ?? null,
     );
     echo json_encode([
