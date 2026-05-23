@@ -356,6 +356,13 @@ function getDatabaseSchema(): string {
 
 // Function to create database if it doesn't exist
 function createDatabaseIfNotExists(string $host, string $port, string $dbname, string $user, string $pass): ?string {
+    // Pre-validate the database name BEFORE it reaches SQL. MySQL identifier rules
+    // permit a wider charset than this regex, but the wizard's intended UX is
+    // ascii letters / digits / underscores; anything else is a sign of a typo or
+    // an attempt to smuggle backticks through the escape.
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $dbname)) {
+        return 'Invalid database name; use only letters, digits, and underscores.';
+    }
     try {
         // Connect without specifying database
         $dsn = sprintf('mysql:host=%s;port=%s;charset=utf8mb4', $host, $port);
@@ -368,8 +375,9 @@ function createDatabaseIfNotExists(string $host, string $port, string $dbname, s
                 PDO::ATTR_TIMEOUT => 5,
             ]
         );
-        
-        // Create database if it doesn't exist
+
+        // Create database if it doesn't exist. Identifier is regex-validated
+        // above; double-backtick escape is defence in depth.
         $pdo->exec(sprintf(
             "CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
             str_replace('`', '``', $dbname)

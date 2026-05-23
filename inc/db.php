@@ -7431,7 +7431,7 @@ function db_get_clusters_paginated(
     $where = ["c.`type` = 'cluster'"];
     $params = [];
     if ($filter !== null && $filter !== '') {
-        $filterVal = '%' . $filter . '%';
+        $filterVal = '%' . addcslashes($filter, '%_\\') . '%';
         $where[] = "(c.name LIKE :filter1 OR c.tagline LIKE :filter2 OR c.slug LIKE :filter3 OR CAST(c.id AS CHAR) LIKE :filter4)";
         $params[':filter1'] = $filterVal;
         $params[':filter2'] = $filterVal;
@@ -7519,7 +7519,7 @@ function db_get_constellations_paginated(
     $params = [];
 
     if ($filter !== null && $filter !== '') {
-        $filterVal = '%' . $filter . '%';
+        $filterVal = '%' . addcslashes($filter, '%_\\') . '%';
         $where[] = "(c.name LIKE :filter1 OR c.tagline LIKE :filter2 OR c.slug LIKE :filter3 OR CAST(c.id AS CHAR) LIKE :filter4)";
         $params[':filter1'] = $filterVal;
         $params[':filter2'] = $filterVal;
@@ -8353,12 +8353,19 @@ function db_node_exists(string $name, int $constellationId, ?int $excludeId = nu
  * @return list<array<string, mixed>>
  */
 function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool $isAdmin = true): array {
-    db_ensure_nodes_show_keywords_column();
-    db_ensure_nodes_use_image_as_node_column();
-    db_ensure_nodes_icon_url_column();
-    db_ensure_nodes_image_attribution_column();
-    db_ensure_nodes_clustering_columns();
-    db_ensure_nodes_pdf_url_column();
+    // Schema-ensure probes are no-ops in steady state but each was a DB round
+    // trip on every call; the visitor scene loader hits this once per page.
+    // Run the probes at most once per request.
+    static $ensured = false;
+    if (!$ensured) {
+        db_ensure_nodes_show_keywords_column();
+        db_ensure_nodes_use_image_as_node_column();
+        db_ensure_nodes_icon_url_column();
+        db_ensure_nodes_image_attribution_column();
+        db_ensure_nodes_clustering_columns();
+        db_ensure_nodes_pdf_url_column();
+        $ensured = true;
+    }
     $pdo = getDB();
 
     // Admin or specific constellation requested
@@ -8548,7 +8555,7 @@ function db_get_nodes_paginated(
 
     // Filter (search across name, description, constellation name, keywords)
     if ($filter !== null && $filter !== '') {
-        $filterVal = '%' . $filter . '%';
+        $filterVal = '%' . addcslashes($filter, '%_\\') . '%';
         $where[] = "(n.name LIKE :filter1 OR n.description LIKE :filter2 OR c.name LIKE :filter3 OR EXISTS (SELECT 1 FROM node_keywords nk JOIN keywords k ON k.id = nk.keyword_id WHERE nk.node_id = n.id AND k.keyword LIKE :filter4))";
         $params[':filter1'] = $filterVal;
         $params[':filter2'] = $filterVal;
@@ -9549,10 +9556,11 @@ function db_get_galaxy_for_dump(int $id): ?array {
     }
     $targetSlugMap = [];
     if ($targetCids !== []) {
-        $ids = array_keys($targetCids);
-        $place = implode(',', array_map('intval', $ids));
-        $r = $pdo->query("SELECT id, slug FROM constellations WHERE id IN ($place)")->fetchAll();
-        foreach ($r as $rr) {
+        $ids = array_map('intval', array_keys($targetCids));
+        $place = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $pdo->prepare("SELECT id, slug FROM constellations WHERE id IN ($place)");
+        $stmt->execute($ids);
+        foreach ($stmt->fetchAll() as $rr) {
             $targetSlugMap[(int)$rr['id']] = $rr['slug'] ?? null;
         }
     }
@@ -9878,7 +9886,9 @@ function dropAllTables(PDO $pdo): array {
         try {
             $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
         } catch (PDOException $e2) {
-            // ignore
+            // Best-effort; we are already in an error path. Log so a stuck
+            // FOREIGN_KEY_CHECKS=0 connection state has a breadcrumb.
+            error_log('hard_reset re-enable FK_CHECKS failed: ' . $e2->getMessage());
         }
         $errors[] = "Database error: " . $e->getMessage();
     }

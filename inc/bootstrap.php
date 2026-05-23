@@ -7,6 +7,12 @@ declare(strict_types=1);
  * Sets: $isEditorOrAdmin, $projectName, $projectTagline, $projectIframeBackText, $projectAlertMessage, $currentLocale
  */
 
+// Defensive: keep error output off the wire and logs on, regardless of what the
+// FPM pool's php.ini says. A misconfigured pool would otherwise leak stack
+// traces to visitors. The actual error policy is set in /etc/php/8.3/fpm/php.ini.
+@ini_set('display_errors', '0');
+@ini_set('log_errors', '1');
+
 $root = dirname(__DIR__);
 
 // Read version from VERSION file (single source of truth)

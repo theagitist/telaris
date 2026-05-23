@@ -133,7 +133,10 @@ function mocambos_handle_request(): void {
         _mocambos_http_list_galaxias();
     } elseif ($method === 'POST' && $action === 'import') {
         requireWriteAccess();
-        set_time_limit(0);
+        // Allow a long import but cap it: 30 minutes is well above observed
+        // import times and prevents a wedged Mocambos upstream from pinning
+        // an FPM worker forever.
+        set_time_limit(1800);
         _mocambos_http_import();
     } else {
         api_error('405.001', 'Method not allowed.');

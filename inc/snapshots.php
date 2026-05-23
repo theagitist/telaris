@@ -107,8 +107,10 @@ function snapshot_create(?string $note = null, string $trigger = 'manual', ?stri
     // request — CLI runs already have unlimited memory, so this only affects
     // web/cron paths.
     @ini_set('memory_limit', '512M');
-    // Allow long FPM requests too. CLI ignores this.
-    @set_time_limit(0);
+    // Allow long FPM requests but cap them. A 30-minute ceiling is well above
+    // observed dump times for any plausible corpus and short enough that a
+    // wedged request can't pin an FPM worker indefinitely. CLI ignores this.
+    @set_time_limit(1800);
 
     // Hold the per-instance lock for the full duration. Throws
     // SnapshotLockHeldException if another snapshot is already running, which
@@ -189,7 +191,10 @@ function snapshot_delete(int $id): void {
     $row = snapshot_get($id);
     if ($row === null) return;
     $path = snapshot_full_path($row['filename']);
-    if (file_exists($path)) @unlink($path);
+    if (file_exists($path) && !@unlink($path)) {
+        $err = error_get_last();
+        error_log("snapshot_delete: unlink failed for {$path}: " . ($err['message'] ?? 'unknown'));
+    }
     $pdo = getDB();
     $pdo->prepare("DELETE FROM snapshots WHERE id = :id")->execute([':id' => $id]);
 }
@@ -237,7 +242,10 @@ function snapshot_restore(int $id, bool $confirmNoAdmin = false): array {
     $toDelete = $stmt->fetchAll();
     foreach ($toDelete as $d) {
         $p = snapshot_full_path($d['filename']);
-        if (file_exists($p)) @unlink($p);
+        if (file_exists($p) && !@unlink($p)) {
+            $err = error_get_last();
+            error_log("snapshot housekeeping: unlink failed for {$p}: " . ($err['message'] ?? 'unknown'));
+        }
     }
     if ($toDelete !== []) {
         $ids = array_map(fn($d) => (int)$d['id'], $toDelete);
@@ -295,7 +303,10 @@ function snapshot_trim_scheduled(int $keepDays): int {
     if ($rows === []) return 0;
     foreach ($rows as $r) {
         $p = snapshot_full_path($r['filename']);
-        if (file_exists($p)) @unlink($p);
+        if (file_exists($p) && !@unlink($p)) {
+            $err = error_get_last();
+            error_log("snapshot housekeeping: unlink failed for {$p}: " . ($err['message'] ?? 'unknown'));
+        }
     }
     $ids = array_map(fn($r) => (int)$r['id'], $rows);
     $place = implode(',', array_fill(0, count($ids), '?'));
