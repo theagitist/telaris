@@ -65,11 +65,27 @@ function optimize_image(string $filePath, int $maxWidth = 1344): void {
         // phone). Re-encode through GD when it's loaded; GD does not preserve
         // EXIF on write. This is lossy at quality 82 but the upload would
         // otherwise carry location data straight to visitors.
+        // Skip when width × height exceeds the GD memory budget — GD loads
+        // the full bitmap into RAM (~4 bytes/pixel; double-buffered on
+        // re-encode) so a 24 MP image is already ~192 MB peak. Above that
+        // we'd OOM the FPM worker. Leave EXIF in place rather than crash;
+        // surfacing via error_log so ops sees the trade-off.
         if ($convertBin === null && !media_tool_available('jpegoptim') && extension_loaded('gd')) {
-            $img = @imagecreatefromjpeg($filePath);
-            if ($img !== false) {
-                @imagejpeg($img, $filePath, 82);
-                imagedestroy($img);
+            $pixels = ((int)($info[0] ?? 0)) * ((int)($info[1] ?? 0));
+            if ($pixels > 0 && $pixels <= 24_000_000) {
+                $img = @imagecreatefromjpeg($filePath);
+                if ($img !== false) {
+                    @imagejpeg($img, $filePath, 82);
+                    imagedestroy($img);
+                }
+            } else {
+                error_log(sprintf(
+                    'optimize_image: skipping GD EXIF strip on %s (%dx%d = %d MP exceeds 24 MP cap); EXIF retained',
+                    basename($filePath),
+                    (int)($info[0] ?? 0),
+                    (int)($info[1] ?? 0),
+                    (int)round($pixels / 1_000_000),
+                ));
             }
         }
     } elseif ($mime === 'image/png') {
@@ -83,13 +99,25 @@ function optimize_image(string $filePath, int $maxWidth = 1344): void {
             exec('optipng -o2 -quiet ' . escapeshellarg($filePath) . ' 2>/dev/null');
         }
         // PNG EXIF fallback (rare but possible; some phones embed XMP in PNGs).
+        // Same pixel-count cap as the JPEG branch — see comment above for why.
         if ($convertBin === null && !media_tool_available('optipng') && extension_loaded('gd')) {
-            $img = @imagecreatefrompng($filePath);
-            if ($img !== false) {
-                imagealphablending($img, false);
-                imagesavealpha($img, true);
-                @imagepng($img, $filePath);
-                imagedestroy($img);
+            $pixels = ((int)($info[0] ?? 0)) * ((int)($info[1] ?? 0));
+            if ($pixels > 0 && $pixels <= 24_000_000) {
+                $img = @imagecreatefrompng($filePath);
+                if ($img !== false) {
+                    imagealphablending($img, false);
+                    imagesavealpha($img, true);
+                    @imagepng($img, $filePath);
+                    imagedestroy($img);
+                }
+            } else {
+                error_log(sprintf(
+                    'optimize_image: skipping GD EXIF strip on %s (%dx%d = %d MP exceeds 24 MP cap); EXIF retained',
+                    basename($filePath),
+                    (int)($info[0] ?? 0),
+                    (int)($info[1] ?? 0),
+                    (int)round($pixels / 1_000_000),
+                ));
             }
         }
     } elseif ($mime === 'image/webp') {

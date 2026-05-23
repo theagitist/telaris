@@ -8127,44 +8127,64 @@ function db_get_tour_configs_for_ids(array $ids): array {
     $pdo = getDB();
     $place = implode(',', array_fill(0, count($ids), '?'));
 
-    $stmt = $pdo->prepare("
-        SELECT id, tour_enabled, tour_start_mode, tour_idle_seconds, tour_node_selection,
-               tour_random_count, tour_default_dwell, tour_loop, keyword_chips_enabled,
-               idle_spotlight_enabled, idle_spotlight_selection, idle_spotlight_idle_seconds,
-               related_nodes_enabled, show_2d_view
-        FROM constellations WHERE id IN ($place)
-    ");
-    $stmt->execute($ids);
-    $configs = [];
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $cid = (int)$row['id'];
-        $configs[$cid] = [
-            'tour_enabled' => (bool)$row['tour_enabled'],
-            'tour_start_mode' => (string)$row['tour_start_mode'],
-            'tour_idle_seconds' => (int)$row['tour_idle_seconds'],
-            'tour_node_selection' => (string)$row['tour_node_selection'],
-            'tour_random_count' => (int)$row['tour_random_count'],
-            'tour_default_dwell' => (int)$row['tour_default_dwell'],
-            'tour_loop' => (bool)$row['tour_loop'],
-            'tour_keyword_ids' => [],
-            'keyword_chips_enabled' => (bool)$row['keyword_chips_enabled'],
-            'idle_spotlight_enabled' => (bool)$row['idle_spotlight_enabled'],
-            'idle_spotlight_selection' => (string)$row['idle_spotlight_selection'],
-            'idle_spotlight_idle_seconds' => (int)$row['idle_spotlight_idle_seconds'],
-            'related_nodes_enabled' => (bool)$row['related_nodes_enabled'],
-            'show_2d_view' => (bool)$row['show_2d_view'],
-        ];
+    // Two SELECTs (tour columns + keyword junction) wrapped in a transaction
+    // so they read a consistent snapshot under InnoDB's default REPEATABLE READ
+    // isolation. Without this, a concurrent db_set_tour_keyword_ids landing
+    // between the queries could yield a stale-keyword frame against fresh tour
+    // columns; visitor-side this is benign (one out-of-date frame), but the
+    // ordering invariant is cheap to make explicit. Skip when already in a
+    // transaction so callers stay in charge of the boundary.
+    $ownTxn = !$pdo->inTransaction();
+    if ($ownTxn) {
+        $pdo->beginTransaction();
     }
-    if ($configs === []) return [];
+    try {
+        $stmt = $pdo->prepare("
+            SELECT id, tour_enabled, tour_start_mode, tour_idle_seconds, tour_node_selection,
+                   tour_random_count, tour_default_dwell, tour_loop, keyword_chips_enabled,
+                   idle_spotlight_enabled, idle_spotlight_selection, idle_spotlight_idle_seconds,
+                   related_nodes_enabled, show_2d_view
+            FROM constellations WHERE id IN ($place)
+        ");
+        $stmt->execute($ids);
+        $configs = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $cid = (int)$row['id'];
+            $configs[$cid] = [
+                'tour_enabled' => (bool)$row['tour_enabled'],
+                'tour_start_mode' => (string)$row['tour_start_mode'],
+                'tour_idle_seconds' => (int)$row['tour_idle_seconds'],
+                'tour_node_selection' => (string)$row['tour_node_selection'],
+                'tour_random_count' => (int)$row['tour_random_count'],
+                'tour_default_dwell' => (int)$row['tour_default_dwell'],
+                'tour_loop' => (bool)$row['tour_loop'],
+                'tour_keyword_ids' => [],
+                'keyword_chips_enabled' => (bool)$row['keyword_chips_enabled'],
+                'idle_spotlight_enabled' => (bool)$row['idle_spotlight_enabled'],
+                'idle_spotlight_selection' => (string)$row['idle_spotlight_selection'],
+                'idle_spotlight_idle_seconds' => (int)$row['idle_spotlight_idle_seconds'],
+                'related_nodes_enabled' => (bool)$row['related_nodes_enabled'],
+                'show_2d_view' => (bool)$row['show_2d_view'],
+            ];
+        }
+        if ($configs === []) {
+            if ($ownTxn) $pdo->commit();
+            return [];
+        }
 
-    $foundIds = array_keys($configs);
-    $place2 = implode(',', array_fill(0, count($foundIds), '?'));
-    $kstmt = $pdo->prepare("SELECT constellation_id, keyword_id FROM constellation_tour_keywords WHERE constellation_id IN ($place2) ORDER BY constellation_id, keyword_id");
-    $kstmt->execute($foundIds);
-    foreach ($kstmt->fetchAll(PDO::FETCH_ASSOC) as $kr) {
-        $configs[(int)$kr['constellation_id']]['tour_keyword_ids'][] = (int)$kr['keyword_id'];
+        $foundIds = array_keys($configs);
+        $place2 = implode(',', array_fill(0, count($foundIds), '?'));
+        $kstmt = $pdo->prepare("SELECT constellation_id, keyword_id FROM constellation_tour_keywords WHERE constellation_id IN ($place2) ORDER BY constellation_id, keyword_id");
+        $kstmt->execute($foundIds);
+        foreach ($kstmt->fetchAll(PDO::FETCH_ASSOC) as $kr) {
+            $configs[(int)$kr['constellation_id']]['tour_keyword_ids'][] = (int)$kr['keyword_id'];
+        }
+        if ($ownTxn) $pdo->commit();
+        return $configs;
+    } catch (Throwable $e) {
+        if ($ownTxn && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
     }
-    return $configs;
 }
 
 /**
