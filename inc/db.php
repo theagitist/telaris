@@ -6651,11 +6651,14 @@ function db_record_auth_attempt(string $action, ?string $email, string $ip, bool
         ':success' => $success ? 1 : 0,
     ]);
     // Opportunistic prune once per process: drop rows older than 30 days.
+    // Capped at 10000 rows per pass so a long-stale table can't hold a
+    // long row lock against concurrent INSERTs. Subsequent processes pick
+    // up where this one stopped.
     static $pruned = false;
     if (!$pruned) {
         $pruned = true;
         try {
-            $pdo->exec("DELETE FROM auth_attempts WHERE created_at < (NOW() - INTERVAL 30 DAY)");
+            $pdo->exec("DELETE FROM auth_attempts WHERE created_at < (NOW() - INTERVAL 30 DAY) LIMIT 10000");
         } catch (Throwable $_) {
             // Best-effort.
         }
@@ -6768,12 +6771,15 @@ function db_audit_log(
             ':ip' => $ip !== null && $ip !== '' ? mb_substr($ip, 0, 45) : null,
         ]);
         // Opportunistic prune once per process: drop rows older than retention.
+        // Capped at 10000 rows per pass so a long-stale table can't hold a
+        // long row lock against concurrent INSERTs. Subsequent processes pick
+        // up where this one stopped.
         static $pruned = false;
         if (!$pruned) {
             $pruned = true;
             $keepDays = defined('AUDIT_LOG_KEEP_DAYS') ? max(7, (int)AUDIT_LOG_KEEP_DAYS) : 365;
             try {
-                $pdo->exec("DELETE FROM audit_events WHERE created_at < (NOW() - INTERVAL {$keepDays} DAY)");
+                $pdo->exec("DELETE FROM audit_events WHERE created_at < (NOW() - INTERVAL {$keepDays} DAY) LIMIT 10000");
             } catch (Throwable $e) {
                 error_log('db_audit_log: prune failed: ' . $e->getMessage());
             }

@@ -80,19 +80,33 @@ function _mocambos_validate_safe_url(string $url): ?string {
         return _mocambos_ip_is_public($host) ? null : 'IP literal is in a private, loopback, or link-local range.';
     }
 
-    $records = @dns_get_record($host, DNS_A + DNS_AAAA);
-    $resolved = [];
-    if (is_array($records)) {
-        foreach ($records as $rec) {
-            if (isset($rec['ip'])) $resolved[] = (string)$rec['ip'];
-            if (isset($rec['ipv6'])) $resolved[] = (string)$rec['ipv6'];
+    // Per-request resolve cache. An import run hits the same upstream host
+    // many times (/galaxia, /mucua, /acervo/find, /blog/find, media
+    // downloads, etc.); without caching, every call paid one or two
+    // dns_get_record + gethostbynamel waits. With the cache, the validator
+    // resolves once per host per request and reuses the IP list. Cache scope
+    // is the request; long-term DNS rebinding is bounded by the request
+    // lifetime, which combined with set_time_limit(1800) on the bridge
+    // handler caps the trust window.
+    static $resolveCache = [];
+    if (isset($resolveCache[$host])) {
+        $resolved = $resolveCache[$host];
+    } else {
+        $records = @dns_get_record($host, DNS_A + DNS_AAAA);
+        $resolved = [];
+        if (is_array($records)) {
+            foreach ($records as $rec) {
+                if (isset($rec['ip'])) $resolved[] = (string)$rec['ip'];
+                if (isset($rec['ipv6'])) $resolved[] = (string)$rec['ipv6'];
+            }
         }
-    }
-    if ($resolved === []) {
-        $ipv4 = @gethostbynamel($host);
-        if (is_array($ipv4)) {
-            $resolved = $ipv4;
+        if ($resolved === []) {
+            $ipv4 = @gethostbynamel($host);
+            if (is_array($ipv4)) {
+                $resolved = $ipv4;
+            }
         }
+        $resolveCache[$host] = $resolved;
     }
     if ($resolved === []) {
         return 'Host could not be resolved.';

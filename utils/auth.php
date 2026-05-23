@@ -43,25 +43,26 @@ define('AUTH_API_KEY_MAX_FAILURES', 30);
 define('AUTH_API_KEY_WINDOW_SECONDS', 300);
 
 /**
- * Best-effort client IP for throttling. Trusts CF-Connecting-IP and
- * X-Forwarded-For when present; the Polivoxia instances sit behind
- * Cloudflare so REMOTE_ADDR by itself is the proxy IP and would
- * over-throttle. Headers can be forged when an attacker hits the origin
- * directly, but the email-axis throttle still applies in that case.
+ * Client IP for throttling. Trusts REMOTE_ADDR alone — nginx rewrites it
+ * to the real client IP for Cloudflare-fronted traffic via the
+ * /etc/nginx/snippets/cloudflare-realip.conf snippet (set_real_ip_from +
+ * real_ip_header CF-Connecting-IP + real_ip_recursive on). On direct-to-
+ * origin requests, REMOTE_ADDR is the attacker's real IP because nginx
+ * does NOT rewrite headers from non-trusted sources. Either way, this is
+ * the source-of-truth value; the application must not consult forwarded
+ * headers because an attacker hitting the origin directly can forge them.
+ *
+ * The snippet must be installed and included from every Telaris vhost.
+ * A copy lives in the repo at etc/nginx/cloudflare-realip.conf.sample
+ * with installation instructions. Without the snippet, REMOTE_ADDR will
+ * be the Cloudflare edge IP and per-IP throttles will over-fire (legit
+ * users behind the same CF edge get lumped together) — the email-axis
+ * throttle still applies, so this is a UX regression rather than a
+ * security regression.
  */
 function auth_client_ip(): string {
-    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'] as $key) {
-        if (!empty($_SERVER[$key])) {
-            $value = (string)$_SERVER[$key];
-            if ($key === 'HTTP_X_FORWARDED_FOR') {
-                $value = trim(explode(',', $value)[0]);
-            }
-            if (filter_var($value, FILTER_VALIDATE_IP) !== false) {
-                return $value;
-            }
-        }
-    }
-    return '-';
+    $value = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    return filter_var($value, FILTER_VALIDATE_IP) !== false ? $value : '-';
 }
 
 /**

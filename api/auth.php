@@ -23,22 +23,14 @@ if (!defined('AUTH_API_KEY_WINDOW_SECONDS')) {
 
 /**
  * Resolve the client IP for throttling. Mirrors utils/auth.php's
- * auth_client_ip() so the bare API endpoints can throttle without pulling
- * in the session bootstrap.
+ * auth_client_ip() — trusts REMOTE_ADDR alone because nginx's Cloudflare
+ * real-IP snippet (see etc/nginx/cloudflare-realip.conf.sample) rewrites
+ * it to the real client IP for Cloudflare-fronted traffic. The bare API
+ * endpoints can throttle without pulling in the session bootstrap.
  */
 function api_client_ip(): string {
-    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'] as $key) {
-        if (!empty($_SERVER[$key])) {
-            $value = (string)$_SERVER[$key];
-            if ($key === 'HTTP_X_FORWARDED_FOR') {
-                $value = trim(explode(',', $value)[0]);
-            }
-            if (filter_var($value, FILTER_VALIDATE_IP) !== false) {
-                return $value;
-            }
-        }
-    }
-    return '-';
+    $value = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    return filter_var($value, FILTER_VALIDATE_IP) !== false ? $value : '-';
 }
 
 /**
