@@ -6707,8 +6707,14 @@ function db_count_recent_auth_attempts(
 // user provisioning, snapshot restores, galaxy deletions, bridge imports,
 // schema migrations.
 //
-// Retention: opportunistic prune after 365 days (configurable via the
-// AUDIT_LOG_KEEP_DAYS constant in config.php; default 365).
+// Retention is operator-tunable. Add the following line to config.php to
+// override the 365-day default (minimum 7 days enforced):
+//
+//   define('AUDIT_LOG_KEEP_DAYS', 730);   // keep audit history two years
+//
+// The prune runs opportunistically on the first audit write per request,
+// capped at 10000 rows per pass so a long-stale table can't hold a long
+// row lock against concurrent INSERTs.
 
 function db_ensure_audit_events_table(): void {
     $pdo = getDB();
@@ -6732,10 +6738,50 @@ function db_ensure_audit_events_table(): void {
 }
 
 /**
+ * Whitelist of action strings db_audit_log accepts. Callers passing anything
+ * outside this set get their action prefixed as `unknown.` and logged via
+ * error_log so a typo or a renamed event surfaces during code review
+ * rather than silently polluting the audit_events table. Keep this list
+ * sorted; add new actions as their hook sites land.
+ */
+const AUDIT_LOG_KNOWN_ACTIONS = [
+    'backup.export',
+    'backup.import',
+    'backup.import.failed',
+    'bridge.mocambos.import.finish',
+    'bridge.mocambos.import.start',
+    'cluster.create',
+    'cluster.delete',
+    'cluster.update',
+    'galaxy.create',
+    'galaxy.delete',
+    'galaxy.duplicate',
+    'password.reset.consumed',
+    'snapshot.create.cli',
+    'snapshot.create.manual',
+    'snapshot.create.scheduled',
+    'snapshot.delete',
+    'snapshot.restore',
+    'snapshot.restore.failed',
+    'snapshot.schedule.update',
+    'user.create',
+    'user.create.bulk',
+    'user.create.cli',
+    'user.delete',
+    'user.update',
+];
+
+/**
  * Record an audit event. All arguments are optional except $action; failures
  * are swallowed (audit logging must never break the work it observes). The
  * caller can pass null for actor / target / details when they are not
  * known or not applicable.
+ *
+ * Action strings outside AUDIT_LOG_KNOWN_ACTIONS land in the table prefixed
+ * with `unknown.` and trigger an error_log breadcrumb. That's the defensive
+ * floor against a future caller passing an attacker-influenced string into
+ * the action slot (no such caller exists today; the floor exists so it
+ * stays that way).
  */
 function db_audit_log(
     string $action,
@@ -6749,6 +6795,10 @@ function db_audit_log(
     try {
         db_ensure_audit_events_table();
         $pdo = getDB();
+        if (!in_array($action, AUDIT_LOG_KNOWN_ACTIONS, true)) {
+            error_log('db_audit_log: unknown action "' . mb_substr($action, 0, 64) . '" — recording as unknown.* and continuing');
+            $action = 'unknown.' . mb_substr($action, 0, 56);
+        }
         $actorTag = null;
         if ($actorEmail !== null && $actorEmail !== '') {
             // Mirror mail_recipient_tag: stable SHA-256 prefix that lets ops

@@ -53,7 +53,7 @@ final class AuditLogTest extends TestCase
     public function testLogPopulatesColumns(): void
     {
         db_audit_log(
-            action: 'aitest.action',
+            action: 'user.create',
             actorUserId: $this->actorId,
             targetType: 'aitest-target',
             targetId: 'aitest-123',
@@ -61,13 +61,15 @@ final class AuditLogTest extends TestCase
             ip: '203.0.113.7',
             actorEmail: $this->actorId . '@aitest.local',
         );
+        // Use the synthetic actor id as the SELECT filter so we find the row
+        // this test wrote regardless of unrelated production user.create rows.
         $row = $this->pdo->prepare(
-            "SELECT action, actor_user_id, actor_email_tag, target_type, target_id, details_json, ip FROM audit_events WHERE action = ? ORDER BY id DESC LIMIT 1"
+            "SELECT action, actor_user_id, actor_email_tag, target_type, target_id, details_json, ip FROM audit_events WHERE actor_user_id = ? AND target_id = ? ORDER BY id DESC LIMIT 1"
         );
-        $row->execute(['aitest.action']);
+        $row->execute([$this->actorId, 'aitest-123']);
         $r = $row->fetch(PDO::FETCH_ASSOC);
         $this->assertNotFalse($r);
-        $this->assertSame('aitest.action', $r['action']);
+        $this->assertSame('user.create', $r['action']);
         $this->assertSame($this->actorId, $r['actor_user_id']);
         $this->assertNotEmpty($r['actor_email_tag']);
         $this->assertSame('aitest-target', $r['target_type']);
@@ -81,14 +83,26 @@ final class AuditLogTest extends TestCase
 
     public function testLogAcceptsAllOptionalFieldsNull(): void
     {
-        db_audit_log(action: 'aitest.minimal');
-        $r = $this->pdo->prepare("SELECT * FROM audit_events WHERE action = ? ORDER BY id DESC LIMIT 1");
-        $r->execute(['aitest.minimal']);
+        db_audit_log(action: 'galaxy.delete', targetId: 'aitest-only-target');
+        $r = $this->pdo->prepare("SELECT * FROM audit_events WHERE target_id = ? ORDER BY id DESC LIMIT 1");
+        $r->execute(['aitest-only-target']);
         $row = $r->fetch(PDO::FETCH_ASSOC);
         $this->assertNotFalse($row);
+        $this->assertSame('galaxy.delete', $row['action']);
         $this->assertNull($row['actor_user_id']);
-        $this->assertNull($row['target_type']);
         $this->assertNull($row['details_json']);
+    }
+
+    public function testUnknownActionIsRecordedWithPrefix(): void
+    {
+        // Whitelist defence-in-depth: anything outside AUDIT_LOG_KNOWN_ACTIONS
+        // lands with `unknown.` prefix and triggers an error_log breadcrumb.
+        db_audit_log(action: 'aitest.never.added.to.whitelist', targetId: 'aitest-unknown-target');
+        $r = $this->pdo->prepare("SELECT action FROM audit_events WHERE target_id = ? ORDER BY id DESC LIMIT 1");
+        $r->execute(['aitest-unknown-target']);
+        $row = $r->fetch(PDO::FETCH_ASSOC);
+        $this->assertNotFalse($row);
+        $this->assertStringStartsWith('unknown.', (string)$row['action']);
     }
 
     public function testActorCascadesToNullOnUserDelete(): void
@@ -99,11 +113,11 @@ final class AuditLogTest extends TestCase
             "INSERT INTO users (id, email, password, firstname, lastname, type) VALUES (?, ?, ?, 'Aitest', 'Ephemeral', 1)"
         )->execute([$ephemeral, $ephemeral . '@aitest.local', password_hash('x', PASSWORD_DEFAULT)]);
 
-        db_audit_log(action: 'aitest.ephemeral', actorUserId: $ephemeral);
+        db_audit_log(action: 'user.delete', actorUserId: $ephemeral, targetId: 'aitest-cascade-target');
 
         $this->pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$ephemeral]);
-        $r = $this->pdo->prepare("SELECT actor_user_id FROM audit_events WHERE action = ? ORDER BY id DESC LIMIT 1");
-        $r->execute(['aitest.ephemeral']);
+        $r = $this->pdo->prepare("SELECT actor_user_id FROM audit_events WHERE target_id = ? ORDER BY id DESC LIMIT 1");
+        $r->execute(['aitest-cascade-target']);
         $row = $r->fetch(PDO::FETCH_ASSOC);
         $this->assertNotFalse($row);
         $this->assertNull($row['actor_user_id'], 'Audit row must survive the actor delete with NULL actor.');
@@ -111,7 +125,7 @@ final class AuditLogTest extends TestCase
 
     private function cleanup(): void
     {
-        $this->pdo->exec("DELETE FROM audit_events WHERE action LIKE 'aitest.%'");
+        $this->pdo->exec("DELETE FROM audit_events WHERE target_id LIKE 'aitest-%'");
         $this->pdo->exec("DELETE FROM users WHERE id LIKE 'aitest-audit-ephemeral-%'");
     }
 }

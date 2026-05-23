@@ -276,15 +276,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         window.TELARIS_CSRF_TOKEN = CSRF_TOKEN;
         const API_BASE = '../api/nodes.php';
         const CONSTELLATIONS_API = '../api/constellations.php';
-        // Header shim — every write fetch in this file already carries
-        // X-CSRF-Token alongside X-API-Key via the inline replacement below;
-        // this helper exists for ad-hoc callers.
-        function writeHeaders(extra = {}) {
-            const h = {};
-            h[String.fromCharCode(88)+'-API-Key'] = API_KEY;
-            h[String.fromCharCode(88)+'-CSRF-Token'] = CSRF_TOKEN;
-            return Object.assign(h, extra);
-        }
         const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'slug' => $c['slug'], 'import_source' => $c['import_source'] ?? null], $constellations), JSON_THROW_ON_ERROR); ?>;
 
         // Localized strings consumed by inline JS. Mirrors the visitor-side
