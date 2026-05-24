@@ -1,4 +1,7 @@
 {
+    "name": "theagitist/telaris",
+    "description": "Telaris instance software: 3D interactive node-network visualization for relational, non-hierarchical knowledge.",
+    "license": "GPL-3.0-or-later",
     "require": {
         "php": ">=8.3",
         "phpmailer/phpmailer": "^7.0"
