@@ -50,6 +50,7 @@ final class OpenApiDocument {}
     schema: 'IdentityEnvelope',
     description: 'Identity envelope returned by GET /api/pluriverse/identity.',
     required: [
+        'kind',
         'hostname',
         'label',
         'telaris_version',
@@ -59,6 +60,7 @@ final class OpenApiDocument {}
         'pluriverse_endpoint',
     ],
     properties: [
+        new OA\Property(property: 'kind', type: 'string', enum: ['telaris-instance'], description: 'Discriminator that distinguishes a Telaris instance from the Pluriverse coordinator (whose identity envelope carries kind=pluriverse-coord).'),
         new OA\Property(property: 'hostname', type: 'string', example: 'starmaps.polivoxia.ca'),
         new OA\Property(property: 'label', type: 'string', description: 'Editorial label chosen by the operator.'),
         new OA\Property(property: 'telaris_version', type: 'string', example: '6.11.5', description: 'Semver version of the Telaris instance software.'),

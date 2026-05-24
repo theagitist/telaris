@@ -86,6 +86,7 @@ $pluriverseEndpoint = defined('TELARIS_PLURIVERSE_ENDPOINT')
     : 'https://www.telaris.ca/api/pluriverse/identity';
 
 $payload = [
+    'kind' => 'telaris-instance',
     'hostname' => $hostname,
     'label' => $label,
     'telaris_version' => $telarisVersion,
