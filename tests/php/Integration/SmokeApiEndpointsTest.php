@@ -39,6 +39,7 @@ final class SmokeApiEndpointsTest extends TestCase
         // Federation (stage 1c+; URL has no .php suffix — routed through
         // index.php → inc/federation/router.php).
         '/api/pluriverse/identity',
+        '/api/pluriverse/openapi.json',
     ];
 
     /** Set of "PHP reached the response surface intentionally" codes. */
