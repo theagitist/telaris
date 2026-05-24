@@ -157,7 +157,7 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
 <body>
     <div class="kc-shell">
         <header class="kc-header">
-            <a id="kc-back-link" href="<?php echo htmlspecialchars($backUrl); ?>" class="text-sm hover:underline"><?php echo t('editor_kc_back_link', '← Back'); ?></a>
+            <a id="kc-back-link" href="<?php echo htmlspecialchars($backUrl); ?>" class="text-sm hover:underline"><?php echo t_attr('editor_kc_back_link', '← Back'); ?></a>
             <h1 class="text-base font-semibold">
                 <?php echo htmlspecialchars(sprintf(t('editor_kc_page_title_template', 'Keyword canvas; %s'), $galaxyInfo['name'] ?? '')); ?>
             </h1>
@@ -167,7 +167,7 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
                     aria-label="<?php echo t_attr('editor_kc_help_button', 'Help'); ?>">
                 ?
             </button>
-            <span id="kc-status" class="kc-status"><?php echo t('editor_kc_status_loading', 'Loading…'); ?></span>
+            <span id="kc-status" class="kc-status"><?php echo t_attr('editor_kc_status_loading', 'Loading…'); ?></span>
         </header>
 
         <div class="kc-stage">
@@ -176,28 +176,28 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
                 <!-- Canvas content rendered by /js/keyword-canvas.js -->
             </svg>
             <div id="kc-empty" class="kc-empty" hidden>
-                <p><?php echo t('editor_kc_empty_state', 'No keywords in this galaxy yet. Add some wormholes with keywords first.'); ?></p>
+                <p><?php echo t_attr('editor_kc_empty_state', 'No keywords in this galaxy yet. Add some wormholes with keywords first.'); ?></p>
             </div>
         </div>
 
         <div class="kc-mobile-block">
-            <p><?php echo t('editor_kc_mobile_block', 'Open the keyword canvas on a desktop browser to author keyword relationships. The interactions need a larger screen and a mouse or trackpad.'); ?></p>
+            <p><?php echo t_attr('editor_kc_mobile_block', 'Open the keyword canvas on a desktop browser to author keyword relationships. The interactions need a larger screen and a mouse or trackpad.'); ?></p>
         </div>
     </div>
 
     <!-- Note input modal: used for both create-new-relation and edit-existing-note flows. -->
     <dialog id="kc-note-modal" class="modal">
         <div class="modal-box bg-white text-gray-800 max-w-md">
-            <h3 id="kc-note-modal-title" class="font-bold text-lg"><?php echo t('editor_kc_note_modal_title', 'Relation note'); ?></h3>
+            <h3 id="kc-note-modal-title" class="font-bold text-lg"><?php echo t_attr('editor_kc_note_modal_title', 'Relation note'); ?></h3>
             <p id="kc-note-modal-pair" class="text-sm text-gray-500 mt-1 font-mono"></p>
-            <p class="text-xs text-gray-500 mt-3"><?php echo t('editor_kc_note_modal_intro', "Optional editorial framing; what does this relation carry that a shared keyword can't say alone?"); ?></p>
+            <p class="text-xs text-gray-500 mt-3"><?php echo t_attr('editor_kc_note_modal_intro', "Optional editorial framing; what does this relation carry that a shared keyword can't say alone?"); ?></p>
             <textarea id="kc-note-modal-input" class="textarea textarea-bordered w-full mt-2 bg-white" rows="3" maxlength="500" placeholder=""></textarea>
             <div class="modal-action">
-                <button type="button" id="kc-note-modal-cancel" class="btn btn-ghost"><?php echo t('editor_kc_note_modal_cancel', 'Cancel'); ?></button>
-                <button type="button" id="kc-note-modal-save" class="btn btn-success"><?php echo t('editor_kc_note_modal_save', 'Save'); ?></button>
+                <button type="button" id="kc-note-modal-cancel" class="btn btn-ghost"><?php echo t_attr('editor_kc_note_modal_cancel', 'Cancel'); ?></button>
+                <button type="button" id="kc-note-modal-save" class="btn btn-success"><?php echo t_attr('editor_kc_note_modal_save', 'Save'); ?></button>
             </div>
         </div>
-        <form method="dialog" class="modal-backdrop"><button><?php echo t('editor_kc_backdrop_close', 'close'); ?></button></form>
+        <form method="dialog" class="modal-backdrop"><button><?php echo t_attr('editor_kc_backdrop_close', 'close'); ?></button></form>
     </dialog>
 
     <!-- Keyword inspector modal: opens when an editor clicks (not drags) a
@@ -206,20 +206,20 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
          vs. "merge into the existing keyword". -->
     <dialog id="kc-keyword-modal" class="modal">
         <div class="modal-box bg-white text-gray-800 max-w-md">
-            <h3 class="font-bold text-lg"><?php echo t('editor_kc_keyword_modal_title', 'Keyword'); ?></h3>
+            <h3 class="font-bold text-lg"><?php echo t_attr('editor_kc_keyword_modal_title', 'Keyword'); ?></h3>
             <p id="kc-keyword-modal-current" class="text-base font-semibold mt-1 font-mono"></p>
-            <label for="kc-keyword-modal-input" class="text-xs text-gray-500 mt-3 block"><?php echo t('editor_kc_keyword_modal_new_name_label', 'New name'); ?></label>
+            <label for="kc-keyword-modal-input" class="text-xs text-gray-500 mt-3 block"><?php echo t_attr('editor_kc_keyword_modal_new_name_label', 'New name'); ?></label>
             <input type="text" id="kc-keyword-modal-input"
                    class="input input-bordered w-full mt-1 bg-white font-mono"
                    maxlength="100" autocomplete="off" />
             <p id="kc-keyword-modal-error" class="text-xs text-red-600 mt-2" hidden></p>
             <div class="modal-action">
-                <button type="button" id="kc-keyword-modal-cancel" class="btn btn-ghost"><?php echo t('editor_kc_keyword_modal_cancel', 'Cancel'); ?></button>
-                <button type="button" id="kc-keyword-modal-delete" class="btn btn-error"><?php echo t('editor_kc_keyword_modal_delete', 'Delete'); ?></button>
-                <button type="button" id="kc-keyword-modal-rename" class="btn btn-success"><?php echo t('editor_kc_keyword_modal_rename', 'Rename'); ?></button>
+                <button type="button" id="kc-keyword-modal-cancel" class="btn btn-ghost"><?php echo t_attr('editor_kc_keyword_modal_cancel', 'Cancel'); ?></button>
+                <button type="button" id="kc-keyword-modal-delete" class="btn btn-error"><?php echo t_attr('editor_kc_keyword_modal_delete', 'Delete'); ?></button>
+                <button type="button" id="kc-keyword-modal-rename" class="btn btn-success"><?php echo t_attr('editor_kc_keyword_modal_rename', 'Rename'); ?></button>
             </div>
         </div>
-        <form method="dialog" class="modal-backdrop"><button><?php echo t('editor_kc_backdrop_close', 'close'); ?></button></form>
+        <form method="dialog" class="modal-backdrop"><button><?php echo t_attr('editor_kc_backdrop_close', 'close'); ?></button></form>
     </dialog>
 
     <!-- Rename-conflict modal: opens when the target name is already taken by
@@ -228,61 +228,61 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
          to source gets repointed at target; source is deleted). -->
     <dialog id="kc-conflict-modal" class="modal">
         <div class="modal-box bg-white text-gray-800 max-w-md">
-            <h3 class="font-bold text-lg"><?php echo t('editor_kc_conflict_modal_title', 'Keyword already exists'); ?></h3>
+            <h3 class="font-bold text-lg"><?php echo t_attr('editor_kc_conflict_modal_title', 'Keyword already exists'); ?></h3>
             <p class="text-sm mt-2">
                 <span id="kc-conflict-modal-target" class="font-mono font-semibold"></span>
-                <?php echo t('editor_kc_conflict_modal_body_suffix', 'already exists in this galaxy.'); ?>
+                <?php echo t_attr('editor_kc_conflict_modal_body_suffix', 'already exists in this galaxy.'); ?>
             </p>
             <p class="text-xs text-gray-500 mt-3">
                 <?php echo t('editor_kc_conflict_modal_options_intro', '<strong>Change name</strong>: keep this keyword separate and pick a different name.<br><strong>Merge</strong>: fold this keyword into the existing one; every wormhole tagged with it, every line on the canvas, gets repointed at the existing keyword. This one will be deleted. No undo.'); ?>
             </p>
             <div class="modal-action">
-                <button type="button" id="kc-conflict-modal-change" class="btn btn-ghost"><?php echo t('editor_kc_conflict_modal_change', 'Change name'); ?></button>
-                <button type="button" id="kc-conflict-modal-merge" class="btn btn-warning"><?php echo t('editor_kc_conflict_modal_merge', 'Merge'); ?></button>
+                <button type="button" id="kc-conflict-modal-change" class="btn btn-ghost"><?php echo t_attr('editor_kc_conflict_modal_change', 'Change name'); ?></button>
+                <button type="button" id="kc-conflict-modal-merge" class="btn btn-warning"><?php echo t_attr('editor_kc_conflict_modal_merge', 'Merge'); ?></button>
             </div>
         </div>
-        <form method="dialog" class="modal-backdrop"><button><?php echo t('editor_kc_backdrop_close', 'close'); ?></button></form>
+        <form method="dialog" class="modal-backdrop"><button><?php echo t_attr('editor_kc_backdrop_close', 'close'); ?></button></form>
     </dialog>
 
     <!-- Existing-relation inspector modal: shows pair, author, date, note, and
          (when the user can edit) Edit / Delete actions. -->
     <dialog id="kc-line-modal" class="modal">
         <div class="modal-box bg-white text-gray-800 max-w-md">
-            <h3 class="font-bold text-lg"><?php echo t('editor_kc_line_modal_title', 'Relation'); ?></h3>
+            <h3 class="font-bold text-lg"><?php echo t_attr('editor_kc_line_modal_title', 'Relation'); ?></h3>
             <p id="kc-line-modal-pair" class="text-base font-semibold mt-1 font-mono"></p>
             <p id="kc-line-modal-meta" class="text-xs text-gray-500 mt-1"></p>
             <div id="kc-line-modal-note-wrap" class="mt-3 p-3 bg-gray-50 border border-gray-200 rounded text-sm" hidden>
                 <span id="kc-line-modal-note" class="italic"></span>
             </div>
-            <p id="kc-line-modal-noauth" class="text-xs text-gray-500 mt-3" hidden><?php echo t('editor_kc_line_modal_noauth', 'Only the original author or an admin can edit or delete this relation.'); ?></p>
+            <p id="kc-line-modal-noauth" class="text-xs text-gray-500 mt-3" hidden><?php echo t_attr('editor_kc_line_modal_noauth', 'Only the original author or an admin can edit or delete this relation.'); ?></p>
             <div class="modal-action">
-                <button type="button" id="kc-line-modal-close" class="btn"><?php echo t('editor_kc_line_modal_close', 'Close'); ?></button>
-                <button type="button" id="kc-line-modal-edit" class="btn btn-outline" hidden><?php echo t('editor_kc_line_modal_edit', 'Edit note'); ?></button>
-                <button type="button" id="kc-line-modal-delete" class="btn btn-error" hidden><?php echo t('editor_kc_line_modal_delete', 'Delete'); ?></button>
+                <button type="button" id="kc-line-modal-close" class="btn"><?php echo t_attr('editor_kc_line_modal_close', 'Close'); ?></button>
+                <button type="button" id="kc-line-modal-edit" class="btn btn-outline" hidden><?php echo t_attr('editor_kc_line_modal_edit', 'Edit note'); ?></button>
+                <button type="button" id="kc-line-modal-delete" class="btn btn-error" hidden><?php echo t_attr('editor_kc_line_modal_delete', 'Delete'); ?></button>
             </div>
         </div>
-        <form method="dialog" class="modal-backdrop"><button><?php echo t('editor_kc_backdrop_close', 'close'); ?></button></form>
+        <form method="dialog" class="modal-backdrop"><button><?php echo t_attr('editor_kc_backdrop_close', 'close'); ?></button></form>
     </dialog>
 
     <!-- Help modal: short usage guide, localized server-side via t(). -->
     <dialog id="kc-help-modal" class="modal">
         <div class="modal-box bg-white text-gray-800 max-w-lg">
-            <h3 class="font-bold text-lg"><?php echo t('editor_kc_help_title', 'Quick guide'); ?></h3>
-            <p class="text-sm text-gray-700 mt-2"><?php echo t('editor_kc_help_purpose', 'Use this view to map how keywords in this galaxy relate to each other. The closer they are, the stronger their relationship. Drag chips to set their proximity, and draw lines between them to record specific semantic connections.'); ?></p>
-            <p class="text-sm text-gray-600 mt-3 font-semibold"><?php echo t('editor_kc_help_intro', 'How to use it:'); ?></p>
+            <h3 class="font-bold text-lg"><?php echo t_attr('editor_kc_help_title', 'Quick guide'); ?></h3>
+            <p class="text-sm text-gray-700 mt-2"><?php echo t_attr('editor_kc_help_purpose', 'Use this view to map how keywords in this galaxy relate to each other. The closer they are, the stronger their relationship. Drag chips to set their proximity, and draw lines between them to record specific semantic connections.'); ?></p>
+            <p class="text-sm text-gray-600 mt-3 font-semibold"><?php echo t_attr('editor_kc_help_intro', 'How to use it:'); ?></p>
             <ul class="mt-3 space-y-2 text-sm">
-                <li><strong><?php echo t('editor_kc_help_move_label', 'Move a keyword'); ?>.</strong> <?php echo t('editor_kc_help_move_body', 'Drag a chip to reposition it.'); ?></li>
-                <li><strong><?php echo t('editor_kc_help_connect_label', 'Connect two keywords'); ?>.</strong> <?php echo t('editor_kc_help_connect_body', 'Click an anchor dot on one chip, then click an anchor on another. Or drag from anchor to anchor.'); ?></li>
-                <li><strong><?php echo t('editor_kc_help_edit_label', 'Edit or delete a line'); ?>.</strong> <?php echo t('editor_kc_help_edit_body', 'Click an existing line to open it.'); ?></li>
-                <li><strong><?php echo t('editor_kc_help_pan_label', 'Pan the view'); ?>.</strong> <?php echo t('editor_kc_help_pan_body', 'Hold Space and drag, or middle-click and drag.'); ?></li>
-                <li><strong><?php echo t('editor_kc_help_zoom_label', 'Zoom'); ?>.</strong> <?php echo t('editor_kc_help_zoom_body', 'Use the mouse wheel. Zooms toward the cursor.'); ?></li>
-                <li><strong><?php echo t('editor_kc_help_cancel_label', 'Cancel'); ?>.</strong> <?php echo t('editor_kc_help_cancel_body', 'Press Esc while drawing a line to cancel.'); ?></li>
+                <li><strong><?php echo t_attr('editor_kc_help_move_label', 'Move a keyword'); ?>.</strong> <?php echo t_attr('editor_kc_help_move_body', 'Drag a chip to reposition it.'); ?></li>
+                <li><strong><?php echo t_attr('editor_kc_help_connect_label', 'Connect two keywords'); ?>.</strong> <?php echo t_attr('editor_kc_help_connect_body', 'Click an anchor dot on one chip, then click an anchor on another. Or drag from anchor to anchor.'); ?></li>
+                <li><strong><?php echo t_attr('editor_kc_help_edit_label', 'Edit or delete a line'); ?>.</strong> <?php echo t_attr('editor_kc_help_edit_body', 'Click an existing line to open it.'); ?></li>
+                <li><strong><?php echo t_attr('editor_kc_help_pan_label', 'Pan the view'); ?>.</strong> <?php echo t_attr('editor_kc_help_pan_body', 'Hold Space and drag, or middle-click and drag.'); ?></li>
+                <li><strong><?php echo t_attr('editor_kc_help_zoom_label', 'Zoom'); ?>.</strong> <?php echo t_attr('editor_kc_help_zoom_body', 'Use the mouse wheel. Zooms toward the cursor.'); ?></li>
+                <li><strong><?php echo t_attr('editor_kc_help_cancel_label', 'Cancel'); ?>.</strong> <?php echo t_attr('editor_kc_help_cancel_body', 'Press Esc while drawing a line to cancel.'); ?></li>
             </ul>
             <div class="modal-action">
-                <button type="button" id="kc-help-modal-close" class="btn btn-neutral"><?php echo t('editor_kc_help_close', 'Close'); ?></button>
+                <button type="button" id="kc-help-modal-close" class="btn btn-neutral"><?php echo t_attr('editor_kc_help_close', 'Close'); ?></button>
             </div>
         </div>
-        <form method="dialog" class="modal-backdrop"><button><?php echo t('editor_kc_backdrop_close', 'close'); ?></button></form>
+        <form method="dialog" class="modal-backdrop"><button><?php echo t_attr('editor_kc_backdrop_close', 'close'); ?></button></form>
     </dialog>
 
 

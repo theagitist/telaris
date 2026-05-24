@@ -564,8 +564,20 @@ function locale_init_strings(): array {
  * serves as inline source-code documentation for the developer reading
  * the call site. It is not used in production rendering.
  *
- * Returns a raw string. Wrap in htmlspecialchars() at the call site for
- * HTML output. Use t_attr() in HTML attributes.
+ * Returns a raw string. Reach for bare t() only when one of these
+ * applies:
+ *   - sprintf composition where the key carries an HTML format string
+ *     with %s / %d placeholders (call site escapes the args).
+ *   - json_encode contexts (JSON does its own escaping; pass it raw).
+ *   - Plain-text email body composition.
+ *   - The handful of keys whose value legitimately contains HTML markup
+ *     (e.g. admin_modal_bulk_users_field_email = '<strong>email</strong>').
+ *
+ * For ALL other render contexts — every `<?= t(...) ?>` /
+ * `<?php echo t(...) ?>` in HTML body or attribute position — use
+ * **t_attr()** instead. The M-E3 audit (third pass, v6.10.14) swept the
+ * codebase to use t_attr() at every direct echo site so admin-writable
+ * project_info values cannot inject markup via the render path.
  */
 function t(string $key, string $fallback = ''): string {
     $strings = locale_init_strings();
@@ -574,8 +586,15 @@ function t(string $key, string $fallback = ''): string {
 }
 
 /**
- * Like t(), but escaped for HTML attribute / body use. Convenience for
- * the common case in PHP templates.
+ * t() wrapped in htmlspecialchars (ENT_QUOTES, UTF-8). Safe to drop into
+ * any HTML output context — attribute value, element body, title.
+ *
+ * The "attr" in the name is historical; the function escapes for both
+ * attribute and body contexts. Treat it as `t_html()` in your head.
+ *
+ * Direct render sites (`<?= t_attr('key') ?>`, `<?php echo t_attr('key') ?>`)
+ * are the safe default. Reach for bare t() only when one of the cases in
+ * t()'s docblock above applies.
  */
 function t_attr(string $key, string $fallback = ''): string {
     return htmlspecialchars(t($key, $fallback), ENT_QUOTES, 'UTF-8');

@@ -30,7 +30,7 @@ declare(strict_types=1);
 
 function mocambos_admin_render_button(): void {
 ?>
-                                <button type="button" onclick="openMocambosImportModal()" class="text-purple-600 hover:text-purple-800 font-medium text-base"><?= t('mocambos_btn_import_from', 'Import from Mocambos') ?></button>
+                                <button type="button" onclick="openMocambosImportModal()" class="text-purple-600 hover:text-purple-800 font-medium text-base"><?= t_attr('mocambos_btn_import_from', 'Import from Mocambos') ?></button>
 <?php
 }
 
@@ -40,33 +40,33 @@ function mocambos_admin_render_modal(): void {
     <dialog id="mocambos_import_modal" class="modal">
         <div class="modal-box bg-white max-w-lg !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl"><?= t('mocambos_modal_heading', 'Import from Mocambos') ?></h3>
+                <h3 class="font-bold text-xl"><?= t_attr('mocambos_modal_heading', 'Import from Mocambos') ?></h3>
             </div>
             <!-- Step 1: API URL -->
             <div id="mocambos-url-step" class="mt-4">
-                <label for="mocambos-api-url" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('mocambos_label_api_url', 'Mocambos API URL') ?></label>
+                <label for="mocambos-api-url" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('mocambos_label_api_url', 'Mocambos API URL') ?></label>
                 <input type="url" id="mocambos-api-url" placeholder="https://timbuktu.mocambos.net/api/v2" value="" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-1">
-                <span class="text-xs text-gray-500 block mb-4"><?= t('mocambos_help_api_url', 'The base API URL of the Mocambos instance (e.g. https://hostname/api/v2). You can also paste the docs URL; /docs will be stripped automatically.') ?></span>
-                <button type="button" id="mocambos-fetch-btn" onclick="fetchMocambosGalaxias()" class="btn bg-purple-600 hover:bg-purple-700 text-white btn-sm"><?= t('mocambos_btn_connect', 'Connect') ?></button>
+                <span class="text-xs text-gray-500 block mb-4"><?= t_attr('mocambos_help_api_url', 'The base API URL of the Mocambos instance (e.g. https://hostname/api/v2). You can also paste the docs URL; /docs will be stripped automatically.') ?></span>
+                <button type="button" id="mocambos-fetch-btn" onclick="fetchMocambosGalaxias()" class="btn bg-purple-600 hover:bg-purple-700 text-white btn-sm"><?= t_attr('mocambos_btn_connect', 'Connect') ?></button>
             </div>
             <!-- Step 2: Loading -->
             <div id="mocambos-loading" class="hidden text-center py-8">
                 <span class="loading loading-spinner loading-lg text-purple-600"></span>
-                <p class="text-gray-600 mt-2"><?= t('mocambos_text_loading', 'Fetching available galaxias...') ?></p>
+                <p class="text-gray-600 mt-2"><?= t_attr('mocambos_text_loading', 'Fetching available galaxias...') ?></p>
             </div>
             <div id="mocambos-error" class="hidden text-center py-8">
                 <p class="text-red-600 font-medium" id="mocambos-error-message"></p>
-                <button type="button" onclick="showMocambosUrlStep()" class="btn btn-sm btn-outline mt-3"><?= t('mocambos_btn_back', 'Back') ?></button>
+                <button type="button" onclick="showMocambosUrlStep()" class="btn btn-sm btn-outline mt-3"><?= t_attr('mocambos_btn_back', 'Back') ?></button>
             </div>
             <!-- Step 3: Galaxia selection + import -->
             <div id="mocambos-list" class="hidden">
-                <p class="text-sm text-gray-600 mb-1"><?= t('mocambos_text_connected_to', 'Connected to:') ?> <strong id="mocambos-connected-url" class="font-mono text-xs"></strong></p>
-                <p class="text-sm text-gray-600 mb-3"><?= t('mocambos_text_select_intro', 'Select galaxias to import. Each will become a new galaxy. Already-imported ones will be refreshed.') ?></p>
+                <p class="text-sm text-gray-600 mb-1"><?= t_attr('mocambos_text_connected_to', 'Connected to:') ?> <strong id="mocambos-connected-url" class="font-mono text-xs"></strong></p>
+                <p class="text-sm text-gray-600 mb-3"><?= t_attr('mocambos_text_select_intro', 'Select galaxias to import. Each will become a new galaxy. Already-imported ones will be refreshed.') ?></p>
                 <div id="mocambos-galaxias" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded p-3 mb-4"></div>
                 <div id="mocambos-import-progress" class="hidden">
                     <div class="flex items-center gap-2 mb-2">
                         <span class="loading loading-spinner loading-sm text-purple-600"></span>
-                        <span class="text-sm font-medium text-gray-700" id="mocambos-progress-status"><?= t('mocambos_text_starting_import', 'Starting import...') ?></span>
+                        <span class="text-sm font-medium text-gray-700" id="mocambos-progress-status"><?= t_attr('mocambos_text_starting_import', 'Starting import...') ?></span>
                     </div>
                     <div id="mocambos-log" class="bg-gray-900 text-gray-200 rounded p-3 font-mono text-xs h-64 overflow-y-auto space-y-0.5"></div>
                 </div>
@@ -74,20 +74,20 @@ function mocambos_admin_render_modal(): void {
             </div>
             <!-- Refresh confirmation step -->
             <div id="refresh-confirm-step" class="hidden">
-                <p class="text-gray-700 mb-2"><?= t('mocambos_text_refresh_intro', 'This will sync wormholes with the remote Mocambos source (incremental update).') ?></p>
+                <p class="text-gray-700 mb-2"><?= t_attr('mocambos_text_refresh_intro', 'This will sync wormholes with the remote Mocambos source (incremental update).') ?></p>
                 <p class="text-gray-700 mb-4" id="refresh-confirm-prompt"></p>
                 <input type="text" id="refresh-confirm-input" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-purple-500 mb-4" placeholder="<?= t_attr('mocambos_placeholder_refresh_confirm', 'Type galaxy name to confirm') ?>" autocomplete="off">
                 <div class="flex justify-end gap-2">
-                    <button type="button" id="refresh-confirm-btn" class="btn bg-purple-600 hover:bg-purple-700 text-white btn-sm" disabled><?= t('mocambos_btn_refresh', 'Refresh') ?></button>
-                    <button type="button" class="btn btn-sm" onclick="document.getElementById('mocambos_import_modal').close()"><?= t('mocambos_btn_cancel', 'Cancel') ?></button>
+                    <button type="button" id="refresh-confirm-btn" class="btn bg-purple-600 hover:bg-purple-700 text-white btn-sm" disabled><?= t_attr('mocambos_btn_refresh', 'Refresh') ?></button>
+                    <button type="button" class="btn btn-sm" onclick="document.getElementById('mocambos_import_modal').close()"><?= t_attr('mocambos_btn_cancel', 'Cancel') ?></button>
                 </div>
             </div>
             <div class="modal-action">
-                <button type="button" id="mocambos-import-btn" class="btn bg-purple-600 hover:bg-purple-700 text-white hidden" onclick="doMocambosImport()"><?= t('mocambos_btn_import_selected', 'Import Selected') ?></button>
-                <button type="button" class="btn" onclick="document.getElementById('mocambos_import_modal').close()"><?= t('mocambos_btn_close', 'Close') ?></button>
+                <button type="button" id="mocambos-import-btn" class="btn bg-purple-600 hover:bg-purple-700 text-white hidden" onclick="doMocambosImport()"><?= t_attr('mocambos_btn_import_selected', 'Import Selected') ?></button>
+                <button type="button" class="btn" onclick="document.getElementById('mocambos_import_modal').close()"><?= t_attr('mocambos_btn_close', 'Close') ?></button>
             </div>
         </div>
-        <form method="dialog" class="modal-backdrop"><button><?= t('mocambos_btn_modal_backdrop_close', 'close') ?></button></form>
+        <form method="dialog" class="modal-backdrop"><button><?= t_attr('mocambos_btn_modal_backdrop_close', 'close') ?></button></form>
     </dialog>
 <?php
 }

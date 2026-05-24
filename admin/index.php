@@ -663,7 +663,7 @@ foreach ($importantExtensions as $ext => $name) {
     <!-- Initial Loading Overlay -->
     <div id="admin-loading-overlay" class="fixed inset-0 z-[1000] bg-gray-100 flex flex-col items-center justify-center transition-opacity duration-300">
         <span class="loading loading-spinner loading-lg text-neutral mb-4"></span>
-        <p class="text-gray-600 font-medium"><?= t('admin_loading_console', 'Loading Admin Console...') ?></p>
+        <p class="text-gray-600 font-medium"><?= t_attr('admin_loading_console', 'Loading Admin Console...') ?></p>
     </div>
 
     <div class="max-w-6xl mx-auto py-8 px-5">
@@ -671,17 +671,17 @@ foreach ($importantExtensions as $ext => $name) {
         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-gray-800 text-3xl font-semibold"><?= t('admin_heading_console', 'Admin Console') ?></h1>
+                    <h1 class="text-gray-800 text-3xl font-semibold"><?= t_attr('admin_heading_console', 'Admin Console') ?></h1>
                     <p class="text-gray-600 mt-1"><?= sprintf(t('admin_label_welcome', 'Welcome, %s'), htmlspecialchars($_SESSION['admin_user_name'] ?? 'Admin')) ?></p>
                 </div>
                 <div class="flex items-center gap-2">
                     <a href="../edit/index.php" class="btn btn-neutral">
-                        <?= t('admin_btn_edit_content', 'Edit Content') ?>
+                        <?= t_attr('admin_btn_edit_content', 'Edit Content') ?>
                     </a>
                     <form method="POST" action="" class="inline">
                         <input type="hidden" name="action" value="logout">
                         <button type="submit" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded">
-                            <?= t('admin_btn_logout', 'Logout') ?>
+                            <?= t_attr('admin_btn_logout', 'Logout') ?>
                         </button>
                     </form>
                 </div>
@@ -702,7 +702,7 @@ foreach ($importantExtensions as $ext => $name) {
                 <div data-type="error"><?php echo htmlspecialchars($error); ?></div>
             <?php endif; ?>
             <?php if (isset($_GET['saved']) && $_GET['saved'] === '1'): ?>
-                <div data-type="success"><?= t('admin_msg_settings_saved', 'Global settings saved.') ?></div>
+                <div data-type="success"><?= t_attr('admin_msg_settings_saved', 'Global settings saved.') ?></div>
             <?php endif; ?>
             <?php if ($settingsError): ?>
                 <div data-type="error"><?php echo htmlspecialchars($settingsError); ?></div>
@@ -715,42 +715,42 @@ foreach ($importantExtensions as $ext => $name) {
                 <button onclick="showTab('constellations')"
                         id="tab-constellations"
                         class="tab tab-lg <?php echo $activeTab === 'constellations' ? 'tab-active' : ''; ?>">
-                    <?= t('admin_tab_galaxies', 'Galaxies') ?>
+                    <?= t_attr('admin_tab_galaxies', 'Galaxies') ?>
                 </button>
                 <button onclick="showTab('clusters')"
                         id="tab-clusters"
                         class="tab tab-lg <?php echo $activeTab === 'clusters' ? 'tab-active' : ''; ?>">
-                    <?= t('admin_tab_clusters', 'Clusters') ?>
+                    <?= t_attr('admin_tab_clusters', 'Clusters') ?>
                 </button>
                 <button onclick="showTab('users')"
                         id="tab-users"
                         class="tab tab-lg <?php echo $activeTab === 'users' ? 'tab-active' : ''; ?>">
-                    <?= t('admin_tab_users', 'Users') ?>
+                    <?= t_attr('admin_tab_users', 'Users') ?>
                 </button>
                 <button onclick="showTab('backup')"
                         id="tab-backup"
                         class="tab tab-lg <?php echo $activeTab === 'backup' ? 'tab-active' : ''; ?>">
-                    <?= t('admin_tab_backup', 'Backup') ?>
+                    <?= t_attr('admin_tab_backup', 'Backup') ?>
                 </button>
                 <button onclick="showTab('snapshots')"
                         id="tab-snapshots"
                         class="tab tab-lg <?php echo $activeTab === 'snapshots' ? 'tab-active' : ''; ?>">
-                    <?= t('admin_tab_snapshots', 'Snapshots') ?>
+                    <?= t_attr('admin_tab_snapshots', 'Snapshots') ?>
                 </button>
                 <button onclick="showTab('settings')"
                         id="tab-settings"
                         class="tab tab-lg <?php echo $activeTab === 'settings' ? 'tab-active' : ''; ?>">
-                    <?= t('admin_tab_settings', 'Global Settings') ?>
+                    <?= t_attr('admin_tab_settings', 'Global Settings') ?>
                 </button>
                 <button onclick="showTab('api-keys')"
                         id="tab-api-keys"
                         class="tab tab-lg <?php echo $activeTab === 'api-keys' ? 'tab-active' : ''; ?>">
-                    <?= t('admin_tab_api_keys', 'API Keys') ?>
+                    <?= t_attr('admin_tab_api_keys', 'API Keys') ?>
                 </button>
                 <button onclick="showTab('php-info')"
                         id="tab-php-info"
                         class="tab tab-lg <?php echo $activeTab === 'php-info' ? 'tab-active' : ''; ?>">
-                    <?= t('admin_tab_php_info', 'PHP Information') ?>
+                    <?= t_attr('admin_tab_php_info', 'PHP Information') ?>
                 </button>
             </div>
         </div>
@@ -761,16 +761,16 @@ foreach ($importantExtensions as $ext => $name) {
                 <div>
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
-                            <h2 class="text-gray-800 text-base font-semibold"><?= t('admin_heading_users', 'Users') ?> (<?php echo count($users); ?>)</h2>
-                            <button type="button" onclick="document.getElementById('create_user_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t('admin_btn_new_user', 'New User') ?></button>
-                            <button type="button" onclick="openBulkUsersModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t('admin_btn_bulk_import', 'Bulk import') ?></button>
+                            <h2 class="text-gray-800 text-base font-semibold"><?= t_attr('admin_heading_users', 'Users') ?> (<?php echo count($users); ?>)</h2>
+                            <button type="button" onclick="document.getElementById('create_user_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_user', 'New User') ?></button>
+                            <button type="button" onclick="openBulkUsersModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_bulk_import', 'Bulk import') ?></button>
                         </div>
 
                         <!-- Top Pagination -->
                         <div id="users-pagination-header" class="flex-1 flex justify-center"></div>
 
                         <div class="flex items-center gap-2 min-w-[250px]">
-                            <label for="search-users" class="text-sm font-medium text-gray-700"><?= t('admin_label_search', 'Search:') ?></label>
+                            <label for="search-users" class="text-sm font-medium text-gray-700"><?= t_attr('admin_label_search', 'Search:') ?></label>
                             <input type="text"
                                    id="search-users"
                                    placeholder="<?= t_attr('admin_placeholder_search_users', 'Search users...') ?>"
@@ -780,31 +780,31 @@ foreach ($importantExtensions as $ext => $name) {
                     </div>
 
                     <?php if (empty($users)): ?>
-                        <p class="text-gray-600"><?= t('admin_msg_no_users', 'No users found.') ?></p>
+                        <p class="text-gray-600"><?= t_attr('admin_msg_no_users', 'No users found.') ?></p>
                     <?php else: ?>
                         <div class="border border-gray-300 rounded">
                             <table id="users-list" class="w-full border-collapse">
                                 <thead>
                                     <tr class="border-b-2 border-gray-400 bg-gray-100">
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('name')"><?= t('admin_col_user_name', 'Name') ?><span id="sort-indicator-name"></span></span>
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('name')"><?= t_attr('admin_col_user_name', 'Name') ?><span id="sort-indicator-name"></span></span>
                                         </th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('email')"><?= t('admin_col_user_email', 'Email') ?><span id="sort-indicator-email"></span></span>
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('email')"><?= t_attr('admin_col_user_email', 'Email') ?><span id="sort-indicator-email"></span></span>
                                         </th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('type')"><?= t('admin_col_user_type', 'Type') ?><span id="sort-indicator-type"></span></span>
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('type')"><?= t_attr('admin_col_user_type', 'Type') ?><span id="sort-indicator-type"></span></span>
                                         </th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('date_created')"><?= t('admin_col_user_created', 'Created') ?><span id="sort-indicator-date_created"></span></span>
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('date_created')"><?= t_attr('admin_col_user_created', 'Created') ?><span id="sort-indicator-date_created"></span></span>
                                         </th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('date_last_login')"><?= t('admin_col_user_last_login', 'Last Login') ?><span id="sort-indicator-date_last_login"></span></span>
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('date_last_login')"><?= t_attr('admin_col_user_last_login', 'Last Login') ?><span id="sort-indicator-date_last_login"></span></span>
                                         </th>
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
-                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('updated_at')"><?= t('admin_col_user_last_updated', 'Last Updated') ?><span id="sort-indicator-updated_at"></span></span>
+                                            <span class="cursor-pointer hover:bg-gray-200 px-2 py-1 rounded inline-block" onclick="sortUsersByColumn('updated_at')"><?= t_attr('admin_col_user_last_updated', 'Last Updated') ?><span id="sort-indicator-updated_at"></span></span>
                                         </th>
-                                        <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2"><?= t('admin_col_actions', 'Actions') ?></th>
+                                        <th class="text-right text-xs font-semibold text-gray-700 py-2 px-2"><?= t_attr('admin_col_actions', 'Actions') ?></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -847,7 +847,7 @@ foreach ($importantExtensions as $ext => $name) {
                                             $clickEdit = "editUser($userJson)";
                                             ?>
                                             <td class="py-2 px-2 font-semibold text-gray-800 max-w-[12rem] cursor-pointer" onclick="<?php echo $clickEdit; ?>">
-                                                <span class="block truncate" title="<?php echo $fullName; ?>"><?php echo $fullName; ?><?php if ($isCurrentUser): ?> <span class="ml-1 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded"><?= t('admin_badge_you', 'You') ?></span><?php endif; ?></span>
+                                                <span class="block truncate" title="<?php echo $fullName; ?>"><?php echo $fullName; ?><?php if ($isCurrentUser): ?> <span class="ml-1 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded"><?= t_attr('admin_badge_you', 'You') ?></span><?php endif; ?></span>
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-600 max-w-[14rem] cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <span class="block truncate" title="<?php echo $email; ?>"><?php echo $email; ?></span>
@@ -859,7 +859,7 @@ foreach ($importantExtensions as $ext => $name) {
                                                 <?php if ($createdIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($createdIso); ?>"><?php echo date('y-m-d H:i', $createdTs); ?></span><?php else: ?>—<?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
-                                                <?php if ($lastLoginIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($lastLoginIso); ?>"><?php echo date('y-m-d H:i', $lastLoginTs); ?></span><?php else: ?><?= t('admin_label_never', 'Never') ?><?php endif; ?>
+                                                <?php if ($lastLoginIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($lastLoginIso); ?>"><?php echo date('y-m-d H:i', $lastLoginTs); ?></span><?php else: ?><?= t_attr('admin_label_never', 'Never') ?><?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <?php if ($updatedIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($updatedIso); ?>"><?php echo date('y-m-d H:i', $updatedTs); ?></span><?php else: ?>—<?php endif; ?>
@@ -871,14 +871,14 @@ foreach ($importantExtensions as $ext => $name) {
                                                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
                                                         </label>
                                                         <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-36">
-                                                            <li><a onclick="event.stopPropagation(); <?php echo $clickEdit; ?>" class="text-gray-700 text-xs"><?= t('admin_action_edit', 'Edit') ?></a></li>
+                                                            <li><a onclick="event.stopPropagation(); <?php echo $clickEdit; ?>" class="text-gray-700 text-xs"><?= t_attr('admin_action_edit', 'Edit') ?></a></li>
                                                             <?php if (!$isCurrentUser): ?>
                                                                 <?php
                                                                 $delMsg = sprintf(t('admin_confirm_delete_user', 'Are you sure you want to delete the user "%s"? This action cannot be undone.'), $fullName);
                                                                 $delMsgJs = htmlspecialchars(json_encode($delMsg), ENT_QUOTES, 'UTF-8');
                                                                 $delConfirmJs = htmlspecialchars(json_encode((string)($user['email'] ?? '')), ENT_QUOTES, 'UTF-8');
                                                                 ?>
-                                                                <li><a onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, <?php echo $delConfirmJs; ?>)" class="text-red-600 text-xs"><?= t('admin_action_delete', 'Delete') ?></a></li>
+                                                                <li><a onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, <?php echo $delConfirmJs; ?>)" class="text-red-600 text-xs"><?= t_attr('admin_action_delete', 'Delete') ?></a></li>
                                                             <?php endif; ?>
                                                         </ul>
                                                     </div>
@@ -897,21 +897,21 @@ foreach ($importantExtensions as $ext => $name) {
             <div id="content-api-keys" class="p-6 <?php echo $activeTab !== 'api-keys' ? 'hidden' : ''; ?>">
                 <!-- Generate New API Key Form (hidden by default; shown when New API Key clicked) -->
                 <div id="api-key-form-panel" class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded hidden">
-                    <h2 class="text-blue-800 text-xl font-semibold mb-4"><?= t('admin_heading_generate_api_key', 'Generate New API Key') ?></h2>
+                    <h2 class="text-blue-800 text-xl font-semibold mb-4"><?= t_attr('admin_heading_generate_api_key', 'Generate New API Key') ?></h2>
                     <form method="POST" action="">
                         <input type="hidden" name="action" value="generate">
                         <div class="mb-4">
-                            <label for="name" class="block mb-1.5 text-gray-800 font-medium"><?= t('admin_label_api_key_name', 'Name *') ?></label>
+                            <label for="name" class="block mb-1.5 text-gray-800 font-medium"><?= t_attr('admin_label_api_key_name', 'Name *') ?></label>
                             <input type="text"
                                    id="name"
                                    name="name"
                                    required
                                    placeholder="<?= t_attr('admin_placeholder_api_key_name', 'e.g., Frontend App, Mobile App, Admin') ?>"
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                            <span class="text-xs text-gray-500 mt-1 block"><?= t('admin_help_api_key_name', 'A descriptive name for this API key') ?></span>
+                            <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_api_key_name', 'A descriptive name for this API key') ?></span>
                         </div>
                         <div class="mb-4">
-                            <label for="description" class="block mb-1.5 text-gray-800 font-medium"><?= t('admin_label_api_key_description', 'Description') ?></label>
+                            <label for="description" class="block mb-1.5 text-gray-800 font-medium"><?= t_attr('admin_label_api_key_description', 'Description') ?></label>
                             <textarea id="description"
                                       name="description"
                                       rows="2"
@@ -920,10 +920,10 @@ foreach ($importantExtensions as $ext => $name) {
                         </div>
                         <div class="flex gap-2">
                             <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                                <?= t('admin_btn_generate_api_key', 'Generate API Key') ?>
+                                <?= t_attr('admin_btn_generate_api_key', 'Generate API Key') ?>
                             </button>
                             <button type="button" onclick="document.getElementById('api-key-form-panel').classList.add('hidden');" class="bg-gray-500 hover:bg-gray-600 text-white py-2.5 px-6 rounded text-base cursor-pointer">
-                                <?= t('admin_btn_cancel', 'Cancel') ?>
+                                <?= t_attr('admin_btn_cancel', 'Cancel') ?>
                             </button>
                         </div>
                     </form>
@@ -932,12 +932,12 @@ foreach ($importantExtensions as $ext => $name) {
                 <!-- API Keys list -->
                 <div>
                     <div class="flex items-center gap-3 mb-4">
-                        <h2 class="text-gray-800 text-base font-semibold"><?= t('admin_heading_api_keys', 'API Keys') ?> (<?php echo count($apiKeys); ?>)</h2>
-                        <a href="#" onclick="document.getElementById('api-key-form-panel').classList.remove('hidden'); return false;" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t('admin_btn_new_api_key', 'New API Key') ?></a>
+                        <h2 class="text-gray-800 text-base font-semibold"><?= t_attr('admin_heading_api_keys', 'API Keys') ?> (<?php echo count($apiKeys); ?>)</h2>
+                        <a href="#" onclick="document.getElementById('api-key-form-panel').classList.remove('hidden'); return false;" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_api_key', 'New API Key') ?></a>
                     </div>
 
                     <?php if (empty($apiKeys)): ?>
-                        <p class="text-gray-600"><?= t('admin_msg_no_api_keys', 'No API keys have been generated yet.') ?></p>
+                        <p class="text-gray-600"><?= t_attr('admin_msg_no_api_keys', 'No API keys have been generated yet.') ?></p>
                     <?php else: ?>
                         <div class="space-y-4">
                             <?php foreach ($apiKeys as $key): ?>
@@ -947,7 +947,7 @@ foreach ($importantExtensions as $ext => $name) {
                                             <h3 class="font-semibold text-gray-800">
                                                 <?php echo htmlspecialchars($key['name']); ?>
                                                 <?php if (!$key['is_active']): ?>
-                                                    <span class="ml-2 text-xs bg-gray-400 text-white px-2 py-1 rounded"><?= t('admin_badge_inactive', 'Inactive') ?></span>
+                                                    <span class="ml-2 text-xs bg-gray-400 text-white px-2 py-1 rounded"><?= t_attr('admin_badge_inactive', 'Inactive') ?></span>
                                                 <?php endif; ?>
                                             </h3>
                                             <?php if ($key['description']): ?>
@@ -974,7 +974,7 @@ foreach ($importantExtensions as $ext => $name) {
                                                         <input type="hidden" name="action" value="delete">
                                                         <input type="hidden" name="id" value="<?php echo $key['id']; ?>">
                                                         <button type="submit" class="w-full text-left text-red-600 text-xs px-3 py-1.5 hover:bg-gray-100 rounded">
-                                                            <?= t('admin_action_delete', 'Delete') ?>
+                                                            <?= t_attr('admin_action_delete', 'Delete') ?>
                                                         </button>
                                                     </form>
                                                 </li>
@@ -988,14 +988,14 @@ foreach ($importantExtensions as $ext => $name) {
                                         $keyCreatedIso = $keyCreatedTs !== false ? gmdate('c', $keyCreatedTs) : '';
                                         $keyUpdatedIso = $keyUpdatedTs !== false ? gmdate('c', $keyUpdatedTs) : '';
                                         ?>
-                                        <p><strong><?= t('admin_label_created', 'Created:') ?></strong> <?php if ($keyCreatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyCreatedIso); ?>"><?php echo date('y-m-d H:i', $keyCreatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
+                                        <p><strong><?= t_attr('admin_label_created', 'Created:') ?></strong> <?php if ($keyCreatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyCreatedIso); ?>"><?php echo date('y-m-d H:i', $keyCreatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
                                         <?php if (!empty($key['last_used_at'])): ?>
                                             <?php $keyLastUsedTs = strtotime($key['last_used_at']); $keyLastUsedIso = $keyLastUsedTs !== false ? gmdate('c', $keyLastUsedTs) : ''; ?>
-                                            <p><strong><?= t('admin_label_last_used', 'Last Used:') ?></strong> <?php if ($keyLastUsedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyLastUsedIso); ?>"><?php echo date('y-m-d H:i', $keyLastUsedTs); ?></span><?php else: ?>—<?php endif; ?></p>
+                                            <p><strong><?= t_attr('admin_label_last_used', 'Last Used:') ?></strong> <?php if ($keyLastUsedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyLastUsedIso); ?>"><?php echo date('y-m-d H:i', $keyLastUsedTs); ?></span><?php else: ?>—<?php endif; ?></p>
                                         <?php else: ?>
-                                            <p><strong><?= t('admin_label_last_used', 'Last Used:') ?></strong> <?= t('admin_label_never', 'Never') ?></p>
+                                            <p><strong><?= t_attr('admin_label_last_used', 'Last Used:') ?></strong> <?= t_attr('admin_label_never', 'Never') ?></p>
                                         <?php endif; ?>
-                                        <p><strong><?= t('admin_label_last_updated', 'Last Updated:') ?></strong> <?php if ($keyUpdatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyUpdatedIso); ?>"><?php echo date('y-m-d H:i', $keyUpdatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
+                                        <p><strong><?= t_attr('admin_label_last_updated', 'Last Updated:') ?></strong> <?php if ($keyUpdatedIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($keyUpdatedIso); ?>"><?php echo date('y-m-d H:i', $keyUpdatedTs); ?></span><?php else: ?>—<?php endif; ?></p>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -1009,8 +1009,8 @@ foreach ($importantExtensions as $ext => $name) {
                 <div>
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
-                            <h2 class="text-gray-800 text-base font-semibold"><?= t('admin_heading_galaxies', 'Galaxies') ?> (<span id="constellations-count">...</span>)</h2>
-                            <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t('admin_btn_new_galaxy', 'New Galaxy') ?></button>
+                            <h2 class="text-gray-800 text-base font-semibold"><?= t_attr('admin_heading_galaxies', 'Galaxies') ?> (<span id="constellations-count">...</span>)</h2>
+                            <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_galaxy', 'New Galaxy') ?></button>
                             <?php bridges_admin_render('button'); ?>
                         </div>
 
@@ -1018,7 +1018,7 @@ foreach ($importantExtensions as $ext => $name) {
                         <div id="constellations-pagination-header" class="flex-1 flex justify-center"></div>
 
                         <div class="flex items-center gap-2 min-w-[250px]">
-                            <label for="search-constellations" class="text-sm font-medium text-gray-700"><?= t('admin_label_search', 'Search:') ?></label>
+                            <label for="search-constellations" class="text-sm font-medium text-gray-700"><?= t_attr('admin_label_search', 'Search:') ?></label>
                             <input type="text"
                                    id="search-constellations"
                                    placeholder="<?= t_attr('admin_placeholder_search_galaxies', 'Search galaxies...') ?>"
@@ -1039,7 +1039,7 @@ foreach ($importantExtensions as $ext => $name) {
                         $settingsLink = '<button onclick="showTab(\'settings\')" class="text-blue-600 hover:underline">' . t('admin_tab_settings', 'Global Settings') . '</button>';
                     ?>
                     <p class="text-sm text-gray-600 mb-4"><?= sprintf(t('admin_help_galaxies_default', 'Each galaxy is a separate set of wormholes and keywords. The current default galaxy, %s, cannot be deleted.'), $defaultBlock) ?><br><?= sprintf(t('admin_help_galaxies_settings_link', 'You can change the default galaxy in the %s tab.'), $settingsLink) ?></p>
-                    <div id="copy-url-toast" class="hidden fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded shadow-lg text-sm" role="status" aria-live="polite"><?= t('admin_toast_url_copied', 'URL copied to clipboard.') ?></div>
+                    <div id="copy-url-toast" class="hidden fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded shadow-lg text-sm" role="status" aria-live="polite"><?= t_attr('admin_toast_url_copied', 'URL copied to clipboard.') ?></div>
                     <div id="constellations-list-container"></div>
                 </div>
             </div>
@@ -1049,15 +1049,15 @@ foreach ($importantExtensions as $ext => $name) {
                 <div>
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
-                            <h2 class="text-gray-800 text-base font-semibold"><?= t('admin_heading_clusters', 'Galaxy Clusters') ?> (<span id="clusters-count">...</span>)</h2>
-                            <button type="button" onclick="openClusterCreate()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t('admin_btn_new_cluster', 'New Cluster') ?></button>
+                            <h2 class="text-gray-800 text-base font-semibold"><?= t_attr('admin_heading_clusters', 'Galaxy Clusters') ?> (<span id="clusters-count">...</span>)</h2>
+                            <button type="button" onclick="openClusterCreate()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_cluster', 'New Cluster') ?></button>
                         </div>
 
                         <!-- Top Pagination -->
                         <div id="clusters-pagination-header" class="flex-1 flex justify-center"></div>
 
                         <div class="flex items-center gap-2 min-w-[250px]">
-                            <label for="search-clusters" class="text-sm font-medium text-gray-700"><?= t('admin_label_search', 'Search:') ?></label>
+                            <label for="search-clusters" class="text-sm font-medium text-gray-700"><?= t_attr('admin_label_search', 'Search:') ?></label>
                             <input type="text"
                                    id="search-clusters"
                                    placeholder="<?= t_attr('admin_placeholder_search_clusters', 'Search clusters...') ?>"
@@ -1065,7 +1065,7 @@ foreach ($importantExtensions as $ext => $name) {
                                    class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
                     </div>
-                    <p class="text-sm text-gray-600 mb-4"><?= t('admin_help_clusters', 'A cluster is a curated union of galaxies with its own slug, title, theme, and permalink. Clusters have no native wormholes; they render the union of their members via the multigalaxy pipeline.') ?></p>
+                    <p class="text-sm text-gray-600 mb-4"><?= t_attr('admin_help_clusters', 'A cluster is a curated union of galaxies with its own slug, title, theme, and permalink. Clusters have no native wormholes; they render the union of their members via the multigalaxy pipeline.') ?></p>
                     <div id="clusters-list-container"></div>
                 </div>
             </div>
@@ -1073,9 +1073,9 @@ foreach ($importantExtensions as $ext => $name) {
             <!-- Global Settings Tab -->
             <div id="content-settings" class="p-6 <?php echo $activeTab !== 'settings' ? 'hidden' : ''; ?>">
                 <div class="flex justify-between items-center mb-4">
-                    <p class="text-gray-600 max-w-2xl"><?= t('admin_help_settings', 'Instance-wide settings for the main app.') ?></p>
+                    <p class="text-gray-600 max-w-2xl"><?= t_attr('admin_help_settings', 'Instance-wide settings for the main app.') ?></p>
                     <div class="bg-gray-100 px-3 py-1.5 rounded-md border border-gray-200">
-                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= t('admin_label_version', 'Version') ?></span>
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= t_attr('admin_label_version', 'Version') ?></span>
                         <span class="ml-2 font-mono text-sm font-bold text-gray-700"><?php echo htmlspecialchars($systemVersion); ?></span>
                     </div>
                 </div>
@@ -1083,7 +1083,7 @@ foreach ($importantExtensions as $ext => $name) {
                     <input type="hidden" name="action" value="save_settings">
 
                     <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                        <label for="default_constellation_id" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('admin_label_default_galaxy', 'Default Galaxy') ?></label>
+                        <label for="default_constellation_id" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_default_galaxy', 'Default Galaxy') ?></label>
                         <select id="default_constellation_id" name="default_constellation_id" class="select select-bordered select-sm w-full bg-white">
                             <?php
                             $currentOptgroup = null;
@@ -1103,19 +1103,19 @@ foreach ($importantExtensions as $ext => $name) {
                             if ($inOptgroup) echo '</optgroup>';
                             ?>
                         </select>
-                        <span class="text-xs text-gray-500 mt-1 block"><?= t('admin_help_default_galaxy', 'Choose which galaxy is shown at the root of the website.') ?></span>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_default_galaxy', 'Choose which galaxy is shown at the root of the website.') ?></span>
                     </div>
 
                     <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                        <label for="pdf_max_mb" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t('admin_label_pdf_max', 'PDF max size (MB)') ?></label>
+                        <label for="pdf_max_mb" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_pdf_max', 'PDF max size (MB)') ?></label>
                         <input type="number" id="pdf_max_mb" name="pdf_max_mb" min="1" max="2048" step="1"
                                value="<?php echo (int)(db_get_pdf_max_bytes() / (1024 * 1024)); ?>"
                                class="input input-bordered input-sm w-32 bg-white">
-                        <span class="text-xs text-gray-500 mt-1 block"><?= t('admin_help_pdf_max', "Largest PDF a wormhole can carry. Default 25 MB. Editors uploading bigger files will get a 'File exceeds maximum allowed size' error.") ?></span>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_pdf_max', "Largest PDF a wormhole can carry. Default 25 MB. Editors uploading bigger files will get a 'File exceeds maximum allowed size' error.") ?></span>
                     </div>
 
                     <div class="mt-4">
-                        <button type="submit" class="btn btn-neutral"><?= t('admin_btn_save_settings', 'Save settings') ?></button>
+                        <button type="submit" class="btn btn-neutral"><?= t_attr('admin_btn_save_settings', 'Save settings') ?></button>
                     </div>
                 </form>
             </div>
@@ -1126,8 +1126,8 @@ foreach ($importantExtensions as $ext => $name) {
 
                     <!-- Export -->
                     <section>
-                        <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t('admin_heading_download_backup', 'Download a backup') ?></h2>
-                        <p class="text-sm text-gray-600 mb-4"><?= t('admin_help_download_backup', 'Create a portable backup file containing galaxies and/or users. The default produces a full backup with embedded media.') ?></p>
+                        <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t_attr('admin_heading_download_backup', 'Download a backup') ?></h2>
+                        <p class="text-sm text-gray-600 mb-4"><?= t_attr('admin_help_download_backup', 'Create a portable backup file containing galaxies and/or users. The default produces a full backup with embedded media.') ?></p>
 
                         <form id="backup-export-form" method="POST" action="backup/export.php" class="space-y-4">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
@@ -1135,19 +1135,19 @@ foreach ($importantExtensions as $ext => $name) {
                             <div class="border border-gray-300 rounded p-4">
                                 <label class="flex items-center gap-2 mb-3">
                                     <input type="checkbox" name="include_galaxies" value="1" checked id="export-include-galaxies" class="checkbox checkbox-sm">
-                                    <span class="font-semibold"><?= t('admin_label_galaxies', 'Galaxies') ?></span>
+                                    <span class="font-semibold"><?= t_attr('admin_label_galaxies', 'Galaxies') ?></span>
                                 </label>
                                 <div id="export-galaxies-options" class="ml-6 space-y-2">
-                                    <label class="flex items-center gap-2"><input type="radio" name="galaxy_scope" value="all" checked class="radio radio-sm"> <span><?= t('admin_label_all_galaxies', 'All galaxies') ?></span></label>
-                                    <label class="flex items-center gap-2"><input type="radio" name="galaxy_scope" value="selected" class="radio radio-sm"> <span><?= t('admin_label_selected_galaxies', 'Selected galaxies only') ?></span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="galaxy_scope" value="all" checked class="radio radio-sm"> <span><?= t_attr('admin_label_all_galaxies', 'All galaxies') ?></span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="galaxy_scope" value="selected" class="radio radio-sm"> <span><?= t_attr('admin_label_selected_galaxies', 'Selected galaxies only') ?></span></label>
                                     <div id="export-galaxy-picker" class="hidden mt-3 border border-gray-200 rounded p-3 bg-gray-50">
                                         <div id="export-prefix-chips" class="flex flex-wrap gap-1 mb-3"></div>
                                         <div id="export-galaxy-list" class="max-h-64 overflow-y-auto bg-white border border-gray-200 rounded">
-                                            <p class="text-xs text-gray-500 p-3"><?= t('admin_msg_loading_galaxies', 'Loading galaxies...') ?></p>
+                                            <p class="text-xs text-gray-500 p-3"><?= t_attr('admin_msg_loading_galaxies', 'Loading galaxies...') ?></p>
                                         </div>
                                         <div class="flex justify-between mt-2 text-xs">
-                                            <button type="button" onclick="exportGalaxiesSelectAll(true)" class="text-blue-600 hover:underline"><?= t('admin_btn_select_all', 'Select all') ?></button>
-                                            <button type="button" onclick="exportGalaxiesSelectAll(false)" class="text-blue-600 hover:underline"><?= t('admin_btn_clear', 'Clear') ?></button>
+                                            <button type="button" onclick="exportGalaxiesSelectAll(true)" class="text-blue-600 hover:underline"><?= t_attr('admin_btn_select_all', 'Select all') ?></button>
+                                            <button type="button" onclick="exportGalaxiesSelectAll(false)" class="text-blue-600 hover:underline"><?= t_attr('admin_btn_clear', 'Clear') ?></button>
                                         </div>
                                     </div>
                                 </div>
@@ -1156,34 +1156,34 @@ foreach ($importantExtensions as $ext => $name) {
                             <div class="border border-gray-300 rounded p-4">
                                 <label class="flex items-center gap-2">
                                     <input type="checkbox" name="include_users" value="1" checked class="checkbox checkbox-sm">
-                                    <span class="font-semibold"><?= t('admin_label_users_always_all', 'Users (always all)') ?></span>
+                                    <span class="font-semibold"><?= t_attr('admin_label_users_always_all', 'Users (always all)') ?></span>
                                 </label>
-                                <p class="text-xs text-gray-500 ml-6"><?= t('admin_help_users_export', 'User passwords are exported as hashes. They never appear in plaintext.') ?></p>
+                                <p class="text-xs text-gray-500 ml-6"><?= t_attr('admin_help_users_export', 'User passwords are exported as hashes. They never appear in plaintext.') ?></p>
                             </div>
 
                             <div class="border border-gray-300 rounded p-4">
-                                <div class="font-semibold mb-2"><?= t('admin_label_media_files', 'Media files') ?></div>
+                                <div class="font-semibold mb-2"><?= t_attr('admin_label_media_files', 'Media files') ?></div>
                                 <div class="space-y-1 text-sm">
-                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="embedded" checked class="radio radio-sm"> <span><?= t('admin_label_media_embedded', 'Embedded: self-contained backup (recommended)') ?></span></label>
-                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="refs" class="radio radio-sm"> <span><?= t('admin_label_media_refs', 'References only: smaller file, only restorable on the same server') ?></span></label>
-                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="none" class="radio radio-sm"> <span><?= t('admin_label_media_none', 'None: strip all media') ?></span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="embedded" checked class="radio radio-sm"> <span><?= t_attr('admin_label_media_embedded', 'Embedded: self-contained backup (recommended)') ?></span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="refs" class="radio radio-sm"> <span><?= t_attr('admin_label_media_refs', 'References only: smaller file, only restorable on the same server') ?></span></label>
+                                    <label class="flex items-center gap-2"><input type="radio" name="media_mode" value="none" class="radio radio-sm"> <span><?= t_attr('admin_label_media_none', 'None: strip all media') ?></span></label>
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn btn-primary"><?= t('admin_btn_download_backup', 'Download backup') ?></button>
+                            <button type="submit" class="btn btn-primary"><?= t_attr('admin_btn_download_backup', 'Download backup') ?></button>
                         </form>
                     </section>
 
                     <!-- Import -->
                     <section>
-                        <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t('admin_heading_restore_backup', 'Restore from a backup') ?></h2>
-                        <p class="text-sm text-gray-600 mb-4"><?= t('admin_help_restore_backup', 'Upload a .telaris-backup file. You will see a summary before anything is changed.') ?></p>
+                        <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t_attr('admin_heading_restore_backup', 'Restore from a backup') ?></h2>
+                        <p class="text-sm text-gray-600 mb-4"><?= t_attr('admin_help_restore_backup', 'Upload a .telaris-backup file. You will see a summary before anything is changed.') ?></p>
 
                         <div class="space-y-4">
                             <div class="border border-gray-300 rounded p-4">
                                 <input type="file" id="backup-import-file" accept=".telaris-backup,application/gzip,application/octet-stream" class="file-input file-input-bordered file-input-sm w-full" onchange="backupOnFilePicked()">
                                 <div id="backup-import-file-info" class="hidden mt-2 text-xs text-gray-600"></div>
-                                <button type="button" id="backup-import-inspect-btn" onclick="backupInspect()" class="btn btn-neutral btn-sm mt-3"><?= t('admin_btn_inspect_file', 'Inspect file') ?></button>
+                                <button type="button" id="backup-import-inspect-btn" onclick="backupInspect()" class="btn btn-neutral btn-sm mt-3"><?= t_attr('admin_btn_inspect_file', 'Inspect file') ?></button>
                                 <div id="backup-import-status" class="hidden mt-3 text-sm">
                                     <div id="backup-import-status-text" class="text-gray-700"></div>
                                     <div id="backup-import-progress-wrap" class="hidden mt-1 w-full bg-gray-200 rounded h-2 overflow-hidden">
@@ -1198,20 +1198,20 @@ foreach ($importantExtensions as $ext => $name) {
 
                             <div id="backup-import-options" class="hidden border border-gray-300 rounded p-4 space-y-4">
                                 <div>
-                                    <div class="font-semibold mb-2"><?= t('admin_label_galaxies_in_file', 'Galaxies in this file') ?></div>
+                                    <div class="font-semibold mb-2"><?= t_attr('admin_label_galaxies_in_file', 'Galaxies in this file') ?></div>
                                     <div id="import-prefix-chips" class="flex flex-wrap gap-1 mb-2"></div>
                                     <div id="import-galaxy-list" class="max-h-64 overflow-y-auto bg-white border border-gray-200 rounded"></div>
                                     <div class="flex justify-between mt-2 text-xs">
-                                        <button type="button" onclick="importGalaxiesSelectAll(true)" class="text-blue-600 hover:underline"><?= t('admin_btn_select_all', 'Select all') ?></button>
-                                        <button type="button" onclick="importGalaxiesSelectAll(false)" class="text-blue-600 hover:underline"><?= t('admin_btn_clear', 'Clear') ?></button>
+                                        <button type="button" onclick="importGalaxiesSelectAll(true)" class="text-blue-600 hover:underline"><?= t_attr('admin_btn_select_all', 'Select all') ?></button>
+                                        <button type="button" onclick="importGalaxiesSelectAll(false)" class="text-blue-600 hover:underline"><?= t_attr('admin_btn_clear', 'Clear') ?></button>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <div class="font-semibold mb-2"><?= t('admin_label_for_each_galaxy', 'For each selected galaxy') ?></div>
+                                    <div class="font-semibold mb-2"><?= t_attr('admin_label_for_each_galaxy', 'For each selected galaxy') ?></div>
                                     <div class="space-y-1 text-sm">
-                                        <label class="flex items-center gap-2"><input type="radio" name="import_conflict" value="overwrite" checked class="radio radio-sm"> <span><?= t('admin_label_overwrite_slug', 'Overwrite if a galaxy with the same slug exists') ?></span></label>
-                                        <label class="flex items-center gap-2"><input type="radio" name="import_conflict" value="rename" class="radio radio-sm"> <span><?= t('admin_label_create_as_new', 'Create as new (rename on conflict, suffix:') ?></span>
+                                        <label class="flex items-center gap-2"><input type="radio" name="import_conflict" value="overwrite" checked class="radio radio-sm"> <span><?= t_attr('admin_label_overwrite_slug', 'Overwrite if a galaxy with the same slug exists') ?></span></label>
+                                        <label class="flex items-center gap-2"><input type="radio" name="import_conflict" value="rename" class="radio radio-sm"> <span><?= t_attr('admin_label_create_as_new', 'Create as new (rename on conflict, suffix:') ?></span>
                                             <input type="text" id="import-rename-suffix" value=" (restored)" class="input input-bordered input-xs ml-1" style="width: 140px;">
                                             <span>)</span>
                                         </label>
@@ -1219,21 +1219,21 @@ foreach ($importantExtensions as $ext => $name) {
                                 </div>
 
                                 <div class="border-t pt-3">
-                                    <div class="font-semibold mb-2"><?= t('admin_label_users_in_file', 'Users in this file') ?></div>
-                                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="import-restore-users" checked class="checkbox checkbox-sm"> <span><?= t('admin_label_restore_users', 'Restore users') ?></span></label>
+                                    <div class="font-semibold mb-2"><?= t_attr('admin_label_users_in_file', 'Users in this file') ?></div>
+                                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="import-restore-users" checked class="checkbox checkbox-sm"> <span><?= t_attr('admin_label_restore_users', 'Restore users') ?></span></label>
                                     <div class="ml-6 mt-2 space-y-1 text-sm">
-                                        <label class="flex items-center gap-2"><input type="radio" name="import_users_mode" value="skip" checked class="radio radio-sm"> <span><?= t('admin_label_skip_existing', 'Skip existing users (match by email)') ?></span></label>
-                                        <label class="flex items-center gap-2"><input type="radio" name="import_users_mode" value="replace" class="radio radio-sm"> <span><?= t('admin_label_update_existing', 'Update existing users by email') ?></span></label>
-                                        <label class="flex items-center gap-2 ml-6"><input type="checkbox" id="import-users-replace-pw" class="checkbox checkbox-sm"> <span><?= t('admin_label_overwrite_pw', 'Also overwrite password hashes') ?></span></label>
+                                        <label class="flex items-center gap-2"><input type="radio" name="import_users_mode" value="skip" checked class="radio radio-sm"> <span><?= t_attr('admin_label_skip_existing', 'Skip existing users (match by email)') ?></span></label>
+                                        <label class="flex items-center gap-2"><input type="radio" name="import_users_mode" value="replace" class="radio radio-sm"> <span><?= t_attr('admin_label_update_existing', 'Update existing users by email') ?></span></label>
+                                        <label class="flex items-center gap-2 ml-6"><input type="checkbox" id="import-users-replace-pw" class="checkbox checkbox-sm"> <span><?= t_attr('admin_label_overwrite_pw', 'Also overwrite password hashes') ?></span></label>
                                     </div>
                                 </div>
 
                                 <div class="border-t pt-3">
-                                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="import-restore-media" checked class="checkbox checkbox-sm"> <span><?= t('admin_label_restore_media', 'Restore media files') ?></span></label>
+                                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="import-restore-media" checked class="checkbox checkbox-sm"> <span><?= t_attr('admin_label_restore_media', 'Restore media files') ?></span></label>
                                 </div>
 
                                 <div class="border-t pt-3">
-                                    <button type="button" onclick="backupCommit()" class="btn btn-warning"><?= t('admin_btn_restore', 'Restore') ?></button>
+                                    <button type="button" onclick="backupCommit()" class="btn btn-warning"><?= t_attr('admin_btn_restore', 'Restore') ?></button>
                                 </div>
                             </div>
 
@@ -1248,69 +1248,69 @@ foreach ($importantExtensions as $ext => $name) {
 
             <!-- Snapshots Tab -->
             <div id="content-snapshots" class="p-6 <?php echo $activeTab !== 'snapshots' ? 'hidden' : ''; ?>">
-                <p class="text-sm text-gray-600 mb-4"><?= t('admin_help_snapshots', "Snapshots are local, on-disk full backups of the entire system. Restoring a snapshot wipes everything and replaces it with the snapshot's state. Any snapshots created after the restored one are deleted.") ?></p>
+                <p class="text-sm text-gray-600 mb-4"><?= t_attr('admin_help_snapshots', "Snapshots are local, on-disk full backups of the entire system. Restoring a snapshot wipes everything and replaces it with the snapshot's state. Any snapshots created after the restored one are deleted.") ?></p>
 
                 <!-- Create snapshot -->
                 <section class="mb-8 border border-gray-300 rounded p-4">
-                    <h2 class="text-lg font-semibold mb-3"><?= t('admin_heading_create_snapshot', 'Create snapshot now') ?></h2>
+                    <h2 class="text-lg font-semibold mb-3"><?= t_attr('admin_heading_create_snapshot', 'Create snapshot now') ?></h2>
                     <div class="flex flex-wrap items-center gap-3">
                         <input type="text" id="snapshot-note" placeholder="<?= t_attr('admin_placeholder_snapshot_note', 'Optional note (e.g. before migration)') ?>" class="input input-bordered input-sm flex-1 min-w-[240px]">
-                        <button type="button" id="snapshot-create-btn" onclick="snapshotCreate()" class="btn btn-neutral btn-sm"><?= t('admin_btn_create_snapshot', 'Create snapshot') ?></button>
+                        <button type="button" id="snapshot-create-btn" onclick="snapshotCreate()" class="btn btn-neutral btn-sm"><?= t_attr('admin_btn_create_snapshot', 'Create snapshot') ?></button>
                     </div>
                     <div id="snapshot-create-progress" class="mt-3 hidden">
                         <progress class="progress progress-neutral w-full"></progress>
-                        <p id="snapshot-create-progress-label" class="text-xs text-gray-600 mt-1"><?= t('admin_msg_creating_snapshot', 'Creating snapshot. This may take a minute for large instances. Please do not close this tab.') ?></p>
+                        <p id="snapshot-create-progress-label" class="text-xs text-gray-600 mt-1"><?= t_attr('admin_msg_creating_snapshot', 'Creating snapshot. This may take a minute for large instances. Please do not close this tab.') ?></p>
                     </div>
                 </section>
 
                 <!-- Schedule -->
                 <section class="mb-8 border border-gray-300 rounded p-4">
                     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-                        <h2 class="text-lg font-semibold"><?= t('admin_heading_snapshot_scheduler', 'Snapshot scheduler') ?></h2>
+                        <h2 class="text-lg font-semibold"><?= t_attr('admin_heading_snapshot_scheduler', 'Snapshot scheduler') ?></h2>
                         <label class="text-sm flex items-center gap-3 cursor-pointer select-none">
-                            <span class="font-medium"><?= t('admin_label_enable_daily', 'Enable daily snapshots') ?></span>
+                            <span class="font-medium"><?= t_attr('admin_label_enable_daily', 'Enable daily snapshots') ?></span>
                             <input type="checkbox" id="schedule-enabled" class="toggle toggle-neutral toggle-sm">
                         </label>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
-                        <label class="text-sm"><?= t('admin_label_hour_utc', 'Hour (UTC)') ?>
+                        <label class="text-sm"><?= t_attr('admin_label_hour_utc', 'Hour (UTC)') ?>
                             <input type="number" id="schedule-hour" min="0" max="23" value="3" class="input input-bordered input-sm w-full">
                         </label>
-                        <label class="text-sm"><?= t('admin_label_keep_days', 'Keep days (auto)') ?>
+                        <label class="text-sm"><?= t_attr('admin_label_keep_days', 'Keep days (auto)') ?>
                             <input type="number" id="schedule-keep-days" min="1" value="7" class="input input-bordered input-sm w-full">
                         </label>
                     </div>
                     <div class="mt-3 flex flex-wrap gap-2 items-center">
-                        <button type="button" onclick="scheduleSave()" class="btn btn-neutral btn-sm"><?= t('admin_btn_save', 'Save') ?></button>
-                        <button type="button" onclick="snapshotsLoad()" class="btn btn-ghost btn-sm"><?= t('admin_btn_refresh_status', 'Refresh status') ?></button>
+                        <button type="button" onclick="scheduleSave()" class="btn btn-neutral btn-sm"><?= t_attr('admin_btn_save', 'Save') ?></button>
+                        <button type="button" onclick="snapshotsLoad()" class="btn btn-ghost btn-sm"><?= t_attr('admin_btn_refresh_status', 'Refresh status') ?></button>
                     </div>
 
                     <div class="mt-4 pt-3 border-t border-gray-200">
                         <div class="flex flex-wrap gap-4 text-sm">
                             <div>
-                                <span class="text-gray-500"><?= t('admin_label_status', 'Status:') ?></span>
-                                <span id="scheduler-status-badge" class="ml-1 px-2 py-0.5 rounded text-xs bg-gray-200"><?= t('admin_label_status_loading', 'loading...') ?></span>
+                                <span class="text-gray-500"><?= t_attr('admin_label_status', 'Status:') ?></span>
+                                <span id="scheduler-status-badge" class="ml-1 px-2 py-0.5 rounded text-xs bg-gray-200"><?= t_attr('admin_label_status_loading', 'loading...') ?></span>
                             </div>
                             <div>
-                                <span class="text-gray-500"><?= t('admin_label_last_snapshot', 'Last snapshot:') ?></span>
-                                <span id="scheduler-last-run" class="ml-1"><?= t('admin_label_never_lower', 'never') ?></span>
+                                <span class="text-gray-500"><?= t_attr('admin_label_last_snapshot', 'Last snapshot:') ?></span>
+                                <span id="scheduler-last-run" class="ml-1"><?= t_attr('admin_label_never_lower', 'never') ?></span>
                             </div>
                             <div>
-                                <span class="text-gray-500"><?= t('admin_label_last_checked', 'Last checked:') ?></span>
-                                <span id="scheduler-last-check" class="ml-1"><?= t('admin_label_never_lower', 'never') ?></span>
+                                <span class="text-gray-500"><?= t_attr('admin_label_last_checked', 'Last checked:') ?></span>
+                                <span id="scheduler-last-check" class="ml-1"><?= t_attr('admin_label_never_lower', 'never') ?></span>
                             </div>
                         </div>
                         <div id="scheduler-status-detail" class="text-xs text-amber-700 mt-2 hidden"></div>
-                        <div class="text-xs text-gray-600 mt-3 mb-1"><?= t('admin_label_recent_activity', 'Recent activity') ?></div>
-                        <pre id="scheduler-log" class="bg-gray-900 text-green-200 p-2 rounded text-xs overflow-x-auto max-h-64 whitespace-pre-wrap"><?= t('admin_msg_no_activity', '(no activity yet)') ?></pre>
+                        <div class="text-xs text-gray-600 mt-3 mb-1"><?= t_attr('admin_label_recent_activity', 'Recent activity') ?></div>
+                        <pre id="scheduler-log" class="bg-gray-900 text-green-200 p-2 rounded text-xs overflow-x-auto max-h-64 whitespace-pre-wrap"><?= t_attr('admin_msg_no_activity', '(no activity yet)') ?></pre>
                     </div>
                 </section>
 
                 <!-- List -->
                 <section>
-                    <h2 class="text-lg font-semibold mb-3"><?= t('admin_heading_available_snapshots', 'Available snapshots') ?></h2>
+                    <h2 class="text-lg font-semibold mb-3"><?= t_attr('admin_heading_available_snapshots', 'Available snapshots') ?></h2>
                     <div id="snapshots-table-wrap">
-                        <p class="text-sm text-gray-500"><?= t('admin_msg_loading', 'Loading...') ?></p>
+                        <p class="text-sm text-gray-500"><?= t_attr('admin_msg_loading', 'Loading...') ?></p>
                     </div>
                 </section>
             </div>
@@ -1319,7 +1319,7 @@ foreach ($importantExtensions as $ext => $name) {
             <div id="content-php-info" class="p-6 <?php echo $activeTab !== 'php-info' ? 'hidden' : ''; ?>">
                 <!-- PHP Configuration -->
                 <div class="mb-6">
-                    <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t('admin_heading_php_config', 'PHP Configuration') ?></h2>
+                    <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t_attr('admin_heading_php_config', 'PHP Configuration') ?></h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                         <?php foreach ($phpConfig as $label => $value): ?>
                             <div class="p-2.5 bg-gray-50 rounded">
@@ -1332,7 +1332,7 @@ foreach ($importantExtensions as $ext => $name) {
                 
                 <!-- Important Extensions -->
                 <div class="mb-6">
-                    <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t('admin_heading_important_extensions', 'Important Extensions') ?></h2>
+                    <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t_attr('admin_heading_important_extensions', 'Important Extensions') ?></h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-4">
                         <?php foreach ($extensionStatus as $name => $installed): ?>
                             <div class="p-3 rounded flex items-center gap-2.5 <?php echo $installed ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-700'; ?>">
@@ -1345,7 +1345,7 @@ foreach ($importantExtensions as $ext => $name) {
                 
                 <!-- All Loaded Extensions -->
                 <div>
-                    <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t('admin_heading_all_extensions', 'All Loaded Extensions') ?> (<?php echo count($loadedExtensions); ?>)</h2>
+                    <h2 class="text-blue-500 mb-4 pb-2.5 border-b-2 border-gray-200 text-xl font-semibold"><?= t_attr('admin_heading_all_extensions', 'All Loaded Extensions') ?> (<?php echo count($loadedExtensions); ?>)</h2>
                     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-4">
                         <?php foreach ($loadedExtensions as $ext): ?>
                             <span class="p-1.5 px-2.5 bg-gray-100 rounded text-sm font-mono"><?php echo htmlspecialchars($ext); ?></span>

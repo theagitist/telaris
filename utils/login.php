@@ -112,8 +112,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
 </head>
 <body class="font-sans bg-black min-h-screen flex items-center justify-center px-5">
     <div class="bg-gray-900 border border-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-md text-white">
-        <h1 class="text-white mb-2 text-3xl font-semibold text-center"><?php echo t('auth_login_heading', 'Telaris Login'); ?></h1>
-        <p class="text-gray-400 mb-8 text-center"><?php echo t('auth_login_subtitle', 'Access the constellation workspace'); ?></p>
+        <h1 class="text-white mb-2 text-3xl font-semibold text-center"><?php echo t_attr('auth_login_heading', 'Telaris Login'); ?></h1>
+        <p class="text-gray-400 mb-8 text-center"><?php echo t_attr('auth_login_subtitle', 'Access the constellation workspace'); ?></p>
         
         <?php if ($error): ?>
             <div class="bg-red-900/30 border border-red-800 text-red-200 p-4 rounded mb-5 text-sm">
@@ -127,7 +127,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                 <input type="hidden" name="redirect" value="<?php echo htmlspecialchars($requestedTarget); ?>">
             <?php endif; ?>
             <div class="mb-5">
-                <label for="email" class="block mb-1.5 text-gray-300 font-medium"><?php echo t('auth_email_label', 'Email'); ?></label>
+                <label for="email" class="block mb-1.5 text-gray-300 font-medium"><?php echo t_attr('auth_email_label', 'Email'); ?></label>
                 <input type="email"
                        id="email"
                        name="email"
@@ -137,7 +137,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
             </div>
 
             <div class="mb-6">
-                <label for="password" class="block mb-1.5 text-gray-300 font-medium"><?php echo t('auth_password_label', 'Password'); ?></label>
+                <label for="password" class="block mb-1.5 text-gray-300 font-medium"><?php echo t_attr('auth_password_label', 'Password'); ?></label>
                 <input type="password"
                        id="password"
                        name="password"
@@ -146,16 +146,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
             </div>
 
             <button type="submit" class="btn btn-neutral w-full">
-                <?php echo t('auth_login_submit', 'Sign In'); ?>
+                <?php echo t_attr('auth_login_submit', 'Sign In'); ?>
             </button>
         </form>
 
         <div class="mt-4 text-center">
-            <a href="forgot.php" class="text-gray-400 hover:text-white transition-colors text-sm"><?php echo t('auth_login_forgot_link', 'Forgot your password?'); ?></a>
+            <a href="forgot.php" class="text-gray-400 hover:text-white transition-colors text-sm"><?php echo t_attr('auth_login_forgot_link', 'Forgot your password?'); ?></a>
         </div>
 
         <div class="mt-8 text-center pt-6 border-t border-gray-800">
-            <a href="../index.php" class="text-gray-400 hover:text-white transition-colors text-sm"><?php echo t('auth_login_back_link', '← Back to Constellation'); ?></a>
+            <a href="../index.php" class="text-gray-400 hover:text-white transition-colors text-sm"><?php echo t_attr('auth_login_back_link', '← Back to Constellation'); ?></a>
         </div>
     </div>
 </body>

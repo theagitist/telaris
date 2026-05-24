@@ -105,8 +105,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 </head>
 <body class="font-sans bg-black min-h-screen flex items-center justify-center px-5">
     <div class="bg-gray-900 border border-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-md text-white">
-        <h1 class="text-white mb-2 text-3xl font-semibold text-center"><?php echo t('auth_forgot_heading', 'Forgot password'); ?></h1>
-        <p class="text-gray-400 mb-8 text-center"><?php echo t('auth_forgot_subtitle', 'We will email you a one-time link to set a new password.'); ?></p>
+        <h1 class="text-white mb-2 text-3xl font-semibold text-center"><?php echo t_attr('auth_forgot_heading', 'Forgot password'); ?></h1>
+        <p class="text-gray-400 mb-8 text-center"><?php echo t_attr('auth_forgot_subtitle', 'We will email you a one-time link to set a new password.'); ?></p>
 
         <?php if ($error): ?>
             <div class="bg-red-900/30 border border-red-800 text-red-200 p-4 rounded mb-5 text-sm">
@@ -124,16 +124,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         <form method="POST" action="">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <div class="mb-5">
-                <label for="email" class="block mb-1.5 text-gray-300 font-medium"><?php echo t('auth_email_label', 'Email'); ?></label>
+                <label for="email" class="block mb-1.5 text-gray-300 font-medium"><?php echo t_attr('auth_email_label', 'Email'); ?></label>
                 <input type="email" id="email" name="email" required autofocus
                        class="w-full p-2.5 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500 transition-colors">
             </div>
-            <button type="submit" class="btn btn-neutral w-full"><?php echo t('auth_forgot_submit', 'Send reset link'); ?></button>
+            <button type="submit" class="btn btn-neutral w-full"><?php echo t_attr('auth_forgot_submit', 'Send reset link'); ?></button>
         </form>
         <?php endif; ?>
 
         <div class="mt-8 text-center pt-6 border-t border-gray-800 space-y-2">
-            <a href="login.php" class="block text-gray-400 hover:text-white transition-colors text-sm"><?php echo t('auth_forgot_back_link', '← Back to login'); ?></a>
+            <a href="login.php" class="block text-gray-400 hover:text-white transition-colors text-sm"><?php echo t_attr('auth_forgot_back_link', '← Back to login'); ?></a>
         </div>
     </div>
 </body>

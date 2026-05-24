@@ -162,7 +162,7 @@ header("X-Content-Type-Options: nosniff");
     <!-- Visible to everyone because the app's JS will not load until the admin installs the rule. -->
     <div id="nginx-config-warning" style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#7f1d1d;color:#fff;padding:14px 20px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;border-bottom:2px solid #fca5a5;box-shadow:0 4px 12px rgba(0,0,0,0.5);">
         <div style="max-width:900px;margin:0 auto;">
-            <strong style="font-size:14px;display:block;margin-bottom:6px;"><?php echo t('visitor_nginx_warning_heading', 'Telaris configuration: nginx versioned-asset rule not installed'); ?></strong>
+            <strong style="font-size:14px;display:block;margin-bottom:6px;"><?php echo t_attr('visitor_nginx_warning_heading', 'Telaris configuration: nginx versioned-asset rule not installed'); ?></strong>
             <?php echo sprintf(t('visitor_nginx_warning_intro', "JavaScript modules will not be served. Add this block to the server's nginx vhost (replacing the docroot if different), then run %s."), t('visitor_nginx_warning_reload', '<code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>')); ?>
             <pre style="background:rgba(0,0,0,0.45);padding:10px 12px;margin:10px 0 4px;border-radius:4px;overflow:auto;font-size:12px;color:#fecaca;">location ~ ^/js/v[0-9]+\.[0-9]+\.[0-9]+/(.+\.js)$ {
     alias <?php echo htmlspecialchars($root); ?>/js/$1;
