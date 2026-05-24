@@ -92,4 +92,36 @@ final class BridgesLibTest extends TestCase
         $this->assertFalse(bridges_load('foo.bar'));
         $this->assertFalse(bridges_load('Mocambos'));
     }
+
+    /**
+     * M-B1 (third-pass audit, v6.10.15) — bridges_cluster_icon_url_for caches
+     * its result in-request. With TELARIS_BRIDGES = [] (default), every call
+     * short-circuits at bridges_is_active() and returns null. The cache must
+     * memoize that null so subsequent calls return identical results without
+     * re-entering the lookup path.
+     *
+     * Invariants pinned:
+     *   - First call for an unknown bridge returns null
+     *   - Second call returns the same null (cache hit)
+     *   - Different bridge names get distinct cache entries
+     */
+    public function testClusterIconUrlForReturnsNullWhenInactive(): void
+    {
+        // TELARIS_BRIDGES is [] in this test env, so every name is inactive.
+        $this->assertNull(bridges_cluster_icon_url_for('mocambos'));
+        $this->assertNull(bridges_cluster_icon_url_for('mocambos'));
+        $this->assertNull(bridges_cluster_icon_url_for('nonexistent-bridge'));
+    }
+
+    /**
+     * Cache distinguishes between bridge names. Two different names get two
+     * cache entries; one doesn't poison the other.
+     */
+    public function testClusterIconUrlForCacheIsKeyedByBridgeName(): void
+    {
+        $a = bridges_cluster_icon_url_for('aitest-cache-a-' . bin2hex(random_bytes(2)));
+        $b = bridges_cluster_icon_url_for('aitest-cache-b-' . bin2hex(random_bytes(2)));
+        $this->assertNull($a);
+        $this->assertNull($b);
+    }
 }

@@ -110,14 +110,39 @@ function bridges_admin_load_all(): void {
  * `{name}_cluster_icon_url()` function. Used by api/nodes.php to let a
  * bridge customize the visitor-side rendering of cluster pseudo-nodes
  * inside galaxies it imported.
+ *
+ * M-B1 (third-pass audit, v6.10.15): cached in-request by bridge name. The
+ * call site at api/nodes.php loops over every constellation in the
+ * response, and a response that includes N clustered galaxies from the
+ * same bridge would otherwise pay N `require_once handler.php` loads to
+ * retrieve a string literal. The cache memoizes the result for the
+ * lifetime of the request, so per-bridge it's `require_once` once and
+ * memoized lookup thereafter. The `bridges_active`/`bridges_is_active`
+ * short-circuit before the cache is checked, so on Polivoxia instances
+ * (TELARIS_BRIDGES = []) this is a single in-list comparison.
+ *
+ * The cache uses an explicit "missing" sentinel via array_key_exists so
+ * that a legitimate null result (bridge defines no icon hook) is also
+ * cached and short-circuits subsequent calls.
  */
 function bridges_cluster_icon_url_for(string $bridgeName): ?string {
-    if (!bridges_is_active($bridgeName)) return null;
-    if (!bridges_load($bridgeName)) return null;
+    static $cache = [];
+    if (array_key_exists($bridgeName, $cache)) {
+        return $cache[$bridgeName];
+    }
+    if (!bridges_is_active($bridgeName)) {
+        return $cache[$bridgeName] = null;
+    }
+    if (!bridges_load($bridgeName)) {
+        return $cache[$bridgeName] = null;
+    }
     $fn = $bridgeName . '_cluster_icon_url';
-    if (!function_exists($fn)) return null;
+    if (!function_exists($fn)) {
+        return $cache[$bridgeName] = null;
+    }
     $url = $fn();
-    return is_string($url) && $url !== '' ? $url : null;
+    $value = is_string($url) && $url !== '' ? $url : null;
+    return $cache[$bridgeName] = $value;
 }
 
 /**
