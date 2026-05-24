@@ -6,9 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Telaris** — a 3D interactive node network visualization application. The PHP/MySQL backend serves data through a REST API; the frontend renders a Three.js 3D scene with nodes, connections, and themes directly in the browser.
 
-Current version: **6.9.x** (tracked in `VERSION` file).
+Current version: **6.11.0** (tracked in `VERSION` file). 6.11.0 is the stabilization checkpoint at the close of the five-pass security-audit thread (2026-05-22 to 2026-05-24); next active code thread is federation stage 1 per the design at `Architecture/P2P federation/P2P federation plan v10.md` in the project vault.
 
 **Versioning convention.** Patch bumps for incremental work; minor/major only when explicitly directed. The `VERSION` file is read at runtime to drive Safari-safe ES module path-versioning (`/js/vX.Y.Z/foo.js` → alias). Bump on any visitor-side JS change so old browsers don't run stale modules.
+
+**Audit-thread status (closed).** Five adversarial passes shipped across v6.10.0–v6.10.18. 84 of 91 findings shipped. 7 remaining items in the BACKLOG are architectural (optimistic concurrency on PUT, bcrypt global cap, audit-log tamper-evidence, API-key hashing gated on federation, per-editor disk quota, keyword-canvas broadcast, M-D2 vhost dedup). Test suite at 197/197.
 
 ## Dev and production sites
 

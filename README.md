@@ -32,7 +32,7 @@ The full position statement is the [Manifest](https://www.telaris.ca/docs/manife
 
 ## Documentation
 
-The documentation set is published at <https://www.telaris.ca/docs/> in English, Spanish, and Portuguese. Source markdown lives in a separate repository at [theagitist/telaris-documentation](https://github.com/theagitist/telaris-documentation).
+The documentation set is published at <https://www.telaris.ca/docs/> in English, Spanish, Portuguese, and French. Source markdown lives in a separate repository at [theagitist/telaris-documentation](https://github.com/theagitist/telaris-documentation).
 
 | Document | Audience |
 |---|---|
@@ -42,7 +42,7 @@ The documentation set is published at <https://www.telaris.ca/docs/> in English,
 | Admin Manual | Operators running a Telaris instance. Draft pending |
 | [Privacy](https://www.telaris.ca/docs/privacy.pdf), [Terms](https://www.telaris.ca/docs/tos.pdf) | Public-facing legal posture (draft) |
 
-Every public document is available in three sibling editions: `<slug>.pdf` (English), `<slug>-es.pdf` (Spanish), `<slug>-pt.pdf` (Portuguese). The three languages are sibling phrasings of the same voice, not translations of the English.
+Every public document is available in four sibling editions: `<slug>.pdf` (English), `<slug>-es.pdf` (Spanish), `<slug>-pt.pdf` (Portuguese), `<slug>-fr.pdf` (French). The four languages are sibling phrasings of the same voice, not translations of the English.
 
 ## Concepts
 
@@ -59,12 +59,15 @@ The code uses the internal identifiers (`constellation`, `node`, `portal`); user
 
 ## Current state
 
-Latest version: **v6.9.x** on the deployed instances.
+Latest version: **v6.11.0** on the deployed instances.
 
 Active design and implementation threads (May 2026):
 
-- **Federation, peer-to-peer.** Implementation-ready design (the "Pluriverse" coordination layer). Bilateral, consent-based federation between independent operators; cryptographic identity per peer; consent withdrawal honoured network-wide. The Pluriverse is the central coordination layer that hosts operator registry, key rotation, and consent-withdrawal propagation; the application proper lands at <https://www.telaris.ca> when federation ships.
-- **Documentation set.** Editor Manual v0.1 first draft, fifteen chapters, available in English / Spanish / Portuguese.
+- **Federation, peer-to-peer.** Implementation-ready design (the "Pluriverse" coordination layer). Bilateral, consent-based federation between independent operators; cryptographic identity per peer; consent withdrawal honoured network-wide. The Pluriverse is the central coordination layer that hosts operator registry, key rotation, and consent-withdrawal propagation; the application proper lands at <https://www.telaris.ca> when federation ships. Next active code thread; v6.11.0 is the stabilization checkpoint before stage 1 begins.
+- **Security audit thread (closed).** Five adversarial passes between 2026-05-22 and 2026-05-24 surfaced 91 findings (2 CRITICAL, 18 HIGH, the rest MEDIUM/LOW). 84 shipped across v6.10.0–v6.10.18; the 7 remaining are architectural items gated on schema work or federation rollout, tracked at the project's BACKLOG. Test suite at 197/197.
+- **Bridges framework v1.** Generalized importer plug-in architecture; first provider is Mocambos (Brazilian quilombola Baobáxia archive). Off by default; enable per-instance.
+- **Localization.** Every user-facing surface (visitor, editor, admin) speaks four locales (EN/ES/PT/FR); 1084 keys per locale.
+- **Documentation set.** Editor Manual v0.1 first draft, fifteen chapters, available in all four locales. Editor Quick Start, Manifest, Privacy, Terms also quadrilingual.
 - **Brand book v1.** Visual identity, voice canon, naming conventions, typography (monospace throughout), palette.
 
 Active deployed instances are listed at <https://www.telaris.ca/instances/>.
