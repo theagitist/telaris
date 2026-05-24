@@ -189,15 +189,29 @@ function snapshot_get(int $id): ?array {
 }
 
 function snapshot_delete(int $id): void {
-    $row = snapshot_get($id);
-    if ($row === null) return;
-    $path = snapshot_full_path($row['filename']);
-    if (file_exists($path) && !@unlink($path)) {
-        $err = error_get_last();
-        error_log("snapshot_delete: unlink failed for {$path}: " . ($err['message'] ?? 'unknown'));
+    // Audit pass #5 / Race H2 (v6.10.18): hold the per-instance snapshot lock
+    // around delete the same way snapshot_create (v6.10.0) and snapshot_restore
+    // (v6.10.8) do. Without this, an operator who clicks Delete on the snapshot
+    // currently being restored unlinks the path mid-replay — snapshot_restore
+    // reads $path once via snapshot_get then makes two further calls
+    // (backup_inspect_file, backup_restore_from_file) against the same path,
+    // so a concurrent unlink between those calls aborts restore on a wiped DB.
+    // On contention the operator gets SnapshotLockHeldException; the admin UI
+    // surfaces "another snapshot operation in progress."
+    $lock = snapshot_acquire_lock();
+    try {
+        $row = snapshot_get($id);
+        if ($row === null) return;
+        $path = snapshot_full_path($row['filename']);
+        if (file_exists($path) && !@unlink($path)) {
+            $err = error_get_last();
+            error_log("snapshot_delete: unlink failed for {$path}: " . ($err['message'] ?? 'unknown'));
+        }
+        $pdo = getDB();
+        $pdo->prepare("DELETE FROM snapshots WHERE id = :id")->execute([':id' => $id]);
+    } finally {
+        snapshot_release_lock($lock);
     }
-    $pdo = getDB();
-    $pdo->prepare("DELETE FROM snapshots WHERE id = :id")->execute([':id' => $id]);
 }
 
 // ---------------------------------------------------------------------------

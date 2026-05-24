@@ -419,7 +419,7 @@ const PROJECT_INFO_KEYS = [
     'mocambos_h_phase2_downloading', 'mocambos_h_downloading_image',
     'mocambos_h_downloading_video', 'mocambos_h_downloading_audio',
     'mocambos_h_phase2_complete', 'mocambos_h_phase2_complete_with_errors',
-    'mocambos_h_galaxia_done', 'mocambos_h_galaxia_done_with_errors',
+    'mocambos_h_galaxia_done', 'mocambos_h_galaxia_done_with_errors', 'mocambos_h_concurrent_import',
     'mocambos_h_failed_to_create_node', 'mocambos_h_media_downloads_failed',
     // Validation check details (rendered in the validation report).
     'mocambos_h_check_connection_failed', 'mocambos_h_check_galaxia_http_fail',
@@ -1675,6 +1675,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'mocambos_h_phase2_complete_with_errors' => 'Phase 2 complete: %d media files downloaded (%d failed).',
             'mocambos_h_galaxia_done' => 'Galaxia %s done: %d/%d items imported.',
             'mocambos_h_galaxia_done_with_errors' => 'Galaxia %s done: %d/%d items imported (%d errors).',
+            'mocambos_h_concurrent_import' => 'Concurrent import already in progress for galaxy %s; try again later.',
             'mocambos_h_failed_to_create_node' => 'Failed to create node: %s (%s).',
             'mocambos_h_media_downloads_failed' => '%d media downloads failed.',
             // Validation check details (validation report).
@@ -2785,6 +2786,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'mocambos_h_phase2_complete_with_errors' => 'Fase 2 completa: %d archivos multimedia descargados (%d fallaron).',
             'mocambos_h_galaxia_done' => 'Galaxia %s lista: %d/%d elementos importados.',
             'mocambos_h_galaxia_done_with_errors' => 'Galaxia %s lista: %d/%d elementos importados (%d errores).',
+            'mocambos_h_concurrent_import' => 'Ya hay una importación en curso para la galaxia %s; intenta de nuevo más tarde.',
             'mocambos_h_failed_to_create_node' => 'No se pudo crear el nodo: %s (%s).',
             'mocambos_h_media_downloads_failed' => '%d descargas multimedia fallaron.',
             'mocambos_h_check_connection_failed' => 'Falló la conexión; no se pudo alcanzar el servidor.',
@@ -3892,6 +3894,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'mocambos_h_phase2_complete_with_errors' => 'Fase 2 concluída: %d arquivos de mídia baixados (%d falharam).',
             'mocambos_h_galaxia_done' => 'Galáxia %s pronta: %d/%d itens importados.',
             'mocambos_h_galaxia_done_with_errors' => 'Galáxia %s pronta: %d/%d itens importados (%d erros).',
+            'mocambos_h_concurrent_import' => 'Já há uma importação em andamento para a galáxia %s; tente novamente mais tarde.',
             'mocambos_h_failed_to_create_node' => 'Não foi possível criar o nó: %s (%s).',
             'mocambos_h_media_downloads_failed' => '%d downloads de mídia falharam.',
             'mocambos_h_check_connection_failed' => 'Falha de conexão; não foi possível alcançar o servidor.',
@@ -4999,6 +5002,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'mocambos_h_phase2_complete_with_errors' => 'Phase 2 terminée : %d fichiers médias téléchargés (%d ont échoué).',
             'mocambos_h_galaxia_done' => 'Galaxie %s prête : %d/%d éléments importés.',
             'mocambos_h_galaxia_done_with_errors' => 'Galaxie %s prête : %d/%d éléments importés (%d erreurs).',
+            'mocambos_h_concurrent_import' => 'Une importation est déjà en cours pour la galaxie %s ; réessaie plus tard.',
             'mocambos_h_failed_to_create_node' => 'Impossible de créer le nœud : %s (%s).',
             'mocambos_h_media_downloads_failed' => '%d téléchargements de médias ont échoué.',
             'mocambos_h_check_connection_failed' => 'Échec de la connexion ; impossible de joindre le serveur.',
@@ -6785,6 +6789,37 @@ function db_record_auth_attempt(string $action, ?string $email, string $ip, bool
  * Connection-level locks release at end-of-request even if the caller
  * forgets, so a fatal error mid-gate doesn't leak the lock permanently.
  */
+/**
+ * Per-node advisory lock around the PUT /api/nodes.php upload/update path
+ * (audit pass #5 / Race H1, v6.10.18). Two simultaneous PUTs on the same
+ * node id were racing on fixed paths in uploads/{cid}/{id}/ — second writer
+ * could overwrite or unlink the first writer's tmp file mid-extract. Holding
+ * a per-node MySQL named lock serializes mutations on the same node row
+ * without serializing across nodes.
+ *
+ * 5s wait is generous enough for sequential clicks but short enough that
+ * a wedged worker can't pin the node for long. Connection-level lock
+ * releases at end-of-request even if PHP fatal-errors before release.
+ */
+function db_node_lock_acquire(int $nodeId): array {
+    $pdo = getDB();
+    $key = 'telaris:node:' . $nodeId;
+    $stmt = $pdo->prepare("SELECT GET_LOCK(:k, 5)");
+    $stmt->execute([':k' => $key]);
+    $result = $stmt->fetchColumn();
+    return ['key' => $key, 'acquired' => $result === 1 || $result === '1'];
+}
+
+function db_node_lock_release(array $lock): void {
+    if (empty($lock['acquired'])) return;
+    $pdo = getDB();
+    try {
+        $pdo->prepare("SELECT RELEASE_LOCK(:k)")->execute([':k' => $lock['key']]);
+    } catch (Throwable $_) {
+        // Best-effort. Connection close at end-of-request will release anyway.
+    }
+}
+
 function db_auth_throttle_lock_acquire(string $action, string $ip): array {
     $pdo = getDB();
     $key = 'telaris:auth_throttle:' . $action . ':' . ($ip !== '' ? $ip : '-');
@@ -6903,6 +6938,7 @@ const AUDIT_LOG_KNOWN_ACTIONS = [
     'snapshot.create.manual',
     'snapshot.create.scheduled',
     'snapshot.delete',
+    'snapshot.download',
     'snapshot.restore',
     'snapshot.restore.failed',
     'snapshot.schedule.update',

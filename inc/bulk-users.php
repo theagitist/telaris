@@ -175,6 +175,33 @@ function bulk_users_apply(array $rows, string $baseUrl): array {
     // Resolved once for every audit row in the loop below.
     $adminUserId = $_SESSION['admin_user_id'] ?? null;
 
+    // Audit pass #5 / Race M5 (v6.10.18): per-admin advisory lock around the
+    // commit loop. An admin who double-clicks Commit (or the browser retries
+    // a slow POST) would otherwise run two parallel commits — each tries to
+    // INSERT the same user rows, both fail on UNIQUE(email), the second's
+    // db_create_password_reset_token call would silently replace the first
+    // batch's still-fresh token, breaking the welcome-email link the user
+    // received. Per-admin keying lets two different admins commit
+    // simultaneously without serializing on each other. Best-effort: on
+    // contention we return immediately without applying any rows.
+    $pdo = getDB();
+    $bulkLockKey = 'telaris:bulk_users:' . ($adminUserId ?? 'anon');
+    $bulkLockStmt = $pdo->prepare("SELECT GET_LOCK(:k, 0)");
+    $bulkLockStmt->execute([':k' => $bulkLockKey]);
+    $bulkLockResult = $bulkLockStmt->fetchColumn();
+    if ($bulkLockResult !== 1 && $bulkLockResult !== '1') {
+        return [
+            'created' => 0,
+            'galaxies_created' => 0,
+            'skipped_exists' => 0,
+            'skipped_invalid' => 0,
+            'mail_failed' => 0,
+            'rows' => [],
+            'error' => 'Another bulk-users commit is in progress for this admin; refresh and try again.',
+        ];
+    }
+    // Lock auto-releases at request end via connection close.
+
     foreach ($rows as $row) {
         $r = $row;
         if ($row['status'] !== 'new') {

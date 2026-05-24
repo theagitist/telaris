@@ -519,7 +519,7 @@ try {
                     $videoMime = '';
                     $videoErr = validateUploadedFile($_FILES['image_file'], FRAME_EXTRACTABLE_VIDEO_MIMES, MAX_VIDEO_BYTES, $videoMime);
                     if ($videoErr === null) {
-                        $tmpVideo = $nodeFullDir . '/tmp_video_frame.' . (MIME_TO_EXT[$videoMime] ?? 'mp4');
+                        $tmpVideo = $nodeFullDir . '/tmp_video_frame_' . bin2hex(random_bytes(8)) . '.' . (MIME_TO_EXT[$videoMime] ?? 'mp4');
                         if (move_uploaded_file($_FILES['image_file']['tmp_name'], $tmpVideo)) {
                             $imageRelPath = "{$nodeRelDir}/image.jpg";
                             $imageFullPath = "{$nodeFullDir}/image.jpg";
@@ -757,6 +757,16 @@ try {
             // when the editor is moving the node, otherwise the current galaxy. Never
             // the body alone, so uploads cannot be redirected to an arbitrary galaxy dir.
             $effectiveConstellationId = $bodyConstellationId ?? $currentConstellationId;
+
+            // Audit pass #5 / Race H1 (v6.10.18): per-node advisory lock around
+            // the file-mutation + db_update_node block. Two concurrent PUTs on
+            // the same node id were racing on the fixed-path uploads
+            // (image.{ext}, video.{ext}, tmp_video_frame.{ext}) and the
+            // last-writer-wins UPDATE. Holding the lock serializes mutations
+            // on the same node without affecting other nodes. Lock releases
+            // automatically at request end even on fatal-error paths.
+            $nodeLock = db_node_lock_acquire((int)$id);
+            try {
             // Downstream code passes $constellationId to db_update_node; null means
             // "don't change the column".
             $constellationId = $bodyConstellationId;
@@ -807,7 +817,7 @@ try {
                         $videoMime = '';
                         $videoErr = validateUploadedFile($_FILES['image_file'], FRAME_EXTRACTABLE_VIDEO_MIMES, MAX_VIDEO_BYTES, $videoMime);
                         if ($videoErr === null) {
-                            $tmpVideo = $nodeFullDir . '/tmp_video_frame.' . (MIME_TO_EXT[$videoMime] ?? 'mp4');
+                            $tmpVideo = $nodeFullDir . '/tmp_video_frame_' . bin2hex(random_bytes(8)) . '.' . (MIME_TO_EXT[$videoMime] ?? 'mp4');
                             if (move_uploaded_file($_FILES['image_file']['tmp_name'], $tmpVideo)) {
                                 $imageRelPath = "{$nodeRelDir}/image.jpg";
                                 $imageFullPath = "{$nodeFullDir}/image.jpg";
@@ -951,6 +961,9 @@ try {
             $putResult = ['success' => true];
             if (isset($uploadNotice) && $uploadNotice !== null) $putResult['notice'] = $uploadNotice;
             echo json_encode($putResult, JSON_THROW_ON_ERROR);
+            } finally {
+                db_node_lock_release($nodeLock);
+            }
         })(),
 
         'DELETE' => (function(): void {

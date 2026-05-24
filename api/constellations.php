@@ -169,6 +169,20 @@ try {
             if (session_status() === PHP_SESSION_NONE) { session_start(); }
             $createdBy = isset($_SESSION['admin_user_id']) ? (string)$_SESSION['admin_user_id'] : null;
             $id = db_create_constellation($name, $tagline, null, $theme, $createdBy);
+            // Audit pass #5 / Authz L2 (v6.10.18): auto-seat the creator on
+            // the new galaxy when they're a non-admin editor. Mirrors what
+            // edit/create_constellation.php already does. Without it, an
+            // editor who calls this endpoint directly created a galaxy they
+            // couldn't reach from /edit/ (admin had to seat them after).
+            // Admins see every galaxy already, so the auto-seat only matters
+            // for non-admin sessions.
+            if ($createdBy !== null && !isAdminLoggedIn()) {
+                $existing = db_get_user_constellation_ids($createdBy);
+                if (!in_array($id, $existing, true)) {
+                    $existing[] = $id;
+                    db_set_user_constellations($createdBy, $existing);
+                }
+            }
             echo json_encode([
                 'id' => $id,
                 'name' => $name,

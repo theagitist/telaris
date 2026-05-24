@@ -45,6 +45,22 @@ if (!is_file($path)) {
     exit;
 }
 
+// Audit pass #5 / Authz L1 (v6.10.18): record the download so accountability
+// matches the sibling snapshot ops (create / delete / restore / schedule all
+// emit a db_audit_log entry). A compromised admin session previously could
+// exfiltrate every snapshot with no audit trail.
+if (function_exists('auth_client_ip')) {
+    db_audit_log(
+        action: 'snapshot.download',
+        actorUserId: $_SESSION['admin_user_id'] ?? null,
+        targetType: 'snapshot',
+        targetId: (string)$id,
+        details: ['filename' => basename($filename), 'size_bytes' => filesize($path)],
+        ip: auth_client_ip(),
+        actorEmail: $_SESSION['admin_user_email'] ?? null,
+    );
+}
+
 while (ob_get_level() > 0) ob_end_clean();
 header('Content-Type: application/gzip');
 header('Content-Disposition: attachment; filename="' . basename($filename) . '"');

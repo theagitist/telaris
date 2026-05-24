@@ -801,6 +801,40 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
     $fullRefresh   = (bool)$params['full_refresh'];
     $skipMedia     = (bool)($params['skip_media'] ?? false);
 
+    // Audit pass #5 / Race M4 (v6.10.18): per-galaxia advisory lock. Two
+    // concurrent imports for the same galaxia_slug would each compute a diff
+    // against possibly-different snapshots of `nodes`, then run interleaved
+    // INSERT/UPDATE/DELETE — producing duplicate nodes (idx_import_slug is
+    // an INDEX, not a UNIQUE) and inconsistent state. We hash the slug to
+    // keep the lock key bounded since galaxia_slug is upstream-controlled.
+    // On contention the second import returns immediately with a clear error
+    // in the report; the caller surfaces it via streamMsg.
+    $pdo = getDB();
+    $lockKey = 'telaris:mocambos_import:' . hash('sha256', (string)$galaxiaSlug);
+    $stmt = $pdo->prepare("SELECT GET_LOCK(:k, 0)");
+    $stmt->execute([':k' => $lockKey]);
+    $lockResult = $stmt->fetchColumn();
+    if ($lockResult !== 1 && $lockResult !== '1') {
+        $msg = sprintf(t('mocambos_h_concurrent_import', 'Concurrent import already in progress for galaxy %s; try again later.'), $galaxiaSlug);
+        $streamMsg('error', $msg);
+        $logger('ERROR', $msg);
+        return [
+            'constellation_id' => null,
+            'is_new' => false,
+            'is_incremental' => false,
+            'expected_count' => 0,
+            'imported_count' => 0,
+            'verified_count' => 0,
+            'media_count' => 0,
+            'media_errors' => 0,
+            'errors' => [$msg],
+        ];
+    }
+    // Lock auto-releases at request end via connection close. We don't add an
+    // explicit RELEASE here because the import body is the entire purpose of
+    // the request from this point on; if the caller batches multiple slugs in
+    // one request each gets its own lock key.
+
     $downloadBase = preg_replace('#/api/v2/?$#', '', $apiBase);
     $errors = [];
     $isNew = true;

@@ -159,6 +159,13 @@ function validateSafeUrl(string $url): bool {
  * Returns null on success, or an error string on failure.
  */
 function validateUploadedFile(array $file, array $allowedMimes, int $maxBytes, string &$detectedMime = ''): ?string {
+    // Audit pass #5 / M-C1 (v6.10.18): refuse zero-byte uploads. Without
+    // this, a 0-byte upload that finfo happens to classify into the
+    // allowlist (or that bypasses the type check via subsequent code paths)
+    // creates an orphan DB row pointing at an empty file on disk.
+    if (($file['size'] ?? 0) <= 0) {
+        return "File is empty";
+    }
     if ($file['size'] > $maxBytes) {
         $mb = round($maxBytes / (1024 * 1024));
         return "File exceeds maximum allowed size ({$mb}MB)";
