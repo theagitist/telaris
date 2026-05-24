@@ -423,7 +423,22 @@ function _mocambos_http_validate(): void {
     $allOk = true;
 
     $probe = function(string $url) {
-        $ctx = stream_context_create(['http' => ['timeout' => 15, 'ignore_errors' => true]]);
+        // Audit pass #4 (2026-05-24) SSRF gap: the matching helpers
+        // _mocambos_fetch_json (handler.php:1064) and mocambos_download_file
+        // (download.php:24) set follow_location=0 / max_redirects=0, but this
+        // validate probe didn't. PHP's HTTP wrapper otherwise follows 302
+        // redirects up to 20 times, so an allow-listed upstream (or one whose
+        // DNS got raced) could 302 the probe into private IP space
+        // (169.254.169.254 metadata, internal services). The hostname-allowlist
+        // + IP-resolution gate at _mocambos_validate_safe_url runs only on the
+        // user-supplied $apiBase, not on redirect targets. Refusing to follow
+        // closes the gap.
+        $ctx = stream_context_create(['http' => [
+            'timeout' => 15,
+            'ignore_errors' => true,
+            'follow_location' => 0,
+            'max_redirects' => 0,
+        ]]);
         $body = @file_get_contents($url, false, $ctx);
         $status = 0;
         if (isset($http_response_header)) {

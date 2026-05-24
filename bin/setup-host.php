@@ -95,6 +95,9 @@ $siteName = basename($root);
 $cfSrc = $root . '/etc/nginx/cloudflare-realip.conf.sample';
 $cfDst = '/etc/nginx/snippets/cloudflare-realip.conf';
 
+$denySrc = $root . '/etc/nginx/telaris-deny.conf.sample';
+$denyDst = '/etc/nginx/snippets/telaris-deny.conf';
+
 $logrotateSrc = $root . '/etc/logrotate/telaris-snapshots.sample';
 $logrotateDst = '/etc/logrotate.d/telaris-snapshots-' . $siteName;
 
@@ -197,6 +200,74 @@ $tasks[] = (function() use ($vhostCandidates) {
         return ['name' => 'vhost includes CF snippet', 'status' => 'ok', 'detail' => "include found in {$present}", 'fix' => null];
     }
     return ['name' => 'vhost includes CF snippet', 'status' => 'missing', 'detail' => "{$present} does not include snippets/cloudflare-realip.conf — add manually inside the server { } block", 'fix' => null];
+})();
+
+// 3a. Telaris-deny snippet matches canonical (atomic write + nginx -t before
+// commit). Mirrors task #2's pattern. Audit pass #4 (2026-05-24) found that
+// /vendor/, /tests/, /phpunit.xml, /package.json, /composer (PHAR), and
+// /nginx-versioned-assets.conf were all served via the docroot — the
+// in-vhost extension blocklist missed .json/.xml/.conf/.lock and didn't
+// cover the directory trees. This snippet closes that gap.
+$tasks[] = (function() use ($denySrc, $denyDst) {
+    if (!file_exists($denySrc)) {
+        return ['name' => 'telaris-deny snippet', 'status' => 'error', 'detail' => "repo source missing at {$denySrc}", 'fix' => null];
+    }
+    $canonical = file_get_contents($denySrc);
+    $installed = file_exists($denyDst) ? file_get_contents($denyDst) : '';
+    if ($installed === $canonical) {
+        return ['name' => 'telaris-deny snippet', 'status' => 'ok', 'detail' => "matches {$denySrc}", 'fix' => null];
+    }
+    $fix = function() use ($denyDst, $canonical) {
+        if (is_link($denyDst)) {
+            return ['ok' => false, 'detail' => "{$denyDst} is a symlink; refusing to write through it (unlink first if intentional)"];
+        }
+        if (file_exists($denyDst)) {
+            $real = realpath($denyDst);
+            if ($real === false || !str_starts_with($real, '/etc/nginx/')) {
+                return ['ok' => false, 'detail' => "{$denyDst} resolves outside /etc/nginx/ (real='{$real}'); refusing to write"];
+            }
+        }
+        $tmp = $denyDst . '.new.' . posix_getpid();
+        if (file_put_contents($tmp, $canonical) === false) {
+            return ['ok' => false, 'detail' => "could not write to {$tmp}"];
+        }
+        @chmod($tmp, 0644);
+        @chown($tmp, 'root');
+        @chgrp($tmp, 'root');
+        $backup = file_exists($denyDst) ? file_get_contents($denyDst) : null;
+        if (!rename($tmp, $denyDst)) {
+            @unlink($tmp);
+            return ['ok' => false, 'detail' => "could not move {$tmp} → {$denyDst}"];
+        }
+        $rc = 1; $out = [];
+        @exec('/usr/sbin/nginx -t 2>&1', $out, $rc);
+        if ($rc !== 0) {
+            if ($backup !== null) {
+                file_put_contents($denyDst, $backup);
+            } else {
+                @unlink($denyDst);
+            }
+            return ['ok' => false, 'detail' => "nginx -t rejected the new snippet:\n" . implode("\n", $out)];
+        }
+        return ['ok' => true, 'detail' => "wrote {$denyDst} (validated by nginx -t)"];
+    };
+    return ['name' => 'telaris-deny snippet', 'status' => file_exists($denyDst) ? 'mismatch' : 'missing', 'detail' => "{$denyDst} differs from canonical", 'fix' => $fix];
+})();
+
+// 3b. nginx vhost includes the telaris-deny snippet. Report-only, same as 3.
+$tasks[] = (function() use ($vhostCandidates) {
+    $present = null;
+    foreach ($vhostCandidates as $path) {
+        if (file_exists($path)) { $present = $path; break; }
+    }
+    if ($present === null) {
+        return ['name' => 'vhost includes deny snippet', 'status' => 'missing', 'detail' => 'no vhost found at ' . implode(' or ', $vhostCandidates), 'fix' => null];
+    }
+    $body = file_get_contents($present) ?: '';
+    if (str_contains($body, 'include snippets/telaris-deny.conf')) {
+        return ['name' => 'vhost includes deny snippet', 'status' => 'ok', 'detail' => "include found in {$present}", 'fix' => null];
+    }
+    return ['name' => 'vhost includes deny snippet', 'status' => 'missing', 'detail' => "{$present} does not include snippets/telaris-deny.conf — add manually inside the server { } block", 'fix' => null];
 })();
 
 // 4. Logrotate entry matches canonical (with __SITE_LOGS__ substitution).
@@ -329,7 +400,7 @@ foreach ($tasks as $task) {
     $result = ($task['fix'])();
     if ($result['ok']) {
         printf("           → fixed: %s\n", $result['detail']);
-        if (str_contains($name, 'cloudflare-realip')) {
+        if (str_contains($name, 'cloudflare-realip') || str_contains($name, 'telaris-deny')) {
             $nginxTouched = true;
         }
     } else {

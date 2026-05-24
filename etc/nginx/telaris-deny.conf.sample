@@ -1,0 +1,51 @@
+# Telaris docroot deny rules. Include from any Telaris vhost.
+#
+# Telaris's docroot contains operator-side artefacts (composer vendor/,
+# phpunit tests/, dev metadata files, repo nginx snippet samples) that
+# must never reach the public web. Three audit passes missed them; the
+# fourth pass (2026-05-24) caught:
+#
+#   - /vendor/composer/installed.json  (full third-party dependency
+#                                       inventory with pinned versions
+#                                       and git refs — a perfect target
+#                                       list for CVE matching).
+#   - /package.json                    (dev metadata).
+#   - /phpunit.xml                     (test harness layout).
+#   - /nginx-versioned-assets.conf     (operator-facing sample, never
+#                                       served via web).
+#   - /tests/php/Unit/BridgesLibTest.php  (worse: PHP-FPM was routing
+#                                          test files for execution).
+#
+# The in-app blocklist in the vhost (`location ~* \.(sql|md|...)`) misses
+# .xml, .conf, .lock, and doesn't recurse into /vendor/ or /tests/. This
+# snippet closes the gap. Drop into snippets/ and include from each
+# Telaris vhost's server { ... } block.
+#
+# Source: third-pass-audit follow-up. Shipped in v6.10.16.
+
+# Block composer / dev / test directory trees outright.
+location ~ ^/(vendor|tests|node_modules)/ {
+    deny all;
+    return 404;
+}
+
+# Block dev / operator metadata files at the docroot.
+location ~* ^/(package\.json|package-lock\.json|phpunit\.xml|phpunit\.xml\.dist|nginx-versioned-assets\.conf)$ {
+    deny all;
+    return 404;
+}
+
+# Block bare Composer PHAR / binary at the docroot if it has been left
+# checked in. Audit pass #4 found /composer was a 200 with the binary
+# contents.
+location = /composer {
+    deny all;
+    return 404;
+}
+
+# Block additional sensitive extensions not in the vhost's existing list
+# (.sql, .md, .sh, .yml, .yaml, .ini, .log, .bak, .swp).
+location ~* \.(xml|conf|lock|toml|env)$ {
+    deny all;
+    return 404;
+}
