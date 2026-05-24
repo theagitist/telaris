@@ -76,16 +76,34 @@ function mocambos_download_file(string $url, string $destDir, string $prefix, ?C
         return null;
     }
 
+    // Audit pass #4 (M1, v6.10.17): cap per-file download size. Without
+    // this, a compromised or buggy upstream serving a 50GB stream would
+    // happily keep writing for the full 30 minutes that Mocambos imports
+    // are allowed to run, filling the operator's disk. 50 MB matches
+    // Telaris's own upload ceiling (MAX_VIDEO_BYTES); media that would
+    // exceed this would also be refused on the visitor-upload path.
+    $maxBytes = defined('MOCAMBOS_DOWNLOAD_MAX_BYTES') ? (int)MOCAMBOS_DOWNLOAD_MAX_BYTES : 52_428_800;
     $bytes = 0;
+    $overcap = false;
     while (!feof($src)) {
         $chunk = fread($src, 8192);
         if ($chunk === false) break;
         fwrite($dest, $chunk);
         $bytes += strlen($chunk);
+        if ($bytes > $maxBytes) {
+            $overcap = true;
+            break;
+        }
     }
 
     fclose($src);
     fclose($dest);
+
+    if ($overcap) {
+        @unlink($destPath);
+        $log('WARN', "Download refused: upstream stream exceeded {$maxBytes}-byte cap ({$url})");
+        return null;
+    }
 
     // Delete 0-byte files
     if ($bytes === 0) {

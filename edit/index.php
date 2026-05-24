@@ -1403,13 +1403,26 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 imageWrap.classList.add('hidden');
             }
 
+            // M3 (audit pass #4, v6.10.17): construct a fresh iframe instead
+            // of cloneNode(true) so any attribute the server sanitizer doesn't
+            // strip (or might miss in a future regression) can't ride through
+            // to the rendered DOM. Allowlist matches the visitor-side fix
+            // from L-third-5 in js/telaris-3d.js. Both surfaces stay in sync.
             if (node.embed_code) {
                 const tmp = document.createElement('div');
                 tmp.innerHTML = node.embed_code;
                 embed.innerHTML = '';
-                tmp.querySelectorAll('iframe').forEach(iframe => {
-                    const src = iframe.getAttribute('src') || '';
-                    if (src.match(/^https?:\/\//i)) embed.appendChild(iframe.cloneNode(true));
+                const allowedAttrs = ['src', 'width', 'height', 'allow', 'allowfullscreen', 'frameborder', 'loading', 'referrerpolicy', 'sandbox', 'title'];
+                tmp.querySelectorAll('iframe').forEach(srcIframe => {
+                    const src = srcIframe.getAttribute('src') || '';
+                    if (!src.match(/^https?:\/\//i)) return;
+                    const fresh = document.createElement('iframe');
+                    allowedAttrs.forEach(attr => {
+                        if (srcIframe.hasAttribute(attr)) {
+                            fresh.setAttribute(attr, srcIframe.getAttribute(attr));
+                        }
+                    });
+                    embed.appendChild(fresh);
                 });
                 embedWrap.classList.toggle('hidden', embed.children.length === 0);
             } else {

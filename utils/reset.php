@@ -64,7 +64,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                         actorEmail: $emailForRecord,
                     );
                     $success = true;
-                    // Rotate the CSRF token now that we've completed a sensitive action.
+                    // Audit pass #4 (M2, v6.10.17): rotate the session ID at the
+                    // privilege boundary. The user just authenticated against the
+                    // reset token; if the pre-reset session was hijacked
+                    // (session-fixation, eavesdropped cookie), regenerating
+                    // forces the attacker's copy to invalidate. The CSRF token
+                    // is rotated alongside so any captured-and-replayed form
+                    // POST also fails. Multi-session invalidation (other devices
+                    // signed in as this user) is a separate gap tracked in
+                    // BACKLOG; this fix closes only the current-session window.
+                    session_regenerate_id(true);
                     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
                 }
             }
