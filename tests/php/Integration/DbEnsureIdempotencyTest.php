@@ -82,14 +82,16 @@ final class DbEnsureIdempotencyTest extends TestCase
     public function testHelperCountFloor(): void
     {
         $helpers = $this->discoverEnsureHelpers();
-        // 24 helpers at v6.11.0 (counted from `grep '^function db_ensure_' inc/db.php`).
-        // Floor at 22 to absorb a couple of legitimate consolidations without
-        // breaking the test, but catch large deletions. Federation stage 1a
-        // adds ~10 more, so this floor should rise after 1a ships.
+        // 34 helpers at v6.11.2 (federation stage 1a added 10:
+        // peers, peer_keys, galaxy_publish_whitelist, galaxy_subscriptions,
+        // retracted_galaxies, pluriverse_messages, seen_nonces, key_events,
+        // pluriverse_log_tables, federation_attribution_columns).
+        // Floor at 32 to absorb a couple of legitimate consolidations
+        // without breaking the test, but catch large deletions.
         $this->assertGreaterThanOrEqual(
-            22,
+            32,
             count($helpers),
-            sprintf('Discovered only %d ensure helpers; expected >= 15. List: %s', count($helpers), implode(', ', $helpers))
+            sprintf('Discovered only %d ensure helpers; expected >= 32. List: %s', count($helpers), implode(', ', $helpers))
         );
     }
 }

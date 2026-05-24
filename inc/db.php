@@ -10227,6 +10227,334 @@ function db_wipe_all_data(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Federation schema (stage 1a)
+// ---------------------------------------------------------------------------
+//
+// Telaris-side federation tables and additive columns. All idempotent, lazy
+// at first call. Spec: P2P federation plan v10 § Schema → Telaris-side.
+//
+// Foreign-key topology means several helpers chain into db_ensure_peers_table
+// before touching their own table. The chains are explicit rather than
+// implicit so a single helper can be invoked from a smoke path without
+// surprise.
+//
+// No code calls these yet at stage 1a; they exist so subsequent stages
+// (1b identity keys, 1c identity endpoint, 1d OpenAPI, 1e HTTP Signatures)
+// find the schema present when they need it. The DbEnsureIdempotencyTest
+// auto-discovers and exercises them; the helper-count floor rises with them.
+
+function db_ensure_peers_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS peers (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                hostname VARCHAR(255) NOT NULL,
+                url VARCHAR(512) NOT NULL,
+                pluriverse_endpoint VARCHAR(512) NOT NULL,
+                public_key VARBINARY(32) NOT NULL,
+                previous_public_key VARBINARY(32) NULL,
+                key_rotated_at TIMESTAMP NULL,
+                rotation_reason ENUM('scheduled','operational','compromise') NULL,
+                label VARCHAR(255) NOT NULL,
+                bridges JSON NULL,
+                source ENUM('registry','manual') NOT NULL DEFAULT 'manual',
+                source_detail VARCHAR(255) NULL,
+                trust_state ENUM('discovered','contacted','whitelisted','blocked') NOT NULL DEFAULT 'discovered',
+                has_active_whitelist BOOLEAN NOT NULL DEFAULT FALSE,
+                local_nickname VARCHAR(255) NULL,
+                local_blacklisted_reason TEXT NULL,
+                last_seen_at TIMESTAMP NULL,
+                health_status ENUM('up','degraded','down','unknown') NOT NULL DEFAULT 'unknown',
+                manual_added_by VARCHAR(255) NULL,
+                manual_added_at TIMESTAMP NULL,
+                manual_reauth_at TIMESTAMP NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_hostname (hostname)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_peers_table: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_peer_keys_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_peers_table();
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS peer_keys (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                peer_id INT UNSIGNED NOT NULL,
+                api_key_hash VARBINARY(32) NOT NULL,
+                direction ENUM('they_call_us','we_call_them') NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used_at TIMESTAMP NULL,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                UNIQUE KEY uniq_api_key_hash (api_key_hash),
+                INDEX idx_peer_direction (peer_id, direction),
+                FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_peer_keys_table: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_galaxy_publish_whitelist_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_peers_table();
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS galaxy_publish_whitelist (
+                peer_id INT UNSIGNED NOT NULL,
+                constellation_id INT NOT NULL,
+                added_by VARCHAR(255) NULL,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (peer_id, constellation_id),
+                FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE,
+                FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_galaxy_publish_whitelist_table: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_galaxy_subscriptions_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_peers_table();
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS galaxy_subscriptions (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                peer_id INT UNSIGNED NOT NULL,
+                remote_slug VARCHAR(255) NOT NULL,
+                local_constellation_id INT NULL,
+                last_synced_at TIMESTAMP NULL,
+                last_content_hash VARCHAR(128) NULL,
+                last_received_sequence BIGINT UNSIGNED NULL,
+                last_rejected_sequence BIGINT UNSIGNED NULL,
+                added_by VARCHAR(255) NULL,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                UNIQUE KEY uniq_peer_remote (peer_id, remote_slug),
+                FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE,
+                FOREIGN KEY (local_constellation_id) REFERENCES constellations(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_galaxy_subscriptions_table: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_retracted_galaxies_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS retracted_galaxies (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                constellation_id INT NULL,
+                slug VARCHAR(255) NOT NULL,
+                retracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                retracted_by VARCHAR(255) NULL,
+                reason TEXT NULL,
+                UNIQUE KEY uniq_slug (slug),
+                FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_retracted_galaxies_table: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_pluriverse_messages_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_peers_table();
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS pluriverse_messages (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                peer_id INT UNSIGNED NOT NULL,
+                direction ENUM('inbound','outbound') NOT NULL,
+                thread_id VARCHAR(64) NOT NULL,
+                message_type VARCHAR(32) NOT NULL,
+                subject VARCHAR(255) NULL,
+                body MEDIUMTEXT NULL,
+                payload JSON NULL,
+                jws_envelope MEDIUMTEXT NOT NULL,
+                is_read BOOLEAN NOT NULL DEFAULT FALSE,
+                read_at TIMESTAMP NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_peer_thread (peer_id, thread_id),
+                INDEX idx_unread (peer_id, is_read),
+                FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_pluriverse_messages_table: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_seen_nonces_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS seen_nonces (
+                origin_host VARCHAR(255) NOT NULL,
+                nonce VARBINARY(32) NOT NULL,
+                seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (origin_host, nonce),
+                INDEX idx_seen_at (seen_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_seen_nonces_table: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_key_events_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS key_events (
+                id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                origin_host VARCHAR(255) NOT NULL,
+                event_type ENUM('scheduled_rotation','operational_rotation','compromise','revocation') NOT NULL,
+                occurred_at TIMESTAMP NOT NULL,
+                signed_payload MEDIUMTEXT NOT NULL,
+                received_via ENUM('push','poll') NOT NULL,
+                received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_origin_occurred (origin_host, occurred_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_key_events_table: ' . $e->getMessage());
+    }
+}
+
+// Creates both pluriverse_log and pluriverse_log_archive. The archive shares
+// the hot table's shape; nightly archival moves rows >90 days from hot to
+// archive in batched transactions, and a separate job GCs archive rows
+// >1 year. Both jobs are stage 4+; the tables exist from stage 1a so the
+// archival pipeline can be enabled later without a schema bump.
+function db_ensure_pluriverse_log_tables(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS pluriverse_log (
+                id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                event_type VARCHAR(64) NOT NULL,
+                actor VARCHAR(255) NULL,
+                target VARCHAR(255) NULL,
+                outcome ENUM('success','failure','warning') NOT NULL,
+                details_summary VARCHAR(1024) NULL,
+                ip_hash VARBINARY(32) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_event_type (event_type, created_at),
+                INDEX idx_actor (actor, created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        // LIKE-copy needs the source table to exist; idempotent via IF NOT EXISTS.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS pluriverse_log_archive LIKE pluriverse_log");
+    } catch (PDOException $e) {
+        error_log('db_ensure_pluriverse_log_tables: ' . $e->getMessage());
+    }
+}
+
+// Additive columns on existing Telaris tables for federation provenance.
+// constellations: mirrored_from_peer_id (FK peers), read_only, source_attribution (JSON).
+// nodes, keywords, node_keywords, keyword_relations: author_attribution_text.
+// Each column-add is guarded by SHOW COLUMNS so re-runs are no-ops.
+function db_ensure_federation_attribution_columns(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_peers_table();
+    try {
+        $pdo = getDB();
+        $col = function(string $table, string $colName) use ($pdo): bool {
+            $stmt = $pdo->prepare("
+                SELECT 1 FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND COLUMN_NAME = :c
+                LIMIT 1
+            ");
+            $stmt->execute([':t' => $table, ':c' => $colName]);
+            return (bool)$stmt->fetchColumn();
+        };
+        $constraint = function(string $table, string $name) use ($pdo): bool {
+            $stmt = $pdo->prepare("
+                SELECT 1 FROM information_schema.TABLE_CONSTRAINTS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND CONSTRAINT_NAME = :n
+                LIMIT 1
+            ");
+            $stmt->execute([':t' => $table, ':n' => $name]);
+            return (bool)$stmt->fetchColumn();
+        };
+
+        if (!$col('constellations', 'mirrored_from_peer_id')) {
+            $pdo->exec("ALTER TABLE constellations
+                ADD COLUMN mirrored_from_peer_id INT UNSIGNED NULL DEFAULT NULL,
+                ADD INDEX idx_constellations_mirrored_from_peer (mirrored_from_peer_id)");
+        }
+        if (!$constraint('constellations', 'fk_constellations_mirrored_from_peer')) {
+            try {
+                $pdo->exec("ALTER TABLE constellations
+                    ADD CONSTRAINT fk_constellations_mirrored_from_peer
+                        FOREIGN KEY (mirrored_from_peer_id) REFERENCES peers(id) ON DELETE CASCADE");
+            } catch (PDOException $e) {
+                error_log('db_ensure_federation_attribution_columns: FK add skipped: ' . $e->getMessage());
+            }
+        }
+        if (!$col('constellations', 'read_only')) {
+            $pdo->exec("ALTER TABLE constellations
+                ADD COLUMN read_only BOOLEAN NOT NULL DEFAULT FALSE");
+        }
+        if (!$col('constellations', 'source_attribution')) {
+            $pdo->exec("ALTER TABLE constellations
+                ADD COLUMN source_attribution JSON NULL DEFAULT NULL");
+        }
+
+        foreach (['nodes', 'keywords', 'node_keywords', 'keyword_relations'] as $table) {
+            if (!$col($table, 'author_attribution_text')) {
+                $pdo->exec("ALTER TABLE `$table`
+                    ADD COLUMN author_attribution_text VARCHAR(255) NULL DEFAULT NULL");
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_federation_attribution_columns: ' . $e->getMessage());
+    }
+}
+
+// ---------------------------------------------------------------------------
 // CLI / maintenance (continued)
 // ---------------------------------------------------------------------------
 
