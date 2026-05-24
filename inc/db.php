@@ -10499,6 +10499,11 @@ function db_ensure_federation_attribution_columns(): void {
     if ($checked) return;
     $checked = true;
     db_ensure_peers_table();
+    // keyword_relations is created lazily by db_ensure_keyword_canvas_tables()
+    // on first canvas use. On instances where no editor has touched the canvas
+    // yet, the table is missing and our ALTER below would fail. Chain it so
+    // the federation column-add is safe on every Telaris instance.
+    db_ensure_keyword_canvas_tables();
     try {
         $pdo = getDB();
         $col = function(string $table, string $colName) use ($pdo): bool {
