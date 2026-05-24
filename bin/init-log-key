@@ -1,0 +1,98 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * bin/init-log-key — generate this instance's HMAC log key.
+ *
+ * Writes `<site-root>/secrets/log.key` (32 random bytes, mode 0600). Used
+ * for HMAC-SHA256 IP hashing in the `pluriverse_log` table. Loss of this
+ * key only breaks the ability to correlate historical IP hashes; it does
+ * not affect federation signing or PII row decryption.
+ *
+ * Spec: P2P federation plan v10 § Key management → Keys on every Telaris instance.
+ *
+ * Usage:
+ *   php bin/init-log-key           # generate and write
+ *   php bin/init-log-key --check   # report present/absent, exit 1 if absent
+ */
+
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    echo "bin/init-log-key must be run from the command line, not the web.\n";
+    exit(1);
+}
+
+$opts = getopt('', ['check', 'help']);
+if (isset($opts['help'])) {
+    echo "Usage: php bin/init-log-key [--check]\n";
+    echo "\n";
+    echo "  --check   Report whether the log key file exists.\n";
+    echo "  (no flag) Generate a new 32-byte HMAC key and write it to disk.\n";
+    echo "            Refuses if the key file already exists.\n";
+    exit(0);
+}
+
+$keyPath = defined('FEDERATION_LOG_KEY_PATH')
+    ? (string)FEDERATION_LOG_KEY_PATH
+    : dirname(__DIR__) . '/secrets/log.key';
+$secretsDir = dirname($keyPath);
+$expectedLen = 32;
+
+if (isset($opts['check'])) {
+    if (!file_exists($keyPath)) {
+        echo "MISSING: {$keyPath}\n";
+        echo "  Run `php bin/init-log-key` to generate.\n";
+        exit(1);
+    }
+    $size = filesize($keyPath);
+    $mode = fileperms($keyPath) & 0777;
+    echo "PRESENT: {$keyPath}\n";
+    echo sprintf("  size: %d bytes (want %d)\n", (int)$size, $expectedLen);
+    echo sprintf("  mode: %o (want 0600)\n", $mode);
+    exit(($size === $expectedLen && $mode === 0600) ? 0 : 1);
+}
+
+if (file_exists($keyPath)) {
+    fwrite(STDERR, "Refusing to overwrite existing log key at {$keyPath}.\n");
+    fwrite(STDERR, "  If you really want to rotate, delete the file manually and re-run.\n");
+    fwrite(STDERR, "  Rotation invalidates correlation of historical IP hashes.\n");
+    exit(1);
+}
+
+if (!is_dir($secretsDir)) {
+    if (!@mkdir($secretsDir, 0700, true) && !is_dir($secretsDir)) {
+        fwrite(STDERR, "Could not create secrets dir at {$secretsDir}.\n");
+        exit(1);
+    }
+}
+@chmod($secretsDir, 0700);
+
+$keyBytes = random_bytes($expectedLen);
+
+$tmp = $keyPath . '.new.' . posix_getpid();
+$fh = @fopen($tmp, 'w');
+if ($fh === false) {
+    fwrite(STDERR, "Could not open {$tmp} for writing.\n");
+    exit(1);
+}
+@chmod($tmp, 0600);
+$written = @fwrite($fh, $keyBytes);
+@fclose($fh);
+if ($written !== $expectedLen) {
+    @unlink($tmp);
+    fwrite(STDERR, "Short write to {$tmp} (wrote {$written}, expected {$expectedLen}).\n");
+    exit(1);
+}
+if (!@rename($tmp, $keyPath)) {
+    @unlink($tmp);
+    fwrite(STDERR, "Could not rename {$tmp} → {$keyPath}.\n");
+    exit(1);
+}
+@chmod($keyPath, 0600);
+
+sodium_memzero($keyBytes);
+
+echo "Wrote {$keyPath}\n";
+echo "  size: {$expectedLen} bytes, mode 0600\n";
+exit(0);

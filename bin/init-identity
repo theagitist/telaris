@@ -1,0 +1,120 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * bin/init-identity — generate this instance's federation identity keypair.
+ *
+ * Writes `<site-root>/secrets/pluriverse.key` (libsodium secret key, 64 bytes,
+ * mode 0600). Refuses to overwrite an existing key file. Rotation is a
+ * separate flow (stage 4+) that uses the schema and admin UI; this CLI is
+ * for the initial install only.
+ *
+ * Spec: P2P federation plan v10 § Key management → Keys on every Telaris instance.
+ *
+ * Usage:
+ *   php bin/init-identity           # generate and write
+ *   php bin/init-identity --check   # report present/absent + fingerprint, exit 1 if absent
+ *
+ * Run as the user that should own the key file. On Polivoxia hosts where
+ * PHP-FPM runs as www-data, run this with `sudo -u www-data` so the FPM
+ * worker can read the file. bin/setup-host.php has a perms-check task that
+ * surfaces mismatches.
+ */
+
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    echo "bin/init-identity must be run from the command line, not the web.\n";
+    exit(1);
+}
+
+require_once dirname(__DIR__) . '/inc/federation/identity.php';
+
+$opts = getopt('', ['check', 'help']);
+if (isset($opts['help'])) {
+    echo "Usage: php bin/init-identity [--check]\n";
+    echo "\n";
+    echo "  --check   Report whether the key file exists and print its fingerprint.\n";
+    echo "  (no flag) Generate a new Ed25519 keypair and write the secret to disk.\n";
+    echo "            Refuses if the key file already exists.\n";
+    exit(0);
+}
+
+$keyPath = federation_secret_key_path();
+$secretsDir = dirname($keyPath);
+
+if (isset($opts['check'])) {
+    if (!file_exists($keyPath)) {
+        echo "MISSING: {$keyPath}\n";
+        echo "  Run `php bin/init-identity` to generate.\n";
+        exit(1);
+    }
+    try {
+        $fingerprint = federation_public_key_fingerprint();
+    } catch (Throwable $e) {
+        fwrite(STDERR, "ERROR: {$e->getMessage()}\n");
+        exit(1);
+    }
+    $mode = fileperms($keyPath) & 0777;
+    echo "PRESENT: {$keyPath}\n";
+    echo "  fingerprint: {$fingerprint}\n";
+    echo sprintf("  mode: %o (want 0600)\n", $mode);
+    exit($mode === 0600 ? 0 : 1);
+}
+
+if (file_exists($keyPath)) {
+    fwrite(STDERR, "Refusing to overwrite existing key file at {$keyPath}.\n");
+    fwrite(STDERR, "  Rotation is a separate flow; use the admin UI (stage 4+).\n");
+    fwrite(STDERR, "  If you really want to discard the existing identity, delete the file manually first.\n");
+    exit(1);
+}
+
+if (!is_dir($secretsDir)) {
+    if (!@mkdir($secretsDir, 0700, true) && !is_dir($secretsDir)) {
+        fwrite(STDERR, "Could not create secrets dir at {$secretsDir}.\n");
+        exit(1);
+    }
+}
+@chmod($secretsDir, 0700);
+
+$keypair = sodium_crypto_sign_keypair();
+$secretKey = sodium_crypto_sign_secretkey($keypair);
+$publicKey = sodium_crypto_sign_publickey($keypair);
+
+// Atomic write: temp file at 0600, then rename. Avoids leaving a half-written
+// key on disk if the process is killed mid-write.
+$tmp = $keyPath . '.new.' . posix_getpid();
+$fh = @fopen($tmp, 'w');
+if ($fh === false) {
+    fwrite(STDERR, "Could not open {$tmp} for writing.\n");
+    exit(1);
+}
+@chmod($tmp, 0600);
+$written = @fwrite($fh, $secretKey);
+@fclose($fh);
+if ($written !== strlen($secretKey)) {
+    @unlink($tmp);
+    fwrite(STDERR, "Short write to {$tmp} (wrote {$written}, expected " . strlen($secretKey) . ").\n");
+    exit(1);
+}
+if (!@rename($tmp, $keyPath)) {
+    @unlink($tmp);
+    fwrite(STDERR, "Could not rename {$tmp} → {$keyPath}.\n");
+    exit(1);
+}
+@chmod($keyPath, 0600);
+
+$fingerprint = federation_compute_fingerprint($publicKey);
+
+// Best-effort zeroization of the in-memory copy of the secret key.
+sodium_memzero($secretKey);
+
+echo "Wrote {$keyPath}\n";
+echo "  fingerprint: {$fingerprint}\n";
+echo "  size: " . SODIUM_CRYPTO_SIGN_SECRETKEYBYTES . " bytes, mode 0600\n";
+echo "\n";
+echo "Next:\n";
+echo "  1. Verify ownership / perms with: php bin/init-identity --check\n";
+echo "  2. (Optional) Generate the log-key: php bin/init-log-key\n";
+echo "  3. Register the fingerprint with the Pluriverse when stage 2 lands.\n";
+exit(0);
