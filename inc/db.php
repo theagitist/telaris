@@ -10593,3 +10593,68 @@ function dropAllTables(PDO $pdo): array {
     }
     return ['dropped' => $dropped, 'errors' => $errors];
 }
+
+// ---------------------------------------------------------------------------
+// pluriverse_applications: local record of THIS instance's submission to the
+// Pluriverse. At most one active (pending|verified|published) row at a time.
+// Status drifts from the Pluriverse's record; this table is a UI breadcrumb
+// for the operator, not a source of truth for federation state.
+// ---------------------------------------------------------------------------
+
+function db_ensure_pluriverse_applications_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        getDB()->exec("
+            CREATE TABLE IF NOT EXISTS pluriverse_applications (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                operator_email VARCHAR(254) NOT NULL,
+                label VARCHAR(255) NOT NULL,
+                remote_instance_id INT UNSIGNED NULL,
+                remote_fingerprint VARCHAR(64) NULL,
+                pluriverse_url VARCHAR(255) NOT NULL,
+                status ENUM('pending','verified','published','rejected','blacklisted','withdrawn') NOT NULL DEFAULT 'pending',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_status (status, submitted_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_pluriverse_applications_table: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Most recent application row, or null if none. The operator can submit again
+ * once any prior row is withdrawn / rejected; the form is shown if either no
+ * row exists or the latest is in a terminal status.
+ */
+function db_get_latest_pluriverse_application(): ?array {
+    db_ensure_pluriverse_applications_table();
+    $row = getDB()->query("SELECT * FROM pluriverse_applications ORDER BY id DESC LIMIT 1")->fetch();
+    return is_array($row) ? $row : null;
+}
+
+function db_pluriverse_has_active_application(): bool {
+    $row = db_get_latest_pluriverse_application();
+    if ($row === null) return false;
+    return !in_array($row['status'], ['rejected', 'withdrawn'], true);
+}
+
+function db_record_pluriverse_application(string $email, string $label, string $pluriverseUrl, ?int $remoteId, ?string $remoteFingerprint): int {
+    db_ensure_pluriverse_applications_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        INSERT INTO pluriverse_applications (operator_email, label, pluriverse_url, remote_instance_id, remote_fingerprint, status)
+        VALUES (:email, :label, :url, :rid, :fp, 'pending')
+    ");
+    $stmt->execute([
+        ':email' => $email,
+        ':label' => $label,
+        ':url' => $pluriverseUrl,
+        ':rid' => $remoteId,
+        ':fp' => $remoteFingerprint,
+    ]);
+    return (int)$pdo->lastInsertId();
+}

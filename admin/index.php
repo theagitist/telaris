@@ -554,6 +554,13 @@ $apiKeys = db_get_api_keys();
 $users = db_get_users();
 $constellations = db_get_constellations();
 
+// Pluriverse tab: prior application (if any) + the galaxy candidate list. The
+// admin's own email pre-fills the form; the operator can edit before sending.
+$pluriverseApplication = db_get_latest_pluriverse_application();
+$pluriverseAdminEmail = $_SESSION['admin_user_email'] ?? '';
+$pluriverseDefaultUrl = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://')
+    . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+
 // Group constellations by [Tag] prefix for visual grouping
 function extractConstellationGroup(string $name): ?string {
     if (preg_match('/^\[([^\]]+)\]/', $name, $m)) {
@@ -707,6 +714,14 @@ foreach ($importantExtensions as $ext => $name) {
             <?php if ($settingsError): ?>
                 <div data-type="error"><?php echo htmlspecialchars($settingsError); ?></div>
             <?php endif; ?>
+            <?php if (!empty($_SESSION['pluriverse_apply_message'])): ?>
+                <div data-type="success"><?= htmlspecialchars((string)$_SESSION['pluriverse_apply_message']) ?></div>
+                <?php unset($_SESSION['pluriverse_apply_message']); ?>
+            <?php endif; ?>
+            <?php if (!empty($_SESSION['pluriverse_apply_error'])): ?>
+                <div data-type="error"><?= htmlspecialchars((string)$_SESSION['pluriverse_apply_error']) ?></div>
+                <?php unset($_SESSION['pluriverse_apply_error']); ?>
+            <?php endif; ?>
         </div>
 
         <!-- Tabs -->
@@ -741,6 +756,11 @@ foreach ($importantExtensions as $ext => $name) {
                         id="tab-settings"
                         class="tab tab-lg <?php echo $activeTab === 'settings' ? 'tab-active' : ''; ?>">
                     <?= t_attr('admin_tab_settings', 'Global Settings') ?>
+                </button>
+                <button onclick="showTab('pluriverse')"
+                        id="tab-pluriverse"
+                        class="tab tab-lg <?php echo $activeTab === 'pluriverse' ? 'tab-active' : ''; ?>">
+                    <?= t_attr('admin_tab_pluriverse', 'Pluriverse') ?>
                 </button>
                 <button onclick="showTab('api-keys')"
                         id="tab-api-keys"
@@ -1118,6 +1138,146 @@ foreach ($importantExtensions as $ext => $name) {
                         <button type="submit" class="btn btn-neutral"><?= t_attr('admin_btn_save_settings', 'Save settings') ?></button>
                     </div>
                 </form>
+            </div>
+
+            <!-- Pluriverse Tab -->
+            <div id="content-pluriverse" class="p-6 <?php echo $activeTab !== 'pluriverse' ? 'hidden' : ''; ?>">
+                <div class="max-w-2xl">
+                    <h2 class="text-gray-800 text-lg font-semibold mb-2"><?= t_attr('admin_pluriverse_heading', 'Publish to the Pluriverse') ?></h2>
+                    <p class="text-sm text-gray-600 mb-6"><?= t_attr('admin_pluriverse_subheading', 'Federate this instance into the Pluriverse so it appears in the public instance directory at www.telaris.ca. The application carries your URL, name, operator contact, and chosen galaxies, signed by this instance\'s pluriverse.key.') ?></p>
+
+                    <?php if ($pluriverseApplication !== null && in_array($pluriverseApplication['status'], ['pending','verified','published'], true)): ?>
+                        <!-- State B: an application is in flight. -->
+                        <div class="border border-emerald-300 bg-emerald-50 rounded-lg p-5 mb-4">
+                            <h3 class="text-emerald-700 font-semibold mb-3"><?= t_attr('admin_pluriverse_status_heading', 'Application status') ?></h3>
+                            <dl class="grid grid-cols-[12rem_1fr] gap-x-4 gap-y-2 text-sm">
+                                <dt class="text-gray-600"><?= t_attr('admin_pluriverse_status_status', 'Status') ?></dt>
+                                <dd class="font-mono font-semibold text-gray-800"><?= htmlspecialchars($pluriverseApplication['status']) ?></dd>
+                                <dt class="text-gray-600"><?= t_attr('admin_pluriverse_status_submitted', 'Submitted at') ?></dt>
+                                <dd class="text-gray-800"><?= htmlspecialchars($pluriverseApplication['submitted_at']) ?></dd>
+                                <dt class="text-gray-600"><?= t_attr('admin_pluriverse_status_name', 'Name') ?></dt>
+                                <dd class="text-gray-800"><?= htmlspecialchars($pluriverseApplication['label']) ?></dd>
+                                <dt class="text-gray-600"><?= t_attr('admin_pluriverse_status_email', 'Operator email') ?></dt>
+                                <dd class="text-gray-800"><?= htmlspecialchars($pluriverseApplication['operator_email']) ?></dd>
+                                <?php if (!empty($pluriverseApplication['remote_fingerprint'])): ?>
+                                    <dt class="text-gray-600"><?= t_attr('admin_pluriverse_status_fingerprint', 'Public-key fingerprint stored') ?></dt>
+                                    <dd class="font-mono text-xs text-gray-700"><?= htmlspecialchars($pluriverseApplication['remote_fingerprint']) ?></dd>
+                                <?php endif; ?>
+                            </dl>
+                            <p class="text-sm text-gray-600 mt-4"><?= t_attr('admin_pluriverse_status_help', 'Check your operator email for a verification link. The link expires one hour after submission; the pending application itself expires after 48 hours if not verified. The admins at the Pluriverse review the application after you verify and let you know when your instance is published.') ?></p>
+                        </div>
+                    <?php else: ?>
+                        <!-- State A: no active application; show the form. -->
+                        <form method="POST" action="pluriverse-apply.php" class="space-y-5">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+
+                            <div>
+                                <label for="pv_url" class="block text-sm font-medium text-gray-800 mb-1"><?= t_attr('admin_pluriverse_field_url_label', 'Instance URL') ?></label>
+                                <input id="pv_url" type="url" name="url" required pattern="^https://.+" maxlength="512"
+                                       value="<?= htmlspecialchars($pluriverseDefaultUrl) ?>"
+                                       class="input input-bordered input-sm w-full bg-white">
+                                <p class="text-xs text-gray-500 mt-1"><?= t_attr('admin_pluriverse_field_url_help', 'Canonical https URL of this instance. The hostname is derived from this.') ?></p>
+                            </div>
+
+                            <div>
+                                <label for="pv_name" class="block text-sm font-medium text-gray-800 mb-1"><?= t_attr('admin_pluriverse_field_name_label', 'Name') ?></label>
+                                <input id="pv_name" type="text" name="label" required maxlength="255"
+                                       class="input input-bordered input-sm w-full bg-white">
+                                <p class="text-xs text-gray-500 mt-1"><?= t_attr('admin_pluriverse_field_name_help', 'Short public name for this instance, unique across the Pluriverse. If a name is taken you will be told to pick another.') ?></p>
+                            </div>
+
+                            <div>
+                                <label for="pv_email" class="block text-sm font-medium text-gray-800 mb-1"><?= t_attr('admin_pluriverse_field_email_label', 'Operator email') ?></label>
+                                <input id="pv_email" type="email" name="operator_email" required maxlength="254"
+                                       value="<?= htmlspecialchars($pluriverseAdminEmail) ?>"
+                                       class="input input-bordered input-sm w-full bg-white">
+                                <p class="text-xs text-gray-500 mt-1"><?= t_attr('admin_pluriverse_field_email_help', 'Magic-link target. Encrypted at rest on the Pluriverse. Edit if you want a different address from your admin account.') ?></p>
+                            </div>
+
+                            <div>
+                                <label for="pv_framing" class="block text-sm font-medium text-gray-800 mb-1"><?= t_attr('admin_pluriverse_field_framing_label', 'Editorial framing') ?></label>
+                                <textarea id="pv_framing" name="editorial_framing" maxlength="2000" rows="3"
+                                          class="textarea textarea-bordered textarea-sm w-full bg-white"></textarea>
+                                <p class="text-xs text-gray-500 mt-1"><?= t_attr('admin_pluriverse_field_framing_help', 'A sentence or three. What is this instance for? Optional.') ?></p>
+                            </div>
+
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-sm font-medium text-gray-800"><?= t_attr('admin_pluriverse_field_galaxies_label', 'Publishable galaxies') ?></label>
+                                    <div class="flex gap-3 text-xs">
+                                        <button type="button" id="pv-galaxies-check-all" class="text-blue-600 hover:text-blue-800"><?= t_attr('admin_pluriverse_btn_check_all', 'Check all') ?></button>
+                                        <button type="button" id="pv-galaxies-uncheck-all" class="text-gray-600 hover:text-gray-800"><?= t_attr('admin_pluriverse_btn_uncheck_all', 'Uncheck all') ?></button>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500 mb-2"><?= t_attr('admin_pluriverse_field_galaxies_help', 'Which galaxies to expose through the Pluriverse. Uncheck any you do not want public. At least one must stay checked.') ?></p>
+                                <div class="border border-gray-300 rounded max-h-64 overflow-y-auto p-3 bg-white">
+                                    <?php if (empty($constellations)): ?>
+                                        <p class="text-sm text-gray-500"><?= t_attr('admin_pluriverse_field_galaxies_empty', 'This instance has no galaxies yet. Create at least one before applying.') ?></p>
+                                    <?php else: ?>
+                                        <ul id="pv-galaxies-list" class="space-y-1">
+                                            <?php foreach ($constellations as $g): ?>
+                                                <li>
+                                                    <label class="inline-flex items-center gap-2 text-sm cursor-pointer">
+                                                        <input type="checkbox" name="publishable_slugs[]" value="<?= htmlspecialchars($g['slug']) ?>" checked class="checkbox checkbox-sm">
+                                                        <code class="text-xs bg-gray-100 px-1 rounded"><?= htmlspecialchars($g['slug']) ?></code>
+                                                        <span class="text-gray-700"><?= htmlspecialchars($g['name']) ?></span>
+                                                    </label>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-800 mb-1"><?= t_attr('admin_pluriverse_field_contacts_label', 'Secondary contacts') ?></label>
+                                <p class="text-xs text-gray-500 mb-2"><?= t_attr('admin_pluriverse_field_contacts_help', 'Optional fallback channels (Matrix, XMPP, etc.). Up to eight.') ?></p>
+                                <ol id="pv-contacts-rows" class="space-y-2"></ol>
+                                <template id="pv-contact-row-template">
+                                    <li class="grid grid-cols-[1fr_2fr_auto] gap-2">
+                                        <input type="text" name="contact_service[]" maxlength="64" placeholder="<?= t_attr('admin_pluriverse_contact_service_placeholder', 'service') ?>" class="input input-bordered input-sm bg-white">
+                                        <input type="text" name="contact_user_id[]" maxlength="256" placeholder="<?= t_attr('admin_pluriverse_contact_handle_placeholder', 'handle / address') ?>" class="input input-bordered input-sm bg-white">
+                                        <button type="button" class="pv-contact-remove px-3 text-gray-500 hover:text-red-600 border border-gray-300 rounded">×</button>
+                                    </li>
+                                </template>
+                                <button type="button" id="pv-contacts-add" class="mt-2 text-sm text-blue-600 hover:text-blue-800">+ <?= t_attr('admin_pluriverse_btn_add_contact', 'Add another') ?></button>
+                            </div>
+
+                            <div class="pt-2 border-t border-gray-200">
+                                <button type="submit" class="btn btn-primary"><?= t_attr('admin_pluriverse_btn_submit', 'Apply to Pluriverse') ?></button>
+                                <p class="text-xs text-gray-500 mt-2"><?= t_attr('admin_pluriverse_submit_help', 'This instance will sign the application with its pluriverse.key (Ed25519) and post it to www.telaris.ca. The Pluriverse will email a verification link to the operator address.') ?></p>
+                            </div>
+                        </form>
+                        <script>
+                          (function () {
+                            var list = document.getElementById('pv-galaxies-list');
+                            var checkAll = document.getElementById('pv-galaxies-check-all');
+                            var uncheckAll = document.getElementById('pv-galaxies-uncheck-all');
+                            if (list && checkAll && uncheckAll) {
+                              checkAll.addEventListener('click', function () {
+                                list.querySelectorAll('input[type=checkbox]').forEach(function (b) { b.checked = true; });
+                              });
+                              uncheckAll.addEventListener('click', function () {
+                                list.querySelectorAll('input[type=checkbox]').forEach(function (b) { b.checked = false; });
+                              });
+                            }
+                            var rows = document.getElementById('pv-contacts-rows');
+                            var addBtn = document.getElementById('pv-contacts-add');
+                            var tpl = document.getElementById('pv-contact-row-template');
+                            var MAX = 8;
+                            if (rows && addBtn && tpl) {
+                              addBtn.addEventListener('click', function () {
+                                if (rows.children.length >= MAX) return;
+                                var node = tpl.content.firstElementChild.cloneNode(true);
+                                var rm = node.querySelector('.pv-contact-remove');
+                                rm.addEventListener('click', function () { rows.removeChild(node); });
+                                rows.appendChild(node);
+                              });
+                            }
+                          })();
+                        </script>
+                    <?php endif; ?>
+                </div>
             </div>
 
             <!-- Backup Tab -->
