@@ -10718,6 +10718,62 @@ function db_ensure_federation_attribution_columns(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Federation schema (stage 3): Pluriverse pull
+// ---------------------------------------------------------------------------
+//
+// Local mirror of the Pluriverse blacklist (entity_type: hostname / ip / domain)
+// plus a small state table tracking the cursor + last-success / last-error per
+// pull endpoint. Together with the existing peers + key_events tables (stage 1),
+// these are everything the stage-3 pullers write into.
+
+function db_ensure_pluriverse_blacklist_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS pluriverse_blacklist (
+                id BIGINT UNSIGNED PRIMARY KEY,
+                entity_type ENUM('hostname','ip','domain') NOT NULL,
+                entity_value VARCHAR(255) NOT NULL,
+                reason TEXT NULL,
+                added_at TIMESTAMP NOT NULL,
+                pulled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_entity (entity_type, entity_value),
+                INDEX idx_entity_value (entity_value)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_pluriverse_blacklist_table: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_pluriverse_pull_state_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS pluriverse_pull_state (
+                endpoint VARCHAR(64) PRIMARY KEY,
+                last_seen_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                last_pull_started_at TIMESTAMP NULL,
+                last_pull_succeeded_at TIMESTAMP NULL,
+                last_pull_failed_at TIMESTAMP NULL,
+                last_error VARCHAR(1024) NULL,
+                consecutive_failures INT UNSIGNED NOT NULL DEFAULT 0,
+                rows_processed_total BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_pluriverse_pull_state_table: ' . $e->getMessage());
+    }
+}
+
+// ---------------------------------------------------------------------------
 // CLI / maintenance (continued)
 // ---------------------------------------------------------------------------
 
