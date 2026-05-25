@@ -9,8 +9,11 @@ declare(strict_types=1);
  * runs as the web user without sudo:
  *
  *   - /etc/nginx/snippets/cloudflare-realip.conf
+ *   - /etc/nginx/snippets/telaris-deny.conf
  *   - /etc/logrotate.d/telaris-snapshots-<site>
+ *   - /etc/cron.d/telaris-pluriverse-pull-<site>   (federation stage 3)
  *   - chmod 0640 + chgrp www-data on config.php
+ *   - secrets/ dir 0700 owned by www-data
  *
  * Scope: Ubuntu / Debian only. Other distros need their own bridge.
  *
@@ -100,6 +103,9 @@ $denyDst = '/etc/nginx/snippets/telaris-deny.conf';
 
 $logrotateSrc = $root . '/etc/logrotate/telaris-snapshots.sample';
 $logrotateDst = '/etc/logrotate.d/telaris-snapshots-' . $siteName;
+
+$pullCronSrc = $root . '/etc/cron.d/pluriverse-pull.sample';
+$pullCronDst = '/etc/cron.d/telaris-pluriverse-pull-' . $siteName;
 
 $configPath = $root . '/config.php';
 $vhostCandidates = [
@@ -302,6 +308,60 @@ $tasks[] = (function() use ($logrotateSrc, $logrotateDst, $root) {
         return ['ok' => true, 'detail' => "wrote {$logrotateDst} (validated by logrotate --debug)"];
     };
     return ['name' => 'logrotate snapshot rule', 'status' => file_exists($logrotateDst) ? 'mismatch' : 'missing', 'detail' => "{$logrotateDst} differs from canonical", 'fix' => $fix];
+})();
+
+// 4a. Pluriverse-pull cron entries (federation stage 3).
+// Drops a per-site /etc/cron.d/telaris-pluriverse-pull-<site> with the three
+// jobs (key-events 5 min, peers + blacklist 30 min staggered). Substitutes
+// __SITE_ROOT__ for the absolute site root. cron picks up changes to
+// /etc/cron.d/ files automatically; no daemon reload required.
+$tasks[] = (function() use ($pullCronSrc, $pullCronDst, $root) {
+    if (!file_exists($pullCronSrc)) {
+        return ['name' => 'pluriverse-pull cron', 'status' => 'error', 'detail' => "repo source missing at {$pullCronSrc}", 'fix' => null];
+    }
+    if (!file_exists('/etc/cron.d')) {
+        return ['name' => 'pluriverse-pull cron', 'status' => 'error', 'detail' => '/etc/cron.d does not exist; cron not installed', 'fix' => null];
+    }
+    if (!file_exists($root . '/bin/pluriverse-pull')) {
+        return ['name' => 'pluriverse-pull cron', 'status' => 'error', 'detail' => "{$root}/bin/pluriverse-pull does not exist (federation stage 3 not yet deployed?)", 'fix' => null];
+    }
+    $template = file_get_contents($pullCronSrc);
+    $canonical = str_replace('__SITE_ROOT__', $root, $template);
+    $installed = file_exists($pullCronDst) ? file_get_contents($pullCronDst) : '';
+    if ($installed === $canonical) {
+        return ['name' => 'pluriverse-pull cron', 'status' => 'ok', 'detail' => "matches {$pullCronDst}", 'fix' => null];
+    }
+    $fix = function() use ($pullCronDst, $canonical) {
+        if (is_link($pullCronDst)) {
+            return ['ok' => false, 'detail' => "{$pullCronDst} is a symlink; refusing to write through it (unlink first if intentional)"];
+        }
+        if (file_exists($pullCronDst)) {
+            $real = realpath($pullCronDst);
+            if ($real === false || !str_starts_with($real, '/etc/cron.d/')) {
+                return ['ok' => false, 'detail' => "{$pullCronDst} resolves outside /etc/cron.d/ (real='{$real}'); refusing to write"];
+            }
+        }
+        $tmp = $pullCronDst . '.new.' . posix_getpid();
+        if (file_put_contents($tmp, $canonical) === false) {
+            return ['ok' => false, 'detail' => "could not write to {$tmp}"];
+        }
+        // /etc/cron.d files must be 0644, owned by root, with no group write.
+        // cron silently ignores files outside that profile.
+        @chmod($tmp, 0644);
+        @chown($tmp, 'root');
+        @chgrp($tmp, 'root');
+        if (!rename($tmp, $pullCronDst)) {
+            @unlink($tmp);
+            return ['ok' => false, 'detail' => "could not move {$tmp} → {$pullCronDst}"];
+        }
+        return ['ok' => true, 'detail' => "wrote {$pullCronDst} (cron picks up automatically)"];
+    };
+    return [
+        'name' => 'pluriverse-pull cron',
+        'status' => file_exists($pullCronDst) ? 'mismatch' : 'missing',
+        'detail' => file_exists($pullCronDst) ? "{$pullCronDst} differs from canonical" : "{$pullCronDst} does not exist",
+        'fix' => $fix,
+    ];
 })();
 
 // 5. config.php permissions: 0640, owner www-data group. Refuses to bless

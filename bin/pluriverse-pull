@@ -15,15 +15,14 @@ declare(strict_types=1);
  *   php bin/pluriverse-pull --endpoint=all
  *   php bin/pluriverse-pull --status
  *
- * Recommended cron (run as the user that owns config.php; on this host that
- * is the web user so all DB writes land under PHP-FPM's view of the file
- * system). Times are staggered so the three jobs never collide:
+ * Cron entries are installed by `sudo php bin/setup-host.php` from the
+ * canonical source at `etc/cron.d/pluriverse-pull.sample`. The file lands
+ * at `/etc/cron.d/telaris-pluriverse-pull-<site>` and runs as www-data.
+ * Cadence (staggered, well under the 60 req/min Pluriverse rate limit):
  *
  *   key-events  every 5 minutes:   "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"
  *   peers       every 30 minutes:  "3,33 * * * *"
  *   blacklist   every 30 minutes:  "8,38 * * * *"
- *
- *   command:  php /var/www/<site>/bin/pluriverse-pull --endpoint=<name> > /dev/null
  *
  * Spec: P2P federation plan v10 § Layer 2: The local peer list.
  */

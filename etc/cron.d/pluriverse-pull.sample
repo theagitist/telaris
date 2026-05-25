@@ -1,0 +1,31 @@
+# Telaris Pluriverse pull cron (federation stage 3).
+#
+# Three jobs pull peers.json, blacklist.json, and key-events.json from the
+# Pluriverse at www.telaris.ca into the local instance database. All three
+# are idempotent and honour conditional GET (If-None-Match), so most
+# invocations return 304 and cost nothing on either side. State per
+# endpoint lives in the pluriverse_pull_state table; status visible via
+# `php bin/pluriverse-pull --status` and the admin Pluriverse tab.
+#
+# Installed by bin/setup-host.php; canonical source is
+# etc/cron.d/pluriverse-pull.sample in the Telaris repo. The site root
+# placeholder below is substituted with the absolute install path at
+# install time. Re-running setup-host.php overwrites this file with the
+# current canonical content (no drift).
+#
+# Cadence: 5-min for key-events (compromise key-rotation is time-critical),
+# 30-min for peers and blacklist (low-churn data). Staggered so the three
+# jobs never collide on the same minute and the per-IP rate limit on the
+# Pluriverse side (60 req/min) is never approached.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# key-events every 5 minutes (12/hour)
+0,5,10,15,20,25,30,35,40,45,50,55 * * * * www-data /usr/bin/php __SITE_ROOT__/bin/pluriverse-pull --endpoint=key-events > /dev/null 2>&1
+
+# peers every 30 minutes (2/hour, offset +3 from the top of the hour)
+3,33 * * * * www-data /usr/bin/php __SITE_ROOT__/bin/pluriverse-pull --endpoint=peers > /dev/null 2>&1
+
+# blacklist every 30 minutes (2/hour, offset +8 so it doesn't collide with peers)
+8,38 * * * * www-data /usr/bin/php __SITE_ROOT__/bin/pluriverse-pull --endpoint=blacklist > /dev/null 2>&1
