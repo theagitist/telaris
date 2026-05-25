@@ -1379,6 +1379,48 @@ foreach ($importantExtensions as $ext => $name) {
                             </table>
                         </div>
                     <?php endif; ?>
+
+                    <!-- Advanced: manual peer entry (stage 3c-ii) -->
+                    <details class="mt-6 border border-gray-200 rounded">
+                        <summary class="px-4 py-2 cursor-pointer text-sm text-gray-700 hover:bg-gray-50">
+                            <?= t_attr('admin_pluriverse_manual_disclosure', 'Advanced: add a manual peer') ?>
+                        </summary>
+                        <div class="border-t border-gray-200 p-4 bg-amber-50/40">
+                            <div class="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded p-3 mb-4">
+                                <strong><?= t_attr('admin_pluriverse_manual_warn_heading', 'Why this is gated') ?></strong>
+                                <p class="mt-1"><?= t_attr('admin_pluriverse_manual_warn_body', 'A manual peer bypasses the Pluriverse trust chain: nothing has verified that this hostname and public key actually belong to the operator you intend to reach. The row is added with a not-Pluriverse-vouched flag and a persistent banner so you and other admins can audit it later. Re-enter your password below to confirm.') ?></p>
+                            </div>
+                            <form method="POST" action="pluriverse-manual-peer.php" class="space-y-4 max-w-xl">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-800 mb-1" for="pv-manual-hostname"><?= t_attr('admin_pluriverse_manual_field_hostname', 'Hostname') ?></label>
+                                    <input id="pv-manual-hostname" type="text" name="hostname" maxlength="253" required class="input input-bordered input-sm w-full bg-white font-mono" placeholder="example.org">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-800 mb-1" for="pv-manual-url"><?= t_attr('admin_pluriverse_manual_field_url', 'URL') ?></label>
+                                    <input id="pv-manual-url" type="url" name="url" maxlength="512" required class="input input-bordered input-sm w-full bg-white font-mono" placeholder="https://example.org">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-800 mb-1" for="pv-manual-label"><?= t_attr('admin_pluriverse_manual_field_label', 'Name') ?></label>
+                                    <input id="pv-manual-label" type="text" name="label" maxlength="255" required class="input input-bordered input-sm w-full bg-white">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-800 mb-1" for="pv-manual-pubkey"><?= t_attr('admin_pluriverse_manual_field_pubkey', 'Ed25519 public key (base64url)') ?></label>
+                                    <textarea id="pv-manual-pubkey" name="public_key" rows="2" required class="textarea textarea-bordered textarea-sm w-full bg-white font-mono text-xs" placeholder="32-byte key, base64url-encoded"></textarea>
+                                    <p class="text-xs text-gray-500 mt-1"><?= t_attr('admin_pluriverse_manual_field_pubkey_help', 'Obtain this out of band from the peer operator. It is the value of pluriverse.key.public on the remote instance.') ?></p>
+                                </div>
+                                <div class="pt-3 border-t border-amber-200">
+                                    <label class="block text-sm font-medium text-gray-800 mb-1" for="pv-manual-password"><?= t_attr('admin_pluriverse_manual_field_password', 'Re-enter your password') ?></label>
+                                    <input id="pv-manual-password" type="password" name="password" required autocomplete="current-password" class="input input-bordered input-sm w-full bg-white">
+                                </div>
+                                <div>
+                                    <button type="submit" class="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-medium rounded">
+                                        <?= t_attr('admin_pluriverse_manual_btn_add', 'Add manual peer') ?>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </details>
                 </div>
             </div>
 
