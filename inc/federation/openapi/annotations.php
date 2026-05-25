@@ -121,6 +121,63 @@ final class ProblemDetailsSchema {}
 )]
 final class GetIdentityEndpoint {}
 
+#[OA\Schema(
+    schema: 'GalaxyEntry',
+    description: 'One row of the public galaxies listing.',
+    required: ['slug', 'name'],
+    properties: [
+        new OA\Property(property: 'slug', type: 'string', minLength: 1, maxLength: 128, example: 'history'),
+        new OA\Property(property: 'name', type: 'string', maxLength: 255, example: 'History'),
+        new OA\Property(property: 'tagline', type: 'string', maxLength: 512),
+    ]
+)]
+final class GalaxyEntrySchema {}
+
+#[OA\Schema(
+    schema: 'GalaxiesListing',
+    description: 'Public list of this instance\'s visitor-visible galaxies.',
+    required: ['protocol_version', 'galaxies'],
+    properties: [
+        new OA\Property(property: 'protocol_version', type: 'string', enum: ['1.0']),
+        new OA\Property(property: 'galaxies', type: 'array', items: new OA\Items(ref: '#/components/schemas/GalaxyEntry')),
+    ]
+)]
+final class GalaxiesListingSchema {}
+
+#[OA\Get(
+    path: '/api/pluriverse/galaxies.json',
+    operationId: 'listGalaxies',
+    summary: 'Public list of this instance\'s visitor-visible galaxies.',
+    description: 'Returns the slugs, names, and taglines of every galaxy this instance shows in its '
+        . 'visitor-side galaxy list. Used by the Pluriverse-side operator-application form to '
+        . 'pre-populate the "publishable galaxies" picker. No authentication; rate-limited '
+        . '60 req/min/IP. Cache-Control 60 s.',
+    tags: ['pluriverse-public'],
+    responses: [
+        new OA\Response(
+            response: 200,
+            description: 'List of visitor-visible galaxies.',
+            content: new OA\JsonContent(ref: '#/components/schemas/GalaxiesListing')
+        ),
+        new OA\Response(
+            response: 405,
+            description: 'Method not allowed (only GET is accepted).',
+            content: new OA\JsonContent(ref: '#/components/schemas/ProblemDetails')
+        ),
+        new OA\Response(
+            response: 429,
+            description: 'Rate limit exceeded (60 req/min/IP).',
+            content: new OA\JsonContent(ref: '#/components/schemas/ProblemDetails')
+        ),
+        new OA\Response(
+            response: 500,
+            description: 'Database error enumerating galaxies.',
+            content: new OA\JsonContent(ref: '#/components/schemas/ProblemDetails')
+        ),
+    ]
+)]
+final class GetGalaxiesEndpoint {}
+
 #[OA\Get(
     path: '/api/pluriverse/openapi.json',
     operationId: 'getOpenApiSpec',

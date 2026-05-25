@@ -26,6 +26,7 @@ $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $routes = [
     '/api/pluriverse/identity' => ['methods' => ['GET'], 'handler' => __DIR__ . '/identity_handler.php'],
     '/api/pluriverse/openapi.json' => ['methods' => ['GET'], 'handler' => __DIR__ . '/openapi_handler.php'],
+    '/api/pluriverse/galaxies.json' => ['methods' => ['GET'], 'handler' => __DIR__ . '/galaxies_handler.php'],
 ];
 
 if (!isset($routes[$path])) {
