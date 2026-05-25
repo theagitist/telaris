@@ -520,6 +520,13 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             'save_settings' => (function(): void {
                 global $settingsError, $activeTab;
                 try {
+                    if (isset($_POST['instance_name'])) {
+                        $newName = trim((string)$_POST['instance_name']);
+                        if ($newName === '') {
+                            throw new InvalidArgumentException('Name is required.');
+                        }
+                        db_set_instance_name($newName);
+                    }
                     if (isset($_POST['default_constellation_id']) && ctype_digit((string)$_POST['default_constellation_id'])) {
                         db_set_default_constellation_id((int)$_POST['default_constellation_id']);
                     }
@@ -536,7 +543,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     header('Location: index.php?tab=settings&saved=1');
                     exit;
                 } catch (Throwable $e) {
-                    $settingsError = 'Failed to save settings. Please try again. (' . htmlspecialchars($e->getMessage()) . ')';
+                    $settingsError = 'Failed to save settings. ' . htmlspecialchars($e->getMessage());
                     $activeTab = 'settings';
                 }
             })(),
@@ -554,12 +561,15 @@ $apiKeys = db_get_api_keys();
 $users = db_get_users();
 $constellations = db_get_constellations();
 
-// Pluriverse tab: prior application (if any) + the galaxy candidate list. The
-// admin's own email pre-fills the form; the operator can edit before sending.
+// Pluriverse tab: prior application (if any) + the galaxy candidate list.
+// URL, Name and operator email are read-only displays sourced server-side
+// (current host, db_get_instance_name(), session admin email). The form only
+// collects framing + galaxy picks + optional secondary contacts.
 $pluriverseApplication = db_get_latest_pluriverse_application();
 $pluriverseAdminEmail = $_SESSION['admin_user_email'] ?? '';
 $pluriverseDefaultUrl = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://')
     . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+$pluriverseInstanceName = db_get_instance_name();
 
 // Group constellations by [Tag] prefix for visual grouping
 function extractConstellationGroup(string $name): ?string {
@@ -1101,6 +1111,15 @@ foreach ($importantExtensions as $ext => $name) {
                 </div>
                 <form method="post" action="" class="max-w-2xl">
                     <input type="hidden" name="action" value="save_settings">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+
+                    <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <label for="instance_name" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_instance_name', 'Name') ?></label>
+                        <input type="text" id="instance_name" name="instance_name" required maxlength="255"
+                               value="<?= htmlspecialchars(db_get_instance_name()) ?>"
+                               class="input input-bordered input-sm w-full bg-white">
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_instance_name', 'Public name for this instance. Shown on the visitor side and used as the Pluriverse-directory label when you apply to publish. Defaults to the first segment of the hostname if blank.') ?></span>
+                    </div>
 
                     <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                         <label for="default_constellation_id" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_default_galaxy', 'Default Galaxy') ?></label>
@@ -1171,27 +1190,28 @@ foreach ($importantExtensions as $ext => $name) {
                         <form method="POST" action="pluriverse-apply.php" class="space-y-5">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
 
-                            <div>
-                                <label for="pv_url" class="block text-sm font-medium text-gray-800 mb-1"><?= t_attr('admin_pluriverse_field_url_label', 'Instance URL') ?></label>
-                                <input id="pv_url" type="url" name="url" required pattern="^https://.+" maxlength="512"
-                                       value="<?= htmlspecialchars($pluriverseDefaultUrl) ?>"
-                                       class="input input-bordered input-sm w-full bg-white">
-                                <p class="text-xs text-gray-500 mt-1"><?= t_attr('admin_pluriverse_field_url_help', 'Canonical https URL of this instance. The hostname is derived from this.') ?></p>
-                            </div>
+                            <!-- Read-only header: identity facts the operator does not need to retype. -->
+                            <dl class="grid grid-cols-[10rem_1fr] gap-x-4 gap-y-2 text-sm bg-gray-50 border border-gray-200 rounded p-4">
+                                <dt class="text-gray-600"><?= t_attr('admin_pluriverse_field_url_label', 'Instance URL') ?></dt>
+                                <dd class="font-mono text-gray-800 break-all"><?= htmlspecialchars($pluriverseDefaultUrl) ?></dd>
+                                <dt class="text-gray-600"><?= t_attr('admin_pluriverse_field_name_label', 'Name') ?></dt>
+                                <dd class="text-gray-800"><?= htmlspecialchars($pluriverseInstanceName) ?> <a href="?tab=settings" class="text-xs text-blue-600 hover:text-blue-800 ml-2"><?= t_attr('admin_pluriverse_link_change_name', '(change in Global Settings)') ?></a></dd>
+                                <dt class="text-gray-600"><?= t_attr('admin_pluriverse_field_email_label', 'Operator email') ?></dt>
+                                <dd class="text-gray-800"><?= htmlspecialchars($pluriverseAdminEmail) ?></dd>
+                            </dl>
 
                             <div>
-                                <label for="pv_name" class="block text-sm font-medium text-gray-800 mb-1"><?= t_attr('admin_pluriverse_field_name_label', 'Name') ?></label>
-                                <input id="pv_name" type="text" name="label" required maxlength="255"
-                                       class="input input-bordered input-sm w-full bg-white">
-                                <p class="text-xs text-gray-500 mt-1"><?= t_attr('admin_pluriverse_field_name_help', 'Short public name for this instance, unique across the Pluriverse. If a name is taken you will be told to pick another.') ?></p>
-                            </div>
-
-                            <div>
-                                <label for="pv_email" class="block text-sm font-medium text-gray-800 mb-1"><?= t_attr('admin_pluriverse_field_email_label', 'Operator email') ?></label>
-                                <input id="pv_email" type="email" name="operator_email" required maxlength="254"
-                                       value="<?= htmlspecialchars($pluriverseAdminEmail) ?>"
-                                       class="input input-bordered input-sm w-full bg-white">
-                                <p class="text-xs text-gray-500 mt-1"><?= t_attr('admin_pluriverse_field_email_help', 'Magic-link target. Encrypted at rest on the Pluriverse. Edit if you want a different address from your admin account.') ?></p>
+                                <label class="block text-sm font-medium text-gray-800 mb-1"><?= t_attr('admin_pluriverse_field_contacts_label', 'Secondary contacts') ?></label>
+                                <p class="text-xs text-gray-500 mb-2"><?= t_attr('admin_pluriverse_field_contacts_help', 'Optional fallback channels (Matrix, XMPP, etc.). Up to eight.') ?></p>
+                                <ol id="pv-contacts-rows" class="space-y-2"></ol>
+                                <template id="pv-contact-row-template">
+                                    <li class="grid grid-cols-[1fr_2fr_auto] gap-2">
+                                        <input type="text" name="contact_service[]" maxlength="64" placeholder="<?= t_attr('admin_pluriverse_contact_service_placeholder', 'service') ?>" class="input input-bordered input-sm bg-white">
+                                        <input type="text" name="contact_user_id[]" maxlength="256" placeholder="<?= t_attr('admin_pluriverse_contact_handle_placeholder', 'handle / address') ?>" class="input input-bordered input-sm bg-white">
+                                        <button type="button" class="pv-contact-remove px-3 text-gray-500 hover:text-red-600 border border-gray-300 rounded">×</button>
+                                    </li>
+                                </template>
+                                <button type="button" id="pv-contacts-add" class="mt-2 text-sm text-blue-600 hover:text-blue-800">+ <?= t_attr('admin_pluriverse_btn_add_contact', 'Add another') ?></button>
                             </div>
 
                             <div>
@@ -1227,20 +1247,6 @@ foreach ($importantExtensions as $ext => $name) {
                                         </ul>
                                     <?php endif; ?>
                                 </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-800 mb-1"><?= t_attr('admin_pluriverse_field_contacts_label', 'Secondary contacts') ?></label>
-                                <p class="text-xs text-gray-500 mb-2"><?= t_attr('admin_pluriverse_field_contacts_help', 'Optional fallback channels (Matrix, XMPP, etc.). Up to eight.') ?></p>
-                                <ol id="pv-contacts-rows" class="space-y-2"></ol>
-                                <template id="pv-contact-row-template">
-                                    <li class="grid grid-cols-[1fr_2fr_auto] gap-2">
-                                        <input type="text" name="contact_service[]" maxlength="64" placeholder="<?= t_attr('admin_pluriverse_contact_service_placeholder', 'service') ?>" class="input input-bordered input-sm bg-white">
-                                        <input type="text" name="contact_user_id[]" maxlength="256" placeholder="<?= t_attr('admin_pluriverse_contact_handle_placeholder', 'handle / address') ?>" class="input input-bordered input-sm bg-white">
-                                        <button type="button" class="pv-contact-remove px-3 text-gray-500 hover:text-red-600 border border-gray-300 rounded">×</button>
-                                    </li>
-                                </template>
-                                <button type="button" id="pv-contacts-add" class="mt-2 text-sm text-blue-600 hover:text-blue-800">+ <?= t_attr('admin_pluriverse_btn_add_contact', 'Add another') ?></button>
                             </div>
 
                             <div class="pt-2 border-t border-gray-200">

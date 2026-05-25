@@ -65,19 +65,19 @@ if (str_contains($hostname, ':')) {
 $versionFile = dirname(__DIR__, 2) . '/VERSION';
 $telarisVersion = is_readable($versionFile) ? trim((string)@file_get_contents($versionFile)) : 'unknown';
 
-// Label comes from project_info(en).name. The English row is the canonical
-// machine-readable label; locale-translated rows are visitor chrome, not
-// machine identity.
+// Label comes from db_get_instance_name() which returns the operator-set
+// project_info(en).name and falls back to the leftmost hostname segment.
+// One helper used by /api/pluriverse/identity, the Pluriverse application
+// flow, and the admin Pluriverse tab so they all see the same value.
 $label = $hostname;
-if (function_exists('db_get_project_info')) {
+if (function_exists('db_get_instance_name')) {
     try {
-        $info = db_get_project_info();
-        if (is_array($info) && isset($info['name']) && is_string($info['name']) && $info['name'] !== '') {
-            $label = $info['name'];
+        $maybeLabel = db_get_instance_name();
+        if ($maybeLabel !== '') {
+            $label = $maybeLabel;
         }
     } catch (Throwable $e) {
-        // Fall back to hostname; identity is best-effort on label.
-        error_log('pluriverse/identity: project_info lookup failed: ' . $e->getMessage());
+        error_log('pluriverse/identity: db_get_instance_name failed: ' . $e->getMessage());
     }
 }
 

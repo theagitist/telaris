@@ -43,22 +43,26 @@ if (db_pluriverse_has_active_application()) {
 }
 
 // ---------------------------------------------------------------------------
-// Collect form input + minimal validation. The Pluriverse re-validates every
-// field; this layer just shapes the payload and surfaces obvious problems
-// without a network roundtrip.
+// Collect form input + minimal validation. The URL, label and operator email
+// are server-side facts (current host, db_get_instance_name(), session admin
+// email); the form does not send them so a tampered POST cannot redirect the
+// application to a different instance or claim a different operator.
 // ---------------------------------------------------------------------------
-$url = trim((string)($_POST['url'] ?? ''));
-$label = trim((string)($_POST['label'] ?? ''));
-$operatorEmail = trim((string)($_POST['operator_email'] ?? ''));
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$host = (string)($_SERVER['HTTP_HOST'] ?? '');
+$url = $scheme . '://' . $host;
+$label = db_get_instance_name();
+$operatorEmail = (string)($_SESSION['admin_user_email'] ?? '');
+
 $editorialFraming = trim((string)($_POST['editorial_framing'] ?? ''));
 $publishableSlugs = $_POST['publishable_slugs'] ?? [];
 $contactServices = $_POST['contact_service'] ?? [];
 $contactUserIds = $_POST['contact_user_id'] ?? [];
 
 $errors = [];
-if (!preg_match('#^https://#', $url)) $errors[] = 'Instance URL must start with https://';
-if ($label === '' || mb_strlen($label) > 255) $errors[] = 'Name is required (max 255 chars).';
-if (!filter_var($operatorEmail, FILTER_VALIDATE_EMAIL)) $errors[] = 'Operator email is not a valid address.';
+if (!preg_match('#^https://#', $url)) $errors[] = 'This instance is not served over https; cannot apply.';
+if ($label === '' || mb_strlen($label) > 255) $errors[] = 'Instance Name is empty; set it in Global Settings before applying.';
+if (!filter_var($operatorEmail, FILTER_VALIDATE_EMAIL)) $errors[] = 'Your admin account has no valid email on file.';
 if (!is_array($publishableSlugs) || count($publishableSlugs) === 0) $errors[] = 'Pick at least one galaxy to publish.';
 
 $otherContacts = [];

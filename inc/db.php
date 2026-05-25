@@ -132,6 +132,7 @@ const PROJECT_INFO_KEYS = [
     'admin_heading_clusters', 'admin_btn_new_cluster', 'admin_placeholder_search_clusters', 'admin_help_clusters',
     'admin_help_settings', 'admin_label_version',
     'admin_label_default_galaxy', 'admin_help_default_galaxy',
+    'admin_label_instance_name', 'admin_help_instance_name',
     'admin_label_pdf_max', 'admin_help_pdf_max', 'admin_btn_save_settings',
     // Pluriverse tab (admin/index.php?tab=pluriverse + admin/pluriverse-apply.php).
     'admin_pluriverse_heading', 'admin_pluriverse_subheading',
@@ -145,6 +146,7 @@ const PROJECT_INFO_KEYS = [
     'admin_pluriverse_field_contacts_label', 'admin_pluriverse_field_contacts_help',
     'admin_pluriverse_btn_add_contact', 'admin_pluriverse_contact_service_placeholder', 'admin_pluriverse_contact_handle_placeholder',
     'admin_pluriverse_btn_submit', 'admin_pluriverse_submit_help',
+    'admin_pluriverse_link_change_name',
     'admin_heading_download_backup', 'admin_help_download_backup',
     'admin_label_galaxies', 'admin_label_all_galaxies', 'admin_label_selected_galaxies', 'admin_msg_loading_galaxies',
     'admin_btn_select_all', 'admin_btn_clear',
@@ -1054,6 +1056,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_version' => 'Version',
             'admin_label_default_galaxy' => 'Default Galaxy',
             'admin_help_default_galaxy' => 'Choose which galaxy is shown at the root of the website.',
+            'admin_label_instance_name' => 'Name',
+            'admin_help_instance_name' => 'Public name for this instance. Shown on the visitor side and used as the Pluriverse-directory label when you apply to publish. Defaults to the first segment of the hostname if blank.',
             'admin_label_pdf_max' => 'PDF max size (MB)',
             'admin_help_pdf_max' => "Largest PDF a wormhole can carry. Default 25 MB. Editors uploading bigger files will get a 'File exceeds maximum allowed size' error.",
             'admin_btn_save_settings' => 'Save settings',
@@ -1087,6 +1091,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_contact_handle_placeholder' => 'handle / address',
             'admin_pluriverse_btn_submit' => 'Apply to Pluriverse',
             'admin_pluriverse_submit_help' => 'This instance will sign the application with its pluriverse.key (Ed25519) and post it to www.telaris.ca. The Pluriverse will email a verification link to the operator address.',
+            'admin_pluriverse_link_change_name' => '(change in Global Settings)',
             'admin_heading_download_backup' => 'Download a backup',
             'admin_help_download_backup' => 'Create a portable backup file containing galaxies and/or users. The default produces a full backup with embedded media.',
             'admin_label_galaxies' => 'Galaxies',
@@ -2197,6 +2202,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_version' => 'Versión',
             'admin_label_default_galaxy' => 'Galaxia predeterminada',
             'admin_help_default_galaxy' => 'Elige qué galaxia se muestra en la raíz del sitio.',
+            'admin_label_instance_name' => 'Nombre',
+            'admin_help_instance_name' => 'Nombre público de esta instancia. Se muestra en el lado visitante y se usa como etiqueta en el directorio del Pluriverse al solicitar publicación. Si queda en blanco, se usa la primera etiqueta del nombre de host.',
             'admin_label_pdf_max' => 'Tamaño máximo de PDF (MB)',
             'admin_help_pdf_max' => "PDF más grande que puede contener un agujero de gusano. Por defecto 25 MB. Al subir archivos más grandes aparece el error 'El archivo supera el tamaño máximo permitido'.",
             'admin_btn_save_settings' => 'Guardar ajustes',
@@ -2230,6 +2237,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_contact_handle_placeholder' => 'identificador / dirección',
             'admin_pluriverse_btn_submit' => 'Solicitar al Pluriverse',
             'admin_pluriverse_submit_help' => 'Esta instancia firmará la solicitud con su pluriverse.key (Ed25519) y la enviará a www.telaris.ca. El Pluriverse enviará un enlace de verificación al correo de la operación.',
+            'admin_pluriverse_link_change_name' => '(cambiar en Ajustes globales)',
             'admin_heading_download_backup' => 'Descargar un respaldo',
             'admin_help_download_backup' => 'Crea un archivo de respaldo portable con galaxias y/o cuentas. La opción por defecto produce un respaldo completo con los archivos multimedia incrustados.',
             'admin_label_galaxies' => 'Galaxias',
@@ -3336,6 +3344,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_version' => 'Versão',
             'admin_label_default_galaxy' => 'Galáxia padrão',
             'admin_help_default_galaxy' => 'Escolha qual galáxia é exibida na raiz do site.',
+            'admin_label_instance_name' => 'Nome',
+            'admin_help_instance_name' => 'Nome público desta instância. Aparece no lado visitante e é usado como rótulo no diretório do Pluriverse ao solicitar publicação. Se ficar em branco, usa-se o primeiro rótulo do nome de host.',
             'admin_label_pdf_max' => 'Tamanho máximo de PDF (MB)',
             'admin_help_pdf_max' => "Maior PDF que um buraco de minhoca pode conter. Padrão 25 MB. Ao enviar arquivos maiores aparece o erro 'O arquivo excede o tamanho máximo permitido'.",
             'admin_btn_save_settings' => 'Salvar configurações',
@@ -3369,6 +3379,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_contact_handle_placeholder' => 'identificador / endereço',
             'admin_pluriverse_btn_submit' => 'Solicitar ao Pluriverse',
             'admin_pluriverse_submit_help' => 'Esta instância assinará a solicitação com sua pluriverse.key (Ed25519) e a enviará para www.telaris.ca. O Pluriverse enviará um link de verificação ao e-mail da operação.',
+            'admin_pluriverse_link_change_name' => '(alterar em Configurações globais)',
             'admin_heading_download_backup' => 'Baixar um backup',
             'admin_help_download_backup' => 'Crie um arquivo de backup portátil com galáxias e/ou contas. A opção padrão produz um backup completo com mídia incorporada.',
             'admin_label_galaxies' => 'Galáxias',
@@ -4475,6 +4486,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_version' => 'Version',
             'admin_label_default_galaxy' => 'Galaxie par défaut',
             'admin_help_default_galaxy' => 'Choisis quelle galaxie est affichée à la racine du site.',
+            'admin_label_instance_name' => 'Nom',
+            'admin_help_instance_name' => 'Nom public de cette instance. Affiché côté visite et utilisé comme libellé dans l\'annuaire du Pluriverse au moment de postuler. Par défaut, le premier segment du nom d\'hôte si laissé vide.',
             'admin_label_pdf_max' => 'Taille maximale du PDF (Mo)',
             'admin_help_pdf_max' => "Plus grand PDF qu\'un trou de ver peut contenir. Par défaut 25 Mo. En téléversant des fichiers plus gros, l\'erreur « Le fichier dépasse la taille maximale autorisée » apparaît.",
             'admin_btn_save_settings' => 'Enregistrer les paramètres',
@@ -4508,6 +4521,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_contact_handle_placeholder' => 'identifiant / adresse',
             'admin_pluriverse_btn_submit' => 'Postuler au Pluriverse',
             'admin_pluriverse_submit_help' => 'Cette instance signera la candidature avec sa pluriverse.key (Ed25519) puis l\'enverra à www.telaris.ca. Le Pluriverse enverra un lien de vérification au courriel de l\'opération.',
+            'admin_pluriverse_link_change_name' => '(modifier dans Paramètres globaux)',
             'admin_heading_download_backup' => 'Télécharger une sauvegarde',
             'admin_help_download_backup' => 'Crée une archive de sauvegarde portable avec les galaxies et/ou les comptes. L\'option par défaut produit une sauvegarde complète avec les médias intégrés.',
             'admin_label_galaxies' => 'Galaxies',
@@ -10728,6 +10742,52 @@ function dropAllTables(PDO $pdo): array {
         $errors[] = "Database error: " . $e->getMessage();
     }
     return ['dropped' => $dropped, 'errors' => $errors];
+}
+
+/**
+ * Canonical instance name for the federation surface.
+ *
+ * Returns the operator-set `name` from the EN project_info row when it is
+ * non-empty (the EN row is the locale-invariant identifier per the identity
+ * envelope's existing convention). Otherwise derives a sensible default from
+ * the request hostname's leftmost dot-separated label, lowercased
+ * (starmaps.polivoxia.ca -> "starmaps", telaris.polivoxia.ca -> "telaris",
+ * www.telaris.ca -> "www"). Operators change this via the Global Settings
+ * tab; the apply flow + the identity envelope both read through this helper.
+ */
+function db_get_instance_name(): string {
+    try {
+        $pdo = getDB();
+        db_ensure_project_info_table();
+        $stmt = $pdo->prepare("SELECT name FROM project_info WHERE locale = 'en' LIMIT 1");
+        $stmt->execute();
+        $name = trim((string)($stmt->fetchColumn() ?: ''));
+        if ($name !== '') return $name;
+    } catch (Throwable $e) {
+        error_log('db_get_instance_name: ' . $e->getMessage());
+    }
+    $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+    if (str_contains($host, ':')) {
+        $host = (string)strstr($host, ':', true);
+    }
+    $host = strtolower($host);
+    if ($host === '') return '';
+    $parts = explode('.', $host);
+    return $parts[0];
+}
+
+function db_set_instance_name(string $name): void {
+    $name = trim($name);
+    if ($name === '') {
+        throw new InvalidArgumentException('Instance name must not be empty.');
+    }
+    if (mb_strlen($name) > 255) {
+        throw new InvalidArgumentException('Instance name must be 255 characters or fewer.');
+    }
+    db_ensure_project_info_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE project_info SET name = :n WHERE locale = 'en'");
+    $stmt->execute([':n' => $name]);
 }
 
 // ---------------------------------------------------------------------------
