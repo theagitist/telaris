@@ -1168,7 +1168,7 @@ foreach ($importantExtensions as $ext => $name) {
                     <?php if ($pluriverseApplication !== null && in_array($pluriverseApplication['status'], ['pending','verified','published'], true)): ?>
                         <!-- State B: an application is in flight. -->
                         <div class="border border-emerald-300 bg-emerald-50 rounded-lg p-5 mb-4">
-                            <h3 class="text-emerald-700 font-semibold mb-3"><?= t_attr('admin_pluriverse_status_heading', 'Application status') ?></h3>
+                            <h3 class="text-emerald-700 font-semibold mb-3"><?= t_attr('admin_pluriverse_status_heading', 'Membership status') ?></h3>
                             <dl class="grid grid-cols-[12rem_1fr] gap-x-4 gap-y-2 text-sm">
                                 <dt class="text-gray-600"><?= t_attr('admin_pluriverse_status_status', 'Status') ?></dt>
                                 <dd class="font-mono font-semibold text-gray-800"><?= htmlspecialchars($pluriverseApplication['status']) ?></dd>
@@ -1183,7 +1183,29 @@ foreach ($importantExtensions as $ext => $name) {
                                     <dd class="font-mono text-xs text-gray-700"><?= htmlspecialchars($pluriverseApplication['remote_fingerprint']) ?></dd>
                                 <?php endif; ?>
                             </dl>
-                            <p class="text-sm text-gray-600 mt-4"><?= t_attr('admin_pluriverse_status_help', 'Check your operator email for a verification link. The link expires one hour after submission; the pending application itself expires after 48 hours if not verified. The admins at the Pluriverse review the application after you verify and let you know when your instance is published.') ?></p>
+                            <p class="text-sm text-gray-600 mt-4"><?= t_attr('admin_pluriverse_status_help', 'Check your operator email for a verification link. Both the link and the pending request expire 24 hours after submission. The admins at the Pluriverse review the request after you verify and let you know when your instance is published.') ?></p>
+                        </div>
+                    <?php elseif ($pluriverseApplication !== null && $pluriverseApplication['status'] === 'expired'): ?>
+                        <!-- State C: the prior pending request expired without confirmation. -->
+                        <div class="border border-amber-300 bg-amber-50 rounded-lg p-5 mb-4">
+                            <h3 class="text-amber-700 font-semibold mb-3"><?= t_attr('admin_pluriverse_status_expired_heading', 'Join request expired') ?></h3>
+                            <dl class="grid grid-cols-[12rem_1fr] gap-x-4 gap-y-2 text-sm">
+                                <dt class="text-gray-600"><?= t_attr('admin_pluriverse_status_status', 'Status') ?></dt>
+                                <dd class="font-mono font-semibold text-amber-800"><?= htmlspecialchars($pluriverseApplication['status']) ?></dd>
+                                <dt class="text-gray-600"><?= t_attr('admin_pluriverse_status_submitted', 'Submitted at') ?></dt>
+                                <dd class="text-gray-800"><?= htmlspecialchars($pluriverseApplication['submitted_at']) ?></dd>
+                                <dt class="text-gray-600"><?= t_attr('admin_pluriverse_status_name', 'Name') ?></dt>
+                                <dd class="text-gray-800"><?= htmlspecialchars($pluriverseApplication['label']) ?></dd>
+                                <dt class="text-gray-600"><?= t_attr('admin_pluriverse_status_email', 'Operator email') ?></dt>
+                                <dd class="text-gray-800"><?= htmlspecialchars($pluriverseApplication['operator_email']) ?></dd>
+                            </dl>
+                            <p class="text-sm text-gray-700 mt-4"><?= t_attr('admin_pluriverse_status_expired_body', 'The verification link from your last join request was not opened within 24 hours, so the request expired. You can submit a fresh one with the button below; you will receive a new verification email at your operator address.') ?></p>
+                            <form method="POST" action="pluriverse-apply.php" class="mt-4">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                <button type="submit" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded">
+                                    <?= t_attr('admin_pluriverse_btn_rejoin', 'Re-join the Pluriverse') ?>
+                                </button>
+                            </form>
                         </div>
                     <?php else: ?>
                         <!-- State A: no active application; show the form. -->

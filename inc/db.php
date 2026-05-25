@@ -137,6 +137,7 @@ const PROJECT_INFO_KEYS = [
     // Pluriverse tab (admin/index.php?tab=pluriverse + admin/pluriverse-apply.php).
     'admin_pluriverse_heading', 'admin_pluriverse_subheading',
     'admin_pluriverse_status_heading', 'admin_pluriverse_status_status', 'admin_pluriverse_status_submitted', 'admin_pluriverse_status_name', 'admin_pluriverse_status_email', 'admin_pluriverse_status_fingerprint', 'admin_pluriverse_status_help',
+    'admin_pluriverse_status_expired_heading', 'admin_pluriverse_status_expired_body', 'admin_pluriverse_btn_rejoin',
     'admin_pluriverse_field_url_label', 'admin_pluriverse_field_url_help',
     'admin_pluriverse_field_name_label', 'admin_pluriverse_field_name_help',
     'admin_pluriverse_field_email_label', 'admin_pluriverse_field_email_help',
@@ -1069,7 +1070,10 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_status_name' => 'Name',
             'admin_pluriverse_status_email' => 'Operator email',
             'admin_pluriverse_status_fingerprint' => 'Public-key fingerprint stored',
-            'admin_pluriverse_status_help' => 'Check your operator email for a verification link. The link expires one hour after submission; the pending request itself expires after 48 hours if not verified. The admins at the Pluriverse review the request after you verify and let you know when your instance is published.',
+            'admin_pluriverse_status_help' => 'Check your operator email for a verification link. Both the link and the pending request expire 24 hours after submission. The admins at the Pluriverse review the request after you verify and let you know when your instance is published.',
+            'admin_pluriverse_status_expired_heading' => 'Join request expired',
+            'admin_pluriverse_status_expired_body' => 'The verification link from your last join request was not opened within 24 hours, so the request expired. You can submit a fresh one with the button below; you will receive a new verification email at your operator address.',
+            'admin_pluriverse_btn_rejoin' => 'Re-join the Pluriverse',
             'admin_pluriverse_field_url_label' => 'Instance URL',
             'admin_pluriverse_field_url_help' => 'Canonical https URL of this instance. The hostname is derived from this.',
             'admin_pluriverse_field_name_label' => 'Name',
@@ -2214,7 +2218,10 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_status_name' => 'Nombre',
             'admin_pluriverse_status_email' => 'Correo de la operación',
             'admin_pluriverse_status_fingerprint' => 'Huella de clave pública guardada',
-            'admin_pluriverse_status_help' => 'Revisa tu correo de operación para el enlace de verificación. El enlace expira una hora después del envío; la solicitud pendiente expira a las 48 horas si no se verifica. La administración del Pluriverse revisa la solicitud después de la verificación y avisa cuando la instancia esté publicada.',
+            'admin_pluriverse_status_help' => 'Revisa tu correo de operación para el enlace de verificación. Tanto el enlace como la solicitud pendiente caducan 24 horas después del envío. La administración del Pluriverse revisa la solicitud después de la verificación y avisa cuando la instancia esté publicada.',
+            'admin_pluriverse_status_expired_heading' => 'Solicitud de ingreso caducada',
+            'admin_pluriverse_status_expired_body' => 'El enlace de verificación de tu última solicitud de ingreso no se abrió en 24 horas, así que la solicitud caducó. Puedes enviar una nueva con el botón de abajo; recibirás un nuevo correo de verificación en tu dirección de operación.',
+            'admin_pluriverse_btn_rejoin' => 'Volver a unirme a la Pluriverse',
             'admin_pluriverse_field_url_label' => 'URL de la instancia',
             'admin_pluriverse_field_url_help' => 'URL https canónica de esta instancia. El nombre de host se deriva de aquí.',
             'admin_pluriverse_field_name_label' => 'Nombre',
@@ -3355,7 +3362,10 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_status_name' => 'Nome',
             'admin_pluriverse_status_email' => 'E-mail da operação',
             'admin_pluriverse_status_fingerprint' => 'Impressão da chave pública guardada',
-            'admin_pluriverse_status_help' => 'Verifique seu e-mail da operação para o link de verificação. O link expira uma hora após o envio; a solicitação pendente expira em 48 horas se não for verificada. A administração do Pluriverse revisa a solicitação após a verificação e avisa quando a instância for publicada.',
+            'admin_pluriverse_status_help' => 'Verifique seu e-mail da operação para o link de verificação. Tanto o link quanto a solicitação pendente expiram 24 horas após o envio. A administração do Pluriverse revisa a solicitação após a verificação e avisa quando a instância for publicada.',
+            'admin_pluriverse_status_expired_heading' => 'Solicitação de entrada expirada',
+            'admin_pluriverse_status_expired_body' => 'O link de verificação da sua última solicitação de entrada não foi aberto em 24 horas, então a solicitação expirou. Você pode enviar uma nova com o botão abaixo; vai receber um novo e-mail de verificação no seu endereço da operação.',
+            'admin_pluriverse_btn_rejoin' => 'Voltar a entrar na Pluriverse',
             'admin_pluriverse_field_url_label' => 'URL da instância',
             'admin_pluriverse_field_url_help' => 'URL https canônica desta instância. O nome de host é derivado daqui.',
             'admin_pluriverse_field_name_label' => 'Nome',
@@ -4496,7 +4506,10 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_status_name' => 'Nom',
             'admin_pluriverse_status_email' => 'Courriel de l\'opération',
             'admin_pluriverse_status_fingerprint' => 'Empreinte de clé publique enregistrée',
-            'admin_pluriverse_status_help' => 'Vérifie le courriel de l\'opération pour le lien de vérification. Le lien expire une heure après l\'envoi; la candidature en attente expire au bout de 48 heures sans vérification. L\'administration du Pluriverse examine la candidature après la vérification et signale quand l\'instance est publiée.',
+            'admin_pluriverse_status_help' => 'Vérifie le courriel de l\'opération pour le lien de vérification. Le lien et la demande en attente expirent tous deux 24 heures après l\'envoi. L\'administration du Pluriverse examine la demande après la vérification et signale quand l\'instance est publiée.',
+            'admin_pluriverse_status_expired_heading' => 'Demande d\'adhésion expirée',
+            'admin_pluriverse_status_expired_body' => 'Le lien de vérification de ta dernière demande d\'adhésion n\'a pas été ouvert dans les 24 heures, alors la demande a expiré. Tu peux en envoyer une nouvelle avec le bouton ci-dessous; tu recevras un nouveau courriel de vérification à ton adresse d\'opération.',
+            'admin_pluriverse_btn_rejoin' => 'Rejoindre à nouveau la Pluriverse',
             'admin_pluriverse_field_url_label' => 'URL de l\'instance',
             'admin_pluriverse_field_url_help' => 'URL https canonique de cette instance. Le nom d\'hôte est dérivé de ce champ.',
             'admin_pluriverse_field_name_label' => 'Nom',
@@ -10797,7 +10810,8 @@ function db_ensure_pluriverse_applications_table(): void {
     if ($checked) return;
     $checked = true;
     try {
-        getDB()->exec("
+        $pdo = getDB();
+        $pdo->exec("
             CREATE TABLE IF NOT EXISTS pluriverse_applications (
                 id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
                 submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -10806,23 +10820,53 @@ function db_ensure_pluriverse_applications_table(): void {
                 remote_instance_id INT UNSIGNED NULL,
                 remote_fingerprint VARCHAR(64) NULL,
                 pluriverse_url VARCHAR(255) NOT NULL,
-                status ENUM('pending','verified','published','rejected','blacklisted','withdrawn') NOT NULL DEFAULT 'pending',
+                status ENUM('pending','verified','published','rejected','blacklisted','withdrawn','expired') NOT NULL DEFAULT 'pending',
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 INDEX idx_status (status, submitted_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+        // 2026-05-25: ENUM grows an 'expired' option for pending rows whose
+        // 24h verification window passed without confirmation. Probe the
+        // COLUMN_TYPE to avoid the MODIFY on tables already at the new shape.
+        $info = $pdo->query("
+            SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pluriverse_applications' AND COLUMN_NAME = 'status'
+        ")->fetchColumn();
+        if (is_string($info) && strpos($info, "'expired'") === false) {
+            $pdo->exec("ALTER TABLE pluriverse_applications MODIFY COLUMN status ENUM('pending','verified','published','rejected','blacklisted','withdrawn','expired') NOT NULL DEFAULT 'pending'");
+        }
     } catch (PDOException $e) {
         error_log('db_ensure_pluriverse_applications_table: ' . $e->getMessage());
     }
 }
 
 /**
+ * Lazy sweep: flip any local pending row past its 24h window to 'expired'.
+ * Mirrors the Pluriverse-side helper so the instance UI reflects expiry
+ * even before the operator re-applies. The 24-hour horizon matches the
+ * Pluriverse's verify_by_at deadline minted at apply time.
+ */
+function db_expire_stale_pluriverse_applications(): int {
+    db_ensure_pluriverse_applications_table();
+    $stmt = getDB()->prepare("
+        UPDATE pluriverse_applications
+        SET status = 'expired'
+        WHERE status = 'pending' AND submitted_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    ");
+    $stmt->execute();
+    return $stmt->rowCount();
+}
+
+/**
  * Most recent application row, or null if none. The operator can submit again
- * once any prior row is withdrawn / rejected; the form is shown if either no
- * row exists or the latest is in a terminal status.
+ * once any prior row is withdrawn / rejected / expired; the form is shown if
+ * either no row exists or the latest is in a terminal status. Runs the
+ * stale-pending sweep before returning so a row in 'pending' past its 24h
+ * window surfaces as 'expired' to callers.
  */
 function db_get_latest_pluriverse_application(): ?array {
     db_ensure_pluriverse_applications_table();
+    db_expire_stale_pluriverse_applications();
     $row = getDB()->query("SELECT * FROM pluriverse_applications ORDER BY id DESC LIMIT 1")->fetch();
     return is_array($row) ? $row : null;
 }
@@ -10830,7 +10874,7 @@ function db_get_latest_pluriverse_application(): ?array {
 function db_pluriverse_has_active_application(): bool {
     $row = db_get_latest_pluriverse_application();
     if ($row === null) return false;
-    return !in_array($row['status'], ['rejected', 'withdrawn'], true);
+    return !in_array($row['status'], ['rejected', 'withdrawn', 'expired'], true);
 }
 
 function db_record_pluriverse_application(string $email, string $label, string $pluriverseUrl, ?int $remoteId, ?string $remoteFingerprint): int {
