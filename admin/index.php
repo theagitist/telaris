@@ -2273,10 +2273,12 @@ foreach ($importantExtensions as $ext => $name) {
             if (contentBackup) contentBackup.classList.add('hidden');
             const contentSnapshots = document.getElementById('content-snapshots');
             if (contentSnapshots) contentSnapshots.classList.add('hidden');
+            const contentPluriverse = document.getElementById('content-pluriverse');
+            if (contentPluriverse) contentPluriverse.classList.add('hidden');
             document.getElementById('content-php-info').classList.add('hidden');
 
             // Remove active styling from all tabs
-            const tabs = ['api-keys', 'users', 'constellations', 'clusters', 'settings', 'backup', 'snapshots', 'php-info'];
+            const tabs = ['api-keys', 'users', 'constellations', 'clusters', 'settings', 'backup', 'snapshots', 'pluriverse', 'php-info'];
             tabs.forEach(tab => {
                 const tabElement = document.getElementById('tab-' + tab);
                 if (tabElement) {
