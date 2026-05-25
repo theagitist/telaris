@@ -10820,20 +10820,33 @@ function db_ensure_pluriverse_applications_table(): void {
                 remote_instance_id INT UNSIGNED NULL,
                 remote_fingerprint VARCHAR(64) NULL,
                 pluriverse_url VARCHAR(255) NOT NULL,
-                status ENUM('pending','verified','published','rejected','blacklisted','withdrawn','expired') NOT NULL DEFAULT 'pending',
+                status ENUM('pending','verified','published','rejected','blacklisted','withdrawn','expired','revoked','outdated') NOT NULL DEFAULT 'pending',
+                last_polled_at TIMESTAMP NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 INDEX idx_status (status, submitted_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
-        // 2026-05-25: ENUM grows an 'expired' option for pending rows whose
-        // 24h verification window passed without confirmation. Probe the
-        // COLUMN_TYPE to avoid the MODIFY on tables already at the new shape.
+        // 2026-05-25: ENUM grows 'expired', then 'revoked'/'outdated' to cover
+        // every Pluriverse-side admission_status the status-sync poll can
+        // surface back. Probe COLUMN_TYPE to avoid the MODIFY when the table
+        // already has the latest shape.
         $info = $pdo->query("
             SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pluriverse_applications' AND COLUMN_NAME = 'status'
         ")->fetchColumn();
-        if (is_string($info) && strpos($info, "'expired'") === false) {
-            $pdo->exec("ALTER TABLE pluriverse_applications MODIFY COLUMN status ENUM('pending','verified','published','rejected','blacklisted','withdrawn','expired') NOT NULL DEFAULT 'pending'");
+        if (is_string($info) && (strpos($info, "'expired'") === false
+                                  || strpos($info, "'revoked'") === false
+                                  || strpos($info, "'outdated'") === false)) {
+            $pdo->exec("ALTER TABLE pluriverse_applications MODIFY COLUMN status ENUM('pending','verified','published','rejected','blacklisted','withdrawn','expired','revoked','outdated') NOT NULL DEFAULT 'pending'");
+        }
+        // 2026-05-25: last_polled_at tracks the last status-sync round-trip
+        // so the admin page can rate-limit polls to once per 5 min.
+        $cols = $pdo->query("
+            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pluriverse_applications'
+        ")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('last_polled_at', array_map('strval', $cols), true)) {
+            $pdo->exec("ALTER TABLE pluriverse_applications ADD COLUMN last_polled_at TIMESTAMP NULL AFTER status");
         }
     } catch (PDOException $e) {
         error_log('db_ensure_pluriverse_applications_table: ' . $e->getMessage());
@@ -10892,4 +10905,136 @@ function db_record_pluriverse_application(string $email, string $label, string $
         ':fp' => $remoteFingerprint,
     ]);
     return (int)$pdo->lastInsertId();
+}
+
+/**
+ * Sign a GET to the Pluriverse asking for THIS instance's current
+ * admission_status, parse the response, and update the latest local
+ * pluriverse_applications row to match. Rate-limited to once every
+ * five minutes via last_polled_at. Idempotent: if no application row
+ * exists, or if the row is too fresh to re-poll, returns without
+ * doing anything.
+ *
+ * Why signed GET (no body): the Pluriverse identifies the asking
+ * instance from the signer's keyid (`<hostname>:<fingerprint>`). It
+ * looks up the matching instance row and returns the current status.
+ * Other instances' status cannot be asked for.
+ *
+ * Failure modes (logged but silent to the caller, since the admin tab
+ * always rendered fine before status sync existed):
+ *   - secrets/pluriverse.key missing → bin/init-identity has not run
+ *   - Pluriverse unreachable → network blip, retry next poll window
+ *   - 404 from Pluriverse → instance row was deleted on the Pluriverse,
+ *     local row left as is (operator can re-join)
+ */
+function db_refresh_pluriverse_remote_status(): void {
+    db_ensure_pluriverse_applications_table();
+
+    $pdo = getDB();
+    $row = $pdo->query("SELECT * FROM pluriverse_applications ORDER BY id DESC LIMIT 1")->fetch();
+    if (!is_array($row)) return;
+
+    // Rate limit: once per 5 minutes per row.
+    if ($row['last_polled_at'] !== null
+        && strtotime((string)$row['last_polled_at']) >= time() - 300
+    ) {
+        return;
+    }
+
+    $remote = db_fetch_pluriverse_remote_status_signed();
+    // Always touch last_polled_at, even on transient failure, so a down
+    // Pluriverse doesn't get hammered every admin pageload.
+    $pdo->prepare("UPDATE pluriverse_applications SET last_polled_at = NOW() WHERE id = :id")
+        ->execute([':id' => (int)$row['id']]);
+
+    if ($remote === null) return;
+    if (!isset($remote['admission_status'])) return;
+    $newStatus = (string)$remote['admission_status'];
+    $valid = ['pending','verified','published','rejected','blacklisted','withdrawn','expired','revoked','outdated'];
+    if (!in_array($newStatus, $valid, true)) return;
+    if ($newStatus === (string)$row['status']) return;
+
+    $pdo->prepare("UPDATE pluriverse_applications SET status = :s WHERE id = :id")
+        ->execute([':s' => $newStatus, ':id' => (int)$row['id']]);
+}
+
+/**
+ * Sign + send the GET, parse the JSON response, return the decoded
+ * array or null on any failure (network, auth, parse, status mismatch).
+ *
+ * Caller (db_refresh_pluriverse_remote_status) decides what to do with
+ * the result; this is a thin transport wrapper.
+ */
+function db_fetch_pluriverse_remote_status_signed(): ?array {
+    require_once __DIR__ . '/federation/identity.php';
+    require_once __DIR__ . '/federation/http_sig.php';
+
+    $url = 'https://www.telaris.ca/api/pluriverse/operators/status';
+    $host = 'www.telaris.ca';
+
+    try {
+        $secretKey = federation_load_secret_key();
+        $localHost = (string)($_SERVER['HTTP_HOST'] ?? '');
+        if ($localHost === '') return null;
+        $keyid = federation_keyid($localHost);
+        $now = time();
+        $request = [
+            'method' => 'GET',
+            'target_uri' => $url,
+            'headers' => [
+                'host' => $host,
+                'date' => gmdate('D, d M Y H:i:s', $now) . ' GMT',
+            ],
+            'body' => '',
+        ];
+        $signed = federation_http_sig_sign($request, $secretKey, [
+            'keyid' => $keyid,
+            'tag' => 'pluriverse-status',
+            'created' => $now,
+            'expires' => $now + 60,
+        ]);
+    } catch (Throwable $e) {
+        error_log('status-sync: signing failed: ' . $e->getMessage());
+        return null;
+    }
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Host: ' . $host,
+            'Date: ' . $request['headers']['date'],
+            'Signature-Input: ' . $signed['signature_input'],
+            'Signature: ' . $signed['signature'],
+        ],
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT => 10,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
+    ]);
+    $resp = curl_exec($ch);
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($resp === false || $resp === null) {
+        error_log("status-sync: curl error: {$curlErr}");
+        return null;
+    }
+    if ($httpCode !== 200) {
+        // 404 (no remote row), 401 (sig issue), etc. are real signals but
+        // we let the caller leave the local row alone; only log so we can
+        // notice rotted state during operator support.
+        error_log("status-sync: HTTP {$httpCode} from Pluriverse: " . substr((string)$resp, 0, 200));
+        return null;
+    }
+
+    try {
+        $parsed = json_decode((string)$resp, true, 6, JSON_THROW_ON_ERROR);
+    } catch (JsonException $e) {
+        error_log('status-sync: JSON parse failed: ' . $e->getMessage());
+        return null;
+    }
+    return is_array($parsed) ? $parsed : null;
 }

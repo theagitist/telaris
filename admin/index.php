@@ -565,6 +565,14 @@ $constellations = db_get_constellations();
 // URL, Name and operator email are read-only displays sourced server-side
 // (current host, db_get_instance_name(), session admin email). The form only
 // collects framing + galaxy picks + optional secondary contacts.
+// Lazy status sync: poll the Pluriverse for THIS instance's current
+// admission_status before reading the local row, so the admin Pluriverse
+// tab reflects any admin-side transitions (publish/reject/blacklist/etc).
+// Rate-limited to once every 5 minutes via last_polled_at; signing
+// failures and Pluriverse-side errors are silent (logged, no UI impact).
+if ($activeTab === 'pluriverse') {
+    db_refresh_pluriverse_remote_status();
+}
 $pluriverseApplication = db_get_latest_pluriverse_application();
 $pluriverseAdminEmail = $_SESSION['admin_user_email'] ?? '';
 $pluriverseDefaultUrl = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://')
