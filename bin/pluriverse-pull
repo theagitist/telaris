@@ -1,0 +1,109 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * bin/pluriverse-pull — pull peers / blacklist / key-events from the Pluriverse.
+ *
+ * Idempotent: each invocation honours conditional GET (If-None-Match /
+ * If-Modified-Since) and short-circuits on 304. Safe to run from cron.
+ *
+ * Usage:
+ *   php bin/pluriverse-pull --endpoint=peers
+ *   php bin/pluriverse-pull --endpoint=blacklist
+ *   php bin/pluriverse-pull --endpoint=key-events
+ *   php bin/pluriverse-pull --endpoint=all
+ *   php bin/pluriverse-pull --status
+ *
+ * Recommended cron (run as the user that owns config.php; on this host that
+ * is the web user so all DB writes land under PHP-FPM's view of the file
+ * system). Times are staggered so the three jobs never collide:
+ *
+ *   key-events  every 5 minutes:   "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"
+ *   peers       every 30 minutes:  "3,33 * * * *"
+ *   blacklist   every 30 minutes:  "8,38 * * * *"
+ *
+ *   command:  php /var/www/<site>/bin/pluriverse-pull --endpoint=<name> > /dev/null
+ *
+ * Spec: P2P federation plan v10 § Layer 2: The local peer list.
+ */
+
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    echo "bin/pluriverse-pull must be run from the command line, not the web.\n";
+    exit(1);
+}
+
+require_once dirname(__DIR__) . '/config.php';
+require_once dirname(__DIR__) . '/inc/federation/pluriverse_pull.php';
+
+$opts = getopt('', ['endpoint:', 'status', 'help']);
+if (isset($opts['help'])) {
+    echo "Usage: php bin/pluriverse-pull --endpoint=peers|blacklist|key-events|all\n";
+    echo "       php bin/pluriverse-pull --status\n";
+    exit(0);
+}
+
+if (isset($opts['status'])) {
+    foreach ([PLURIVERSE_PULL_ENDPOINT_PEERS, PLURIVERSE_PULL_ENDPOINT_BLACKLIST, PLURIVERSE_PULL_ENDPOINT_KEY_EVENTS] as $ep) {
+        $s = pluriverse_pull_state_get($ep);
+        $pdo = getDB();
+        $r = $pdo->prepare("
+            SELECT last_pull_started_at, last_pull_succeeded_at,
+                   last_pull_failed_at, last_error
+            FROM pluriverse_pull_state WHERE endpoint = :e LIMIT 1
+        ");
+        $r->execute([':e' => $ep]);
+        $row = $r->fetch(PDO::FETCH_ASSOC) ?: [];
+        echo "== {$ep} ==\n";
+        echo "  last_succeeded_at: " . ($row['last_pull_succeeded_at'] ?? '(never)') . "\n";
+        echo "  last_failed_at:    " . ($row['last_pull_failed_at'] ?? '(never)') . "\n";
+        echo "  consecutive_fail:  " . $s['consecutive_failures'] . "\n";
+        echo "  rows_total:        " . $s['rows_processed_total'] . "\n";
+        if (!empty($row['last_error'])) {
+            echo "  last_error:        " . $row['last_error'] . "\n";
+        }
+        echo "  last_etag:         " . ($s['last_etag'] ?? '(none)') . "\n";
+    }
+    exit(0);
+}
+
+$endpoint = (string)($opts['endpoint'] ?? '');
+if ($endpoint === '') {
+    fwrite(STDERR, "Missing --endpoint. Run with --help for usage.\n");
+    exit(2);
+}
+
+$targets = match ($endpoint) {
+    'peers' => ['peers'],
+    'blacklist' => ['blacklist'],
+    'key-events' => ['key-events'],
+    'all' => ['peers', 'blacklist', 'key-events'],
+    default => null,
+};
+if ($targets === null) {
+    fwrite(STDERR, "Unknown endpoint '{$endpoint}'. Use peers|blacklist|key-events|all.\n");
+    exit(2);
+}
+
+$exit = 0;
+foreach ($targets as $t) {
+    $result = match ($t) {
+        'peers' => pluriverse_pull_peers(),
+        'blacklist' => pluriverse_pull_blacklist(),
+        'key-events' => pluriverse_pull_key_events(),
+    };
+    $ok = $result['ok'] ? 'OK' : 'FAIL';
+    $nm = $result['not_modified'] ? ' (not modified)' : '';
+    echo sprintf(
+        "[%s] %s http=%d processed=%d inserted=%d updated=%d skipped=%d%s\n",
+        $ok, $t, $result['status'],
+        $result['rows_processed'], $result['rows_inserted'],
+        $result['rows_updated'], $result['rows_skipped'], $nm
+    );
+    if ($result['error'] !== null) {
+        echo "    error: " . $result['error'] . "\n";
+    }
+    if (!$result['ok']) $exit = 1;
+}
+exit($exit);

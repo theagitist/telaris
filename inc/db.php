@@ -10734,16 +10734,72 @@ function db_ensure_pluriverse_blacklist_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS pluriverse_blacklist (
-                id BIGINT UNSIGNED PRIMARY KEY,
-                entity_type ENUM('hostname','ip','domain') NOT NULL,
-                entity_value VARCHAR(255) NOT NULL,
+                id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                entry_type ENUM('hostname','ip','domain') NOT NULL,
+                entry_value VARCHAR(255) NOT NULL,
                 reason TEXT NULL,
+                added_by VARCHAR(255) NULL,
                 added_at TIMESTAMP NOT NULL,
                 pulled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY uniq_entity (entity_type, entity_value),
-                INDEX idx_entity_value (entity_value)
+                UNIQUE KEY uniq_entry (entry_type, entry_value),
+                INDEX idx_entry_value (entry_value)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+        $col = function(string $colName) use ($pdo): bool {
+            $s = $pdo->prepare("SELECT 1 FROM information_schema.COLUMNS
+                                WHERE TABLE_SCHEMA = DATABASE()
+                                AND TABLE_NAME = 'pluriverse_blacklist'
+                                AND COLUMN_NAME = :c LIMIT 1");
+            $s->execute([':c' => $colName]);
+            return (bool)$s->fetchColumn();
+        };
+        if ($col('entity_type')) {
+            $pdo->exec("ALTER TABLE pluriverse_blacklist
+                        CHANGE COLUMN entity_type entry_type ENUM('hostname','ip','domain') NOT NULL");
+        }
+        if ($col('entity_value')) {
+            $pdo->exec("ALTER TABLE pluriverse_blacklist
+                        CHANGE COLUMN entity_value entry_value VARCHAR(255) NOT NULL");
+        }
+        if (!$col('added_by')) {
+            $pdo->exec("ALTER TABLE pluriverse_blacklist
+                        ADD COLUMN added_by VARCHAR(255) NULL AFTER reason");
+        }
+        $r = $pdo->query("SELECT EXTRA FROM information_schema.COLUMNS
+                          WHERE TABLE_SCHEMA = DATABASE()
+                          AND TABLE_NAME = 'pluriverse_blacklist'
+                          AND COLUMN_NAME = 'id' LIMIT 1");
+        $extra = (string)$r->fetchColumn();
+        if (stripos($extra, 'auto_increment') === false) {
+            $pdo->exec("ALTER TABLE pluriverse_blacklist
+                        MODIFY COLUMN id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT");
+        }
+        $idxOld = $pdo->prepare("SELECT 1 FROM information_schema.STATISTICS
+                                 WHERE TABLE_SCHEMA = DATABASE()
+                                 AND TABLE_NAME = 'pluriverse_blacklist'
+                                 AND INDEX_NAME = 'uniq_entity' LIMIT 1");
+        $idxOld->execute();
+        if ($idxOld->fetchColumn()) {
+            try {
+                $pdo->exec("ALTER TABLE pluriverse_blacklist DROP INDEX uniq_entity");
+                $pdo->exec("ALTER TABLE pluriverse_blacklist ADD UNIQUE KEY uniq_entry (entry_type, entry_value)");
+            } catch (PDOException $e) {
+                error_log('db_ensure_pluriverse_blacklist_table: uniq index migrate skipped: ' . $e->getMessage());
+            }
+        }
+        $idxOld2 = $pdo->prepare("SELECT 1 FROM information_schema.STATISTICS
+                                  WHERE TABLE_SCHEMA = DATABASE()
+                                  AND TABLE_NAME = 'pluriverse_blacklist'
+                                  AND INDEX_NAME = 'idx_entity_value' LIMIT 1");
+        $idxOld2->execute();
+        if ($idxOld2->fetchColumn()) {
+            try {
+                $pdo->exec("ALTER TABLE pluriverse_blacklist DROP INDEX idx_entity_value");
+                $pdo->exec("ALTER TABLE pluriverse_blacklist ADD INDEX idx_entry_value (entry_value)");
+            } catch (PDOException $e) {
+                error_log('db_ensure_pluriverse_blacklist_table: idx rename skipped: ' . $e->getMessage());
+            }
+        }
     } catch (PDOException $e) {
         error_log('db_ensure_pluriverse_blacklist_table: ' . $e->getMessage());
     }
@@ -10759,6 +10815,8 @@ function db_ensure_pluriverse_pull_state_table(): void {
             CREATE TABLE IF NOT EXISTS pluriverse_pull_state (
                 endpoint VARCHAR(64) PRIMARY KEY,
                 last_seen_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                last_etag VARCHAR(64) NULL,
+                last_modified VARCHAR(64) NULL,
                 last_pull_started_at TIMESTAMP NULL,
                 last_pull_succeeded_at TIMESTAMP NULL,
                 last_pull_failed_at TIMESTAMP NULL,
@@ -10768,6 +10826,22 @@ function db_ensure_pluriverse_pull_state_table(): void {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+        $col = function(string $colName) use ($pdo): bool {
+            $s = $pdo->prepare("SELECT 1 FROM information_schema.COLUMNS
+                                WHERE TABLE_SCHEMA = DATABASE()
+                                AND TABLE_NAME = 'pluriverse_pull_state'
+                                AND COLUMN_NAME = :c LIMIT 1");
+            $s->execute([':c' => $colName]);
+            return (bool)$s->fetchColumn();
+        };
+        if (!$col('last_etag')) {
+            $pdo->exec("ALTER TABLE pluriverse_pull_state
+                        ADD COLUMN last_etag VARCHAR(64) NULL AFTER last_seen_id");
+        }
+        if (!$col('last_modified')) {
+            $pdo->exec("ALTER TABLE pluriverse_pull_state
+                        ADD COLUMN last_modified VARCHAR(64) NULL AFTER last_etag");
+        }
     } catch (PDOException $e) {
         error_log('db_ensure_pluriverse_pull_state_table: ' . $e->getMessage());
     }
