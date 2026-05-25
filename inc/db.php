@@ -11438,3 +11438,181 @@ function db_fetch_pluriverse_remote_status_signed(): ?array {
     }
     return is_array($parsed) ? $parsed : null;
 }
+
+// ---------------------------------------------------------------------------
+// Stage 4a: schema gap-fill for the handshake state machine, coord-key cache,
+// and outbound retry queue on pluriverse_messages.
+//
+// Three additions only. Application code that uses these tables (the HTTP-Sig
+// verifier middleware, the handshake endpoint, the coord-key cache helpers,
+// the retry dispatcher) lands in 4b-4d.
+// ---------------------------------------------------------------------------
+
+/**
+ * Tiny key/value table for instance-level state that doesn't deserve its own
+ * dedicated schema. Stage 4 uses three rows: the cached Pluriverse coordination
+ * public key (current + previous slot + previous grace expiry). Future callers
+ * may add their own keys without a migration. Keys are namespaced by convention
+ * (e.g. 'pluriverse_coord_pub_current'); no enforcement.
+ */
+function db_ensure_system_meta_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS system_meta (
+                meta_key VARCHAR(64) PRIMARY KEY,
+                meta_value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_system_meta_table: ' . $e->getMessage());
+    }
+}
+
+function db_system_meta_get(string $key): ?string {
+    db_ensure_system_meta_table();
+    $stmt = getDB()->prepare("SELECT meta_value FROM system_meta WHERE meta_key = :k LIMIT 1");
+    $stmt->execute([':k' => $key]);
+    $row = $stmt->fetchColumn();
+    return $row === false ? null : (string)$row;
+}
+
+function db_system_meta_set(string $key, string $value): void {
+    db_ensure_system_meta_table();
+    $stmt = getDB()->prepare("
+        INSERT INTO system_meta (meta_key, meta_value) VALUES (:k, :v)
+        ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)
+    ");
+    $stmt->execute([':k' => $key, ':v' => $value]);
+}
+
+function db_system_meta_delete(string $key): void {
+    db_ensure_system_meta_table();
+    $stmt = getDB()->prepare("DELETE FROM system_meta WHERE meta_key = :k");
+    $stmt->execute([':k' => $key]);
+}
+
+/**
+ * Stage 4 handshake state machine. One row per handshake (lifecycle: initiated
+ * → pending_their_response → accepted_awaiting_complete → complete, OR ending
+ * in rejected / expired / cancelled). Distinct from pluriverse_messages, which
+ * stores the JWS-wrapped message envelopes exchanged at each round; this table
+ * holds the state and the foreign keys back to those messages.
+ *
+ * peer_id is NULL until the first reply lands, because the round-1 request is
+ * addressed by hostname (the other side may not have us as a peer yet).
+ */
+function db_ensure_handshakes_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_peers_table();
+    db_ensure_pluriverse_messages_table();
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS handshakes (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                peer_id INT UNSIGNED NULL,
+                remote_hostname VARCHAR(255) NOT NULL,
+                initiator ENUM('us','them') NOT NULL,
+                status ENUM(
+                    'pending_their_response',
+                    'pending_our_response',
+                    'accepted_awaiting_complete',
+                    'complete',
+                    'rejected',
+                    'expired',
+                    'cancelled'
+                ) NOT NULL,
+                requested_galaxies_publish JSON NULL,
+                requested_galaxies_subscribe JSON NULL,
+                thread_id VARCHAR(64) NOT NULL,
+                initial_message_id INT UNSIGNED NULL,
+                response_message_id INT UNSIGNED NULL,
+                complete_message_id INT UNSIGNED NULL,
+                reject_reason TEXT NULL,
+                retry_attempts INT UNSIGNED NOT NULL DEFAULT 0,
+                next_retry_at TIMESTAMP NULL,
+                last_retry_error TEXT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_status_retry (status, next_retry_at),
+                INDEX idx_hostname (remote_hostname),
+                INDEX idx_peer (peer_id),
+                INDEX idx_thread (thread_id),
+                FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE SET NULL,
+                FOREIGN KEY (initial_message_id) REFERENCES pluriverse_messages(id) ON DELETE SET NULL,
+                FOREIGN KEY (response_message_id) REFERENCES pluriverse_messages(id) ON DELETE SET NULL,
+                FOREIGN KEY (complete_message_id) REFERENCES pluriverse_messages(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_handshakes_table: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Outbound retry queue on pluriverse_messages. Inbound rows + non-deliverable
+ * outbound rows keep delivery_status = 'not_applicable'. Outbound rows that
+ * need delivery start 'pending'; the cron-driven dispatcher (4d) walks
+ * (delivery_status IN ('pending','failed') AND next_attempt_at <= NOW())
+ * and POSTs to the recipient's /api/pluriverse/messages or handshake endpoint
+ * with HTTP-Sig. On 2xx → 'delivered'. On retry exhaustion → 'given_up'.
+ *
+ * Additive ALTER, information_schema-guarded for idempotency.
+ */
+function db_ensure_pluriverse_messages_retry_columns(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_pluriverse_messages_table();
+    try {
+        $pdo = getDB();
+        $cols = $pdo->query("
+            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pluriverse_messages'
+        ")->fetchAll(PDO::FETCH_COLUMN);
+        $cols = array_map('strval', is_array($cols) ? $cols : []);
+        if (!in_array('delivery_status', $cols, true)) {
+            $pdo->exec("ALTER TABLE pluriverse_messages
+                        ADD COLUMN delivery_status
+                        ENUM('not_applicable','pending','delivered','failed','given_up')
+                        NOT NULL DEFAULT 'not_applicable' AFTER read_at");
+        }
+        if (!in_array('attempt_count', $cols, true)) {
+            $pdo->exec("ALTER TABLE pluriverse_messages
+                        ADD COLUMN attempt_count INT UNSIGNED NOT NULL DEFAULT 0 AFTER delivery_status");
+        }
+        if (!in_array('next_attempt_at', $cols, true)) {
+            $pdo->exec("ALTER TABLE pluriverse_messages
+                        ADD COLUMN next_attempt_at TIMESTAMP NULL AFTER attempt_count");
+        }
+        if (!in_array('last_attempt_error', $cols, true)) {
+            $pdo->exec("ALTER TABLE pluriverse_messages
+                        ADD COLUMN last_attempt_error TEXT NULL AFTER next_attempt_at");
+        }
+        $idx = $pdo->prepare("
+            SELECT 1 FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'pluriverse_messages'
+              AND INDEX_NAME = 'idx_retry' LIMIT 1
+        ");
+        $idx->execute();
+        if (!$idx->fetchColumn()) {
+            try {
+                $pdo->exec("ALTER TABLE pluriverse_messages
+                            ADD INDEX idx_retry (delivery_status, next_attempt_at)");
+            } catch (PDOException $e) {
+                error_log('db_ensure_pluriverse_messages_retry_columns: idx skipped: ' . $e->getMessage());
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_pluriverse_messages_retry_columns: ' . $e->getMessage());
+    }
+}
