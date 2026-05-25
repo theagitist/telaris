@@ -1222,31 +1222,24 @@ foreach ($importantExtensions as $ext => $name) {
                             </div>
 
                             <div>
-                                <div class="flex items-center justify-between mb-1">
-                                    <label class="block text-sm font-medium text-gray-800"><?= t_attr('admin_pluriverse_field_galaxies_label', 'Publishable galaxies') ?></label>
-                                    <div class="flex gap-3 text-xs">
-                                        <button type="button" id="pv-galaxies-check-all" class="text-blue-600 hover:text-blue-800"><?= t_attr('admin_pluriverse_btn_check_all', 'Check all') ?></button>
-                                        <button type="button" id="pv-galaxies-uncheck-all" class="text-gray-600 hover:text-gray-800"><?= t_attr('admin_pluriverse_btn_uncheck_all', 'Uncheck all') ?></button>
-                                    </div>
-                                </div>
-                                <p class="text-xs text-gray-500 mb-2"><?= t_attr('admin_pluriverse_field_galaxies_help', 'Which galaxies to expose through the Pluriverse. Uncheck any you do not want public. At least one must stay checked.') ?></p>
-                                <div class="border border-gray-300 rounded max-h-64 overflow-y-auto p-3 bg-white">
-                                    <?php if (empty($constellations)): ?>
-                                        <p class="text-sm text-gray-500"><?= t_attr('admin_pluriverse_field_galaxies_empty', 'This instance has no galaxies yet. Create at least one before applying.') ?></p>
-                                    <?php else: ?>
-                                        <ul id="pv-galaxies-list" class="space-y-1">
+                                <label class="block text-sm font-medium text-gray-800 mb-1"><?= t_attr('admin_pluriverse_field_galaxies_label', 'Publishable galaxies') ?></label>
+                                <?php $pvGalaxyCount = count($constellations); ?>
+                                <?php if ($pvGalaxyCount === 0): ?>
+                                    <p class="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded p-3"><?= t_attr('admin_pluriverse_field_galaxies_empty', 'No galaxies yet. The application registers this instance now; new galaxies are picked up automatically as you create them.') ?></p>
+                                <?php else: ?>
+                                    <p class="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded p-3"><?= htmlspecialchars(sprintf(t('admin_pluriverse_field_galaxies_summary', '%d galaxies on this instance will be published. New galaxies are added automatically as you create them.'), $pvGalaxyCount)) ?></p>
+                                    <details class="mt-2">
+                                        <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-700"><?= t_attr('admin_pluriverse_field_galaxies_disclosure', 'See the list') ?></summary>
+                                        <ul class="mt-2 border border-gray-200 rounded max-h-64 overflow-y-auto p-3 bg-white space-y-1">
                                             <?php foreach ($constellations as $g): ?>
-                                                <li>
-                                                    <label class="inline-flex items-center gap-2 text-sm cursor-pointer">
-                                                        <input type="checkbox" name="publishable_slugs[]" value="<?= htmlspecialchars($g['slug']) ?>" checked class="checkbox checkbox-sm">
-                                                        <code class="text-xs bg-gray-100 px-1 rounded"><?= htmlspecialchars($g['slug']) ?></code>
-                                                        <span class="text-gray-700"><?= htmlspecialchars($g['name']) ?></span>
-                                                    </label>
+                                                <li class="text-sm">
+                                                    <code class="text-xs bg-gray-100 px-1 rounded"><?= htmlspecialchars($g['slug']) ?></code>
+                                                    <span class="text-gray-700 ml-2"><?= htmlspecialchars($g['name']) ?></span>
                                                 </li>
                                             <?php endforeach; ?>
                                         </ul>
-                                    <?php endif; ?>
-                                </div>
+                                    </details>
+                                <?php endif; ?>
                             </div>
 
                             <div class="pt-2 border-t border-gray-200">
@@ -1256,17 +1249,6 @@ foreach ($importantExtensions as $ext => $name) {
                         </form>
                         <script>
                           (function () {
-                            var list = document.getElementById('pv-galaxies-list');
-                            var checkAll = document.getElementById('pv-galaxies-check-all');
-                            var uncheckAll = document.getElementById('pv-galaxies-uncheck-all');
-                            if (list && checkAll && uncheckAll) {
-                              checkAll.addEventListener('click', function () {
-                                list.querySelectorAll('input[type=checkbox]').forEach(function (b) { b.checked = true; });
-                              });
-                              uncheckAll.addEventListener('click', function () {
-                                list.querySelectorAll('input[type=checkbox]').forEach(function (b) { b.checked = false; });
-                              });
-                            }
                             var rows = document.getElementById('pv-contacts-rows');
                             var addBtn = document.getElementById('pv-contacts-add');
                             var tpl = document.getElementById('pv-contact-row-template');

@@ -55,15 +55,23 @@ $label = db_get_instance_name();
 $operatorEmail = (string)($_SESSION['admin_user_email'] ?? '');
 
 $editorialFraming = trim((string)($_POST['editorial_framing'] ?? ''));
-$publishableSlugs = $_POST['publishable_slugs'] ?? [];
 $contactServices = $_POST['contact_service'] ?? [];
 $contactUserIds = $_POST['contact_user_id'] ?? [];
+
+// Server-side galaxy snapshot. All current galaxies on this instance are
+// published; there is no per-galaxy opt-out (anti-siloing). N=0 is allowed
+// at apply time: the application registers the instance, and the
+// Pluriverse will pick up new galaxies on rescan per the v10 plan.
+$publishableSlugs = [];
+foreach (db_get_constellations() as $g) {
+    $slug = (string)($g['slug'] ?? '');
+    if ($slug !== '') $publishableSlugs[] = $slug;
+}
 
 $errors = [];
 if (!preg_match('#^https://#', $url)) $errors[] = 'This instance is not served over https; cannot apply.';
 if ($label === '' || mb_strlen($label) > 255) $errors[] = 'Instance Name is empty; set it in Global Settings before applying.';
 if (!filter_var($operatorEmail, FILTER_VALIDATE_EMAIL)) $errors[] = 'Your admin account has no valid email on file.';
-if (!is_array($publishableSlugs) || count($publishableSlugs) === 0) $errors[] = 'Pick at least one galaxy to publish.';
 
 $otherContacts = [];
 if (is_array($contactServices) && is_array($contactUserIds)) {
