@@ -147,6 +147,15 @@ const PROJECT_INFO_KEYS = [
     'admin_pluriverse_btn_add_contact', 'admin_pluriverse_contact_service_placeholder', 'admin_pluriverse_contact_handle_placeholder',
     'admin_pluriverse_btn_submit', 'admin_pluriverse_submit_help',
     'admin_pluriverse_link_change_name',
+    // Stage 3: local peer list + refresh-now.
+    'admin_pluriverse_peers_heading', 'admin_pluriverse_peers_subheading',
+    'admin_pluriverse_btn_refresh',
+    'admin_pluriverse_peers_last_ok', 'admin_pluriverse_peers_never', 'admin_pluriverse_peers_failures', 'admin_pluriverse_peers_last_err',
+    'admin_pluriverse_peers_empty',
+    'admin_pluriverse_peers_col_label', 'admin_pluriverse_peers_col_hostname', 'admin_pluriverse_peers_col_source', 'admin_pluriverse_peers_col_fingerprint', 'admin_pluriverse_peers_col_trust_state', 'admin_pluriverse_peers_col_last_seen',
+    'admin_pluriverse_peers_source_registry', 'admin_pluriverse_peers_source_manual', 'admin_pluriverse_peers_source_manual_help',
+    'admin_pluriverse_peers_manual_banner',
+    'admin_pluriverse_refresh_ok', 'admin_pluriverse_refresh_err',
     'admin_heading_download_backup', 'admin_help_download_backup',
     'admin_label_galaxies', 'admin_label_all_galaxies', 'admin_label_selected_galaxies', 'admin_msg_loading_galaxies',
     'admin_btn_select_all', 'admin_btn_clear',
@@ -1094,6 +1103,26 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_btn_submit' => 'Join the Pluriverse',
             'admin_pluriverse_submit_help' => 'This instance will sign the request with its pluriverse.key (Ed25519) and post it to www.telaris.ca. The Pluriverse will email a verification link to the operator address.',
             'admin_pluriverse_link_change_name' => '(change in Global Settings)',
+            'admin_pluriverse_peers_heading' => 'Local peer list',
+            'admin_pluriverse_peers_subheading' => 'Other instances this site knows about. Pulled from the Pluriverse on a schedule. No content flows until a bilateral whitelist is established with each peer (stage 4+).',
+            'admin_pluriverse_btn_refresh' => 'Refresh now',
+            'admin_pluriverse_peers_last_ok' => 'Last successful pull:',
+            'admin_pluriverse_peers_never' => 'never',
+            'admin_pluriverse_peers_failures' => 'Consecutive failures:',
+            'admin_pluriverse_peers_last_err' => 'Last error:',
+            'admin_pluriverse_peers_empty' => 'No peers known yet. They appear here after the next Pluriverse pull, or use Refresh now to fetch immediately.',
+            'admin_pluriverse_peers_col_label' => 'Name',
+            'admin_pluriverse_peers_col_hostname' => 'Hostname',
+            'admin_pluriverse_peers_col_source' => 'Source',
+            'admin_pluriverse_peers_col_fingerprint' => 'Fingerprint',
+            'admin_pluriverse_peers_col_trust_state' => 'Trust state',
+            'admin_pluriverse_peers_col_last_seen' => 'Last seen',
+            'admin_pluriverse_peers_source_registry' => 'Pluriverse',
+            'admin_pluriverse_peers_source_manual' => 'Manual',
+            'admin_pluriverse_peers_source_manual_help' => 'Not Pluriverse-vouched.',
+            'admin_pluriverse_peers_manual_banner' => 'Manual peer added by %s on %s; verify intended.',
+            'admin_pluriverse_refresh_ok' => 'Pluriverse refreshed:',
+            'admin_pluriverse_refresh_err' => 'Pluriverse refresh failed:',
             'admin_heading_download_backup' => 'Download a backup',
             'admin_help_download_backup' => 'Create a portable backup file containing galaxies and/or users. The default produces a full backup with embedded media.',
             'admin_label_galaxies' => 'Galaxies',
@@ -2242,6 +2271,26 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_btn_submit' => 'Unirse al Pluriverse',
             'admin_pluriverse_submit_help' => 'Esta instancia firmará la solicitud con su pluriverse.key (Ed25519) y la enviará a www.telaris.ca. El Pluriverse enviará un enlace de verificación al correo de la operación.',
             'admin_pluriverse_link_change_name' => '(cambiar en Ajustes globales)',
+            'admin_pluriverse_peers_heading' => 'Lista local de instancias pares',
+            'admin_pluriverse_peers_subheading' => 'Otras instancias que este sitio conoce. Se obtienen del Pluriverse en un horario regular. Ningún contenido fluye hasta que haya una lista blanca bilateral con cada par (etapa 4+).',
+            'admin_pluriverse_btn_refresh' => 'Actualizar ahora',
+            'admin_pluriverse_peers_last_ok' => 'Última obtención exitosa:',
+            'admin_pluriverse_peers_never' => 'nunca',
+            'admin_pluriverse_peers_failures' => 'Fallos consecutivos:',
+            'admin_pluriverse_peers_last_err' => 'Último error:',
+            'admin_pluriverse_peers_empty' => 'Aún no hay instancias pares. Aparecerán aquí después de la próxima obtención desde el Pluriverse, o usa Actualizar ahora para obtenerlas de inmediato.',
+            'admin_pluriverse_peers_col_label' => 'Nombre',
+            'admin_pluriverse_peers_col_hostname' => 'Nombre de host',
+            'admin_pluriverse_peers_col_source' => 'Origen',
+            'admin_pluriverse_peers_col_fingerprint' => 'Huella',
+            'admin_pluriverse_peers_col_trust_state' => 'Estado de confianza',
+            'admin_pluriverse_peers_col_last_seen' => 'Última actividad',
+            'admin_pluriverse_peers_source_registry' => 'Pluriverse',
+            'admin_pluriverse_peers_source_manual' => 'Manual',
+            'admin_pluriverse_peers_source_manual_help' => 'No avalada por el Pluriverse.',
+            'admin_pluriverse_peers_manual_banner' => 'Par manual añadido por %s el %s; verificar la intención.',
+            'admin_pluriverse_refresh_ok' => 'Pluriverse actualizado:',
+            'admin_pluriverse_refresh_err' => 'La actualización del Pluriverse falló:',
             'admin_heading_download_backup' => 'Descargar un respaldo',
             'admin_help_download_backup' => 'Crea un archivo de respaldo portable con galaxias y/o cuentas. La opción por defecto produce un respaldo completo con los archivos multimedia incrustados.',
             'admin_label_galaxies' => 'Galaxias',
@@ -3386,6 +3435,26 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_btn_submit' => 'Juntar-se ao Pluriverse',
             'admin_pluriverse_submit_help' => 'Esta instância assinará a solicitação com sua pluriverse.key (Ed25519) e a enviará para www.telaris.ca. O Pluriverse enviará um link de verificação ao e-mail da operação.',
             'admin_pluriverse_link_change_name' => '(alterar em Configurações globais)',
+            'admin_pluriverse_peers_heading' => 'Lista local de instâncias pares',
+            'admin_pluriverse_peers_subheading' => 'Outras instâncias que este site conhece. São obtidas do Pluriverse em um horário regular. Nenhum conteúdo flui até haver uma lista branca bilateral com cada par (etapa 4+).',
+            'admin_pluriverse_btn_refresh' => 'Atualizar agora',
+            'admin_pluriverse_peers_last_ok' => 'Última obtenção bem-sucedida:',
+            'admin_pluriverse_peers_never' => 'nunca',
+            'admin_pluriverse_peers_failures' => 'Falhas consecutivas:',
+            'admin_pluriverse_peers_last_err' => 'Último erro:',
+            'admin_pluriverse_peers_empty' => 'Ainda não há instâncias pares. Aparecerão aqui após a próxima obtenção do Pluriverse, ou use Atualizar agora para obter imediatamente.',
+            'admin_pluriverse_peers_col_label' => 'Nome',
+            'admin_pluriverse_peers_col_hostname' => 'Nome do host',
+            'admin_pluriverse_peers_col_source' => 'Origem',
+            'admin_pluriverse_peers_col_fingerprint' => 'Impressão',
+            'admin_pluriverse_peers_col_trust_state' => 'Estado de confiança',
+            'admin_pluriverse_peers_col_last_seen' => 'Última atividade',
+            'admin_pluriverse_peers_source_registry' => 'Pluriverse',
+            'admin_pluriverse_peers_source_manual' => 'Manual',
+            'admin_pluriverse_peers_source_manual_help' => 'Não avalizada pelo Pluriverse.',
+            'admin_pluriverse_peers_manual_banner' => 'Par manual adicionado por %s em %s; verificar a intenção.',
+            'admin_pluriverse_refresh_ok' => 'Pluriverse atualizado:',
+            'admin_pluriverse_refresh_err' => 'A atualização do Pluriverse falhou:',
             'admin_heading_download_backup' => 'Baixar um backup',
             'admin_help_download_backup' => 'Crie um arquivo de backup portátil com galáxias e/ou contas. A opção padrão produz um backup completo com mídia incorporada.',
             'admin_label_galaxies' => 'Galáxias',
@@ -4530,6 +4599,26 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_btn_submit' => 'Rejoindre le Pluriverse',
             'admin_pluriverse_submit_help' => 'Cette instance signera la candidature avec sa pluriverse.key (Ed25519) puis l\'enverra à www.telaris.ca. Le Pluriverse enverra un lien de vérification au courriel de l\'opération.',
             'admin_pluriverse_link_change_name' => '(modifier dans Paramètres globaux)',
+            'admin_pluriverse_peers_heading' => 'Liste locale des instances pairs',
+            'admin_pluriverse_peers_subheading' => 'Les autres instances que ce site connaît. Récupérées du Pluriverse selon un horaire régulier. Aucun contenu ne circule tant qu\'une liste blanche bilatérale n\'est pas établie avec chaque pair (étape 4+).',
+            'admin_pluriverse_btn_refresh' => 'Actualiser maintenant',
+            'admin_pluriverse_peers_last_ok' => 'Dernière récupération réussie :',
+            'admin_pluriverse_peers_never' => 'jamais',
+            'admin_pluriverse_peers_failures' => 'Échecs consécutifs :',
+            'admin_pluriverse_peers_last_err' => 'Dernière erreur :',
+            'admin_pluriverse_peers_empty' => 'Aucun pair connu pour le moment. Ils apparaîtront ici après la prochaine récupération du Pluriverse, ou utilise Actualiser maintenant pour récupérer immédiatement.',
+            'admin_pluriverse_peers_col_label' => 'Nom',
+            'admin_pluriverse_peers_col_hostname' => 'Nom d\'hôte',
+            'admin_pluriverse_peers_col_source' => 'Origine',
+            'admin_pluriverse_peers_col_fingerprint' => 'Empreinte',
+            'admin_pluriverse_peers_col_trust_state' => 'État de confiance',
+            'admin_pluriverse_peers_col_last_seen' => 'Dernière activité',
+            'admin_pluriverse_peers_source_registry' => 'Pluriverse',
+            'admin_pluriverse_peers_source_manual' => 'Manuel',
+            'admin_pluriverse_peers_source_manual_help' => 'Non vérifié par le Pluriverse.',
+            'admin_pluriverse_peers_manual_banner' => 'Pair manuel ajouté par %s le %s ; vérifier l\'intention.',
+            'admin_pluriverse_refresh_ok' => 'Pluriverse actualisé :',
+            'admin_pluriverse_refresh_err' => 'L\'actualisation du Pluriverse a échoué :',
             'admin_heading_download_backup' => 'Télécharger une sauvegarde',
             'admin_help_download_backup' => 'Crée une archive de sauvegarde portable avec les galaxies et/ou les comptes. L\'option par défaut produit une sauvegarde complète avec les médias intégrés.',
             'admin_label_galaxies' => 'Galaxies',
@@ -10845,6 +10934,98 @@ function db_ensure_pluriverse_pull_state_table(): void {
     } catch (PDOException $e) {
         error_log('db_ensure_pluriverse_pull_state_table: ' . $e->getMessage());
     }
+}
+
+/**
+ * Read the local peer list for the admin Pluriverse tab. Returns a flat
+ * array sorted by source (registry first, manual last) then label; binary
+ * key columns are converted to base64url and the fingerprint is derived
+ * from the public key.
+ *
+ * @return list<array{
+ *     id: int,
+ *     hostname: string,
+ *     url: string,
+ *     label: string,
+ *     source: string,
+ *     source_detail: ?string,
+ *     fingerprint: string,
+ *     last_seen_at: ?string,
+ *     health_status: string,
+ *     trust_state: string,
+ *     manual_added_by: ?string,
+ *     manual_added_at: ?string,
+ *     bridges: array<int,mixed>
+ * }>
+ */
+function db_get_local_peers(): array {
+    db_ensure_peers_table();
+    $pdo = getDB();
+    $rows = $pdo->query("
+        SELECT id, hostname, url, label, source, source_detail,
+               public_key, last_seen_at, health_status, trust_state,
+               manual_added_by, manual_added_at, bridges
+        FROM peers
+        ORDER BY (source = 'manual') ASC, label ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    $out = [];
+    foreach ($rows as $r) {
+        $pk = (string)$r['public_key'];
+        $fp = strlen($pk) === SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES
+            ? rtrim(strtr(base64_encode(substr(hash('sha256', $pk, true), 0, 16)), '+/', '-_'), '=')
+            : '';
+        $bridges = [];
+        if (!empty($r['bridges'])) {
+            $decoded = json_decode((string)$r['bridges'], true);
+            if (is_array($decoded)) $bridges = $decoded;
+        }
+        $out[] = [
+            'id' => (int)$r['id'],
+            'hostname' => (string)$r['hostname'],
+            'url' => (string)$r['url'],
+            'label' => (string)$r['label'],
+            'source' => (string)$r['source'],
+            'source_detail' => $r['source_detail'] !== null ? (string)$r['source_detail'] : null,
+            'fingerprint' => $fp,
+            'last_seen_at' => $r['last_seen_at'] !== null ? (string)$r['last_seen_at'] : null,
+            'health_status' => (string)$r['health_status'],
+            'trust_state' => (string)$r['trust_state'],
+            'manual_added_by' => $r['manual_added_by'] !== null ? (string)$r['manual_added_by'] : null,
+            'manual_added_at' => $r['manual_added_at'] !== null ? (string)$r['manual_added_at'] : null,
+            'bridges' => $bridges,
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Read the per-endpoint Pluriverse pull state. Used by the admin UI to
+ * show "last refreshed at" stamps next to the local peer list.
+ *
+ * @return array<string, array{
+ *     last_pull_succeeded_at: ?string,
+ *     last_pull_failed_at: ?string,
+ *     consecutive_failures: int,
+ *     last_error: ?string
+ * }>
+ */
+function db_get_pluriverse_pull_state_summary(): array {
+    db_ensure_pluriverse_pull_state_table();
+    $rows = getDB()->query("
+        SELECT endpoint, last_pull_succeeded_at, last_pull_failed_at,
+               consecutive_failures, last_error
+        FROM pluriverse_pull_state
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    $out = [];
+    foreach ($rows as $r) {
+        $out[(string)$r['endpoint']] = [
+            'last_pull_succeeded_at' => $r['last_pull_succeeded_at'] !== null ? (string)$r['last_pull_succeeded_at'] : null,
+            'last_pull_failed_at' => $r['last_pull_failed_at'] !== null ? (string)$r['last_pull_failed_at'] : null,
+            'consecutive_failures' => (int)$r['consecutive_failures'],
+            'last_error' => $r['last_error'] !== null ? (string)$r['last_error'] : null,
+        ];
+    }
+    return $out;
 }
 
 // ---------------------------------------------------------------------------

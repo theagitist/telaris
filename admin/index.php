@@ -578,6 +578,8 @@ $pluriverseAdminEmail = $_SESSION['admin_user_email'] ?? '';
 $pluriverseDefaultUrl = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://')
     . ($_SERVER['HTTP_HOST'] ?? 'localhost');
 $pluriverseInstanceName = db_get_instance_name();
+$pluriversePeers = db_get_local_peers();
+$pluriversePullState = db_get_pluriverse_pull_state_summary();
 
 // Group constellations by [Tag] prefix for visual grouping
 function extractConstellationGroup(string $name): ?string {
@@ -1294,6 +1296,88 @@ foreach ($importantExtensions as $ext => $name) {
                             }
                           })();
                         </script>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Local peer list (stage 3) -->
+                <div class="mt-10 pt-6 border-t border-gray-200">
+                    <div class="flex items-start justify-between gap-4 mb-3">
+                        <div>
+                            <h2 class="text-gray-800 text-lg font-semibold"><?= t_attr('admin_pluriverse_peers_heading', 'Local peer list') ?></h2>
+                            <p class="text-sm text-gray-600 mt-1"><?= t_attr('admin_pluriverse_peers_subheading', 'Other instances this site knows about. Pulled from the Pluriverse on a schedule. No content flows until a bilateral whitelist is established with each peer (stage 4+).') ?></p>
+                        </div>
+                        <form method="POST" action="pluriverse-refresh.php" class="shrink-0">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                            <button type="submit" class="px-3 py-1.5 text-sm border border-gray-300 hover:border-gray-400 rounded bg-white"><?= t_attr('admin_pluriverse_btn_refresh', 'Refresh now') ?></button>
+                        </form>
+                    </div>
+
+                    <?php
+                    $pvPullPeers = $pluriversePullState['peers'] ?? null;
+                    $pvLastOk = $pvPullPeers['last_pull_succeeded_at'] ?? null;
+                    $pvLastFail = $pvPullPeers['last_pull_failed_at'] ?? null;
+                    $pvConsecFail = (int)($pvPullPeers['consecutive_failures'] ?? 0);
+                    ?>
+                    <div class="text-xs text-gray-500 mb-3 flex flex-wrap gap-x-6 gap-y-1">
+                        <span><?= t_attr('admin_pluriverse_peers_last_ok', 'Last successful pull:') ?> <?= htmlspecialchars($pvLastOk ?? t('admin_pluriverse_peers_never', 'never')) ?></span>
+                        <?php if ($pvConsecFail > 0): ?>
+                            <span class="text-red-700"><?= t_attr('admin_pluriverse_peers_failures', 'Consecutive failures:') ?> <?= $pvConsecFail ?></span>
+                        <?php endif; ?>
+                        <?php if (!empty($pvPullPeers['last_error'])): ?>
+                            <span class="text-red-700"><?= t_attr('admin_pluriverse_peers_last_err', 'Last error:') ?> <?= htmlspecialchars($pvPullPeers['last_error']) ?></span>
+                        <?php endif; ?>
+                    </div>
+
+                    <?php if ($pluriversePeers === []): ?>
+                        <div class="bg-gray-50 border border-gray-200 rounded p-6 text-sm text-gray-600">
+                            <?= t_attr('admin_pluriverse_peers_empty', 'No peers known yet. They appear here after the next Pluriverse pull, or use Refresh now to fetch immediately.') ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="overflow-x-auto border border-gray-200 rounded">
+                            <table class="min-w-full text-sm">
+                                <thead class="bg-gray-50 text-left">
+                                    <tr>
+                                        <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pluriverse_peers_col_label', 'Name') ?></th>
+                                        <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pluriverse_peers_col_hostname', 'Hostname') ?></th>
+                                        <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pluriverse_peers_col_source', 'Source') ?></th>
+                                        <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pluriverse_peers_col_fingerprint', 'Fingerprint') ?></th>
+                                        <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pluriverse_peers_col_trust_state', 'Trust state') ?></th>
+                                        <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pluriverse_peers_col_last_seen', 'Last seen') ?></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    <?php foreach ($pluriversePeers as $peer): ?>
+                                        <tr>
+                                            <td class="px-3 py-2 text-gray-800"><?= htmlspecialchars($peer['label']) ?></td>
+                                            <td class="px-3 py-2 font-mono text-xs text-gray-700">
+                                                <a href="<?= htmlspecialchars($peer['url']) ?>" target="_blank" rel="noopener" class="hover:underline"><?= htmlspecialchars($peer['hostname']) ?></a>
+                                            </td>
+                                            <td class="px-3 py-2">
+                                                <?php if ($peer['source'] === 'registry'): ?>
+                                                    <span class="inline-block px-2 py-0.5 text-xs rounded bg-emerald-50 text-emerald-700 border border-emerald-200"><?= t_attr('admin_pluriverse_peers_source_registry', 'Pluriverse') ?></span>
+                                                <?php else: ?>
+                                                    <span class="inline-block px-2 py-0.5 text-xs rounded bg-amber-50 text-amber-700 border border-amber-200" title="<?= t_attr('admin_pluriverse_peers_source_manual_help', 'Not Pluriverse-vouched.') ?>"><?= t_attr('admin_pluriverse_peers_source_manual', 'Manual') ?></span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= htmlspecialchars($peer['fingerprint']) ?></td>
+                                            <td class="px-3 py-2 text-xs text-gray-600"><?= htmlspecialchars($peer['trust_state']) ?></td>
+                                            <td class="px-3 py-2 text-xs text-gray-600"><?= htmlspecialchars($peer['last_seen_at'] ?? '—') ?></td>
+                                        </tr>
+                                        <?php if ($peer['source'] === 'manual' && ($peer['manual_added_by'] !== null || $peer['manual_added_at'] !== null)): ?>
+                                            <tr class="bg-amber-50">
+                                                <td colspan="6" class="px-3 py-1 text-xs text-amber-800">
+                                                    <?= htmlspecialchars(sprintf(
+                                                        t('admin_pluriverse_peers_manual_banner', 'Manual peer added by %s on %s; verify intended.'),
+                                                        $peer['manual_added_by'] ?? '?',
+                                                        $peer['manual_added_at'] ?? '?'
+                                                    )) ?>
+                                                </td>
+                                            </tr>
+                                        <?php endif; ?>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>
