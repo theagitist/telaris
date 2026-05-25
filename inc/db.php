@@ -518,6 +518,10 @@ const PROJECT_INFO_KEYS = [
     // C7h: operator-only nginx-config warning banner in inc/main-view.php.
     'visitor_nginx_warning_heading', 'visitor_nginx_warning_intro',
     'visitor_nginx_warning_reload', 'visitor_nginx_warning_footer',
+
+    // Stage 3 follow-up: shared CSRF-failure flash message (used by every admin
+    // POST handler that checks the synchronizer token).
+    'admin_msg_csrf_invalid',
 ];
 
 /**
@@ -1150,6 +1154,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_manual_err_password_required' => 'Re-enter your password to confirm.',
             'admin_pluriverse_manual_err_password_wrong' => 'Password does not match this admin account.',
             'admin_pluriverse_manual_err_duplicate' => 'A peer for hostname %s already exists (source: %s).',
+            'admin_msg_csrf_invalid' => 'Invalid or expired security token. Please reload the admin page and try again.',
             'admin_heading_download_backup' => 'Download a backup',
             'admin_help_download_backup' => 'Create a portable backup file containing galaxies and/or users. The default produces a full backup with embedded media.',
             'admin_label_galaxies' => 'Galaxies',
@@ -2336,6 +2341,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_manual_err_password_required' => 'Reescribe tu contraseña para confirmar.',
             'admin_pluriverse_manual_err_password_wrong' => 'La contraseña no coincide con esta cuenta de administración.',
             'admin_pluriverse_manual_err_duplicate' => 'Ya existe una instancia par para el nombre de host %s (origen: %s).',
+            'admin_msg_csrf_invalid' => 'Token de seguridad inválido o caducado. Recarga la página de administración y vuelve a intentarlo.',
             'admin_heading_download_backup' => 'Descargar un respaldo',
             'admin_help_download_backup' => 'Crea un archivo de respaldo portable con galaxias y/o cuentas. La opción por defecto produce un respaldo completo con los archivos multimedia incrustados.',
             'admin_label_galaxies' => 'Galaxias',
@@ -3518,6 +3524,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_manual_err_password_required' => 'Digite a senha novamente para confirmar.',
             'admin_pluriverse_manual_err_password_wrong' => 'A senha não corresponde a esta conta de administração.',
             'admin_pluriverse_manual_err_duplicate' => 'Já existe uma instância par para o nome de host %s (origem: %s).',
+            'admin_msg_csrf_invalid' => 'Token de segurança inválido ou expirado. Recarregue a página de administração e tente novamente.',
             'admin_heading_download_backup' => 'Baixar um backup',
             'admin_help_download_backup' => 'Crie um arquivo de backup portátil com galáxias e/ou contas. A opção padrão produz um backup completo com mídia incorporada.',
             'admin_label_galaxies' => 'Galáxias',
@@ -4700,6 +4707,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_manual_err_password_required' => 'Saisis à nouveau ton mot de passe pour confirmer.',
             'admin_pluriverse_manual_err_password_wrong' => 'Le mot de passe ne correspond pas à ce compte d\'administration.',
             'admin_pluriverse_manual_err_duplicate' => 'Un pair pour le nom d\'hôte %s existe déjà (origine : %s).',
+            'admin_msg_csrf_invalid' => 'Jeton de sécurité invalide ou expiré. Recharge la page d\'administration et réessaie.',
             'admin_heading_download_backup' => 'Télécharger une sauvegarde',
             'admin_help_download_backup' => 'Crée une archive de sauvegarde portable avec les galaxies et/ou les comptes. L\'option par défaut produit une sauvegarde complète avec les médias intégrés.',
             'admin_label_galaxies' => 'Galaxies',

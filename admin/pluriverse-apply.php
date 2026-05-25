@@ -31,7 +31,7 @@ if (!isset($_SERVER['REQUEST_METHOD']) || $_SERVER['REQUEST_METHOD'] !== 'POST')
 }
 
 if (empty($_SESSION['csrf_token']) || !hash_equals((string)$_SESSION['csrf_token'], (string)($_POST['csrf_token'] ?? ''))) {
-    $_SESSION['pluriverse_apply_error'] = 'Invalid or expired security token. Please reload the admin page and try again.';
+    $_SESSION['pluriverse_apply_error'] = t('admin_msg_csrf_invalid', 'Invalid or expired security token. Please reload the admin page and try again.');
     header('Location: index.php?tab=pluriverse');
     exit;
 }

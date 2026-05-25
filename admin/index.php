@@ -70,7 +70,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     // Validate CSRF token on all POST actions
     $submittedToken = $_POST['csrf_token'] ?? '';
     if (!hash_equals($csrfToken, $submittedToken)) {
-        $error = 'Invalid or expired security token. Please try again.';
+        $error = t('admin_msg_csrf_invalid', 'Invalid or expired security token. Please reload the admin page and try again.');
     } else {
     try {
         match ($_POST['action']) {
