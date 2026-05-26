@@ -580,6 +580,10 @@ $pluriverseDefaultUrl = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'of
 $pluriverseInstanceName = db_get_instance_name();
 $pluriversePeers = db_get_local_peers();
 $pluriversePullState = db_get_pluriverse_pull_state_summary();
+require_once __DIR__ . '/../inc/federation/handshake.php';
+$handshakeInboundPending = handshake_list_inbound_pending();
+$handshakeOutboundPending = handshake_list_outbound_pending();
+$handshakeRecentHistory = handshake_list_recent_history();
 
 // Group constellations by [Tag] prefix for visual grouping
 function extractConstellationGroup(string $name): ?string {
@@ -1379,6 +1383,177 @@ foreach ($importantExtensions as $ext => $name) {
                             </table>
                         </div>
                     <?php endif; ?>
+
+                    <!-- Pending handshakes (stage 4e) -->
+                    <div class="mt-8 pt-6 border-t border-gray-200">
+                        <h3 class="text-emerald-700 font-semibold mb-2"><?= t_attr('admin_handshake_section_heading', 'Pending handshakes') ?></h3>
+                        <p class="text-sm text-gray-600 mb-4"><?= t_attr('admin_handshake_section_subheading', 'Three-round federation handshakes currently in flight. Inbound requests come in via the Pluriverse relay; outbound requests dispatch on the next pluriverse-dispatch cron tick.') ?></p>
+
+                        <?php if ($handshakeInboundPending === [] && $handshakeOutboundPending === [] && $handshakeRecentHistory === []): ?>
+                            <p class="text-sm text-gray-500 italic"><?= t_attr('admin_handshake_empty', 'No handshakes yet.') ?></p>
+                        <?php else: ?>
+                            <?php if ($handshakeInboundPending !== []): ?>
+                                <h4 class="text-gray-700 font-medium text-sm mb-2"><?= t_attr('admin_handshake_inbound_heading', 'Inbound — awaiting your decision') ?></h4>
+                                <div class="overflow-x-auto mb-6">
+                                    <table class="table table-zebra table-sm w-full bg-white">
+                                        <thead>
+                                            <tr>
+                                                <th><?= t_attr('admin_handshake_th_sender', 'Sender') ?></th>
+                                                <th><?= t_attr('admin_handshake_th_received', 'Received') ?></th>
+                                                <th><?= t_attr('admin_handshake_th_request_excerpt', 'Request body (excerpt)') ?></th>
+                                                <th><?= t_attr('admin_handshake_th_expires', 'Expires') ?></th>
+                                                <th><?= t_attr('admin_handshake_actions', 'Actions') ?></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($handshakeInboundPending as $hs): ?>
+                                                <tr>
+                                                    <td class="font-mono text-xs"><?= htmlspecialchars((string)($hs['peer_label'] ?: $hs['remote_hostname'])) ?><br><span class="text-gray-500"><?= htmlspecialchars((string)$hs['remote_hostname']) ?></span></td>
+                                                    <td class="text-xs"><?= htmlspecialchars((string)$hs['created_at']) ?></td>
+                                                    <td class="text-xs max-w-md"><?= htmlspecialchars(mb_strimwidth((string)($hs['request_body'] ?? ''), 0, 160, '…')) ?></td>
+                                                    <td class="text-xs"><?= htmlspecialchars((string)$hs['expires_at']) ?></td>
+                                                    <td class="space-x-1 whitespace-nowrap">
+                                                        <form method="POST" action="handshake-accept.php" class="inline">
+                                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                            <input type="hidden" name="handshake_id" value="<?= (int)$hs['id'] ?>">
+                                                            <button type="submit" class="btn btn-xs btn-success"><?= t_attr('admin_handshake_btn_accept', 'Accept') ?></button>
+                                                        </form>
+                                                        <details class="inline-block">
+                                                            <summary class="btn btn-xs btn-error inline-block"><?= t_attr('admin_handshake_btn_reject', 'Reject') ?></summary>
+                                                            <form method="POST" action="handshake-reject.php" class="mt-2 space-y-1">
+                                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                                <input type="hidden" name="handshake_id" value="<?= (int)$hs['id'] ?>">
+                                                                <input type="text" name="reason" maxlength="1024" placeholder="<?= t_attr('admin_handshake_reject_prompt', 'Reason (optional)') ?>" class="input input-bordered input-xs w-full bg-white">
+                                                                <button type="submit" class="btn btn-xs btn-error w-full"><?= t_attr('admin_handshake_btn_reject_confirm', 'Confirm reject') ?></button>
+                                                            </form>
+                                                        </details>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($handshakeOutboundPending !== []): ?>
+                                <h4 class="text-gray-700 font-medium text-sm mb-2"><?= t_attr('admin_handshake_outbound_heading', 'Outbound — waiting for remote') ?></h4>
+                                <div class="overflow-x-auto mb-6">
+                                    <table class="table table-zebra table-sm w-full bg-white">
+                                        <thead>
+                                            <tr>
+                                                <th><?= t_attr('admin_handshake_th_remote', 'Remote') ?></th>
+                                                <th><?= t_attr('admin_handshake_th_state', 'State') ?></th>
+                                                <th><?= t_attr('admin_handshake_th_delivery', 'Delivery') ?></th>
+                                                <th><?= t_attr('admin_handshake_th_expires', 'Expires') ?></th>
+                                                <th><?= t_attr('admin_handshake_actions', 'Actions') ?></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($handshakeOutboundPending as $hs): ?>
+                                                <tr>
+                                                    <td class="font-mono text-xs"><?= htmlspecialchars((string)($hs['peer_label'] ?: $hs['remote_hostname'])) ?><br><span class="text-gray-500"><?= htmlspecialchars((string)$hs['remote_hostname']) ?></span></td>
+                                                    <td class="text-xs"><?= htmlspecialchars((string)t('admin_handshake_state_' . $hs['status'], (string)$hs['status'])) ?></td>
+                                                    <td class="text-xs">
+                                                        <?php
+                                                            $ds = (string)($hs['delivery_status'] ?? '');
+                                                            $att = (int)($hs['attempt_count'] ?? 0);
+                                                        ?>
+                                                        <?= htmlspecialchars((string)t('admin_handshake_delivery_' . ($ds !== '' ? $ds : 'unknown'), $ds !== '' ? $ds : '—')) ?>
+                                                        <?php if ($att > 0): ?>
+                                                            <span class="text-gray-500">(<?= sprintf((string)t('admin_handshake_attempts_n', '%d attempts'), $att) ?>)</span>
+                                                        <?php endif; ?>
+                                                        <?php if (!empty($hs['last_attempt_error'])): ?>
+                                                            <br><span class="text-xs text-red-600" title="<?= htmlspecialchars((string)$hs['last_attempt_error']) ?>"><?= htmlspecialchars(mb_strimwidth((string)$hs['last_attempt_error'], 0, 60, '…')) ?></span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                    <td class="text-xs"><?= htmlspecialchars((string)$hs['expires_at']) ?></td>
+                                                    <td class="space-x-1 whitespace-nowrap">
+                                                        <form method="POST" action="handshake-cancel.php" class="inline">
+                                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                            <input type="hidden" name="handshake_id" value="<?= (int)$hs['id'] ?>">
+                                                            <button type="submit" class="btn btn-xs btn-outline" onclick="return confirm('<?= t_attr('admin_handshake_confirm_cancel', 'Cancel this outbound handshake?') ?>')"><?= t_attr('admin_handshake_btn_cancel', 'Cancel') ?></button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($handshakeRecentHistory !== []): ?>
+                                <details class="mb-6">
+                                    <summary class="text-gray-700 font-medium text-sm cursor-pointer hover:text-gray-900"><?= t_attr('admin_handshake_history_heading', 'Recent history (terminal handshakes, 30-day window)') ?></summary>
+                                    <div class="overflow-x-auto mt-2">
+                                        <table class="table table-zebra table-sm w-full bg-white">
+                                            <thead>
+                                                <tr>
+                                                    <th><?= t_attr('admin_handshake_th_remote', 'Remote') ?></th>
+                                                    <th><?= t_attr('admin_handshake_th_direction', 'Direction') ?></th>
+                                                    <th><?= t_attr('admin_handshake_th_state', 'State') ?></th>
+                                                    <th><?= t_attr('admin_handshake_th_updated', 'Updated') ?></th>
+                                                    <th><?= t_attr('admin_handshake_th_reason', 'Reason') ?></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($handshakeRecentHistory as $hs): ?>
+                                                    <tr>
+                                                        <td class="font-mono text-xs"><?= htmlspecialchars((string)($hs['peer_label'] ?: $hs['remote_hostname'])) ?></td>
+                                                        <td class="text-xs"><?= htmlspecialchars((string)t('admin_handshake_initiator_' . $hs['initiator'], (string)$hs['initiator'])) ?></td>
+                                                        <td class="text-xs"><?= htmlspecialchars((string)t('admin_handshake_state_' . $hs['status'], (string)$hs['status'])) ?></td>
+                                                        <td class="text-xs"><?= htmlspecialchars((string)$hs['updated_at']) ?></td>
+                                                        <td class="text-xs max-w-md"><?= htmlspecialchars(mb_strimwidth((string)($hs['reject_reason'] ?? ''), 0, 120, '…')) ?></td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            <?php endif; ?>
+                        <?php endif; ?>
+
+                        <!-- Compose handshake_request modal -->
+                        <details class="mt-2 border border-gray-200 rounded">
+                            <summary class="px-4 py-2 cursor-pointer text-sm text-gray-700 hover:bg-gray-50">
+                                <?= t_attr('admin_handshake_compose_btn_show', 'Initiate a handshake…') ?>
+                            </summary>
+                            <div class="border-t border-gray-200 p-4 bg-gray-50">
+                                <p class="text-sm text-gray-600 mb-3"><?= t_attr('admin_handshake_compose_subheading', 'Send a signed handshake request through the Pluriverse relay. The remote operator receives an email and surfaces the request in their own admin Inbox.') ?></p>
+                                <form method="POST" action="handshake-initiate.php" class="space-y-4 max-w-xl">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-800 mb-1" for="hs-recipient"><?= t_attr('admin_handshake_compose_field_recipient', 'Recipient hostname') ?></label>
+                                        <input id="hs-recipient" type="text" name="recipient_hostname" maxlength="253" required class="input input-bordered input-sm w-full bg-white font-mono" placeholder="example.org">
+                                        <p class="text-xs text-gray-500 mt-1"><?= t_attr('admin_handshake_compose_field_recipient_help', 'Hostname (no scheme) of a published Pluriverse instance.') ?></p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-800 mb-1" for="hs-subject"><?= t_attr('admin_handshake_compose_field_subject', 'Subject (optional)') ?></label>
+                                        <input id="hs-subject" type="text" name="subject" maxlength="255" class="input input-bordered input-sm w-full bg-white">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-800 mb-1" for="hs-body"><?= t_attr('admin_handshake_compose_field_body', 'Message body (markdown)') ?></label>
+                                        <textarea id="hs-body" name="body" rows="5" maxlength="200000" required class="textarea textarea-bordered textarea-sm w-full bg-white"></textarea>
+                                        <p class="text-xs text-gray-500 mt-1"><?= t_attr('admin_handshake_compose_field_body_help', 'Visible to the remote operator after they log in. Will be scanned for high-confidence secret patterns; see the override below.') ?></p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-800 mb-1" for="hs-pub"><?= t_attr('admin_handshake_compose_field_pub_galaxies', 'Galaxies you offer to publish to them') ?></label>
+                                        <input id="hs-pub" type="text" name="requested_publish" maxlength="2048" class="input input-bordered input-sm w-full bg-white font-mono">
+                                        <p class="text-xs text-gray-500 mt-1"><?= t_attr('admin_handshake_compose_field_pub_help', 'Comma-separated slugs of your authored galaxies. Optional.') ?></p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-800 mb-1" for="hs-sub"><?= t_attr('admin_handshake_compose_field_sub_galaxies', 'Galaxies you want to subscribe from them') ?></label>
+                                        <input id="hs-sub" type="text" name="requested_subscribe" maxlength="2048" class="input input-bordered input-sm w-full bg-white font-mono">
+                                        <p class="text-xs text-gray-500 mt-1"><?= t_attr('admin_handshake_compose_field_sub_help', 'Comma-separated slugs of their authored galaxies. Optional.') ?></p>
+                                    </div>
+                                    <div class="flex items-center gap-2 pt-2 border-t border-gray-200">
+                                        <input type="checkbox" id="hs-send-anyway" name="send_anyway" value="1" class="checkbox checkbox-sm">
+                                        <label for="hs-send-anyway" class="text-sm text-gray-700"><?= t_attr('admin_handshake_compose_send_anyway', 'Send anyway if the body looks like it contains a secret') ?></label>
+                                    </div>
+                                    <button type="submit" class="btn btn-sm btn-primary"><?= t_attr('admin_handshake_compose_btn_send', 'Queue handshake request') ?></button>
+                                </form>
+                            </div>
+                        </details>
+                    </div>
 
                     <!-- Advanced: manual peer entry (stage 3c-ii) -->
                     <details class="mt-6 border border-gray-200 rounded">

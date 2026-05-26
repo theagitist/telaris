@@ -513,6 +513,279 @@ function handshake_register_inbound_round1_via_relay(
 }
 
 /**
+ * Admin-initiated accept of an inbound handshake_request. Called by
+ * admin/handshake-accept.php after re-auth / CSRF. Builds the round-2
+ * envelope, queues an outbound message to the remote's /handshake, and
+ * transitions the handshake row to accepted_awaiting_complete.
+ *
+ * Requires the remote peer to already exist in `peers` (typically pulled
+ * via stage 3's /api/pluriverse/peers.json). Refuses with
+ * `peer_not_in_directory` otherwise so the operator knows to wait for the
+ * next pull or trigger a Refresh-now in the admin UI.
+ */
+function handshake_accept_inbound(int $handshakeId): array {
+    db_ensure_handshakes_table();
+    db_ensure_peer_keys_table();
+    db_ensure_pluriverse_messages_table();
+    db_ensure_pluriverse_messages_retry_columns();
+
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT h.id, h.status, h.remote_hostname, h.thread_id, h.peer_id, p.id AS resolved_peer_id
+        FROM handshakes h
+        LEFT JOIN peers p ON p.hostname = h.remote_hostname
+        WHERE h.id = :id LIMIT 1
+    ");
+    $stmt->execute([':id' => $handshakeId]);
+    $hs = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$hs) return ['ok' => false, 'reason' => 'handshake_not_found'];
+    if ($hs['status'] !== 'pending_our_response') {
+        return ['ok' => false, 'reason' => 'wrong_state:' . $hs['status']];
+    }
+    $peerId = $hs['peer_id'] !== null ? (int)$hs['peer_id'] : (int)($hs['resolved_peer_id'] ?? 0);
+    if ($peerId === 0) {
+        return ['ok' => false, 'reason' => 'peer_not_in_directory'];
+    }
+
+    try {
+        $secret = federation_load_secret_key();
+    } catch (Throwable $e) {
+        return ['ok' => false, 'reason' => 'instance_identity_unavailable'];
+    }
+    $public = federation_derive_public_key($secret);
+    $fingerprint = federation_compute_fingerprint($public);
+    $localHostname = handshake_local_hostname();
+
+    $ourKey = handshake_generate_peer_key();
+    $round2Body = [
+        'status' => 'accepted',
+        'thread_id' => $hs['thread_id'],
+        'peer_key_for_caller' => $ourKey,
+        'label' => handshake_local_label(),
+        'supported_protocol_versions' => ['1.0'],
+    ];
+    $envelope = handshake_build_signed_envelope(
+        secret: $secret,
+        kidHost: $localHostname,
+        kidFingerprint: $fingerprint,
+        senderHost: $localHostname,
+        recipientHost: $hs['remote_hostname'],
+        sentAt: gmdate('Y-m-d\TH:i:s\Z'),
+        threadId: $hs['thread_id'],
+        messageType: 'handshake_response',
+        body: 'accepted',
+        payload: $round2Body,
+    );
+
+    $pdo->beginTransaction();
+    try {
+        // Store the key we generated for them (direction = we_call_them).
+        $pdo->prepare("
+            INSERT INTO peer_keys (peer_id, api_key_hash, direction, is_active)
+            VALUES (:p, :h, 'we_call_them', TRUE)
+        ")->execute([':p' => $peerId, ':h' => hash('sha256', $ourKey, true)]);
+
+        // Queue the round-2 outbound for the dispatcher.
+        $msg = $pdo->prepare("
+            INSERT INTO pluriverse_messages
+                (peer_id, direction, thread_id, message_type, body, payload, jws_envelope,
+                 delivery_status, next_attempt_at)
+            VALUES (:p, 'outbound', :t, 'handshake_response', 'accepted', :pl, :j,
+                    'pending', NOW())
+        ");
+        $msg->execute([
+            ':p' => $peerId,
+            ':t' => $hs['thread_id'],
+            ':pl' => json_encode($round2Body, JSON_UNESCAPED_SLASHES),
+            ':j' => $envelope,
+        ]);
+        $msgId = (int)$pdo->lastInsertId();
+
+        $pdo->prepare("
+            UPDATE handshakes
+            SET status = 'accepted_awaiting_complete',
+                response_message_id = :m,
+                peer_id = :p
+            WHERE id = :id
+        ")->execute([':m' => $msgId, ':p' => $peerId, ':id' => $hs['id']]);
+
+        $pdo->commit();
+        return ['ok' => true, 'handshake_id' => (int)$hs['id'], 'queued_message_id' => $msgId];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('handshake_accept_inbound: ' . $e->getMessage());
+        return ['ok' => false, 'reason' => 'persist_failed'];
+    }
+}
+
+/**
+ * Admin-initiated reject. Mirror of accept but emits {status: rejected,
+ * reason} and transitions the row to `rejected`. No peer_keys side-effect.
+ */
+function handshake_reject_inbound(int $handshakeId, string $reason): array {
+    db_ensure_handshakes_table();
+    db_ensure_pluriverse_messages_table();
+    db_ensure_pluriverse_messages_retry_columns();
+
+    if (strlen($reason) > 1024) {
+        return ['ok' => false, 'reason' => 'reason_too_long'];
+    }
+
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT h.id, h.status, h.remote_hostname, h.thread_id, h.peer_id, p.id AS resolved_peer_id
+        FROM handshakes h
+        LEFT JOIN peers p ON p.hostname = h.remote_hostname
+        WHERE h.id = :id LIMIT 1
+    ");
+    $stmt->execute([':id' => $handshakeId]);
+    $hs = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$hs) return ['ok' => false, 'reason' => 'handshake_not_found'];
+    if ($hs['status'] !== 'pending_our_response') {
+        return ['ok' => false, 'reason' => 'wrong_state:' . $hs['status']];
+    }
+    $peerId = $hs['peer_id'] !== null ? (int)$hs['peer_id'] : (int)($hs['resolved_peer_id'] ?? 0);
+
+    try {
+        $secret = federation_load_secret_key();
+    } catch (Throwable $e) {
+        return ['ok' => false, 'reason' => 'instance_identity_unavailable'];
+    }
+    $public = federation_derive_public_key($secret);
+    $fingerprint = federation_compute_fingerprint($public);
+    $localHostname = handshake_local_hostname();
+
+    $body = [
+        'status' => 'rejected',
+        'thread_id' => $hs['thread_id'],
+        'reason' => $reason,
+        'label' => handshake_local_label(),
+    ];
+    $envelope = handshake_build_signed_envelope(
+        secret: $secret,
+        kidHost: $localHostname,
+        kidFingerprint: $fingerprint,
+        senderHost: $localHostname,
+        recipientHost: $hs['remote_hostname'],
+        sentAt: gmdate('Y-m-d\TH:i:s\Z'),
+        threadId: $hs['thread_id'],
+        messageType: 'handshake_response',
+        body: 'rejected',
+        payload: $body,
+    );
+
+    $pdo->beginTransaction();
+    try {
+        // The reject path can fire even when peer_id is NULL; the dispatcher
+        // resolves peers.hostname at dispatch time via JOIN.
+        $msg = $pdo->prepare("
+            INSERT INTO pluriverse_messages
+                (peer_id, direction, thread_id, message_type, body, payload, jws_envelope,
+                 delivery_status, next_attempt_at)
+            VALUES (:p, 'outbound', :t, 'handshake_response', :b, :pl, :j,
+                    'pending', NOW())
+        ");
+        $msg->execute([
+            ':p' => $peerId !== 0 ? $peerId : null,
+            ':t' => $hs['thread_id'],
+            ':b' => $reason,
+            ':pl' => json_encode($body, JSON_UNESCAPED_SLASHES),
+            ':j' => $envelope,
+        ]);
+        $msgId = (int)$pdo->lastInsertId();
+
+        $pdo->prepare("
+            UPDATE handshakes
+            SET status = 'rejected',
+                response_message_id = :m,
+                reject_reason = :r,
+                peer_id = COALESCE(peer_id, :p)
+            WHERE id = :id
+        ")->execute([
+            ':m' => $msgId,
+            ':r' => $reason,
+            ':p' => $peerId !== 0 ? $peerId : null,
+            ':id' => $hs['id'],
+        ]);
+
+        $pdo->commit();
+        return ['ok' => true, 'handshake_id' => (int)$hs['id'], 'queued_message_id' => $msgId];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('handshake_reject_inbound: ' . $e->getMessage());
+        return ['ok' => false, 'reason' => 'persist_failed'];
+    }
+}
+
+/**
+ * Admin-initiated cancellation of a handshake we initiated. v10 line 345:
+ * "cancellation is local-only (no notification to B)". Walks the row to
+ * `cancelled` and abandons any queued outbound (delivery_status set to
+ * given_up so the dispatcher leaves it alone).
+ */
+function handshake_cancel_outbound(int $handshakeId): array {
+    db_ensure_handshakes_table();
+    db_ensure_pluriverse_messages_table();
+    db_ensure_pluriverse_messages_retry_columns();
+
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT id, status, initiator FROM handshakes WHERE id = :id LIMIT 1
+    ");
+    $stmt->execute([':id' => $handshakeId]);
+    $hs = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$hs) return ['ok' => false, 'reason' => 'handshake_not_found'];
+    if ($hs['initiator'] !== 'us') {
+        return ['ok' => false, 'reason' => 'cannot_cancel_inbound'];
+    }
+    if (!in_array($hs['status'], ['pending_their_response', 'accepted_awaiting_complete'], true)) {
+        return ['ok' => false, 'reason' => 'wrong_state:' . $hs['status']];
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("UPDATE handshakes SET status = 'cancelled' WHERE id = :id")
+            ->execute([':id' => $hs['id']]);
+        $pdo->prepare("
+            UPDATE pluriverse_messages
+            SET delivery_status = 'given_up', next_attempt_at = NULL,
+                last_attempt_error = COALESCE(last_attempt_error, 'cancelled_by_admin')
+            WHERE id IN (
+                SELECT initial_message_id FROM handshakes WHERE id = :id1
+                UNION
+                SELECT complete_message_id FROM handshakes WHERE id = :id2
+            )
+              AND delivery_status IN ('pending', 'failed')
+        ")->execute([':id1' => $hs['id'], ':id2' => $hs['id']]);
+        $pdo->commit();
+        return ['ok' => true, 'handshake_id' => (int)$hs['id']];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('handshake_cancel_outbound: ' . $e->getMessage());
+        return ['ok' => false, 'reason' => 'persist_failed'];
+    }
+}
+
+/**
+ * Admin-initiated retry: reset an outbound message's delivery_status to
+ * 'pending' and clear next_attempt_at so the next dispatcher tick picks
+ * it up. Used by the "Retry now" button on a failed handshake row.
+ */
+function handshake_retry_outbound(int $messageId): array {
+    db_ensure_pluriverse_messages_retry_columns();
+    $stmt = getDB()->prepare("
+        UPDATE pluriverse_messages
+        SET delivery_status = 'pending', next_attempt_at = NULL
+        WHERE id = :id AND direction = 'outbound'
+          AND delivery_status IN ('failed', 'given_up')
+    ");
+    $stmt->execute([':id' => $messageId]);
+    return $stmt->rowCount() > 0
+        ? ['ok' => true, 'message_id' => $messageId]
+        : ['ok' => false, 'reason' => 'message_not_retryable'];
+}
+
+/**
  * Cron sweep: handshakes past their 14-day expires_at flip to `expired`.
  * Returns count of rows transitioned.
  */
@@ -568,6 +841,84 @@ function handshake_build_signed_envelope(
     $sig = sodium_crypto_sign_detached($headerB64 . '.' . $payloadB64, $secret);
     $sigB64 = rtrim(strtr(base64_encode($sig), '+/', '-_'), '=');
     return $headerB64 . '.' . $payloadB64 . '.' . $sigB64;
+}
+
+/**
+ * Read-side helpers used by the admin UI panel. Three groups:
+ *   inbound_pending: rows the admin can Accept / Reject / Defer.
+ *   outbound_pending: rows we initiated that haven't terminated yet.
+ *   recent_history: terminal rows (complete / rejected / expired / cancelled)
+ *       in a 30-day window, for the "history" subsection.
+ *
+ * Returns associative arrays with peer label/hostname joined in. Includes
+ * a `delivery` sub-object summarising the most-recent outbound message
+ * row (attempt_count, last_attempt_error, delivery_status, message_id) so
+ * the UI can surface "Retry now" or "Last error" without a second query.
+ *
+ * @return list<array<string,mixed>>
+ */
+function handshake_list_inbound_pending(int $limit = 50): array {
+    db_ensure_handshakes_table();
+    db_ensure_peers_table();
+    $stmt = getDB()->prepare("
+        SELECT h.id, h.remote_hostname, h.status, h.thread_id, h.peer_id,
+               h.requested_galaxies_publish, h.requested_galaxies_subscribe,
+               h.created_at, h.expires_at,
+               p.label AS peer_label, m.body AS request_body
+        FROM handshakes h
+        LEFT JOIN peers p ON p.id = h.peer_id
+        LEFT JOIN pluriverse_messages m ON m.id = h.initial_message_id
+        WHERE h.initiator = 'them' AND h.status = 'pending_our_response'
+        ORDER BY h.created_at DESC
+        LIMIT :n
+    ");
+    $stmt->bindValue(':n', max(1, $limit), PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** @return list<array<string,mixed>> */
+function handshake_list_outbound_pending(int $limit = 50): array {
+    db_ensure_handshakes_table();
+    db_ensure_pluriverse_messages_retry_columns();
+    $stmt = getDB()->prepare("
+        SELECT h.id, h.remote_hostname, h.status, h.thread_id, h.peer_id,
+               h.requested_galaxies_publish, h.requested_galaxies_subscribe,
+               h.created_at, h.expires_at,
+               p.label AS peer_label,
+               m.id AS message_id, m.delivery_status, m.attempt_count, m.last_attempt_error, m.next_attempt_at
+        FROM handshakes h
+        LEFT JOIN peers p ON p.id = h.peer_id
+        LEFT JOIN pluriverse_messages m
+               ON m.id = COALESCE(h.complete_message_id, h.response_message_id, h.initial_message_id)
+        WHERE h.initiator = 'us'
+          AND h.status IN ('pending_their_response', 'accepted_awaiting_complete')
+        ORDER BY h.created_at DESC
+        LIMIT :n
+    ");
+    $stmt->bindValue(':n', max(1, $limit), PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** @return list<array<string,mixed>> */
+function handshake_list_recent_history(int $limit = 20, int $withinDays = 30): array {
+    db_ensure_handshakes_table();
+    $stmt = getDB()->prepare("
+        SELECT h.id, h.remote_hostname, h.status, h.initiator,
+               h.created_at, h.updated_at, h.reject_reason,
+               p.label AS peer_label
+        FROM handshakes h
+        LEFT JOIN peers p ON p.id = h.peer_id
+        WHERE h.status IN ('complete', 'rejected', 'expired', 'cancelled')
+          AND h.updated_at >= DATE_SUB(NOW(), INTERVAL :d DAY)
+        ORDER BY h.updated_at DESC
+        LIMIT :n
+    ");
+    $stmt->bindValue(':n', max(1, $limit), PDO::PARAM_INT);
+    $stmt->bindValue(':d', max(1, $withinDays), PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
 function handshake_local_hostname(): string {
