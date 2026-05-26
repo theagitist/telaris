@@ -1,0 +1,23 @@
+# Telaris outbound dispatcher cron (federation stage 4d).
+#
+# Reads pluriverse_messages rows where direction='outbound' AND
+# delivery_status IN ('pending','failed') AND next_attempt_at <= NOW(),
+# signs each as an HTTP-Sig POST, and ships to the appropriate target
+# (Pluriverse relay for round-1 handshakes, peer directly for everything
+# else). Self-bounded to 50 rows per invocation; running every minute is
+# safe even if the queue grows.
+#
+# Idempotent. Honours v10's exponential backoff (1m / 5m / 30m / 2h / 6h /
+# 12h / 24h then give-up at attempt 7). Also runs handshake_expire_stale()
+# each tick so 14-day-old handshakes flip to expired without needing a
+# separate cron entry.
+#
+# Installed by bin/setup-host.php; canonical source is
+# etc/cron.d/pluriverse-dispatch.sample. Substitutes __SITE_ROOT__ at
+# install time.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Every minute: drain a batch from the outbound queue.
+* * * * * www-data /usr/bin/php __SITE_ROOT__/bin/pluriverse-dispatch > /dev/null 2>&1

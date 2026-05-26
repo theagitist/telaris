@@ -11,7 +11,8 @@ declare(strict_types=1);
  *   - /etc/nginx/snippets/cloudflare-realip.conf
  *   - /etc/nginx/snippets/telaris-deny.conf
  *   - /etc/logrotate.d/telaris-snapshots-<site>
- *   - /etc/cron.d/telaris-pluriverse-pull-<site>   (federation stage 3)
+ *   - /etc/cron.d/telaris-pluriverse-pull-<site>     (federation stage 3)
+ *   - /etc/cron.d/telaris-pluriverse-dispatch-<site> (federation stage 4d)
  *   - chmod 0640 + chgrp www-data on config.php
  *   - secrets/ dir 0700 owned by www-data
  *
@@ -106,6 +107,9 @@ $logrotateDst = '/etc/logrotate.d/telaris-snapshots-' . $siteName;
 
 $pullCronSrc = $root . '/etc/cron.d/pluriverse-pull.sample';
 $pullCronDst = '/etc/cron.d/telaris-pluriverse-pull-' . $siteName;
+
+$dispatchCronSrc = $root . '/etc/cron.d/pluriverse-dispatch.sample';
+$dispatchCronDst = '/etc/cron.d/telaris-pluriverse-dispatch-' . $siteName;
 
 $configPath = $root . '/config.php';
 $vhostCandidates = [
@@ -360,6 +364,57 @@ $tasks[] = (function() use ($pullCronSrc, $pullCronDst, $root) {
         'name' => 'pluriverse-pull cron',
         'status' => file_exists($pullCronDst) ? 'mismatch' : 'missing',
         'detail' => file_exists($pullCronDst) ? "{$pullCronDst} differs from canonical" : "{$pullCronDst} does not exist",
+        'fix' => $fix,
+    ];
+})();
+
+// 4b. Pluriverse-dispatch cron entry (federation stage 4d).
+// Same shape as 4a: drops /etc/cron.d/telaris-pluriverse-dispatch-<site>
+// with the every-minute outbound queue drainer. Idempotent and bounded;
+// safe to leave running on every host that has the federation surface.
+$tasks[] = (function() use ($dispatchCronSrc, $dispatchCronDst, $root) {
+    if (!file_exists($dispatchCronSrc)) {
+        return ['name' => 'pluriverse-dispatch cron', 'status' => 'error', 'detail' => "repo source missing at {$dispatchCronSrc}", 'fix' => null];
+    }
+    if (!file_exists('/etc/cron.d')) {
+        return ['name' => 'pluriverse-dispatch cron', 'status' => 'error', 'detail' => '/etc/cron.d does not exist; cron not installed', 'fix' => null];
+    }
+    if (!file_exists($root . '/bin/pluriverse-dispatch')) {
+        return ['name' => 'pluriverse-dispatch cron', 'status' => 'error', 'detail' => "{$root}/bin/pluriverse-dispatch does not exist (federation stage 4 not yet deployed?)", 'fix' => null];
+    }
+    $template = file_get_contents($dispatchCronSrc);
+    $canonical = str_replace('__SITE_ROOT__', $root, $template);
+    $installed = file_exists($dispatchCronDst) ? file_get_contents($dispatchCronDst) : '';
+    if ($installed === $canonical) {
+        return ['name' => 'pluriverse-dispatch cron', 'status' => 'ok', 'detail' => "matches {$dispatchCronDst}", 'fix' => null];
+    }
+    $fix = function() use ($dispatchCronDst, $canonical) {
+        if (is_link($dispatchCronDst)) {
+            return ['ok' => false, 'detail' => "{$dispatchCronDst} is a symlink; refusing to write through it (unlink first if intentional)"];
+        }
+        if (file_exists($dispatchCronDst)) {
+            $real = realpath($dispatchCronDst);
+            if ($real === false || !str_starts_with($real, '/etc/cron.d/')) {
+                return ['ok' => false, 'detail' => "{$dispatchCronDst} resolves outside /etc/cron.d/ (real='{$real}'); refusing to write"];
+            }
+        }
+        $tmp = $dispatchCronDst . '.new.' . posix_getpid();
+        if (file_put_contents($tmp, $canonical) === false) {
+            return ['ok' => false, 'detail' => "could not write to {$tmp}"];
+        }
+        @chmod($tmp, 0644);
+        @chown($tmp, 'root');
+        @chgrp($tmp, 'root');
+        if (!rename($tmp, $dispatchCronDst)) {
+            @unlink($tmp);
+            return ['ok' => false, 'detail' => "could not move {$tmp} → {$dispatchCronDst}"];
+        }
+        return ['ok' => true, 'detail' => "wrote {$dispatchCronDst} (cron picks up automatically)"];
+    };
+    return [
+        'name' => 'pluriverse-dispatch cron',
+        'status' => file_exists($dispatchCronDst) ? 'mismatch' : 'missing',
+        'detail' => file_exists($dispatchCronDst) ? "{$dispatchCronDst} differs from canonical" : "{$dispatchCronDst} does not exist",
         'fix' => $fix,
     ];
 })();

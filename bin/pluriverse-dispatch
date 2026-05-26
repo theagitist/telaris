@@ -1,0 +1,71 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * bin/pluriverse-dispatch — drain the outbound message retry queue.
+ *
+ * Reads `pluriverse_messages` rows where delivery_status IN ('pending',
+ * 'failed') AND next_attempt_at <= NOW(), signs each, POSTs to the
+ * appropriate target (Pluriverse relay for round-1 handshakes, peer
+ * directly for everything else), and advances state.
+ *
+ * Idempotent. Safe to run from cron. Suggested cadence: every minute.
+ * The dispatcher self-bounds via FEDERATION_DISPATCH_BATCH_SIZE (50 rows
+ * per invocation) so a flood of failures cannot pin the worker.
+ *
+ * Usage:
+ *   php bin/pluriverse-dispatch              # process one batch
+ *   php bin/pluriverse-dispatch --status     # show queue snapshot
+ *   php bin/pluriverse-dispatch --batch=10   # explicit batch size
+ *
+ * Also runs handshake_expire_stale() as a side task each invocation so
+ * 14-day-old handshakes flip to expired without needing a separate cron.
+ *
+ * Spec: P2P federation plan v10 § The handshake → Timeout and cancellation,
+ *       § Pluriverse protocol → Instance-side endpoint catalogue.
+ */
+
+if (PHP_SAPI !== 'cli') {
+    fwrite(STDERR, "Refusing to run outside CLI.\n");
+    exit(1);
+}
+
+require_once __DIR__ . '/../inc/bootstrap.php';
+require_once __DIR__ . '/../inc/federation/dispatcher.php';
+require_once __DIR__ . '/../inc/federation/handshake.php';
+
+$opts = ['status' => false, 'batch' => null];
+foreach (array_slice($argv, 1) as $a) {
+    if ($a === '--status') { $opts['status'] = true; continue; }
+    if (str_starts_with($a, '--batch=')) { $opts['batch'] = (int)substr($a, 8); continue; }
+    fwrite(STDERR, "Unknown flag: {$a}\nUsage: bin/pluriverse-dispatch [--status] [--batch=N]\n");
+    exit(2);
+}
+
+if ($opts['status']) {
+    $pdo = getDB();
+    $by = $pdo->query("
+        SELECT delivery_status, COUNT(*) AS n
+        FROM pluriverse_messages
+        WHERE direction = 'outbound'
+        GROUP BY delivery_status
+        ORDER BY delivery_status
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    if (!$by) {
+        echo "No outbound messages.\n";
+    } else {
+        echo "Outbound queue:\n";
+        foreach ($by as $r) {
+            echo sprintf("  %-15s %d\n", $r['delivery_status'], (int)$r['n']);
+        }
+    }
+    $expired = handshake_expire_stale();
+    echo $expired > 0 ? "Expired {$expired} stale handshake row(s).\n" : "";
+    exit(0);
+}
+
+$summary = federation_dispatcher_process_batch($opts['batch'] ?? FEDERATION_DISPATCH_BATCH_SIZE);
+$expired = handshake_expire_stale();
+echo json_encode(['ok' => true, 'dispatch' => $summary, 'expired_handshakes' => $expired], JSON_UNESCAPED_SLASHES) . "\n";
+exit(0);
