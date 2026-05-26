@@ -585,6 +585,21 @@ $handshakeInboundPending = handshake_list_inbound_pending();
 $handshakeOutboundPending = handshake_list_outbound_pending();
 $handshakeRecentHistory = handshake_list_recent_history();
 
+// Whitelist editor (4f): per-peer state for all non-blocked peers. Each
+// peer row in the UI gets its own collapsed <details> with publish-side
+// checkboxes (over authored galaxies) and subscribe-side list + add form.
+$whitelistAuthoredGalaxies = db_get_authored_galaxies();
+$whitelistPeerState = [];
+foreach ($pluriversePeers as $__peer) {
+    if (($__peer['trust_state'] ?? '') === 'blocked') continue;
+    $__pid = (int)$__peer['id'];
+    $whitelistPeerState[$__pid] = [
+        'publish_ids' => array_fill_keys(db_get_peer_publish_whitelist($__pid), true),
+        'subscriptions' => db_get_peer_subscriptions($__pid),
+    ];
+}
+unset($__peer, $__pid);
+
 // Group constellations by [Tag] prefix for visual grouping
 function extractConstellationGroup(string $name): ?string {
     if (preg_match('/^\[([^\]]+)\]/', $name, $m)) {
@@ -1553,6 +1568,123 @@ foreach ($importantExtensions as $ext => $name) {
                                 </form>
                             </div>
                         </details>
+                    </div>
+
+                    <!-- Per-peer publish and subscribe lists (stage 4f) -->
+                    <div class="mt-8 pt-6 border-t border-gray-200">
+                        <h3 class="text-emerald-700 font-semibold mb-2"><?= t_attr('admin_whitelist_section_heading', 'Per-peer publish and subscribe lists') ?></h3>
+                        <p class="text-sm text-gray-600 mb-4"><?= t_attr('admin_whitelist_section_subheading', 'Which of your authored galaxies you would publish to each peer, and which of theirs you want to subscribe from. Takes effect after a successful handshake; you can pre-load intent before that point.') ?></p>
+
+                        <?php if ($whitelistPeerState === []): ?>
+                            <p class="text-sm text-gray-500 italic"><?= t_attr('admin_whitelist_no_peers', 'No peers yet. Lists become editable once peers appear in the Local Peer List.') ?></p>
+                        <?php else: ?>
+                            <?php foreach ($pluriversePeers as $peer): ?>
+                                <?php if (($peer['trust_state'] ?? '') === 'blocked') continue; ?>
+                                <?php $pid = (int)$peer['id']; $state = $whitelistPeerState[$pid]; ?>
+                                <details id="whitelist-<?= $pid ?>" class="mb-3 border border-gray-200 rounded">
+                                    <summary class="px-4 py-2 cursor-pointer text-sm text-gray-800 hover:bg-gray-50 flex items-center justify-between gap-3">
+                                        <span class="flex items-center gap-2">
+                                            <span class="font-medium"><?= htmlspecialchars($peer['label']) ?></span>
+                                            <span class="font-mono text-xs text-gray-500"><?= htmlspecialchars($peer['hostname']) ?></span>
+                                        </span>
+                                        <span class="text-xs text-gray-500">
+                                            <?= t_attr('admin_whitelist_trust_state_label', 'Trust:') ?>
+                                            <span class="font-mono"><?= htmlspecialchars($peer['trust_state']) ?></span>
+                                            ·
+                                            <?= sprintf(
+                                                '%d %s · %d %s',
+                                                count($state['publish_ids']),
+                                                htmlspecialchars((string)t('admin_whitelist_count_publish', 'publish')),
+                                                count(array_filter($state['subscriptions'], fn($s) => (bool)$s['is_active'])),
+                                                htmlspecialchars((string)t('admin_whitelist_count_subscribe', 'subscribe'))
+                                            ) ?>
+                                        </span>
+                                    </summary>
+                                    <div class="border-t border-gray-200 p-4 bg-gray-50">
+                                        <?php if ($peer['trust_state'] !== 'whitelisted'): ?>
+                                            <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mb-4"><?= t_attr('admin_whitelist_hint_post_handshake', 'No handshake has completed with this peer yet; the whitelist takes effect when one does.') ?></p>
+                                        <?php endif; ?>
+                                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                                            <!-- Publish side -->
+                                            <div>
+                                                <h4 class="text-sm font-semibold text-gray-800 mb-2"><?= t_attr('admin_whitelist_publish_heading', 'Galaxies we publish to them') ?></h4>
+                                                <p class="text-xs text-gray-600 mb-3"><?= t_attr('admin_whitelist_publish_help', 'Only authored galaxies appear here. Mirrored galaxies cannot be re-published.') ?></p>
+                                                <?php if ($whitelistAuthoredGalaxies === []): ?>
+                                                    <p class="text-xs text-gray-500 italic"><?= t_attr('admin_whitelist_no_authored', 'No authored galaxies yet.') ?></p>
+                                                <?php else: ?>
+                                                    <form method="POST" action="whitelist-publish-save.php" class="space-y-2">
+                                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                        <input type="hidden" name="peer_id" value="<?= $pid ?>">
+                                                        <div class="max-h-64 overflow-y-auto bg-white border border-gray-200 rounded p-2 space-y-1">
+                                                            <?php foreach ($whitelistAuthoredGalaxies as $gx): ?>
+                                                                <?php $checked = isset($state['publish_ids'][$gx['id']]); ?>
+                                                                <label class="flex items-center gap-2 text-sm text-gray-700 hover:bg-gray-50 px-1 py-0.5 rounded cursor-pointer">
+                                                                    <input type="checkbox" name="constellation_ids[]" value="<?= (int)$gx['id'] ?>" <?= $checked ? 'checked' : '' ?> class="checkbox checkbox-sm">
+                                                                    <span class="flex-1 truncate" title="<?= htmlspecialchars($gx['name']) ?>"><?= htmlspecialchars($gx['name']) ?></span>
+                                                                    <span class="font-mono text-xs text-gray-400"><?= htmlspecialchars($gx['slug']) ?></span>
+                                                                </label>
+                                                            <?php endforeach; ?>
+                                                        </div>
+                                                        <button type="submit" class="btn btn-sm btn-primary"><?= t_attr('admin_whitelist_publish_save_btn', 'Save publish list') ?></button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            </div>
+
+                                            <!-- Subscribe side -->
+                                            <div>
+                                                <h4 class="text-sm font-semibold text-gray-800 mb-2"><?= t_attr('admin_whitelist_subscribe_heading', 'Galaxies we subscribe from them') ?></h4>
+                                                <p class="text-xs text-gray-600 mb-3"><?= t_attr('admin_whitelist_subscribe_help', 'Add a remote galaxy slug to subscribe to. A multiselect arrives once the published-galaxies endpoint is in place.') ?></p>
+
+                                                <?php $activeSubs = array_filter($state['subscriptions'], fn($s) => (bool)$s['is_active']); ?>
+                                                <?php if ($activeSubs !== []): ?>
+                                                    <div class="overflow-x-auto bg-white border border-gray-200 rounded mb-3">
+                                                        <table class="min-w-full text-xs">
+                                                            <thead class="bg-gray-50 text-left text-gray-600">
+                                                                <tr>
+                                                                    <th class="px-2 py-1 font-medium"><?= t_attr('admin_whitelist_subscribe_th_slug', 'Remote slug') ?></th>
+                                                                    <th class="px-2 py-1 font-medium"><?= t_attr('admin_whitelist_subscribe_th_last_sync', 'Last sync') ?></th>
+                                                                    <th class="px-2 py-1 font-medium text-right"><?= t_attr('admin_whitelist_subscribe_th_actions', 'Actions') ?></th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody class="divide-y divide-gray-100">
+                                                                <?php foreach ($activeSubs as $sub): ?>
+                                                                    <tr>
+                                                                        <td class="px-2 py-1 font-mono text-gray-800"><?= htmlspecialchars($sub['remote_slug']) ?></td>
+                                                                        <td class="px-2 py-1 text-gray-600"><?= htmlspecialchars($sub['last_synced_at'] ?? '—') ?></td>
+                                                                        <td class="px-2 py-1 text-right">
+                                                                            <form method="POST" action="whitelist-subscription-remove.php" class="inline">
+                                                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                                                <input type="hidden" name="peer_id" value="<?= $pid ?>">
+                                                                                <input type="hidden" name="subscription_id" value="<?= (int)$sub['id'] ?>">
+                                                                                <button type="submit" class="btn btn-xs btn-outline btn-error" onclick="return confirm('<?= t_attr('admin_whitelist_subscribe_confirm_remove', 'Remove this subscription?') ?>')"><?= t_attr('admin_whitelist_subscribe_btn_remove', 'Remove') ?></button>
+                                                                            </form>
+                                                                        </td>
+                                                                    </tr>
+                                                                <?php endforeach; ?>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                <?php else: ?>
+                                                    <p class="text-xs text-gray-500 italic mb-3"><?= t_attr('admin_whitelist_no_subscriptions', 'No subscriptions yet.') ?></p>
+                                                <?php endif; ?>
+
+                                                <form method="POST" action="whitelist-subscription-add.php" class="flex flex-wrap items-end gap-2">
+                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                    <input type="hidden" name="peer_id" value="<?= $pid ?>">
+                                                    <div class="flex-1 min-w-[12rem]">
+                                                        <label class="block text-xs font-medium text-gray-700 mb-1" for="sub-slug-<?= $pid ?>"><?= t_attr('admin_whitelist_subscribe_field_slug', 'Remote slug') ?></label>
+                                                        <input id="sub-slug-<?= $pid ?>" type="text" name="remote_slug" maxlength="255" required class="input input-bordered input-sm w-full bg-white font-mono">
+                                                    </div>
+                                                    <button type="submit" class="btn btn-sm btn-primary"><?= t_attr('admin_whitelist_subscribe_btn_add', 'Add subscription') ?></button>
+                                                </form>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </details>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </div>
 
                     <!-- Advanced: manual peer entry (stage 3c-ii) -->

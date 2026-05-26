@@ -555,6 +555,24 @@ const PROJECT_INFO_KEYS = [
     'admin_handshake_err_peer_not_in_directory', 'admin_handshake_err_invalid_recipient',
     'admin_handshake_err_body_required', 'admin_handshake_err_sensitive_info',
     'admin_handshake_err_active_exists',
+    // Whitelist editor (stage 4f)
+    'admin_whitelist_section_heading', 'admin_whitelist_section_subheading',
+    'admin_whitelist_no_peers', 'admin_whitelist_no_authored', 'admin_whitelist_no_subscriptions',
+    'admin_whitelist_trust_state_label',
+    'admin_whitelist_count_publish', 'admin_whitelist_count_subscribe',
+    'admin_whitelist_hint_post_handshake',
+    'admin_whitelist_publish_heading', 'admin_whitelist_publish_help', 'admin_whitelist_publish_save_btn',
+    'admin_whitelist_subscribe_heading', 'admin_whitelist_subscribe_help',
+    'admin_whitelist_subscribe_th_slug', 'admin_whitelist_subscribe_th_last_sync', 'admin_whitelist_subscribe_th_actions',
+    'admin_whitelist_subscribe_field_slug',
+    'admin_whitelist_subscribe_btn_add', 'admin_whitelist_subscribe_btn_remove',
+    'admin_whitelist_subscribe_confirm_remove',
+    'admin_whitelist_publish_save_ok', 'admin_whitelist_publish_save_err',
+    'admin_whitelist_subscription_add_ok', 'admin_whitelist_subscription_add_exists', 'admin_whitelist_subscription_add_err',
+    'admin_whitelist_subscription_remove_ok', 'admin_whitelist_subscription_remove_err',
+    'admin_whitelist_err_missing_peer', 'admin_whitelist_err_unknown_peer',
+    'admin_whitelist_err_mirrored', 'admin_whitelist_err_invalid_slug',
+    'admin_whitelist_err_unknown_subscription', 'admin_whitelist_err_peer_mismatch',
 ];
 
 /**
@@ -1256,6 +1274,40 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_handshake_err_body_required' => 'A message body is required for a handshake request.',
             'admin_handshake_err_sensitive_info' => 'Your message contains content that looks like a secret (%s). Edit the message and try again, or check "Send anyway" to override.',
             'admin_handshake_err_active_exists' => 'An active handshake to that hostname is already in flight; cancel it before initiating another.',
+            'admin_whitelist_section_heading' => 'Per-peer publish and subscribe lists',
+            'admin_whitelist_section_subheading' => 'Which of your authored galaxies you would publish to each peer, and which of theirs you want to subscribe from. Takes effect after a successful handshake; you can pre-load intent before that point.',
+            'admin_whitelist_no_peers' => 'No peers yet. Lists become editable once peers appear in the Local Peer List.',
+            'admin_whitelist_no_authored' => 'No authored galaxies yet.',
+            'admin_whitelist_no_subscriptions' => 'No subscriptions yet.',
+            'admin_whitelist_trust_state_label' => 'Trust:',
+            'admin_whitelist_count_publish' => 'publish',
+            'admin_whitelist_count_subscribe' => 'subscribe',
+            'admin_whitelist_hint_post_handshake' => 'No handshake has completed with this peer yet; the whitelist takes effect when one does.',
+            'admin_whitelist_publish_heading' => 'Galaxies we publish to them',
+            'admin_whitelist_publish_help' => 'Only authored galaxies appear here. Mirrored galaxies cannot be re-published.',
+            'admin_whitelist_publish_save_btn' => 'Save publish list',
+            'admin_whitelist_subscribe_heading' => 'Galaxies we subscribe from them',
+            'admin_whitelist_subscribe_help' => 'Add a remote galaxy slug to subscribe to. A multiselect arrives once the published-galaxies endpoint is in place.',
+            'admin_whitelist_subscribe_th_slug' => 'Remote slug',
+            'admin_whitelist_subscribe_th_last_sync' => 'Last sync',
+            'admin_whitelist_subscribe_th_actions' => 'Actions',
+            'admin_whitelist_subscribe_field_slug' => 'Remote slug',
+            'admin_whitelist_subscribe_btn_add' => 'Add subscription',
+            'admin_whitelist_subscribe_btn_remove' => 'Remove',
+            'admin_whitelist_subscribe_confirm_remove' => 'Remove this subscription?',
+            'admin_whitelist_publish_save_ok' => 'Publish list saved (%1$d added, %2$d removed).',
+            'admin_whitelist_publish_save_err' => 'Could not save the publish list.',
+            'admin_whitelist_subscription_add_ok' => 'Subscription added.',
+            'admin_whitelist_subscription_add_exists' => 'That subscription is already active; nothing changed.',
+            'admin_whitelist_subscription_add_err' => 'Could not add the subscription.',
+            'admin_whitelist_subscription_remove_ok' => 'Subscription removed.',
+            'admin_whitelist_subscription_remove_err' => 'Could not remove the subscription.',
+            'admin_whitelist_err_missing_peer' => 'Missing peer id.',
+            'admin_whitelist_err_unknown_peer' => 'That peer no longer exists.',
+            'admin_whitelist_err_mirrored' => 'Cannot publish a mirrored galaxy onward; only authored galaxies are allowed.',
+            'admin_whitelist_err_invalid_slug' => 'The remote slug is empty or too long.',
+            'admin_whitelist_err_unknown_subscription' => 'That subscription no longer exists.',
+            'admin_whitelist_err_peer_mismatch' => 'That subscription belongs to a different peer.',
             'admin_heading_download_backup' => 'Download a backup',
             'admin_help_download_backup' => 'Create a portable backup file containing galaxies and/or users. The default produces a full backup with embedded media.',
             'admin_label_galaxies' => 'Galaxies',
@@ -2511,6 +2563,40 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_handshake_err_body_required' => 'Una solicitud de apretón de mano requiere un cuerpo de mensaje.',
             'admin_handshake_err_sensitive_info' => 'Tu mensaje contiene contenido que parece un secreto (%s). Edítalo e inténtalo de nuevo, o marca "Enviar igualmente" para anular la verificación.',
             'admin_handshake_err_active_exists' => 'Ya hay un apretón de mano activo hacia ese host; cancélalo antes de iniciar otro.',
+            'admin_whitelist_section_heading' => 'Listas de publicación y suscripción por par',
+            'admin_whitelist_section_subheading' => 'Cuáles de tus galaxias propias publicarías a cada par, y cuáles de las suyas quieres suscribir. Surte efecto tras un apretón de mano exitoso; puedes precargar la intención antes.',
+            'admin_whitelist_no_peers' => 'Aún no hay pares. Las listas se pueden editar cuando aparezcan pares en la Lista local de pares.',
+            'admin_whitelist_no_authored' => 'Aún no hay galaxias propias.',
+            'admin_whitelist_no_subscriptions' => 'Aún no hay suscripciones.',
+            'admin_whitelist_trust_state_label' => 'Confianza:',
+            'admin_whitelist_count_publish' => 'publicar',
+            'admin_whitelist_count_subscribe' => 'suscribir',
+            'admin_whitelist_hint_post_handshake' => 'Aún no se ha completado ningún apretón de mano con este par; la lista surte efecto cuando se complete uno.',
+            'admin_whitelist_publish_heading' => 'Galaxias que publicamos a este par',
+            'admin_whitelist_publish_help' => 'Solo aparecen galaxias propias. Las galaxias replicadas no se pueden volver a publicar.',
+            'admin_whitelist_publish_save_btn' => 'Guardar lista de publicación',
+            'admin_whitelist_subscribe_heading' => 'Galaxias a las que nos suscribimos en este par',
+            'admin_whitelist_subscribe_help' => 'Agrega el slug de una galaxia remota para suscribirte. Una selección múltiple llegará cuando esté listo el endpoint de galaxias publicadas.',
+            'admin_whitelist_subscribe_th_slug' => 'Slug remoto',
+            'admin_whitelist_subscribe_th_last_sync' => 'Última sinc.',
+            'admin_whitelist_subscribe_th_actions' => 'Acciones',
+            'admin_whitelist_subscribe_field_slug' => 'Slug remoto',
+            'admin_whitelist_subscribe_btn_add' => 'Agregar suscripción',
+            'admin_whitelist_subscribe_btn_remove' => 'Quitar',
+            'admin_whitelist_subscribe_confirm_remove' => '¿Quitar esta suscripción?',
+            'admin_whitelist_publish_save_ok' => 'Lista de publicación guardada (%1$d añadidas, %2$d quitadas).',
+            'admin_whitelist_publish_save_err' => 'No se pudo guardar la lista de publicación.',
+            'admin_whitelist_subscription_add_ok' => 'Suscripción agregada.',
+            'admin_whitelist_subscription_add_exists' => 'Esa suscripción ya está activa; no hubo cambios.',
+            'admin_whitelist_subscription_add_err' => 'No se pudo agregar la suscripción.',
+            'admin_whitelist_subscription_remove_ok' => 'Suscripción quitada.',
+            'admin_whitelist_subscription_remove_err' => 'No se pudo quitar la suscripción.',
+            'admin_whitelist_err_missing_peer' => 'Falta el id del par.',
+            'admin_whitelist_err_unknown_peer' => 'Ese par ya no existe.',
+            'admin_whitelist_err_mirrored' => 'No se puede publicar una galaxia replicada; solo se permiten galaxias propias.',
+            'admin_whitelist_err_invalid_slug' => 'El slug remoto está vacío o es demasiado largo.',
+            'admin_whitelist_err_unknown_subscription' => 'Esa suscripción ya no existe.',
+            'admin_whitelist_err_peer_mismatch' => 'Esa suscripción pertenece a otro par.',
             'admin_heading_download_backup' => 'Descargar un respaldo',
             'admin_help_download_backup' => 'Crea un archivo de respaldo portable con galaxias y/o cuentas. La opción por defecto produce un respaldo completo con los archivos multimedia incrustados.',
             'admin_label_galaxies' => 'Galaxias',
@@ -3762,6 +3848,40 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_handshake_err_body_required' => 'Uma solicitação de aperto de mão exige um corpo de mensagem.',
             'admin_handshake_err_sensitive_info' => 'Sua mensagem contém conteúdo que parece um segredo (%s). Edite e tente novamente, ou marque "Enviar mesmo assim" para anular a verificação.',
             'admin_handshake_err_active_exists' => 'Já existe um aperto de mão ativo para esse host; cancele-o antes de iniciar outro.',
+            'admin_whitelist_section_heading' => 'Listas de publicação e assinatura por par',
+            'admin_whitelist_section_subheading' => 'Quais das galáxias que você criou seriam publicadas para cada par, e quais delas você quer assinar. Surte efeito após um aperto de mão bem-sucedido; você pode pré-carregar a intenção antes.',
+            'admin_whitelist_no_peers' => 'Ainda não há pares. As listas tornam-se editáveis quando os pares aparecem na Lista local de pares.',
+            'admin_whitelist_no_authored' => 'Ainda não há galáxias próprias.',
+            'admin_whitelist_no_subscriptions' => 'Ainda não há assinaturas.',
+            'admin_whitelist_trust_state_label' => 'Confiança:',
+            'admin_whitelist_count_publish' => 'publicar',
+            'admin_whitelist_count_subscribe' => 'assinar',
+            'admin_whitelist_hint_post_handshake' => 'Nenhum aperto de mão foi concluído com este par ainda; a lista surte efeito quando isso acontecer.',
+            'admin_whitelist_publish_heading' => 'Galáxias que publicamos para este par',
+            'admin_whitelist_publish_help' => 'Apenas galáxias próprias aparecem aqui. Galáxias espelhadas não podem ser republicadas.',
+            'admin_whitelist_publish_save_btn' => 'Salvar lista de publicação',
+            'admin_whitelist_subscribe_heading' => 'Galáxias que assinamos deste par',
+            'admin_whitelist_subscribe_help' => 'Adicione o slug de uma galáxia remota para assinar. Uma seleção múltipla chega quando o endpoint de galáxias publicadas estiver disponível.',
+            'admin_whitelist_subscribe_th_slug' => 'Slug remoto',
+            'admin_whitelist_subscribe_th_last_sync' => 'Última sinc.',
+            'admin_whitelist_subscribe_th_actions' => 'Ações',
+            'admin_whitelist_subscribe_field_slug' => 'Slug remoto',
+            'admin_whitelist_subscribe_btn_add' => 'Adicionar assinatura',
+            'admin_whitelist_subscribe_btn_remove' => 'Remover',
+            'admin_whitelist_subscribe_confirm_remove' => 'Remover esta assinatura?',
+            'admin_whitelist_publish_save_ok' => 'Lista de publicação salva (%1$d adicionadas, %2$d removidas).',
+            'admin_whitelist_publish_save_err' => 'Não foi possível salvar a lista de publicação.',
+            'admin_whitelist_subscription_add_ok' => 'Assinatura adicionada.',
+            'admin_whitelist_subscription_add_exists' => 'Essa assinatura já está ativa; nada mudou.',
+            'admin_whitelist_subscription_add_err' => 'Não foi possível adicionar a assinatura.',
+            'admin_whitelist_subscription_remove_ok' => 'Assinatura removida.',
+            'admin_whitelist_subscription_remove_err' => 'Não foi possível remover a assinatura.',
+            'admin_whitelist_err_missing_peer' => 'Falta o id do par.',
+            'admin_whitelist_err_unknown_peer' => 'Esse par não existe mais.',
+            'admin_whitelist_err_mirrored' => 'Não é possível republicar uma galáxia espelhada; apenas galáxias próprias são permitidas.',
+            'admin_whitelist_err_invalid_slug' => 'O slug remoto está vazio ou é longo demais.',
+            'admin_whitelist_err_unknown_subscription' => 'Essa assinatura não existe mais.',
+            'admin_whitelist_err_peer_mismatch' => 'Essa assinatura pertence a outro par.',
             'admin_heading_download_backup' => 'Baixar um backup',
             'admin_help_download_backup' => 'Crie um arquivo de backup portátil com galáxias e/ou contas. A opção padrão produz um backup completo com mídia incorporada.',
             'admin_label_galaxies' => 'Galáxias',
@@ -5013,6 +5133,40 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_handshake_err_body_required' => 'Une demande de poignée de main nécessite un corps de message.',
             'admin_handshake_err_sensitive_info' => 'Ton message contient du contenu qui ressemble à un secret (%s). Modifie-le et réessaie, ou coche « Envoyer quand même » pour contourner.',
             'admin_handshake_err_active_exists' => 'Une poignée de main active vers cet hôte est déjà en cours ; annule-la avant d\'en initier une autre.',
+            'admin_whitelist_section_heading' => 'Listes de publication et d\'abonnement par pair',
+            'admin_whitelist_section_subheading' => 'Lesquelles de tes galaxies tu publierais à chaque pair, et lesquelles des leurs tu veux abonner. Prend effet après une poignée de main réussie ; tu peux précharger l\'intention avant.',
+            'admin_whitelist_no_peers' => 'Aucun pair pour le moment. Les listes deviennent modifiables dès que des pairs apparaissent dans la Liste locale des pairs.',
+            'admin_whitelist_no_authored' => 'Aucune galaxie créée localement pour le moment.',
+            'admin_whitelist_no_subscriptions' => 'Aucun abonnement pour le moment.',
+            'admin_whitelist_trust_state_label' => 'Confiance :',
+            'admin_whitelist_count_publish' => 'publier',
+            'admin_whitelist_count_subscribe' => 'abonner',
+            'admin_whitelist_hint_post_handshake' => 'Aucune poignée de main n\'est encore terminée avec ce pair ; la liste prendra effet quand ce sera fait.',
+            'admin_whitelist_publish_heading' => 'Galaxies que nous publions vers ce pair',
+            'admin_whitelist_publish_help' => 'Seules les galaxies créées localement apparaissent ici. Les galaxies miroir ne peuvent pas être republiées.',
+            'admin_whitelist_publish_save_btn' => 'Enregistrer la liste de publication',
+            'admin_whitelist_subscribe_heading' => 'Galaxies auxquelles nous nous abonnons chez ce pair',
+            'admin_whitelist_subscribe_help' => 'Ajoute le slug d\'une galaxie distante pour t\'abonner. Une sélection multiple arrivera quand le point d\'accès des galaxies publiées sera en place.',
+            'admin_whitelist_subscribe_th_slug' => 'Slug distant',
+            'admin_whitelist_subscribe_th_last_sync' => 'Dernière sync.',
+            'admin_whitelist_subscribe_th_actions' => 'Actions',
+            'admin_whitelist_subscribe_field_slug' => 'Slug distant',
+            'admin_whitelist_subscribe_btn_add' => 'Ajouter un abonnement',
+            'admin_whitelist_subscribe_btn_remove' => 'Retirer',
+            'admin_whitelist_subscribe_confirm_remove' => 'Retirer cet abonnement ?',
+            'admin_whitelist_publish_save_ok' => 'Liste de publication enregistrée (%1$d ajoutées, %2$d retirées).',
+            'admin_whitelist_publish_save_err' => 'Impossible d\'enregistrer la liste de publication.',
+            'admin_whitelist_subscription_add_ok' => 'Abonnement ajouté.',
+            'admin_whitelist_subscription_add_exists' => 'Cet abonnement est déjà actif ; rien n\'a changé.',
+            'admin_whitelist_subscription_add_err' => 'Impossible d\'ajouter l\'abonnement.',
+            'admin_whitelist_subscription_remove_ok' => 'Abonnement retiré.',
+            'admin_whitelist_subscription_remove_err' => 'Impossible de retirer l\'abonnement.',
+            'admin_whitelist_err_missing_peer' => 'Identifiant de pair manquant.',
+            'admin_whitelist_err_unknown_peer' => 'Ce pair n\'existe plus.',
+            'admin_whitelist_err_mirrored' => 'Impossible de republier une galaxie miroir ; seules les galaxies créées localement sont autorisées.',
+            'admin_whitelist_err_invalid_slug' => 'Le slug distant est vide ou trop long.',
+            'admin_whitelist_err_unknown_subscription' => 'Cet abonnement n\'existe plus.',
+            'admin_whitelist_err_peer_mismatch' => 'Cet abonnement appartient à un autre pair.',
             'admin_heading_download_backup' => 'Télécharger une sauvegarde',
             'admin_help_download_backup' => 'Crée une archive de sauvegarde portable avec les galaxies et/ou les comptes. L\'option par défaut produit une sauvegarde complète avec les médias intégrés.',
             'admin_label_galaxies' => 'Galaxies',
@@ -11390,6 +11544,254 @@ function db_get_local_peers(): array {
         ];
     }
     return $out;
+}
+
+/**
+ * Authored galaxies for the publish-whitelist editor (4f). A galaxy is
+ * authored iff it was created locally — i.e. mirrored_from_peer_id IS NULL.
+ * Mirrored galaxies cannot be published onward; they're someone else's
+ * authoritative content.
+ *
+ * @return list<array{id:int,name:string,slug:string}>
+ */
+function db_get_authored_galaxies(): array {
+    $pdo = getDB();
+    $rows = $pdo->query("
+        SELECT id, name, slug
+        FROM constellations
+        WHERE `type` = 'galaxy' AND mirrored_from_peer_id IS NULL
+        ORDER BY name
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = [
+            'id' => (int)$r['id'],
+            'name' => (string)$r['name'],
+            'slug' => (string)$r['slug'],
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Current publish-whitelist for one peer. Returns the list of authored
+ * constellation IDs we are willing to publish to that peer. Used by the
+ * admin Whitelist editor (4f) to pre-check the boxes; mirrored constellations
+ * are filtered out defensively even though writes refuse them.
+ *
+ * @return list<int>
+ */
+function db_get_peer_publish_whitelist(int $peerId): array {
+    db_ensure_galaxy_publish_whitelist_table();
+    $stmt = getDB()->prepare("
+        SELECT w.constellation_id
+        FROM galaxy_publish_whitelist w
+        JOIN constellations c ON c.id = w.constellation_id
+        WHERE w.peer_id = :p AND c.mirrored_from_peer_id IS NULL
+        ORDER BY c.name
+    ");
+    $stmt->execute([':p' => $peerId]);
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+/**
+ * Active subscriptions for one peer. The editor lists these and lets the
+ * admin add or remove rows. local_constellation_id is NULL until stage 5
+ * starts mirroring; until then, only remote_slug is meaningful.
+ *
+ * @return list<array{id:int,remote_slug:string,local_constellation_id:?int,last_synced_at:?string,is_active:bool}>
+ */
+function db_get_peer_subscriptions(int $peerId): array {
+    db_ensure_galaxy_subscriptions_table();
+    $stmt = getDB()->prepare("
+        SELECT id, remote_slug, local_constellation_id, last_synced_at, is_active
+        FROM galaxy_subscriptions
+        WHERE peer_id = :p
+        ORDER BY is_active DESC, remote_slug ASC
+    ");
+    $stmt->execute([':p' => $peerId]);
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [
+            'id' => (int)$r['id'],
+            'remote_slug' => (string)$r['remote_slug'],
+            'local_constellation_id' => $r['local_constellation_id'] !== null ? (int)$r['local_constellation_id'] : null,
+            'last_synced_at' => $r['last_synced_at'] !== null ? (string)$r['last_synced_at'] : null,
+            'is_active' => (bool)$r['is_active'],
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Recompute peers.has_active_whitelist for one peer. The flag is TRUE iff
+ * either side carries at least one row pointing at the peer (publish OR
+ * active subscription). Stage 4 callers (the three admin handlers) drive
+ * this after every mutation so the flag stays consistent without relying
+ * on triggers.
+ */
+function db_recompute_peer_active_whitelist(int $peerId): void {
+    db_ensure_peers_table();
+    db_ensure_galaxy_publish_whitelist_table();
+    db_ensure_galaxy_subscriptions_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT
+            EXISTS(SELECT 1 FROM galaxy_publish_whitelist WHERE peer_id = :p1) AS has_pub,
+            EXISTS(SELECT 1 FROM galaxy_subscriptions WHERE peer_id = :p2 AND is_active = TRUE) AS has_sub
+    ");
+    $stmt->execute([':p1' => $peerId, ':p2' => $peerId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['has_pub' => 0, 'has_sub' => 0];
+    $has = ((int)$row['has_pub'] === 1) || ((int)$row['has_sub'] === 1);
+    $upd = $pdo->prepare("UPDATE peers SET has_active_whitelist = :v WHERE id = :p");
+    $upd->execute([':v' => $has ? 1 : 0, ':p' => $peerId]);
+}
+
+/**
+ * Replace the publish-whitelist for one peer with the given set of
+ * authored-galaxy IDs. Transactional diff: rows for IDs no longer in the
+ * set are deleted; new IDs are inserted; existing rows untouched. Refuses
+ * any constellation that isn't an authored galaxy (mirrored or wrong type)
+ * by returning ['ok'=>false,'reason'=>'mirrored_in_publish_set'] without
+ * changing state.
+ *
+ * @param list<int> $constellationIds
+ * @return array{ok:bool,reason?:string,added:int,removed:int}
+ */
+function db_set_peer_publish_whitelist(int $peerId, array $constellationIds, ?string $adminActor): array {
+    db_ensure_peers_table();
+    db_ensure_galaxy_publish_whitelist_table();
+    $pdo = getDB();
+
+    $exists = $pdo->prepare("SELECT id FROM peers WHERE id = :p LIMIT 1");
+    $exists->execute([':p' => $peerId]);
+    if ($exists->fetchColumn() === false) {
+        return ['ok' => false, 'reason' => 'unknown_peer', 'added' => 0, 'removed' => 0];
+    }
+
+    $clean = [];
+    foreach ($constellationIds as $cid) {
+        $cid = (int)$cid;
+        if ($cid > 0) $clean[$cid] = true;
+    }
+    $clean = array_keys($clean);
+
+    if ($clean !== []) {
+        $place = implode(',', array_fill(0, count($clean), '?'));
+        $stmt = $pdo->prepare("
+            SELECT id FROM constellations
+            WHERE id IN ($place) AND `type` = 'galaxy' AND mirrored_from_peer_id IS NULL
+        ");
+        $stmt->execute($clean);
+        $allowed = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        if (count($allowed) !== count($clean)) {
+            return ['ok' => false, 'reason' => 'mirrored_in_publish_set', 'added' => 0, 'removed' => 0];
+        }
+    }
+
+    $existingStmt = $pdo->prepare("SELECT constellation_id FROM galaxy_publish_whitelist WHERE peer_id = :p");
+    $existingStmt->execute([':p' => $peerId]);
+    $existing = array_map('intval', $existingStmt->fetchAll(PDO::FETCH_COLUMN));
+
+    $toAdd = array_values(array_diff($clean, $existing));
+    $toRemove = array_values(array_diff($existing, $clean));
+
+    if ($toAdd === [] && $toRemove === []) {
+        db_recompute_peer_active_whitelist($peerId);
+        return ['ok' => true, 'added' => 0, 'removed' => 0];
+    }
+
+    $pdo->beginTransaction();
+    try {
+        if ($toRemove !== []) {
+            $place = implode(',', array_fill(0, count($toRemove), '?'));
+            $del = $pdo->prepare("DELETE FROM galaxy_publish_whitelist WHERE peer_id = ? AND constellation_id IN ($place)");
+            $del->execute(array_merge([$peerId], $toRemove));
+        }
+        if ($toAdd !== []) {
+            $ins = $pdo->prepare("INSERT IGNORE INTO galaxy_publish_whitelist (peer_id, constellation_id, added_by) VALUES (:p, :c, :a)");
+            foreach ($toAdd as $cid) {
+                $ins->execute([':p' => $peerId, ':c' => $cid, ':a' => $adminActor]);
+            }
+        }
+        $pdo->commit();
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('db_set_peer_publish_whitelist: ' . $e->getMessage());
+        return ['ok' => false, 'reason' => 'db_error', 'added' => 0, 'removed' => 0];
+    }
+
+    db_recompute_peer_active_whitelist($peerId);
+    return ['ok' => true, 'added' => count($toAdd), 'removed' => count($toRemove)];
+}
+
+/**
+ * Add (or reactivate) a subscription row for one peer + remote slug. If a
+ * row with that (peer_id, remote_slug) already exists, flip its is_active
+ * back to TRUE rather than failing — the editor's "remove" is soft, so
+ * re-adding should restore. Returns reason='exists_active' when the row
+ * was already active so the UI can show "no change".
+ *
+ * @return array{ok:bool,reason?:string,subscription_id?:int}
+ */
+function db_add_peer_subscription(int $peerId, string $remoteSlug, ?string $adminActor): array {
+    db_ensure_peers_table();
+    db_ensure_galaxy_subscriptions_table();
+    $slug = trim($remoteSlug);
+    if ($slug === '' || mb_strlen($slug) > 255) {
+        return ['ok' => false, 'reason' => 'invalid_slug'];
+    }
+    $pdo = getDB();
+
+    $peerStmt = $pdo->prepare("SELECT id FROM peers WHERE id = :p LIMIT 1");
+    $peerStmt->execute([':p' => $peerId]);
+    if ($peerStmt->fetchColumn() === false) {
+        return ['ok' => false, 'reason' => 'unknown_peer'];
+    }
+
+    $find = $pdo->prepare("SELECT id, is_active FROM galaxy_subscriptions WHERE peer_id = :p AND remote_slug = :s LIMIT 1");
+    $find->execute([':p' => $peerId, ':s' => $slug]);
+    $row = $find->fetch(PDO::FETCH_ASSOC);
+    if ($row !== false) {
+        $subId = (int)$row['id'];
+        if ((bool)$row['is_active'] === true) {
+            return ['ok' => true, 'reason' => 'exists_active', 'subscription_id' => $subId];
+        }
+        $pdo->prepare("UPDATE galaxy_subscriptions SET is_active = TRUE WHERE id = :id")->execute([':id' => $subId]);
+        db_recompute_peer_active_whitelist($peerId);
+        return ['ok' => true, 'subscription_id' => $subId];
+    }
+
+    $ins = $pdo->prepare("INSERT INTO galaxy_subscriptions (peer_id, remote_slug, added_by) VALUES (:p, :s, :a)");
+    $ins->execute([':p' => $peerId, ':s' => $slug, ':a' => $adminActor]);
+    $subId = (int)$pdo->lastInsertId();
+    db_recompute_peer_active_whitelist($peerId);
+    return ['ok' => true, 'subscription_id' => $subId];
+}
+
+/**
+ * Hard-delete a subscription row. peer_id is required and must match the
+ * subscription's stored peer_id; that defends against a bare-id POST being
+ * used to delete some other peer's row. After delete, the active-whitelist
+ * flag for the affected peer is recomputed.
+ *
+ * @return array{ok:bool,reason?:string}
+ */
+function db_remove_peer_subscription(int $peerId, int $subscriptionId): array {
+    db_ensure_galaxy_subscriptions_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT peer_id FROM galaxy_subscriptions WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $subscriptionId]);
+    $rowPeer = $stmt->fetchColumn();
+    if ($rowPeer === false) {
+        return ['ok' => false, 'reason' => 'unknown_subscription'];
+    }
+    if ((int)$rowPeer !== $peerId) {
+        return ['ok' => false, 'reason' => 'peer_mismatch'];
+    }
+    $pdo->prepare("DELETE FROM galaxy_subscriptions WHERE id = :id")->execute([':id' => $subscriptionId]);
+    db_recompute_peer_active_whitelist($peerId);
+    return ['ok' => true];
 }
 
 /**
