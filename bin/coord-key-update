@@ -1,0 +1,161 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * bin/coord-key-update — emergency Pluriverse coord-key cache override.
+ *
+ * Out-of-band recovery path for the case where the Pluriverse coordination
+ * key is compromised and no in-band rotation event can be trusted (since
+ * the attacker may also produce signatures with the compromised key).
+ * Operators receive the new coord fingerprint via the governance page,
+ * direct founder-admin email, or printed onboarding material, then run:
+ *
+ *   sudo -u www-data php bin/coord-key-update <fingerprint>
+ *
+ * The command fetches www.telaris.ca/api/pluriverse/identity over HTTPS
+ * (TLS-cert-validated), computes the fingerprint of the returned public
+ * key, and compares against the operator-supplied value. On match it
+ * replaces the cached coord key and clears any previous-slot grace.
+ * On mismatch the command aborts with a clear error.
+ *
+ * Re-auth: the operator must supply an admin email + password via
+ *   --as=<email> --password=<pw>
+ * or via stdin if --password is omitted. The auth check uses the same
+ * authenticateUser() helper that drives the admin UI, so the same rate
+ * limiting / lockout behaviour applies.
+ *
+ * Logs the result in `pluriverse_log` with event_type = "coord_key_manual_update".
+ *
+ * Spec: P2P federation plan v10 § Pluriverse coordination key rotation
+ * (line 856+, "Compromise of the coord key").
+ */
+
+if (PHP_SAPI !== 'cli') {
+    fwrite(STDERR, "Refusing to run outside CLI.\n");
+    exit(1);
+}
+
+require_once __DIR__ . '/../inc/bootstrap.php';
+require_once __DIR__ . '/../inc/federation/coord_key.php';
+require_once __DIR__ . '/../utils/auth.php';
+
+function _ck_usage(): never {
+    fwrite(STDERR,
+        "Usage: bin/coord-key-update <expected-fingerprint> --as=<admin-email> [--password=<pw>]\n" .
+        "       bin/coord-key-update --status\n" .
+        "       bin/coord-key-update --tofu --as=<admin-email> [--password=<pw>]   # first-contact, no fingerprint check\n");
+    exit(2);
+}
+
+function _ck_die(string $msg, int $code = 1): never {
+    fwrite(STDERR, "coord-key-update: {$msg}\n");
+    exit($code);
+}
+
+function _ck_log(string $outcome, string $detail): void {
+    db_ensure_pluriverse_log_tables();
+    $stmt = getDB()->prepare("
+        INSERT INTO pluriverse_log (event_type, actor, target, outcome, details_summary)
+        VALUES ('coord_key_manual_update', :a, 'www.telaris.ca', :o, :d)
+    ");
+    $stmt->execute([
+        ':a' => $_ENV['SUDO_USER'] ?? get_current_user(),
+        ':o' => $outcome,
+        ':d' => substr($detail, 0, 1024),
+    ]);
+}
+
+function _ck_parse_args(array $argv): array {
+    $opts = ['fingerprint' => null, 'admin' => null, 'password' => null, 'status' => false, 'tofu' => false];
+    array_shift($argv);
+    foreach ($argv as $a) {
+        if ($a === '--status') { $opts['status'] = true; continue; }
+        if ($a === '--tofu') { $opts['tofu'] = true; continue; }
+        if (str_starts_with($a, '--as=')) { $opts['admin'] = substr($a, 5); continue; }
+        if (str_starts_with($a, '--password=')) { $opts['password'] = substr($a, 11); continue; }
+        if (str_starts_with($a, '--')) { _ck_die("unknown flag: {$a}", 2); }
+        $opts['fingerprint'] = $a;
+    }
+    return $opts;
+}
+
+$opts = _ck_parse_args($argv);
+
+if ($opts['status']) {
+    $current = federation_coord_key_get(allowTofu: false);
+    if ($current === null) {
+        echo "Cached coord key: <empty>\n";
+    } else {
+        $fp = rtrim(strtr(base64_encode(substr(hash('sha256', $current, true), 0, 16)), '+/', '-_'), '=');
+        echo "Cached coord key fingerprint: {$fp}\n";
+    }
+    $previousBytes = federation_coord_key_get_previous();
+    if ($previousBytes !== null) {
+        $pfp = rtrim(strtr(base64_encode(substr(hash('sha256', $previousBytes, true), 0, 16)), '+/', '-_'), '=');
+        $exp = db_system_meta_get('pluriverse_coord_pub_previous_expires_at');
+        echo "Previous slot:                {$pfp} (grace until {$exp})\n";
+    } else {
+        echo "Previous slot:                <none>\n";
+    }
+    exit(0);
+}
+
+if (!$opts['tofu'] && ($opts['fingerprint'] === null || $opts['fingerprint'] === '')) {
+    _ck_usage();
+}
+if ($opts['admin'] === null || $opts['admin'] === '') {
+    _ck_die("--as=<admin-email> required (re-auth).", 2);
+}
+
+$password = $opts['password'];
+if ($password === null) {
+    if (function_exists('readline')) {
+        $password = readline("Admin password for {$opts['admin']}: ");
+    } else {
+        $password = trim((string)fgets(STDIN));
+    }
+    if (!is_string($password) || $password === '') {
+        _ck_die("empty password.", 2);
+    }
+}
+
+$user = authenticateUser((string)$opts['admin'], (string)$password);
+if ($user === null) {
+    _ck_log('failure', 'invalid_credentials for ' . $opts['admin']);
+    _ck_die("authentication failed.", 3);
+}
+if (($user['role'] ?? '') !== 'admin') {
+    _ck_log('failure', 'non_admin attempt by ' . $opts['admin']);
+    _ck_die("not an admin account.", 3);
+}
+
+$tofu = federation_coord_key_tofu_fetch();
+if (!$tofu['ok']) {
+    _ck_log('failure', 'fetch_failed:' . ($tofu['reason'] ?? ''));
+    _ck_die("could not fetch identity: " . ($tofu['reason'] ?? 'unknown'), 4);
+}
+$fetchedFp = (string)$tofu['fingerprint'];
+
+if ($opts['tofu']) {
+    federation_coord_key_force_replace($tofu['public_key']);
+    _ck_log('success', "tofu_first_contact fingerprint={$fetchedFp}");
+    echo "First-contact accepted. Cached fingerprint: {$fetchedFp}\n";
+    exit(0);
+}
+
+if (!hash_equals($fetchedFp, (string)$opts['fingerprint'])) {
+    _ck_log('failure', "fingerprint_mismatch supplied={$opts['fingerprint']} fetched={$fetchedFp}");
+    _ck_die(
+        "fingerprint mismatch.\n  supplied:  {$opts['fingerprint']}\n  fetched:   {$fetchedFp}\nAborting; cache untouched.",
+        5,
+    );
+}
+
+federation_coord_key_force_replace($tofu['public_key']);
+_ck_log('success', "replaced fingerprint={$fetchedFp} by={$opts['admin']}");
+
+echo "Coord-key cache replaced.\n";
+echo "  Fingerprint: {$fetchedFp}\n";
+echo "  Previous slot cleared (out-of-band recovery, not in-band rotation).\n";
+exit(0);
