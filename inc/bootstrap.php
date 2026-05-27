@@ -62,15 +62,28 @@ function asset_versioned_paths_ok(string $appVersion, string $root): bool {
     $ctx = stream_context_create([
         'http' => [
             'method' => 'HEAD',
-            'timeout' => 2,
+            'timeout' => 4,
             'ignore_errors' => true,
             'header' => 'Host: ' . $host,
         ],
         'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
     ]);
     $headers = @get_headers($probeUrl, false, $ctx);
-    $ok = is_array($headers) && !empty($headers[0]) && (bool)preg_match('/\b200\b/', $headers[0]);
 
+    // Three outcomes, only one of which is a real failure:
+    //   - No HTTP response at all (false / empty): INCONCLUSIVE. This probe is
+    //     a self-HTTP-request from inside an FPM worker back through nginx to
+    //     another FPM worker; under worker contention it can time out even when
+    //     the rule is fine. Treating that as "rule missing" produced a false,
+    //     flapping banner (and visitors saw an un-hydrated page). So on no
+    //     response we assume the rule is installed for THIS request and cache
+    //     nothing, letting a later, calmer request reach a definitive verdict.
+    //   - A response that is 200: rule installed -> cache success per version.
+    //   - A response that is not 200 (e.g. 404): rule genuinely missing -> banner.
+    if (!is_array($headers) || empty($headers[0])) {
+        return $cached = true; // inconclusive; no persistent marker written
+    }
+    $ok = (bool)preg_match('/\b200\b/', $headers[0]);
     if ($ok) {
         if (!is_dir($cacheDir)) @mkdir($cacheDir, 0775, true);
         @file_put_contents($okFile, '1');
