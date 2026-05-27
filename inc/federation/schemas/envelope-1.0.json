@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.telaris.ca/api/pluriverse/schema/envelope-1.0.json",
+  "title": "Telaris Pluriverse galaxy envelope payload, v1.0",
+  "description": "The decoded JWS payload of a published galaxy envelope (typ application/vnd.telaris.pluriverse-envelope.v1+json). Receivers MAY validate against this schema before verifying the signature. Settled fields are closed; the node and media shapes stay open while content-addressed media (5c-media) is finalized.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "origin_host",
+    "slug",
+    "published_sequence",
+    "published_at",
+    "nonce",
+    "galaxy",
+    "nodes",
+    "keyword_relations"
+  ],
+  "properties": {
+    "protocol_version": {
+      "const": "1.0",
+      "description": "Envelope protocol version. Mismatch is rejected before any other check."
+    },
+    "origin_host": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "Hostname of the authoring instance; the JWS kid is anchored to it."
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "Immutable federation identifier for the galaxy. Lowercase alphanumerics and hyphens."
+    },
+    "published_sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Strict-monotonic publish counter for this slug. A receiver rejects any value not strictly greater than the last it accepted."
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 publish timestamp. Bounded to a 30-day sanity window relative to receipt."
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Per-envelope base64url nonce for the per-origin replay store."
+    },
+    "galaxy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "tagline", "theme"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 1024 },
+        "tagline": { "type": "string", "maxLength": 4096 },
+        "theme": { "type": "string", "maxLength": 64 }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "keyword_relations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/keyword_relation" }
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "description": "A wormhole. Open to additional fields while the federated node shape evolves.",
+      "additionalProperties": true,
+      "required": ["name", "node_type", "keywords", "media"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 1024 },
+        "description": { "type": "string" },
+        "url": { "type": "string" },
+        "node_type": { "type": "string", "maxLength": 32 },
+        "is_accentuated": { "type": "boolean" },
+        "show_keywords": { "type": "boolean" },
+        "keywords": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 256 }
+        },
+        "media": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/media_ref" }
+        },
+        "target_slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "description": "Present only on portal nodes: the destination galaxy slug."
+        }
+      }
+    },
+    "media_ref": {
+      "type": "object",
+      "description": "A media reference. The v1.0 wire shape carries { field, src }; content-addressed media (sha256) is added by 5c-media, so this stays open.",
+      "additionalProperties": true,
+      "properties": {
+        "field": { "type": "string", "maxLength": 32 },
+        "src": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "mime": { "type": "string", "maxLength": 128 }
+      }
+    },
+    "keyword_relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": "string", "maxLength": 256 },
+        "to": { "type": "string", "maxLength": 256 },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}
