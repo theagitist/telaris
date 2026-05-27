@@ -68,9 +68,11 @@ function extractConstellationGroup(string $name): ?string {
     return null;
 }
 
+// Dark-console group tints: faint hue-tinted near-Void plates that cluster
+// related galaxies without reading as white on the dark console chrome.
 $pastelPalette = [
-    '#FEF2F2', '#F0FAF0', '#EFF6FF', '#FFF8F0', '#F8F5FF',
-    '#F0FDFA', '#FEFEF0', '#FFF5F5', '#F5F5F7', '#F5FAE8',
+    '#301a1d', '#1a3020', '#1a2233', '#302612', '#251a38',
+    '#143030', '#30301a', '#301a26', '#26262e', '#24301a',
 ];
 $constellationGroupColors = [];
 $groupColorIndex = 0;
@@ -101,7 +103,7 @@ $userType = (int)($_SESSION['admin_user_type'] ?? 0);
 $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -109,6 +111,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <title><?= t_attr('editor_page_title', 'Edit Wormholes') ?> - <?php echo htmlspecialchars($projectName); ?></title>
     <script src="../js/tailwind.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
+    <?php include __DIR__ . '/../inc/admin-console-theme.php'; ?>
 </head>
 <body class="font-sans bg-gray-100 min-h-screen">
     <div class="max-w-7xl mx-auto py-8 px-5">
@@ -2062,24 +2065,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         // Helper for pastel colors
         function getPastelColor(str) {
+            // Dark-console keyword chips: bright constellation pastel text on a
+            // faint same-hue plate (the canonical chip look from the brand book
+            // and the visitor view). Seventeen .tel-kw-N classes are defined in
+            // inc/admin-console-theme.php, one per constellation pastel.
             const pastelColors = [
-                'bg-red-100 text-red-700 border-red-200',
-                'bg-orange-100 text-orange-700 border-orange-200',
-                'bg-amber-100 text-amber-700 border-amber-200',
-                'bg-yellow-100 text-yellow-700 border-yellow-200',
-                'bg-lime-100 text-lime-700 border-lime-200',
-                'bg-green-100 text-green-700 border-green-200',
-                'bg-emerald-100 text-emerald-700 border-emerald-200',
-                'bg-teal-100 text-teal-700 border-teal-200',
-                'bg-cyan-100 text-cyan-700 border-cyan-200',
-                'bg-sky-100 text-sky-700 border-sky-200',
-                'bg-blue-100 text-blue-700 border-blue-200',
-                'bg-indigo-100 text-indigo-700 border-indigo-200',
-                'bg-violet-100 text-violet-700 border-violet-200',
-                'bg-purple-100 text-purple-700 border-purple-200',
-                'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',
-                'bg-pink-100 text-pink-700 border-pink-200',
-                'bg-rose-100 text-rose-700 border-rose-200'
+                'tel-kw-0', 'tel-kw-1', 'tel-kw-2', 'tel-kw-3', 'tel-kw-4',
+                'tel-kw-5', 'tel-kw-6', 'tel-kw-7', 'tel-kw-8', 'tel-kw-9',
+                'tel-kw-10', 'tel-kw-11', 'tel-kw-12', 'tel-kw-13', 'tel-kw-14',
+                'tel-kw-15', 'tel-kw-16'
             ];
             let hash = 0;
             for (let i = 0; i < str.length; i++) {

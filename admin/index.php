@@ -609,9 +609,11 @@ function extractConstellationGroup(string $name): ?string {
 }
 
 $constellationGroupColors = [];
+// Dark-console group tints: faint hue-tinted near-Void plates that cluster
+// related galaxies without reading as white on the dark console chrome.
 $pastelPalette = [
-    '#FEF2F2', '#F0FAF0', '#EFF6FF', '#FFF8F0', '#F8F5FF',
-    '#F0FDFA', '#FEFEF0', '#FFF5F5', '#F5F5F7', '#F5FAE8',
+    '#301a1d', '#1a3020', '#1a2233', '#302612', '#251a38',
+    '#143030', '#30301a', '#301a26', '#26262e', '#24301a',
 ];
 $groupColorIndex = 0;
 
@@ -693,7 +695,7 @@ foreach ($importantExtensions as $ext => $name) {
 
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -701,6 +703,7 @@ foreach ($importantExtensions as $ext => $name) {
     <title>Admin Console - Telaris</title>
     <script src="../js/tailwind.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
+    <?php include __DIR__ . '/../inc/admin-console-theme.php'; ?>
 </head>
 <body class="font-sans bg-gray-100 min-h-screen">
     <!-- Notification Container -->
@@ -2976,7 +2979,7 @@ foreach ($importantExtensions as $ext => $name) {
         // depending on the lexical scope of this script block.
         window.constImportSources = {}; // id : import_source object
         const constImportSources = window.constImportSources;
-        const pastelPalette = ['#FEF2F2','#F0FAF0','#EFF6FF','#FFF8F0','#F8F5FF','#F0FDFA','#FEFEF0','#FFF5F5','#F5F5F7','#F5FAE8'];
+        const pastelPalette = ['#301a1d','#1a3020','#1a2233','#302612','#251a38','#143030','#30301a','#301a26','#26262e','#24301a'];
         const groupColorMap = {};
         let groupColorIdx = 0;
 

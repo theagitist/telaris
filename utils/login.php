@@ -101,7 +101,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
 }
 ?>
 <!DOCTYPE html>
-<html lang="<?php echo htmlspecialchars($authLocale); ?>" data-theme="light">
+<html lang="<?php echo htmlspecialchars($authLocale); ?>" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -109,6 +109,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
     <title><?php echo t_attr('auth_login_page_title', 'Login - Telaris'); ?></title>
     <script src="../js/tailwind.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
+    <?php include __DIR__ . '/../inc/admin-console-theme.php'; ?>
 </head>
 <body class="font-sans bg-black min-h-screen flex items-center justify-center px-5">
     <div class="bg-gray-900 border border-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-md text-white">
