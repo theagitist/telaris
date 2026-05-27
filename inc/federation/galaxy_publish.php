@@ -165,3 +165,41 @@ function federation_galaxy_publish(int $constellationId): array {
 
     return ['ok' => true, 'slug' => $slug, 'sequence' => $sequence, 'content_hash' => $contentHash];
 }
+
+/**
+ * The published galaxies this instance offers to a given peer: current
+ * published rows for authored galaxies (not bridge-imported, not federation
+ * mirrors) that sit in this instance's publish whitelist for that peer.
+ * Serves the federation predicate's origin side; the caller (published.json
+ * handler) has already authenticated the peer.
+ *
+ * @return list<array{slug:string, published_sequence:int, content_hash:string, published_at:string}>
+ */
+function federation_published_for_peer(int $peerId): array {
+    db_ensure_published_galaxies_table();
+    db_ensure_galaxy_publish_whitelist_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT pg.slug, pg.published_sequence, pg.content_hash, pg.published_at
+        FROM published_galaxies pg
+        JOIN galaxy_publish_whitelist w ON w.constellation_id = pg.constellation_id
+        JOIN constellations c ON c.id = pg.constellation_id
+        WHERE w.peer_id = :peer
+          AND pg.is_current = TRUE
+          AND c.`type` = 'galaxy'
+          AND c.import_source IS NULL
+          AND c.mirrored_from_peer_id IS NULL
+        ORDER BY pg.slug
+    ");
+    $stmt->execute([':peer' => $peerId]);
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [
+            'slug' => (string)$r['slug'],
+            'published_sequence' => (int)$r['published_sequence'],
+            'content_hash' => (string)$r['content_hash'],
+            'published_at' => (string)$r['published_at'],
+        ];
+    }
+    return $out;
+}

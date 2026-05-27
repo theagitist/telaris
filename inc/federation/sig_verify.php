@@ -416,3 +416,28 @@ function _federation_sig_reason_code(string $reason): string {
     }
     return 'signature_invalid';
 }
+
+/**
+ * Build the {method, target_uri, headers, body} request array that
+ * federation_verify_inbound expects, from the current PHP request globals.
+ * Shared by the GET peer-read endpoints (stage 5c). GET callers pass no body.
+ *
+ * @return array{method:string, target_uri:string, headers:array<string,string>, body:string}
+ */
+function federation_build_inbound_request(string $method, string $body = ''): array {
+    $headers = [];
+    foreach ($_SERVER as $k => $v) {
+        if (is_string($k) && str_starts_with($k, 'HTTP_')) {
+            $headers[str_replace('_', '-', strtolower(substr($k, 5)))] = (string)$v;
+        }
+    }
+    foreach (['CONTENT_TYPE' => 'content-type', 'CONTENT_LENGTH' => 'content-length'] as $sk => $name) {
+        if (isset($_SERVER[$sk])) $headers[$name] = (string)$_SERVER[$sk];
+    }
+    return [
+        'method' => strtoupper($method),
+        'target_uri' => 'https://' . ($_SERVER['HTTP_HOST'] ?? 'unknown') . ($_SERVER['REQUEST_URI'] ?? '/'),
+        'headers' => $headers,
+        'body' => $body,
+    ];
+}
