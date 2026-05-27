@@ -11174,6 +11174,12 @@ function db_ensure_retracted_galaxies_table(): void {
                 FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+        // Stage 5c: the cached origin-signed retraction envelope (JWS Compact),
+        // served verbatim from /galaxies/{slug}.retracted and retracted.json.
+        $col = $pdo->query("SHOW COLUMNS FROM retracted_galaxies LIKE 'retraction_jws'")->fetch();
+        if (!$col) {
+            $pdo->exec("ALTER TABLE retracted_galaxies ADD COLUMN retraction_jws MEDIUMTEXT NULL AFTER reason");
+        }
     } catch (PDOException $e) {
         error_log('db_ensure_retracted_galaxies_table: ' . $e->getMessage());
     }
