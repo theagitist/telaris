@@ -122,6 +122,13 @@ function federation_dispatcher_deliver_one(int $messageId): array {
 
     if ($delivered) {
         federation_dispatcher_advance($messageId, true, $httpStatus, null);
+        // Round 3 ("complete") just reached the peer: the initiator can now
+        // leave accepted_awaiting_complete for complete (both sides hold all
+        // keys). No-op for any other delivered message.
+        if ((string)$row['message_type'] === 'handshake_response'
+            && function_exists('handshake_mark_initiator_complete_on_delivery')) {
+            handshake_mark_initiator_complete_on_delivery($messageId);
+        }
     } else {
         federation_dispatcher_advance($messageId, false, $httpStatus, $error);
     }

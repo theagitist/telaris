@@ -465,6 +465,32 @@ function handshake_apply_inbound_round3(int $peerId, array $body, string $remote
 }
 
 /**
+ * Transition the INITIATOR's handshake from accepted_awaiting_complete to
+ * complete once its round-3 ("complete") message has actually been delivered
+ * to the peer. The initiator already holds both per-peer keys and has set the
+ * peer to whitelisted when it queued round 3; the only thing it was waiting on
+ * was confirmation that round 3 reached the peer (so the peer also holds the
+ * initiator's key). The dispatcher calls this on successful delivery of the
+ * message whose id equals the handshake's complete_message_id.
+ *
+ * Idempotent: matches only an accepted_awaiting_complete initiator row, so a
+ * re-delivery or a responder row (which is already 'complete') is a no-op.
+ * Returns true if a row transitioned.
+ */
+function handshake_mark_initiator_complete_on_delivery(int $deliveredMessageId): bool {
+    db_ensure_handshakes_table();
+    $stmt = getDB()->prepare("
+        UPDATE handshakes
+        SET status = 'complete'
+        WHERE complete_message_id = :m
+          AND initiator = 'us'
+          AND status = 'accepted_awaiting_complete'
+    ");
+    $stmt->execute([':m' => $deliveredMessageId]);
+    return $stmt->rowCount() > 0;
+}
+
+/**
  * Called by the /api/pluriverse/messages handler (4e) when a relay-forwarded
  * handshake_request lands. Creates the handshakes row in pending_our_response
  * so the admin inbox can surface it.
