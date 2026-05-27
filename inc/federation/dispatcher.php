@@ -274,14 +274,8 @@ function federation_dispatcher_advance(int $messageId, bool $delivered, ?int $ht
 }
 
 function federation_dispatcher_local_hostname(): string {
-    if (defined('TELARIS_HOSTNAME') && TELARIS_HOSTNAME !== '') return (string)TELARIS_HOSTNAME;
-    if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== '') {
-        $h = (string)$_SERVER['HTTP_HOST'];
-        if (str_contains($h, ':')) $h = (string)strstr($h, ':', true);
-        return $h;
-    }
-    $g = (string)(gethostname() ?: 'unknown');
-    return $g;
+    // Delegated to the shared self-healing resolver (inc/federation/identity.php).
+    return federation_local_hostname();
 }
 
 /**

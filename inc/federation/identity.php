@@ -94,3 +94,48 @@ function federation_public_key_fingerprint(): string {
 function federation_keyid(string $hostname): string {
     return $hostname . ':' . federation_public_key_fingerprint();
 }
+
+/**
+ * Resolve this instance's canonical federation hostname, the value that goes
+ * in the keyid the Pluriverse and peers verify against.
+ *
+ * Self-healing precedence so a fresh deploy works without any per-instance
+ * config edit (config.php is per-site, gitignored, and rewriting it via
+ * tooling is error-prone — it can strip the www-data group PHP-FPM needs):
+ *
+ *   1. TELARIS_HOSTNAME constant — explicit, canonical, preferred for any
+ *      instance served under more than one hostname.
+ *   2. system_meta 'federation_local_hostname' — the cached value captured
+ *      from a prior HTTP request (so CLI/cron tools have it even with no
+ *      HTTP_HOST).
+ *   3. $_SERVER['HTTP_HOST'] (port stripped) — and on this path we WRITE the
+ *      value into system_meta so the next cron invocation can read it. This
+ *      is how the hostname propagates to a new instance with zero operator
+ *      action: the first authenticated/admin page load records it.
+ *   4. gethostname() — last-resort OS hostname; almost certainly wrong for
+ *      federation, but better than an empty keyid.
+ *
+ * The capture in step 3 only fires when steps 1-2 are empty, so an explicit
+ * TELARIS_HOSTNAME always wins and a cached value is never silently
+ * overwritten by a request arriving under a secondary hostname.
+ */
+function federation_local_hostname(): string {
+    if (defined('TELARIS_HOSTNAME') && TELARIS_HOSTNAME !== '') {
+        return (string)TELARIS_HOSTNAME;
+    }
+    if (function_exists('db_system_meta_get')) {
+        $cached = db_system_meta_get('federation_local_hostname');
+        if (is_string($cached) && $cached !== '') return $cached;
+    }
+    if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== '') {
+        $h = (string)$_SERVER['HTTP_HOST'];
+        if (str_contains($h, ':')) $h = (string)strstr($h, ':', true);
+        $h = strtolower($h);
+        if ($h !== '' && function_exists('db_system_meta_set')) {
+            try { db_system_meta_set('federation_local_hostname', $h); }
+            catch (Throwable $_) { /* cache write is best-effort */ }
+        }
+        return $h;
+    }
+    return (string)(gethostname() ?: 'unknown');
+}

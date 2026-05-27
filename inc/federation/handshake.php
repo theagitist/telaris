@@ -922,13 +922,10 @@ function handshake_list_recent_history(int $limit = 20, int $withinDays = 30): a
 }
 
 function handshake_local_hostname(): string {
-    if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== '') {
-        $h = (string)$_SERVER['HTTP_HOST'];
-        if (str_contains($h, ':')) $h = (string)strstr($h, ':', true);
-        return $h;
-    }
-    $g = (string)(gethostname() ?: 'unknown');
-    return $g;
+    // Delegated to the shared self-healing resolver (inc/federation/identity.php)
+    // so the HTTP and CLI/cron paths agree on this instance's canonical
+    // federation hostname.
+    return federation_local_hostname();
 }
 
 function handshake_local_label(): string {
