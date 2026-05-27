@@ -1284,8 +1284,8 @@ foreach ($importantExtensions as $ext => $name) {
                                         <ul class="mt-2 border border-gray-200 rounded max-h-64 overflow-y-auto p-3 bg-white space-y-1">
                                             <?php foreach ($constellations as $g): ?>
                                                 <li class="text-sm">
-                                                    <code class="text-xs bg-gray-100 px-1 rounded"><?= htmlspecialchars($g['slug']) ?></code>
-                                                    <span class="text-gray-700 ml-2"><?= htmlspecialchars($g['name']) ?></span>
+                                                    <code class="text-xs bg-gray-100 px-1 rounded"><?= htmlspecialchars((string)($g['slug'] ?? '')) ?></code>
+                                                    <span class="text-gray-700 ml-2"><?= htmlspecialchars((string)($g['name'] ?? '')) ?></span>
                                                 </li>
                                             <?php endforeach; ?>
                                         </ul>
