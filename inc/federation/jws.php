@@ -125,6 +125,58 @@ function federation_jws_verify(string $jws, string $publicKey, string $expectedT
 }
 
 /**
+ * Sign a payload as a JWS Compact Serialization (EdDSA / Ed25519). The
+ * counterpart to federation_jws_verify; added in stage 5b for galaxy
+ * envelopes. The payload is canonical-serialized (sorted keys) so the content
+ * hash and the signature are byte-reproducible across instances.
+ *
+ * @param array<string,mixed> $payload  Decoded payload.
+ * @param string $typ        The "typ" header value.
+ * @param string $kid        The "<host>:<fingerprint>" key id.
+ * @param string $secretKey  Ed25519 secret key (federation_load_secret_key()).
+ * @return string The Compact-serialized JWS (header.payload.signature).
+ */
+function federation_jws_sign(array $payload, string $typ, string $kid, string $secretKey): string {
+    if (strlen($secretKey) !== SODIUM_CRYPTO_SIGN_SECRETKEYBYTES) {
+        throw new InvalidArgumentException('federation_jws_sign: secret key wrong length');
+    }
+    $header = ['alg' => 'EdDSA', 'kid' => $kid, 'typ' => $typ];
+    $headerB64 = _federation_jws_b64u_encode(json_encode($header, JSON_UNESCAPED_SLASHES));
+    $payloadB64 = _federation_jws_b64u_encode(federation_jws_canonical_json($payload));
+    $sig = sodium_crypto_sign_detached($headerB64 . '.' . $payloadB64, $secretKey);
+    return $headerB64 . '.' . $payloadB64 . '.' . _federation_jws_b64u_encode($sig);
+}
+
+/**
+ * Canonical JSON for envelope payloads: recursively key-sorted objects, UTF-8,
+ * no insignificant whitespace, slashes unescaped. Reproducible across
+ * instances so the content hash and signature are byte-stable. Lists keep
+ * their order (it is meaningful); only object keys are sorted.
+ */
+function federation_jws_canonical_json(array $payload): string {
+    $json = json_encode(_federation_jws_canonicalize($payload), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if ($json === false) {
+        throw new RuntimeException('federation_jws_canonical_json: encode failed');
+    }
+    return $json;
+}
+
+function _federation_jws_canonicalize(mixed $value): mixed {
+    if (!is_array($value)) return $value;
+    if (array_is_list($value)) {
+        return array_map('_federation_jws_canonicalize', $value);
+    }
+    ksort($value);
+    $out = [];
+    foreach ($value as $k => $v) $out[$k] = _federation_jws_canonicalize($v);
+    return $out;
+}
+
+function _federation_jws_b64u_encode(string $raw): string {
+    return rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
+}
+
+/**
  * Convenience: split a kid of the form "<host>:<fingerprint>" without
  * verification. Returns null on malformed input.
  *
