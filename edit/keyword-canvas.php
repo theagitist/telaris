@@ -102,22 +102,22 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
 // via t() at render time.
 ?>
 <!doctype html>
-<html lang="<?php echo htmlspecialchars($kcLocale); ?>">
+<html lang="<?php echo htmlspecialchars($kcLocale); ?>" data-theme="dark">
 <head>
     <meta charset="utf-8">
     <title><?php echo htmlspecialchars(sprintf(t('editor_kc_page_title_template', 'Keyword canvas; %s'), $galaxyInfo['name'] ?? '')); ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="../js/tailwind.min.js">
     <script src="../js/tailwind.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet">
+    <?php include __DIR__ . '/../inc/admin-console-theme.php'; ?>
     <style>
-        html, body { height: 100%; margin: 0; background: #000; color: #e5e5e7; }
+        html, body { height: 100%; margin: 0; background: #000; color: #e8eef0; }
         #kc-canvas { display: block; width: 100%; height: 100%; touch-action: none; background: #000; }
         .kc-shell { display: flex; flex-direction: column; height: 100vh; background: #000; }
         .kc-header { flex: 0 0 auto; padding: 0.5rem 1rem; background: #111; border-bottom: 1px solid #1f1f1f; display: flex; align-items: center; gap: 1rem; }
-        .kc-header a { color: #93c5fd; }
-        .kc-header a:hover { color: #bfdbfe; }
-        .kc-header h1 { color: #e5e5e7; }
+        .kc-header a { color: #00ffcc; }
+        .kc-header a:hover { color: rgba(0, 255, 204, 0.85); }
+        .kc-header h1 { color: #e8eef0; }
         .kc-stage { flex: 1 1 auto; position: relative; overflow: hidden; background: #000; }
         .kc-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-family: ui-sans-serif, system-ui, sans-serif; }
         .kc-status { font-size: 0.75rem; color: #9ca3af; margin-left: auto; }
