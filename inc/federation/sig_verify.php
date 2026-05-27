@@ -238,6 +238,22 @@ function federation_seen_nonce_record(string $host, string $nonceBytes): bool {
 }
 
 /**
+ * Compensating delete for federation_seen_nonce_record: drop a just-recorded
+ * nonce so a failed downstream step (e.g. a mirror materialization that threw
+ * after the nonce was claimed) does not wedge a legitimate retry as a replay.
+ * Safe no-op if the row is already gone.
+ */
+function federation_seen_nonce_forget(string $host, string $nonceBytes): void {
+    db_ensure_seen_nonces_table();
+    try {
+        getDB()->prepare("DELETE FROM seen_nonces WHERE origin_host = :h AND nonce = :n")
+            ->execute([':h' => $host, ':n' => $nonceBytes]);
+    } catch (PDOException $e) {
+        error_log('federation_seen_nonce_forget: ' . $e->getMessage());
+    }
+}
+
+/**
  * GC for the seen_nonces table. Default window 7 days (v10 § Replay protection,
  * Global Settings → Pluriverse). Returns rows removed. Cron-driven; not invoked
  * from the request path.

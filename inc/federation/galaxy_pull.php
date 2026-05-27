@@ -176,6 +176,38 @@ function federation_pull_normalize_published(array $raw): array {
 }
 
 /**
+ * Fetch a single galaxy envelope from a peer. Sends If-None-Match with the
+ * last content hash we mirrored so an unchanged galaxy returns 304 and costs no
+ * body. Returns the raw JWS Compact string on 200.
+ *
+ * @return array{ok:bool, status:int, not_modified:bool, jws:string, error:?string}
+ */
+function federation_pull_fetch_envelope(string $peerHost, string $slug, ?string $lastContentHash = null): array {
+    if (!preg_match('/^[a-z0-9-]+$/', $slug)) {
+        return ['ok' => false, 'status' => 0, 'not_modified' => false, 'jws' => '', 'error' => 'bad_slug'];
+    }
+    $opts = ['accept' => 'application/jose'];
+    if ($lastContentHash !== null && $lastContentHash !== '') {
+        $opts['if_none_match'] = '"' . $lastContentHash . '"';
+    }
+    $resp = federation_peer_signed_get($peerHost, '/api/pluriverse/galaxies/' . $slug, $opts);
+    if ($resp['error'] !== null) {
+        return ['ok' => false, 'status' => $resp['status'], 'not_modified' => false, 'jws' => '', 'error' => $resp['error']];
+    }
+    if ($resp['status'] === 304) {
+        return ['ok' => true, 'status' => 304, 'not_modified' => true, 'jws' => '', 'error' => null];
+    }
+    if ($resp['status'] !== 200) {
+        return ['ok' => false, 'status' => $resp['status'], 'not_modified' => false, 'jws' => '', 'error' => 'http_' . $resp['status']];
+    }
+    $jws = trim($resp['body']);
+    if ($jws === '' || substr_count($jws, '.') !== 2) {
+        return ['ok' => false, 'status' => 200, 'not_modified' => false, 'jws' => '', 'error' => 'malformed_envelope'];
+    }
+    return ['ok' => true, 'status' => 200, 'not_modified' => false, 'jws' => $jws, 'error' => null];
+}
+
+/**
  * Diff a peer's published index against this instance's active subscriptions
  * for that peer. Classifies each active subscription, ignoring published
  * galaxies we do not subscribe to.
