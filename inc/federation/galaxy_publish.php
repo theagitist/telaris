@@ -23,6 +23,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/galaxy_envelope.php';
 require_once __DIR__ . '/identity.php';
+require_once __DIR__ . '/media_store.php';
 require_once dirname(__DIR__) . '/db.php';
 
 const FEDERATION_GALAXY_MEDIA_FIELDS = ['image_url', 'icon_url', 'audio_url', 'video_url', 'pdf_url'];
@@ -95,6 +96,38 @@ function federation_galaxy_collect_content(int $constellationId): ?array {
 }
 
 /**
+ * Content-address each node's local-upload media. A media ref of the assembled
+ * shape { field, src } whose src is a resolvable local upload is registered in
+ * the federation media store and rewritten to { field, sha256, mime } so the
+ * signed envelope carries the content hash, not the origin's local path; the
+ * peer fetches the bytes from GET /media/{sha256}. External-URL refs (and any
+ * local upload that fails to resolve) keep their { field, src } shape.
+ *
+ * @param list<array<string,mixed>> $nodes
+ * @return list<array<string,mixed>>
+ */
+function federation_galaxy_finalize_media(array $nodes): array {
+    foreach ($nodes as &$node) {
+        if (!isset($node['media']) || !is_array($node['media'])) continue;
+        $out = [];
+        foreach ($node['media'] as $ref) {
+            $field = (string)($ref['field'] ?? '');
+            $src = isset($ref['src']) ? (string)$ref['src'] : '';
+            if ($field === '') continue;
+            $registered = $src !== '' ? federation_media_register_upload($src) : null;
+            if ($registered !== null) {
+                $out[] = ['field' => $field, 'sha256' => $registered['sha256'], 'mime' => $registered['mime']];
+            } elseif ($src !== '') {
+                $out[] = ['field' => $field, 'src' => $src];
+            }
+        }
+        $node['media'] = $out;
+    }
+    unset($node);
+    return $nodes;
+}
+
+/**
  * Publish (or re-publish) an authored galaxy: guards, sequence bump, build +
  * sign the envelope, cache it into published_galaxies.
  *
@@ -131,9 +164,13 @@ function federation_galaxy_publish(int $constellationId): array {
     $existing = $seqStmt->fetchColumn();
     $sequence = $existing === false ? 1 : ((int)$existing + 1);
 
+    // Content-address local-upload media: copy each into the federation media
+    // store and rewrite its ref to carry the sha256 the peer will fetch by.
+    $nodes = federation_galaxy_finalize_media($content['nodes']);
+
     $payload = federation_galaxy_envelope_payload(
         $content['galaxy'],
-        $content['nodes'],
+        $nodes,
         $content['keyword_relations'],
         federation_local_hostname(),
         $slug,

@@ -56,6 +56,11 @@ $paramRoutes = [
         'methods' => ['GET'],
         'handler' => __DIR__ . '/galaxy_envelope_handler.php',
     ],
+    [
+        'pattern' => '#^/api/pluriverse/media/(?<sha256>[a-f0-9]{64})$#',
+        'methods' => ['GET'],
+        'handler' => __DIR__ . '/media_handler.php',
+    ],
 ];
 
 $route = $routes[$path] ?? null;

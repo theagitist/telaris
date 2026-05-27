@@ -72,11 +72,17 @@ final class EnvelopeSchemaTest extends TestCase
         }
     }
 
-    public function testNodeAndMediaShapesAreOpen(): void
+    public function testNodeShapeOpenMediaAndRelationClosed(): void
     {
         $s = $this->schema();
-        $this->assertTrue($s['$defs']['node']['additionalProperties'], 'node shape stays open during 5c-media');
-        $this->assertTrue($s['$defs']['media_ref']['additionalProperties'], 'media ref stays open during 5c-media');
+        // The node shape stays open (fields beyond the federation subset may
+        // ride along), but media_ref is settled by 5c-media: closed, field
+        // required, exactly one of sha256 (local, content-addressed) or src
+        // (external URL).
+        $this->assertTrue($s['$defs']['node']['additionalProperties'], 'node shape stays open');
+        $this->assertFalse($s['$defs']['media_ref']['additionalProperties'], 'media ref is closed after 5c-media');
+        $this->assertSame(['field'], $s['$defs']['media_ref']['required']);
+        $this->assertCount(2, $s['$defs']['media_ref']['oneOf'], 'media ref is sha256 XOR src');
         $this->assertFalse($s['$defs']['keyword_relation']['additionalProperties'], 'keyword relation is closed');
     }
 }

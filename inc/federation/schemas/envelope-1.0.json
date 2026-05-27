@@ -100,14 +100,19 @@
     },
     "media_ref": {
       "type": "object",
-      "description": "A media reference. The v1.0 wire shape carries { field, src }; content-addressed media (sha256) is added by 5c-media, so this stays open.",
-      "additionalProperties": true,
+      "description": "A media reference on a node. Local-upload media is content-addressed: { field, sha256, mime }, fetched from GET /media/{sha256} and re-hashed. Media that is an external URL keeps { field, src }. Exactly one of sha256 or src is present.",
+      "additionalProperties": false,
+      "required": ["field"],
       "properties": {
         "field": { "type": "string", "maxLength": 32 },
         "src": { "type": "string" },
         "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "mime": { "type": "string", "maxLength": 128 }
-      }
+      },
+      "oneOf": [
+        { "required": ["sha256"] },
+        { "required": ["src"] }
+      ]
     },
     "keyword_relation": {
       "type": "object",
