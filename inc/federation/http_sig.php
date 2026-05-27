@@ -73,6 +73,14 @@ function federation_http_sig_sign(array $request, string $secretKey, array $para
     if ($finalParams['tag'] === '') {
         throw new InvalidArgumentException('federation_http_sig_sign: tag is required');
     }
+    // Optional replay-protection nonce (16 bytes, base64url no padding). The
+    // peer-side inbound verifier (federation_verify_inbound) REQUIRES it on
+    // every signed request, so peer-to-peer delivery (handshake rounds 2/3,
+    // direct messages) must supply one. Covered by the signature via the
+    // @signature-params inner list.
+    if (isset($params['nonce']) && (string)$params['nonce'] !== '') {
+        $finalParams['nonce'] = (string)$params['nonce'];
+    }
 
     // Backfill auto-computable body headers so the signature covers them.
     $result = [];
@@ -191,6 +199,14 @@ function federation_http_sig_verify(array $request, string $publicKey, array $ex
         return ['valid' => false, 'reason' => 'signature_invalid', 'params' => $params];
     }
     return ['valid' => true, 'reason' => '', 'params' => $params];
+}
+
+/**
+ * Generate a fresh replay-protection nonce: 16 random bytes, base64url
+ * (no padding). Matches what federation_verify_inbound expects and de-dupes.
+ */
+function federation_http_sig_generate_nonce(): string {
+    return rtrim(strtr(base64_encode(random_bytes(16)), '+/', '-_'), '=');
 }
 
 /**

@@ -195,6 +195,7 @@ function federation_dispatcher_http_post(string $targetUri, string $body, string
     $signed = federation_http_sig_sign($request, $secret, [
         'keyid' => $keyid,
         'tag' => $tag,
+        'nonce' => federation_http_sig_generate_nonce(),
     ]);
 
     $headers['Content-Digest'] = $signed['content_digest'] ?? federation_http_sig_content_digest($body);
