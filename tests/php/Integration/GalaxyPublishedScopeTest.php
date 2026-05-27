@@ -83,6 +83,11 @@ final class GalaxyPublishedScopeTest extends TestCase
             ->execute([':c' => $cid, ':s' => $slug, ':h' => str_repeat('0', 64)]);
     }
 
+    private function slugFor(int $cid): string
+    {
+        return (string)getDB()->query("SELECT slug FROM constellations WHERE id = $cid")->fetchColumn();
+    }
+
     protected function tearDown(): void
     {
         $pdo = getDB();
@@ -115,6 +120,38 @@ final class GalaxyPublishedScopeTest extends TestCase
         $row = $list[array_search($authoredASlug, $slugs, true)];
         $this->assertSame(1, $row['published_sequence']);
         $this->assertSame(str_repeat('0', 64), $row['content_hash']);
+    }
+
+    public function testEnvelopeForSlugReturnsWhitelistedAuthored(): void
+    {
+        $row = federation_published_envelope_for_peer($this->peerId, $this->slugFor($this->authoredA));
+        $this->assertNotNull($row, 'whitelisted authored galaxy resolves for the peer');
+        $this->assertSame('aaa.bbb.ccc', $row['envelope_jws']);
+        $this->assertSame(str_repeat('0', 64), $row['content_hash']);
+        $this->assertSame(1, $row['published_sequence']);
+    }
+
+    public function testEnvelopeForSlugWithholdsNonWhitelisted(): void
+    {
+        $this->assertNull(
+            federation_published_envelope_for_peer($this->peerId, $this->slugFor($this->authoredB)),
+            'non-whitelisted galaxy is withheld (uniform null -> 404)'
+        );
+    }
+
+    public function testEnvelopeForSlugWithholdsMirror(): void
+    {
+        $this->assertNull(
+            federation_published_envelope_for_peer($this->peerId, $this->slugFor($this->mirrored)),
+            'mirrored galaxy is never offered, even if whitelisted'
+        );
+    }
+
+    public function testEnvelopeForUnknownSlugIsNull(): void
+    {
+        $this->assertNull(
+            federation_published_envelope_for_peer($this->peerId, 'no-such-slug-' . bin2hex(random_bytes(3)))
+        );
     }
 
     public function testEmptyForPeerWithNoWhitelist(): void

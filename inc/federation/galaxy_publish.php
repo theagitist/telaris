@@ -203,3 +203,41 @@ function federation_published_for_peer(int $peerId): array {
     }
     return $out;
 }
+
+/**
+ * The cached signed envelope this instance offers a given peer for one slug.
+ * Same scoping as federation_published_for_peer (current + authored + in the
+ * peer's publish whitelist), narrowed to a single slug; returns null when the
+ * slug is unknown, not current, mirrored, or not whitelisted for this peer.
+ * The null cases collapse so the handler can answer a uniform 404 without
+ * leaking which galaxies exist.
+ *
+ * @return array{envelope_jws:string, content_hash:string, published_sequence:int, published_at:string}|null
+ */
+function federation_published_envelope_for_peer(int $peerId, string $slug): ?array {
+    db_ensure_published_galaxies_table();
+    db_ensure_galaxy_publish_whitelist_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT pg.envelope_jws, pg.content_hash, pg.published_sequence, pg.published_at
+        FROM published_galaxies pg
+        JOIN galaxy_publish_whitelist w ON w.constellation_id = pg.constellation_id
+        JOIN constellations c ON c.id = pg.constellation_id
+        WHERE w.peer_id = :peer
+          AND pg.slug = :slug
+          AND pg.is_current = TRUE
+          AND c.`type` = 'galaxy'
+          AND c.import_source IS NULL
+          AND c.mirrored_from_peer_id IS NULL
+        LIMIT 1
+    ");
+    $stmt->execute([':peer' => $peerId, ':slug' => $slug]);
+    $r = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($r === false) return null;
+    return [
+        'envelope_jws' => (string)$r['envelope_jws'],
+        'content_hash' => (string)$r['content_hash'],
+        'published_sequence' => (int)$r['published_sequence'],
+        'published_at' => (string)$r['published_at'],
+    ];
+}
