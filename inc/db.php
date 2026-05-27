@@ -11179,6 +11179,65 @@ function db_ensure_retracted_galaxies_table(): void {
     }
 }
 
+// Stage 5 (galaxy publish): origin-side record of what this instance has
+// published, one row per authored galaxy ever published. The slug is the
+// immutable federation identifier; published_sequence is strict-monotonic and
+// bumped on every re-publish; envelope_jws caches the signed envelope so reads
+// don't re-sign per request. content_hash is the sha256 of the canonical
+// payload (64 hex chars).
+function db_ensure_published_galaxies_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS published_galaxies (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                constellation_id INT NOT NULL,
+                slug VARCHAR(255) NOT NULL,
+                published_sequence BIGINT UNSIGNED NOT NULL DEFAULT 1,
+                content_hash CHAR(64) NOT NULL,
+                envelope_jws MEDIUMTEXT NOT NULL,
+                is_current BOOLEAN NOT NULL DEFAULT TRUE,
+                published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_slug (slug),
+                INDEX idx_constellation (constellation_id),
+                FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_published_galaxies_table: ' . $e->getMessage());
+    }
+}
+
+// Stage 5: content-addressable media store, keyed by the blob's sha256. The
+// bytes live on disk under UPLOAD_DIR/federation-media/; this table is the
+// index. Used by both the origin (serving its own media) and the consumer
+// (caching pulled media); identical media dedupes on the hash. ref_count
+// tracks how many galaxies reference a blob for later GC.
+function db_ensure_media_blobs_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS media_blobs (
+                sha256 CHAR(64) PRIMARY KEY,
+                storage_path VARCHAR(512) NOT NULL,
+                mime VARCHAR(127) NULL,
+                size_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                ref_count INT UNSIGNED NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_media_blobs_table: ' . $e->getMessage());
+    }
+}
+
 function db_ensure_pluriverse_messages_table(): void {
     static $checked = false;
     if ($checked) return;
