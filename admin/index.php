@@ -602,7 +602,10 @@ unset($__peer, $__pid);
 
 // Operator surface (5f): per-galaxy publish / retract / export list.
 require_once __DIR__ . '/../inc/federation/galaxy_publish.php';
+require_once __DIR__ . '/../inc/federation/galaxy_unmirror.php';
 $federationPublishedGalaxies = federation_published_galaxies_admin_view();
+$federationMirroredGalaxies = federation_mirror_inspection_view();
+$federationRemoteRetractions = federation_remote_retractions_recent(50);
 
 // Group constellations by [Tag] prefix for visual grouping
 function extractConstellationGroup(string $name): ?string {
@@ -1665,6 +1668,102 @@ foreach ($importantExtensions as $ext => $name) {
                                                         <?php endif; ?>
                                                     </div>
                                                 </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Mirrored galaxies (stage 5f) -->
+                    <div class="mt-8 pt-6 border-t border-gray-200">
+                        <h3 class="text-emerald-700 font-semibold mb-2"><?= t_attr('admin_mir_section_heading', 'Mirrored galaxies') ?></h3>
+                        <p class="text-sm text-gray-600 mb-4"><?= t_attr('admin_mir_section_subheading', 'Galaxies subscribed from other peers, materialized locally as read-only mirrors.') ?></p>
+
+                        <?php if ($federationMirroredGalaxies === []): ?>
+                            <p class="text-sm text-gray-500 italic"><?= t_attr('admin_mir_empty', 'No mirrored galaxies yet.') ?></p>
+                        <?php else: ?>
+                            <div class="overflow-x-auto border border-gray-200 rounded">
+                                <table class="min-w-full text-sm">
+                                    <thead class="bg-gray-50 text-left">
+                                        <tr>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_mir_col_origin', 'Origin') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_mir_col_remote_slug', 'Remote slug') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_mir_col_local', 'Local mirror') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_mir_col_status', 'Status') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_mir_col_seq', 'Sequence') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_mir_col_hash', 'Content hash') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_mir_col_last_sync', 'Last sync') ?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100">
+                                        <?php foreach ($federationMirroredGalaxies as $m):
+                                            $statusKey = 'admin_mir_status_' . $m['status'];
+                                            $statusLabel = (string)t($statusKey, ucfirst($m['status']));
+                                            $statusClass = match ($m['status']) {
+                                                'active'     => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                                'pending'    => 'bg-amber-50 text-amber-700 border-amber-200',
+                                                'fossilized' => 'bg-gray-100 text-gray-700 border-gray-300',
+                                                'paused'     => 'bg-gray-50 text-gray-600 border-gray-200',
+                                                default      => 'bg-gray-50 text-gray-700 border-gray-200',
+                                            };
+                                        ?>
+                                            <tr>
+                                                <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= htmlspecialchars($m['origin_host']) ?></td>
+                                                <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= htmlspecialchars($m['remote_slug']) ?></td>
+                                                <td class="px-3 py-2 text-gray-800">
+                                                    <?php if ($m['local_constellation_id'] !== null): ?>
+                                                        <span><?= htmlspecialchars((string)$m['local_name']) ?></span>
+                                                        <span class="text-xs text-gray-500 ml-1">(<?= (int)$m['node_count'] ?> <?= htmlspecialchars((string)t('admin_mir_node_count_suffix', 'nodes')) ?>)</span>
+                                                    <?php else: ?>
+                                                        <span class="text-gray-400">—</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td class="px-3 py-2">
+                                                    <span class="inline-block px-2 py-0.5 text-xs rounded border <?= $statusClass ?>"><?= htmlspecialchars($statusLabel) ?></span>
+                                                    <?php if ($m['fossilized_reason'] !== null): ?>
+                                                        <div class="text-xs text-gray-500 mt-1 font-mono"><?= htmlspecialchars($m['fossilized_reason']) ?></div>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= $m['last_received_sequence'] !== null ? (int)$m['last_received_sequence'] : '—' ?></td>
+                                                <td class="px-3 py-2 font-mono text-xs text-gray-700" title="<?= htmlspecialchars((string)$m['last_content_hash']) ?>"><?= $m['last_content_hash'] !== null ? htmlspecialchars(substr($m['last_content_hash'], 0, 12)) . '…' : '—' ?></td>
+                                                <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= htmlspecialchars($m['last_synced_at'] ?? '—') ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Honoured retractions (stage 5f) -->
+                    <div class="mt-8 pt-6 border-t border-gray-200">
+                        <h3 class="text-emerald-700 font-semibold mb-2"><?= t_attr('admin_rmtret_section_heading', 'Honoured retractions') ?></h3>
+                        <p class="text-sm text-gray-600 mb-4"><?= t_attr('admin_rmtret_section_subheading', 'Slugs that origin peers retracted; the mirror was dropped at the time of honoring.') ?></p>
+
+                        <?php if ($federationRemoteRetractions === []): ?>
+                            <p class="text-sm text-gray-500 italic"><?= t_attr('admin_rmtret_empty', 'No origin retractions honoured yet.') ?></p>
+                        <?php else: ?>
+                            <div class="overflow-x-auto border border-gray-200 rounded">
+                                <table class="min-w-full text-sm">
+                                    <thead class="bg-gray-50 text-left">
+                                        <tr>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_rmtret_col_origin', 'Origin') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_rmtret_col_slug', 'Slug') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_rmtret_col_retracted_at', 'Retracted at') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_rmtret_col_honored_at', 'Honoured at') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_rmtret_col_reason', 'Reason') ?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100">
+                                        <?php foreach ($federationRemoteRetractions as $r): ?>
+                                            <tr>
+                                                <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= htmlspecialchars($r['origin_host']) ?></td>
+                                                <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= htmlspecialchars($r['remote_slug']) ?></td>
+                                                <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= htmlspecialchars($r['retracted_at']) ?></td>
+                                                <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= htmlspecialchars($r['honored_at']) ?></td>
+                                                <td class="px-3 py-2 text-gray-700"><?= htmlspecialchars($r['reason'] ?? '') ?></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>

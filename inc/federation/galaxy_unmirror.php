@@ -150,6 +150,104 @@ function federation_unmirror_is_remote_retracted(int $peerId, string $remoteSlug
 }
 
 /**
+ * Operator-facing view: every active or fossilized subscription on this
+ * instance and the mirror constellation it points at (if any). Drives the
+ * 5f admin "Mirrored galaxies" section. An active subscription without a
+ * materialized mirror yet shows as `pending` (first pull hasn't completed).
+ *
+ * @return list<array{subscription_id:int, peer_id:int, origin_host:string, remote_slug:string, local_constellation_id:?int, local_name:?string, node_count:int, last_received_sequence:?int, last_content_hash:?string, last_synced_at:?string, status:string, fossilized_reason:?string, fossilized_at:?string}>
+ */
+function federation_mirror_inspection_view(): array {
+    db_ensure_galaxy_subscriptions_table();
+    db_ensure_peers_table();
+    $rows = getDB()->query("
+        SELECT
+            s.id AS subscription_id,
+            s.peer_id,
+            p.hostname AS origin_host,
+            s.remote_slug,
+            s.local_constellation_id,
+            c.name AS local_name,
+            s.last_received_sequence,
+            s.last_content_hash,
+            s.last_synced_at,
+            s.is_active,
+            s.fossilized_at,
+            s.fossilized_reason,
+            (SELECT COUNT(*) FROM nodes n WHERE n.constellation_id = s.local_constellation_id) AS node_count
+        FROM galaxy_subscriptions s
+        INNER JOIN peers p ON p.id = s.peer_id
+        LEFT JOIN constellations c ON c.id = s.local_constellation_id
+        ORDER BY p.hostname, s.remote_slug
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $out = [];
+    foreach ($rows as $r) {
+        $cid = $r['local_constellation_id'] !== null ? (int)$r['local_constellation_id'] : null;
+        $isActive = (bool)$r['is_active'];
+        $fossilizedAt = $r['fossilized_at'] !== null ? (string)$r['fossilized_at'] : null;
+        if ($fossilizedAt !== null) {
+            $status = 'fossilized';
+        } elseif (!$isActive) {
+            $status = 'paused';
+        } elseif ($cid === null) {
+            $status = 'pending';
+        } else {
+            $status = 'active';
+        }
+        $out[] = [
+            'subscription_id' => (int)$r['subscription_id'],
+            'peer_id' => (int)$r['peer_id'],
+            'origin_host' => (string)$r['origin_host'],
+            'remote_slug' => (string)$r['remote_slug'],
+            'local_constellation_id' => $cid,
+            'local_name' => $r['local_name'] !== null ? (string)$r['local_name'] : null,
+            'node_count' => (int)$r['node_count'],
+            'last_received_sequence' => $r['last_received_sequence'] !== null ? (int)$r['last_received_sequence'] : null,
+            'last_content_hash' => $r['last_content_hash'] !== null ? (string)$r['last_content_hash'] : null,
+            'last_synced_at' => $r['last_synced_at'] !== null ? (string)$r['last_synced_at'] : null,
+            'status' => $status,
+            'fossilized_reason' => $r['fossilized_reason'] !== null ? (string)$r['fossilized_reason'] : null,
+            'fossilized_at' => $fossilizedAt,
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Recent inbound retractions this instance has honoured, newest first.
+ * Drives the 5f "Honoured retractions" admin subsection (history view; the
+ * mirror itself was dropped at the time of honoring, so this is the only
+ * surviving local record of the event).
+ *
+ * @return list<array{peer_id:int, origin_host:string, remote_slug:string, retracted_at:string, honored_at:string, reason:?string}>
+ */
+function federation_remote_retractions_recent(int $limit = 50): array {
+    db_ensure_remote_retractions_table();
+    $limit = max(1, min(500, $limit));
+    $rows = getDB()->query("
+        SELECT rr.peer_id, p.hostname AS origin_host, rr.remote_slug,
+               rr.retracted_at, rr.honored_at, rr.reason
+        FROM remote_retractions rr
+        INNER JOIN peers p ON p.id = rr.peer_id
+        ORDER BY rr.honored_at DESC, rr.id DESC
+        LIMIT {$limit}
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = [
+            'peer_id' => (int)$r['peer_id'],
+            'origin_host' => (string)$r['origin_host'],
+            'remote_slug' => (string)$r['remote_slug'],
+            'retracted_at' => (string)$r['retracted_at'],
+            'honored_at' => (string)$r['honored_at'],
+            'reason' => $r['reason'] !== null ? (string)$r['reason'] : null,
+        ];
+    }
+    return $out;
+}
+
+/**
  * Apply a peer's retracted.json digest. For each entry: verify the envelope
  * against the peer's identity key (with rotation grace), bind it to (peer_host,
  * slug), record it in remote_retractions, drop any mirror we hold for that
