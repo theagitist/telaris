@@ -1,0 +1,65 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * bin/galaxy-media-gc — sweep orphaned federation-media blobs.
+ *
+ * Content-addressed federation media is deduped across mirrors; precise
+ * refcounting on every publish/retract is deferred. This binary is the
+ * cleanup pass: walk every node row that references uploads/federation-media/
+ * to build the live set, then drop on-disk blobs (and media_blobs rows) that
+ * nothing references AND that are older than the min-age cutoff (default 1h,
+ * to avoid clobbering in-flight pulls).
+ *
+ * Idempotent. Operator-driven, not on the default cron.
+ *
+ * Usage:
+ *   php bin/galaxy-media-gc --dry-run                # report orphans, no changes
+ *   php bin/galaxy-media-gc                          # actually delete
+ *   php bin/galaxy-media-gc --min-age-seconds=600    # tune the in-flight gate
+ *
+ * Spec: Stage 5 galaxy publish design (5f-vii); v10 § Standards and crypto.
+ */
+
+if (PHP_SAPI !== 'cli') {
+    fwrite(STDERR, "Refusing to run outside CLI.\n");
+    exit(1);
+}
+
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../inc/federation/galaxy_media_gc.php';
+
+$opts = ['dry_run' => false, 'min_age_seconds' => FEDERATION_MEDIA_GC_DEFAULT_MIN_AGE_SECONDS];
+foreach (array_slice($argv, 1) as $a) {
+    if ($a === '--dry-run') { $opts['dry_run'] = true; continue; }
+    if (str_starts_with($a, '--min-age-seconds=')) {
+        $opts['min_age_seconds'] = max(0, (int)substr($a, 18));
+        continue;
+    }
+    if ($a === '--help' || $a === '-h') {
+        echo "Usage: php bin/galaxy-media-gc [--dry-run] [--min-age-seconds=N]\n";
+        exit(0);
+    }
+    fwrite(STDERR, "Unknown flag: {$a}\nRun with --help for usage.\n");
+    exit(2);
+}
+
+$report = federation_media_gc_sweep($opts['dry_run'], $opts['min_age_seconds']);
+
+echo sprintf(
+    "%s sweep:\n  scanned disk:        %d\n  live refs:           %d\n  protected (young):   %d\n  disk orphans:        %d\n  freed bytes:         %d\n  db-only orphans:     %d\n  min_age_seconds:     %d\n",
+    $report['dry_run'] ? 'DRY-RUN' : 'GC',
+    $report['disk_scanned'],
+    $report['live_count'],
+    $report['too_young'],
+    count($report['disk_orphans']),
+    $report['disk_orphans_freed_bytes'],
+    count($report['db_orphans']),
+    $report['min_age_seconds']
+);
+if ($report['error']) {
+    fwrite(STDERR, "error: " . $report['error'] . "\n");
+    exit(1);
+}
+exit(0);

@@ -1817,6 +1817,10 @@ foreach ($importantExtensions as $ext => $name) {
                             <?php if ($msDrift): ?>
                                 <p class="text-xs text-amber-700 mt-3"><?= t_attr('admin_ms_drift_warn', 'On-disk count differs from the database; orphaned blobs are present (deferred sweep).') ?></p>
                             <?php endif; ?>
+                            <form method="POST" action="galaxy-media-gc.php" class="mt-3">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                <button type="submit" class="px-3 py-1.5 text-xs border border-gray-300 hover:border-gray-400 rounded bg-white"><?= t_attr('admin_ms_gc_btn', 'Run media GC sweep') ?></button>
+                            </form>
                         </div>
                     </div>
 
