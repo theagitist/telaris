@@ -1,0 +1,107 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * bin/galaxy-pull — pull galaxy publications + retractions from peers.
+ *
+ * Signed peer-to-peer reads, scoped per active subscription. Each invocation
+ * iterates over eligible peers (active subscription exists, backoff window
+ * has elapsed) and runs the full per-peer cycle: retracted.json -> drop
+ * matching mirrors; published.json -> diff -> fossilize withdrawn; fetch +
+ * verify + materialize each to_pull envelope (with media re-hash + cache).
+ *
+ * Idempotent. Safe to run every minute from cron; the next_pull_at backoff
+ * gate plus per-endpoint conditional GET (If-None-Match) mean a quiet
+ * network is cheap.
+ *
+ * Usage:
+ *   php bin/galaxy-pull                          # every eligible peer
+ *   php bin/galaxy-pull --peer=<hostname>        # one peer
+ *   php bin/galaxy-pull --peer=<hostname> --force   # ignore backoff gate
+ *   php bin/galaxy-pull --status                 # show per-peer state
+ *
+ * Cron installed by `sudo php bin/setup-host.php` from
+ * `etc/cron.d/galaxy-pull.sample`; lands at
+ * `/etc/cron.d/telaris-galaxy-pull-<site>` and runs as www-data.
+ *
+ * Spec: Stage 5 galaxy publish design (5d-v); v10 § State-change propagation.
+ */
+
+if (PHP_SAPI !== 'cli') {
+    fwrite(STDERR, "Refusing to run outside CLI.\n");
+    exit(1);
+}
+
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../inc/federation/galaxy_pull_cycle.php';
+
+$opts = ['status' => false, 'peer' => null, 'force' => false];
+foreach (array_slice($argv, 1) as $a) {
+    if ($a === '--status') { $opts['status'] = true; continue; }
+    if ($a === '--force')  { $opts['force']  = true; continue; }
+    if (str_starts_with($a, '--peer=')) { $opts['peer'] = substr($a, 7); continue; }
+    if ($a === '--help' || $a === '-h') {
+        echo "Usage: php bin/galaxy-pull [--peer=<hostname>] [--force]\n";
+        echo "       php bin/galaxy-pull --status\n";
+        exit(0);
+    }
+    fwrite(STDERR, "Unknown flag: {$a}\nRun with --help for usage.\n");
+    exit(2);
+}
+
+if ($opts['status']) {
+    db_ensure_peers_table();
+    db_ensure_peer_pull_state_table();
+    $pdo = getDB();
+    $rows = $pdo->query("
+        SELECT p.id, p.hostname, ps.last_pull_succeeded_at, ps.last_pull_failed_at,
+               ps.next_pull_at, ps.consecutive_failures, ps.last_error,
+               (SELECT COUNT(*) FROM galaxy_subscriptions s WHERE s.peer_id = p.id AND s.is_active = TRUE) AS active_subs
+        FROM peers p
+        LEFT JOIN peer_pull_state ps ON ps.peer_id = p.id
+        ORDER BY p.hostname
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    if ($rows === []) {
+        echo "No peers known.\n";
+        exit(0);
+    }
+    foreach ($rows as $r) {
+        $subs = (int)$r['active_subs'];
+        if ($subs === 0 && $r['last_pull_succeeded_at'] === null && $r['last_pull_failed_at'] === null) {
+            // No subscriptions and never touched: nothing interesting.
+            continue;
+        }
+        echo "== {$r['hostname']} ==\n";
+        echo "  active_subs:       {$subs}\n";
+        echo "  last_succeeded_at: " . ($r['last_pull_succeeded_at'] ?? '(never)') . "\n";
+        echo "  last_failed_at:    " . ($r['last_pull_failed_at'] ?? '(never)') . "\n";
+        echo "  next_pull_at:      " . ($r['next_pull_at'] ?? '(immediate)') . "\n";
+        echo "  consecutive_fail:  " . (int)($r['consecutive_failures'] ?? 0) . "\n";
+        if (!empty($r['last_error'])) {
+            echo "  last_error:        " . $r['last_error'] . "\n";
+        }
+    }
+    exit(0);
+}
+
+if ($opts['peer'] !== null) {
+    $stmt = getDB()->prepare("SELECT id FROM peers WHERE hostname = :h LIMIT 1");
+    $stmt->execute([':h' => strtolower(trim((string)$opts['peer']))]);
+    $peerId = $stmt->fetchColumn();
+    if ($peerId === false) {
+        fwrite(STDERR, "No such peer: {$opts['peer']}\n");
+        exit(2);
+    }
+    $r = federation_galaxy_pull_peer((int)$peerId, ['force' => $opts['force']]);
+    echo json_encode($r, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n";
+    exit($r['ok'] ? 0 : 1);
+}
+
+$summary = federation_galaxy_pull_all_eligible(['force' => $opts['force']]);
+echo json_encode([
+    'peers_total' => $summary['peers_total'],
+    'peers_ok' => $summary['peers_ok'],
+    'peers_failed' => $summary['peers_failed'],
+], JSON_UNESCAPED_SLASHES) . "\n";
+exit($summary['peers_failed'] > 0 ? 1 : 0);

@@ -1,0 +1,24 @@
+# Telaris galaxy-pull cron (federation stage 5d-v).
+#
+# Pulls galaxy publications + retractions from every peer this site holds an
+# active subscription with. The binary's next_pull_at backoff gate + per-
+# endpoint conditional GET (If-None-Match) mean a quiet network is cheap on
+# both sides; this cron only sees real work when a peer publishes or retracts
+# something the operator subscribes to.
+#
+# Installed by bin/setup-host.php; canonical source is
+# etc/cron.d/galaxy-pull.sample in the Telaris repo. The site root placeholder
+# below is substituted with the absolute install path at install time.
+# Re-running setup-host.php overwrites this file (no drift).
+#
+# Cadence: every 5 minutes (the dispatcher already uses every-minute; we cap
+# the polling appetite a step lower so a busy instance with many peers does
+# not bunch up). Per-peer backoff inside the binary takes care of misbehaving
+# peers; manual Refresh-now (admin) bypasses the gate.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# galaxy-pull every 5 minutes (offset +2 to avoid colliding with the
+# Pluriverse key-events pull at :00, :05, ...)
+2,7,12,17,22,27,32,37,42,47,52,57 * * * * www-data /usr/bin/php __SITE_ROOT__/bin/galaxy-pull > /dev/null 2>&1

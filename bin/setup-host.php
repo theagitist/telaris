@@ -13,6 +13,7 @@ declare(strict_types=1);
  *   - /etc/logrotate.d/telaris-snapshots-<site>
  *   - /etc/cron.d/telaris-pluriverse-pull-<site>     (federation stage 3)
  *   - /etc/cron.d/telaris-pluriverse-dispatch-<site> (federation stage 4d)
+ *   - /etc/cron.d/telaris-galaxy-pull-<site>         (federation stage 5d-v)
  *   - chmod 0640 + chgrp www-data on config.php
  *   - secrets/ dir 0700 owned by www-data
  *
@@ -110,6 +111,9 @@ $pullCronDst = '/etc/cron.d/telaris-pluriverse-pull-' . $siteName;
 
 $dispatchCronSrc = $root . '/etc/cron.d/pluriverse-dispatch.sample';
 $dispatchCronDst = '/etc/cron.d/telaris-pluriverse-dispatch-' . $siteName;
+
+$galaxyPullCronSrc = $root . '/etc/cron.d/galaxy-pull.sample';
+$galaxyPullCronDst = '/etc/cron.d/telaris-galaxy-pull-' . $siteName;
 
 $configPath = $root . '/config.php';
 $vhostCandidates = [
@@ -415,6 +419,57 @@ $tasks[] = (function() use ($dispatchCronSrc, $dispatchCronDst, $root) {
         'name' => 'pluriverse-dispatch cron',
         'status' => file_exists($dispatchCronDst) ? 'mismatch' : 'missing',
         'detail' => file_exists($dispatchCronDst) ? "{$dispatchCronDst} differs from canonical" : "{$dispatchCronDst} does not exist",
+        'fix' => $fix,
+    ];
+})();
+
+// 4c. Galaxy-pull cron entry (federation stage 5d-v).
+// Same shape as 4a/4b: drops /etc/cron.d/telaris-galaxy-pull-<site> with the
+// every-5-minute peer-pull loop (offset +2 from key-events). Per-peer
+// backoff inside the binary keeps misbehaving peers cheap.
+$tasks[] = (function() use ($galaxyPullCronSrc, $galaxyPullCronDst, $root) {
+    if (!file_exists($galaxyPullCronSrc)) {
+        return ['name' => 'galaxy-pull cron', 'status' => 'error', 'detail' => "repo source missing at {$galaxyPullCronSrc}", 'fix' => null];
+    }
+    if (!file_exists('/etc/cron.d')) {
+        return ['name' => 'galaxy-pull cron', 'status' => 'error', 'detail' => '/etc/cron.d does not exist; cron not installed', 'fix' => null];
+    }
+    if (!file_exists($root . '/bin/galaxy-pull')) {
+        return ['name' => 'galaxy-pull cron', 'status' => 'error', 'detail' => "{$root}/bin/galaxy-pull does not exist (federation stage 5 not yet deployed?)", 'fix' => null];
+    }
+    $template = file_get_contents($galaxyPullCronSrc);
+    $canonical = str_replace('__SITE_ROOT__', $root, $template);
+    $installed = file_exists($galaxyPullCronDst) ? file_get_contents($galaxyPullCronDst) : '';
+    if ($installed === $canonical) {
+        return ['name' => 'galaxy-pull cron', 'status' => 'ok', 'detail' => "matches {$galaxyPullCronDst}", 'fix' => null];
+    }
+    $fix = function() use ($galaxyPullCronDst, $canonical) {
+        if (is_link($galaxyPullCronDst)) {
+            return ['ok' => false, 'detail' => "{$galaxyPullCronDst} is a symlink; refusing to write through it (unlink first if intentional)"];
+        }
+        if (file_exists($galaxyPullCronDst)) {
+            $real = realpath($galaxyPullCronDst);
+            if ($real === false || !str_starts_with($real, '/etc/cron.d/')) {
+                return ['ok' => false, 'detail' => "{$galaxyPullCronDst} resolves outside /etc/cron.d/ (real='{$real}'); refusing to write"];
+            }
+        }
+        $tmp = $galaxyPullCronDst . '.new.' . posix_getpid();
+        if (file_put_contents($tmp, $canonical) === false) {
+            return ['ok' => false, 'detail' => "could not write to {$tmp}"];
+        }
+        @chmod($tmp, 0644);
+        @chown($tmp, 'root');
+        @chgrp($tmp, 'root');
+        if (!rename($tmp, $galaxyPullCronDst)) {
+            @unlink($tmp);
+            return ['ok' => false, 'detail' => "could not move {$tmp} → {$galaxyPullCronDst}"];
+        }
+        return ['ok' => true, 'detail' => "wrote {$galaxyPullCronDst} (cron picks up automatically)"];
+    };
+    return [
+        'name' => 'galaxy-pull cron',
+        'status' => file_exists($galaxyPullCronDst) ? 'mismatch' : 'missing',
+        'detail' => file_exists($galaxyPullCronDst) ? "{$galaxyPullCronDst} differs from canonical" : "{$galaxyPullCronDst} does not exist",
         'fix' => $fix,
     ];
 })();

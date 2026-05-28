@@ -1328,10 +1328,16 @@ foreach ($importantExtensions as $ext => $name) {
                             <h2 class="text-gray-800 text-lg font-semibold"><?= t_attr('admin_pluriverse_peers_heading', 'Local peer list') ?></h2>
                             <p class="text-sm text-gray-600 mt-1"><?= t_attr('admin_pluriverse_peers_subheading', 'Other instances this site knows about. Pulled from the Pluriverse on a schedule. No content flows until a bilateral whitelist is established with each peer (stage 4+).') ?></p>
                         </div>
-                        <form method="POST" action="pluriverse-refresh.php" class="shrink-0">
-                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                            <button type="submit" class="px-3 py-1.5 text-sm border border-gray-300 hover:border-gray-400 rounded bg-white"><?= t_attr('admin_pluriverse_btn_refresh', 'Refresh now') ?></button>
-                        </form>
+                        <div class="shrink-0 flex flex-wrap gap-2">
+                            <form method="POST" action="pluriverse-refresh.php">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                <button type="submit" class="px-3 py-1.5 text-sm border border-gray-300 hover:border-gray-400 rounded bg-white"><?= t_attr('admin_pluriverse_btn_refresh', 'Refresh now') ?></button>
+                            </form>
+                            <form method="POST" action="galaxy-pull-refresh.php">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                <button type="submit" class="px-3 py-1.5 text-sm border border-gray-300 hover:border-gray-400 rounded bg-white"><?= t_attr('admin_galaxy_pull_btn_refresh', 'Refresh galaxies now') ?></button>
+                            </form>
+                        </div>
                     </div>
 
                     <?php

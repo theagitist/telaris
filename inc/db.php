@@ -156,6 +156,8 @@ const PROJECT_INFO_KEYS = [
     'admin_pluriverse_peers_source_registry', 'admin_pluriverse_peers_source_manual', 'admin_pluriverse_peers_source_manual_help',
     'admin_pluriverse_peers_manual_banner',
     'admin_pluriverse_refresh_ok', 'admin_pluriverse_refresh_err',
+    // Stage 5d-v: galaxy-pull refresh-now (peer-to-peer galaxy mirror refresh).
+    'admin_galaxy_pull_btn_refresh', 'admin_galaxy_pull_refresh_ok', 'admin_galaxy_pull_refresh_err',
     'admin_pluriverse_manual_disclosure', 'admin_pluriverse_manual_warn_heading', 'admin_pluriverse_manual_warn_body',
     'admin_pluriverse_manual_field_hostname', 'admin_pluriverse_manual_field_url', 'admin_pluriverse_manual_field_label',
     'admin_pluriverse_manual_field_pubkey', 'admin_pluriverse_manual_field_pubkey_help',
@@ -1187,6 +1189,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_peers_manual_banner' => 'Manual peer added by %s on %s; verify intended.',
             'admin_pluriverse_refresh_ok' => 'Pluriverse refreshed:',
             'admin_pluriverse_refresh_err' => 'Pluriverse refresh failed:',
+            'admin_galaxy_pull_btn_refresh' => 'Refresh galaxies now',
+            'admin_galaxy_pull_refresh_ok' => 'Galaxy refresh completed:',
+            'admin_galaxy_pull_refresh_err' => 'Galaxy refresh failed:',
             'admin_pluriverse_manual_disclosure' => 'Advanced: add a manual peer',
             'admin_pluriverse_manual_warn_heading' => 'Why this is gated',
             'admin_pluriverse_manual_warn_body' => 'A manual peer bypasses the Pluriverse trust chain: nothing has verified that this hostname and public key actually belong to the operator you intend to reach. The row is added with a not-Pluriverse-vouched flag and a persistent banner so you and other admins can audit it later. Re-enter your password below to confirm.',
@@ -2476,6 +2481,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_peers_manual_banner' => 'Par manual añadido por %s el %s; verificar la intención.',
             'admin_pluriverse_refresh_ok' => 'Pluriverse actualizado:',
             'admin_pluriverse_refresh_err' => 'La actualización del Pluriverse falló:',
+            'admin_galaxy_pull_btn_refresh' => 'Actualizar galaxias ahora',
+            'admin_galaxy_pull_refresh_ok' => 'Actualización de galaxias completada:',
+            'admin_galaxy_pull_refresh_err' => 'La actualización de galaxias falló:',
             'admin_pluriverse_manual_disclosure' => 'Avanzado: añadir una instancia par manualmente',
             'admin_pluriverse_manual_warn_heading' => 'Por qué esto está restringido',
             'admin_pluriverse_manual_warn_body' => 'Una instancia par manual evita la cadena de confianza del Pluriverse: nada ha verificado que este nombre de host y esta clave pública realmente correspondan a la operación que pretendes contactar. La fila se añade con una marca de no avalada por el Pluriverse y un aviso persistente para que la administración pueda revisarla después. Reescribe tu contraseña abajo para confirmar.',
@@ -3761,6 +3769,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_peers_manual_banner' => 'Par manual adicionado por %s em %s; verificar a intenção.',
             'admin_pluriverse_refresh_ok' => 'Pluriverse atualizado:',
             'admin_pluriverse_refresh_err' => 'A atualização do Pluriverse falhou:',
+            'admin_galaxy_pull_btn_refresh' => 'Atualizar galáxias agora',
+            'admin_galaxy_pull_refresh_ok' => 'Atualização de galáxias concluída:',
+            'admin_galaxy_pull_refresh_err' => 'A atualização de galáxias falhou:',
             'admin_pluriverse_manual_disclosure' => 'Avançado: adicionar uma instância par manualmente',
             'admin_pluriverse_manual_warn_heading' => 'Por que isso é restrito',
             'admin_pluriverse_manual_warn_body' => 'Uma instância par manual contorna a cadeia de confiança do Pluriverse: nada verificou se este nome de host e esta chave pública realmente correspondem à operação que se pretende contatar. A linha é adicionada com uma marca de não avalizada pelo Pluriverse e um aviso persistente para que a administração possa revisá-la depois. Digite a senha novamente abaixo para confirmar.',
@@ -5046,6 +5057,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_pluriverse_peers_manual_banner' => 'Pair manuel ajouté par %s le %s ; vérifier l\'intention.',
             'admin_pluriverse_refresh_ok' => 'Pluriverse actualisé :',
             'admin_pluriverse_refresh_err' => 'L\'actualisation du Pluriverse a échoué :',
+            'admin_galaxy_pull_btn_refresh' => 'Actualiser les galaxies maintenant',
+            'admin_galaxy_pull_refresh_ok' => 'Actualisation des galaxies terminée :',
+            'admin_galaxy_pull_refresh_err' => 'L\'actualisation des galaxies a échoué :',
             'admin_pluriverse_manual_disclosure' => 'Avancé : ajouter un pair manuellement',
             'admin_pluriverse_manual_warn_heading' => 'Pourquoi c\'est restreint',
             'admin_pluriverse_manual_warn_body' => 'Un pair manuel contourne la chaîne de confiance du Pluriverse : rien n\'a vérifié que ce nom d\'hôte et cette clé publique appartiennent vraiment à l\'opération que tu veux joindre. La ligne est ajoutée avec un drapeau non vérifié par le Pluriverse et une bannière persistante pour que l\'administration puisse la réviser plus tard. Saisis ton mot de passe ci-dessous pour confirmer.',
@@ -11162,6 +11176,37 @@ function db_ensure_galaxy_subscriptions_table(): void {
         }
     } catch (PDOException $e) {
         error_log('db_ensure_galaxy_subscriptions_table: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Stage 5d-v: per-peer galaxy-pull bookkeeping. One row per peer the
+ * orchestrator has touched. `next_pull_at` is the backoff gate: NULL or past =
+ * eligible, future = on cooldown. `consecutive_failures` drives the backoff
+ * schedule (federation_galaxy_pull_backoff_seconds). On success the failure
+ * state is reset; on failure the count bumps and next_pull_at advances.
+ */
+function db_ensure_peer_pull_state_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_peers_table();
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS peer_pull_state (
+                peer_id INT UNSIGNED PRIMARY KEY,
+                last_pull_started_at TIMESTAMP NULL,
+                last_pull_succeeded_at TIMESTAMP NULL,
+                last_pull_failed_at TIMESTAMP NULL,
+                next_pull_at TIMESTAMP NULL,
+                consecutive_failures INT UNSIGNED NOT NULL DEFAULT 0,
+                last_error VARCHAR(255) NULL,
+                FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_peer_pull_state_table: ' . $e->getMessage());
     }
 }
 
