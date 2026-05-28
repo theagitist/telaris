@@ -281,6 +281,51 @@ function federation_pull_diff(int $peerId, array $published): array {
 }
 
 /**
+ * Fetch + parse a peer's retracted.json digest. Each entry carries the origin's
+ * signed retraction envelope; signature + structural verification happens in
+ * galaxy_unmirror.php (where the peer's key is resolved with rotation grace).
+ * A 304 surfaces as not_modified with no entries.
+ *
+ * @return array{ok:bool, status:int, not_modified:bool, retracted:list<array{slug:string, retracted_at:string, reason:string, retraction_jws:string}>, error:?string}
+ */
+function federation_pull_fetch_retracted(string $peerHost, ?string $ifNoneMatch = null): array {
+    $resp = federation_peer_signed_get($peerHost, '/api/pluriverse/retracted.json', [
+        'if_none_match' => $ifNoneMatch ?? '',
+    ]);
+    if ($resp['error'] !== null) {
+        return ['ok' => false, 'status' => $resp['status'], 'not_modified' => false, 'retracted' => [], 'error' => $resp['error']];
+    }
+    if ($resp['status'] === 304) {
+        return ['ok' => true, 'status' => 304, 'not_modified' => true, 'retracted' => [], 'error' => null];
+    }
+    if ($resp['status'] !== 200) {
+        return ['ok' => false, 'status' => $resp['status'], 'not_modified' => false, 'retracted' => [], 'error' => 'http_' . $resp['status']];
+    }
+    $data = json_decode($resp['body'], true);
+    if (!is_array($data) || !isset($data['retracted']) || !is_array($data['retracted'])) {
+        return ['ok' => false, 'status' => 200, 'not_modified' => false, 'retracted' => [], 'error' => 'malformed_retracted_json'];
+    }
+    $out = [];
+    foreach ($data['retracted'] as $e) {
+        if (!is_array($e)) continue;
+        $slug = (string)($e['slug'] ?? '');
+        $jws = (string)($e['retraction_jws'] ?? '');
+        // The handler returns slugs matching the same pattern publish accepts;
+        // and a JWS is three b64url segments. Cheap filter so a malformed entry
+        // can't poison the rest of the list.
+        if ($slug === '' || !preg_match('/^[a-z0-9-]+$/', $slug)) continue;
+        if ($jws === '' || substr_count($jws, '.') !== 2) continue;
+        $out[] = [
+            'slug' => $slug,
+            'retracted_at' => (string)($e['retracted_at'] ?? ''),
+            'reason' => (string)($e['reason'] ?? ''),
+            'retraction_jws' => $jws,
+        ];
+    }
+    return ['ok' => true, 'status' => 200, 'not_modified' => false, 'retracted' => $out, 'error' => null];
+}
+
+/**
  * Fetch a single content-addressed media blob from a peer. The mirror code
  * re-hashes the returned bytes before storing them, so this transport does not
  * vouch for integrity. The serving peer applies its own per-IP rate limit; the

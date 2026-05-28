@@ -11151,8 +11151,48 @@ function db_ensure_galaxy_subscriptions_table(): void {
                 FOREIGN KEY (local_constellation_id) REFERENCES constellations(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
+        // Stage 5d-iv: distinguish "stopped pulling because origin withdrew /
+        // was revoked" from "operator-paused" (both have is_active = FALSE).
+        $cols = $pdo->query("SHOW COLUMNS FROM galaxy_subscriptions")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('fossilized_at', $cols, true)) {
+            $pdo->exec("ALTER TABLE galaxy_subscriptions ADD COLUMN fossilized_at TIMESTAMP NULL AFTER is_active");
+        }
+        if (!in_array('fossilized_reason', $cols, true)) {
+            $pdo->exec("ALTER TABLE galaxy_subscriptions ADD COLUMN fossilized_reason VARCHAR(100) NULL AFTER fossilized_at");
+        }
     } catch (PDOException $e) {
         error_log('db_ensure_galaxy_subscriptions_table: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Stage 5d-iv: inbound retractions this instance has honoured. Distinct from
+ * retracted_galaxies (this instance's OWN outbound retractions). The signed
+ * envelope is preserved so the admin surface can re-verify provenance, and so
+ * subsequent re-subscription attempts to the same (peer, slug) can be refused.
+ */
+function db_ensure_remote_retractions_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_peers_table();
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS remote_retractions (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                peer_id INT UNSIGNED NOT NULL,
+                remote_slug VARCHAR(255) NOT NULL,
+                retracted_at TIMESTAMP NOT NULL,
+                reason TEXT NULL,
+                retraction_jws MEDIUMTEXT NOT NULL,
+                honored_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_peer_slug (peer_id, remote_slug),
+                FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_remote_retractions_table: ' . $e->getMessage());
     }
 }
 
