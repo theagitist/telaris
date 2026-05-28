@@ -29,18 +29,24 @@ define('USER_TYPE_ADMIN', 2);
 
 // Auth-throttle constants (Fix 6: rate-limit login / forgot / reset).
 // Window in seconds, max-attempts cap. Tuned conservatively; an honest user
-// should never hit these.
-define('AUTH_LOGIN_MAX_FAILURES', 5);
-define('AUTH_LOGIN_WINDOW_SECONDS', 300);
-define('AUTH_FORGOT_MAX_ATTEMPTS', 5);
-define('AUTH_FORGOT_WINDOW_SECONDS', 300);
-define('AUTH_RESET_MAX_ATTEMPTS', 10);
-define('AUTH_RESET_WINDOW_SECONDS', 600);
+// should never hit these. Guarded against double-define because api/auth.php
+// (second-pass audit M3) also declares the AUTH_API_KEY_* pair, and any
+// future caller that pulls both files would otherwise emit a PHP Warning.
+if (!defined('AUTH_LOGIN_MAX_FAILURES')) {
+    define('AUTH_LOGIN_MAX_FAILURES', 5);
+    define('AUTH_LOGIN_WINDOW_SECONDS', 300);
+    define('AUTH_FORGOT_MAX_ATTEMPTS', 5);
+    define('AUTH_FORGOT_WINDOW_SECONDS', 300);
+    define('AUTH_RESET_MAX_ATTEMPTS', 10);
+    define('AUTH_RESET_WINDOW_SECONDS', 600);
+}
 // API-key throttle (second-pass audit M3): legitimate visitor pages fetch
 // the public key once per session, then reuse it; sustained-rate-of-failure
 // well below this cap is what a brute-force attempt looks like.
-define('AUTH_API_KEY_MAX_FAILURES', 30);
-define('AUTH_API_KEY_WINDOW_SECONDS', 300);
+if (!defined('AUTH_API_KEY_MAX_FAILURES')) {
+    define('AUTH_API_KEY_MAX_FAILURES', 30);
+    define('AUTH_API_KEY_WINDOW_SECONDS', 300);
+}
 
 /**
  * Client IP for throttling. Trusts REMOTE_ADDR alone — nginx rewrites it
