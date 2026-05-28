@@ -128,6 +128,74 @@ function federation_galaxy_finalize_media(array $nodes): array {
 }
 
 /**
+ * Operator-facing view: every authored galaxy on this instance plus its
+ * federation status. Drives the 5f admin surface. Mirrored galaxies are
+ * filtered out (only authored content can be published / retracted). Each
+ * row carries the constellation handle, optional published-row stats, and
+ * a derived `status`:
+ *
+ *   retracted     a retracted_galaxies row exists for this slug
+ *   published     a published_galaxies.is_current = TRUE row exists
+ *   not_published nothing has been published yet for this slug
+ *   stale         was published but the current flag is false (retracted)
+ *
+ * @return list<array{constellation_id:int, slug:string, name:string, sequence:?int, content_hash:?string, published_at:?string, is_current:?bool, retracted_at:?string, retracted_reason:?string, status:string}>
+ */
+function federation_published_galaxies_admin_view(): array {
+    db_ensure_published_galaxies_table();
+    db_ensure_retracted_galaxies_table();
+    db_ensure_federation_attribution_columns();
+    $rows = getDB()->query("
+        SELECT
+            c.id AS constellation_id,
+            c.name,
+            c.slug,
+            pg.published_sequence,
+            pg.content_hash,
+            pg.published_at,
+            pg.is_current,
+            rg.retracted_at,
+            rg.reason AS retracted_reason
+        FROM constellations c
+        LEFT JOIN published_galaxies pg ON pg.slug = c.slug
+        LEFT JOIN retracted_galaxies rg ON rg.slug = c.slug
+        WHERE c.import_source IS NULL
+          AND c.mirrored_from_peer_id IS NULL
+          AND c.slug IS NOT NULL AND c.slug <> ''
+        ORDER BY c.name
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $out = [];
+    foreach ($rows as $r) {
+        $isCurrent = $r['is_current'] !== null ? (bool)$r['is_current'] : null;
+        if ($r['retracted_at'] !== null) {
+            $status = 'retracted';
+        } elseif ($isCurrent === true) {
+            $status = 'published';
+        } elseif ($isCurrent === false) {
+            // Published row exists but is_current is FALSE without a retraction
+            // row — should not happen, but if it does call it stale.
+            $status = 'stale';
+        } else {
+            $status = 'not_published';
+        }
+        $out[] = [
+            'constellation_id' => (int)$r['constellation_id'],
+            'slug' => (string)$r['slug'],
+            'name' => (string)$r['name'],
+            'sequence' => $r['published_sequence'] !== null ? (int)$r['published_sequence'] : null,
+            'content_hash' => $r['content_hash'] !== null ? (string)$r['content_hash'] : null,
+            'published_at' => $r['published_at'] !== null ? (string)$r['published_at'] : null,
+            'is_current' => $isCurrent,
+            'retracted_at' => $r['retracted_at'] !== null ? (string)$r['retracted_at'] : null,
+            'retracted_reason' => $r['retracted_reason'] !== null ? (string)$r['retracted_reason'] : null,
+            'status' => $status,
+        ];
+    }
+    return $out;
+}
+
+/**
  * Publish (or re-publish) an authored galaxy: guards, sequence bump, build +
  * sign the envelope, cache it into published_galaxies.
  *

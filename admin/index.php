@@ -600,6 +600,10 @@ foreach ($pluriversePeers as $__peer) {
 }
 unset($__peer, $__pid);
 
+// Operator surface (5f): per-galaxy publish / retract / export list.
+require_once __DIR__ . '/../inc/federation/galaxy_publish.php';
+$federationPublishedGalaxies = federation_published_galaxies_admin_view();
+
 // Group constellations by [Tag] prefix for visual grouping
 function extractConstellationGroup(string $name): ?string {
     if (preg_match('/^\[([^\]]+)\]/', $name, $m)) {
@@ -1577,6 +1581,96 @@ foreach ($importantExtensions as $ext => $name) {
                                 </form>
                             </div>
                         </details>
+                    </div>
+
+                    <!-- Your published galaxies (stage 5f) -->
+                    <div class="mt-8 pt-6 border-t border-gray-200">
+                        <h3 class="text-emerald-700 font-semibold mb-2"><?= t_attr('admin_pub_section_heading', 'Your published galaxies') ?></h3>
+                        <p class="text-sm text-gray-600 mb-4"><?= t_attr('admin_pub_section_subheading', 'Authored galaxies you can publish, re-publish, retract, or export.') ?></p>
+
+                        <?php if ($federationPublishedGalaxies === []): ?>
+                            <p class="text-sm text-gray-500 italic"><?= t_attr('admin_pub_empty', 'No authored galaxies on this instance yet.') ?></p>
+                        <?php else: ?>
+                            <div class="overflow-x-auto border border-gray-200 rounded">
+                                <table class="min-w-full text-sm">
+                                    <thead class="bg-gray-50 text-left">
+                                        <tr>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pub_col_galaxy', 'Galaxy') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pub_col_slug', 'Slug') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pub_col_status', 'Status') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pub_col_sequence', 'Sequence') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pub_col_published_at', 'Last published') ?></th>
+                                            <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pub_col_actions', 'Actions') ?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100">
+                                        <?php foreach ($federationPublishedGalaxies as $row):
+                                            $statusKey = 'admin_pub_status_' . $row['status'];
+                                            $statusLabel = (string)t($statusKey, ucfirst(str_replace('_', ' ', $row['status'])));
+                                            $statusClass = match ($row['status']) {
+                                                'published' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                                'retracted' => 'bg-red-50 text-red-700 border-red-200',
+                                                'stale'     => 'bg-amber-50 text-amber-700 border-amber-200',
+                                                default     => 'bg-gray-50 text-gray-700 border-gray-200',
+                                            };
+                                        ?>
+                                            <tr>
+                                                <td class="px-3 py-2 text-gray-800"><?= htmlspecialchars($row['name']) ?></td>
+                                                <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= htmlspecialchars($row['slug']) ?></td>
+                                                <td class="px-3 py-2">
+                                                    <span class="inline-block px-2 py-0.5 text-xs rounded border <?= $statusClass ?>"><?= htmlspecialchars($statusLabel) ?></span>
+                                                </td>
+                                                <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= $row['sequence'] !== null ? (int)$row['sequence'] : '—' ?></td>
+                                                <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= htmlspecialchars($row['published_at'] ?? '—') ?></td>
+                                                <td class="px-3 py-2">
+                                                    <div class="flex flex-wrap gap-2 items-start">
+                                                        <?php if ($row['status'] !== 'retracted'): ?>
+                                                            <form method="POST" action="galaxy-publish.php" class="inline">
+                                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                                <input type="hidden" name="constellation_id" value="<?= (int)$row['constellation_id'] ?>">
+                                                                <button type="submit" class="px-2 py-1 text-xs border border-emerald-300 hover:border-emerald-400 rounded bg-emerald-50 text-emerald-700">
+                                                                    <?= $row['status'] === 'published'
+                                                                        ? t_attr('admin_pub_btn_republish', 'Re-publish')
+                                                                        : t_attr('admin_pub_btn_publish', 'Publish now') ?>
+                                                                </button>
+                                                            </form>
+                                                            <form method="POST" action="galaxy-backup-download.php" class="inline">
+                                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                                <input type="hidden" name="constellation_id" value="<?= (int)$row['constellation_id'] ?>">
+                                                                <button type="submit" class="px-2 py-1 text-xs border border-gray-300 hover:border-gray-400 rounded bg-white text-gray-700"><?= t_attr('admin_pub_btn_download_backup', 'Download full backup') ?></button>
+                                                            </form>
+                                                            <details class="inline-block">
+                                                                <summary class="cursor-pointer px-2 py-1 text-xs border border-red-300 hover:border-red-400 rounded bg-red-50 text-red-700 inline-block">
+                                                                    <?= t_attr('admin_pub_btn_retract', 'Retract') ?>
+                                                                </summary>
+                                                                <form method="POST" action="galaxy-retract.php" class="mt-2 p-3 border border-red-200 rounded bg-red-50 max-w-md">
+                                                                    <p class="text-xs text-red-800 mb-2">
+                                                                        <span class="font-semibold"><?= t_attr('admin_pub_retract_warn', 'Permanent.') ?></span>
+                                                                        <?= t_attr('admin_pub_retract_help', 'Retraction is permanent. Type the slug to confirm.') ?>
+                                                                    </p>
+                                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                                    <input type="hidden" name="constellation_id" value="<?= (int)$row['constellation_id'] ?>">
+                                                                    <label class="block text-xs font-medium text-red-900 mb-1" for="retract-slug-<?= (int)$row['constellation_id'] ?>"><?= t_attr('admin_pub_retract_label_slug', 'Type the slug to confirm') ?></label>
+                                                                    <input id="retract-slug-<?= (int)$row['constellation_id'] ?>" type="text" name="confirm_slug" required autocomplete="off" class="w-full px-2 py-1 text-sm font-mono border border-red-300 rounded mb-2" placeholder="<?= htmlspecialchars($row['slug']) ?>">
+                                                                    <label class="block text-xs font-medium text-red-900 mb-1" for="retract-reason-<?= (int)$row['constellation_id'] ?>"><?= t_attr('admin_pub_retract_label_reason', 'Reason (optional, public)') ?></label>
+                                                                    <textarea id="retract-reason-<?= (int)$row['constellation_id'] ?>" name="reason" rows="2" class="w-full px-2 py-1 text-sm border border-red-300 rounded mb-2" placeholder="<?= t_attr('admin_pub_retract_reason_placeholder', 'Why are you retracting this galaxy?') ?>"></textarea>
+                                                                    <button type="submit" class="px-3 py-1.5 text-xs border border-red-400 hover:border-red-500 rounded bg-red-100 text-red-800 font-semibold"><?= t_attr('admin_pub_btn_retract', 'Retract') ?></button>
+                                                                </form>
+                                                            </details>
+                                                        <?php else: ?>
+                                                            <span class="text-xs text-gray-500 italic">
+                                                                <?= t_attr('admin_pub_retracted_on', 'retracted') ?>
+                                                                <?= htmlspecialchars($row['retracted_at'] ?? '') ?>
+                                                            </span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
                     </div>
 
                     <!-- Per-peer publish and subscribe lists (stage 4f) -->
