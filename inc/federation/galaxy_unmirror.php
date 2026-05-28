@@ -40,6 +40,12 @@ require_once __DIR__ . '/galaxy_retraction.php';
  */
 function federation_unmirror_drop(int $peerId, string $remoteSlug, string $reason): array {
     db_ensure_galaxy_subscriptions_table();
+    // The constellation-delete path below transitively calls
+    // db_get_referencing_portals -> db_ensure_nodes_node_type_index, which
+    // runs DDL (CREATE INDEX) on first call and implicit-commits any
+    // in-progress transaction in MySQL. Fire the ensure here, before
+    // beginTransaction, so the tx remains intact for the delete.
+    db_ensure_nodes_node_type_index();
     $pdo = getDB();
 
     $stmt = $pdo->prepare("SELECT id, local_constellation_id FROM galaxy_subscriptions WHERE peer_id = :p AND remote_slug = :s LIMIT 1");
