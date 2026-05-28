@@ -128,6 +128,45 @@ function federation_media_lookup(string $sha256): ?array {
     ];
 }
 
+/**
+ * Stats for the federation media store, driving the 5f admin "Media store"
+ * subsection. Reports both the database-recorded total (sum of media_blobs
+ * size_bytes) and the on-disk total under federation-media/, so an operator
+ * can spot drift (orphaned blobs the deferred GC sweep will collect, or
+ * blobs registered but missing from disk).
+ *
+ * @return array{blob_count:int, total_size_bytes:int, store_dir:string, disk_blob_count:int, disk_total_bytes:int}
+ */
+function federation_media_store_stats(): array {
+    db_ensure_media_blobs_table();
+    $row = getDB()->query("SELECT COUNT(*) AS n, COALESCE(SUM(size_bytes), 0) AS total FROM media_blobs")
+        ->fetch(PDO::FETCH_ASSOC);
+    $blobCount = (int)$row['n'];
+    $totalBytes = (int)$row['total'];
+
+    $dir = federation_media_dir();
+    $diskCount = 0;
+    $diskBytes = 0;
+    // Single pass over the directory: count + sum sizes, ignore the
+    // *.tmp.* writers from federation_media_register_upload mid-rename.
+    foreach (@scandir($dir) ?: [] as $name) {
+        if ($name === '.' || $name === '..') continue;
+        if (str_contains($name, '.tmp.')) continue;
+        $path = $dir . '/' . $name;
+        if (!is_file($path)) continue;
+        $diskCount++;
+        $sz = @filesize($path);
+        if ($sz !== false) $diskBytes += (int)$sz;
+    }
+    return [
+        'blob_count' => $blobCount,
+        'total_size_bytes' => $totalBytes,
+        'store_dir' => $dir,
+        'disk_blob_count' => $diskCount,
+        'disk_total_bytes' => $diskBytes,
+    ];
+}
+
 /** Best-effort MIME detection; falls back to application/octet-stream. */
 function federation_media_detect_mime(string $absPath): string {
     if (function_exists('finfo_open')) {

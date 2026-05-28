@@ -603,9 +603,23 @@ unset($__peer, $__pid);
 // Operator surface (5f): per-galaxy publish / retract / export list.
 require_once __DIR__ . '/../inc/federation/galaxy_publish.php';
 require_once __DIR__ . '/../inc/federation/galaxy_unmirror.php';
+require_once __DIR__ . '/../inc/federation/media_store.php';
 $federationPublishedGalaxies = federation_published_galaxies_admin_view();
 $federationMirroredGalaxies = federation_mirror_inspection_view();
 $federationRemoteRetractions = federation_remote_retractions_recent(50);
+$federationMediaStats = federation_media_store_stats();
+
+// Bytes -> "12.3 MB" using IEC units (KiB/MiB/GiB). Local helper because the
+// admin Pluriverse tab is the only place that needs this formatting; lifting
+// it into a shared util can wait for a second caller.
+$formatBytes = static function (int $bytes): string {
+    if ($bytes < 1024) return $bytes . ' B';
+    $units = ['KiB', 'MiB', 'GiB', 'TiB'];
+    $u = -1;
+    $v = (float)$bytes;
+    do { $v /= 1024.0; $u++; } while ($v >= 1024.0 && $u < count($units) - 1);
+    return number_format($v, $v >= 100 ? 0 : ($v >= 10 ? 1 : 2)) . ' ' . $units[$u];
+};
 
 // Group constellations by [Tag] prefix for visual grouping
 function extractConstellationGroup(string $name): ?string {
@@ -1770,6 +1784,40 @@ foreach ($importantExtensions as $ext => $name) {
                                 </table>
                             </div>
                         <?php endif; ?>
+                    </div>
+
+                    <!-- Federation media store stats (stage 5f) -->
+                    <div class="mt-8 pt-6 border-t border-gray-200">
+                        <h3 class="text-emerald-700 font-semibold mb-2"><?= t_attr('admin_ms_section_heading', 'Federation media store') ?></h3>
+                        <p class="text-sm text-gray-600 mb-4"><?= t_attr('admin_ms_section_subheading', 'Content-addressed media blobs shared across mirrors.') ?></p>
+                        <?php $msDrift = $federationMediaStats['blob_count'] !== $federationMediaStats['disk_blob_count']; ?>
+                        <div class="border border-gray-200 rounded p-4 bg-gray-50">
+                            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                                <div class="flex gap-2">
+                                    <dt class="text-gray-600"><?= t_attr('admin_ms_label_blobs_db', 'Recorded blobs') ?>:</dt>
+                                    <dd class="font-mono text-gray-800"><?= (int)$federationMediaStats['blob_count'] ?></dd>
+                                </div>
+                                <div class="flex gap-2">
+                                    <dt class="text-gray-600"><?= t_attr('admin_ms_label_blobs_disk', 'On-disk blobs') ?>:</dt>
+                                    <dd class="font-mono text-gray-800"><?= (int)$federationMediaStats['disk_blob_count'] ?></dd>
+                                </div>
+                                <div class="flex gap-2">
+                                    <dt class="text-gray-600"><?= t_attr('admin_ms_label_size_db', 'Recorded size') ?>:</dt>
+                                    <dd class="font-mono text-gray-800"><?= htmlspecialchars($formatBytes((int)$federationMediaStats['total_size_bytes'])) ?></dd>
+                                </div>
+                                <div class="flex gap-2">
+                                    <dt class="text-gray-600"><?= t_attr('admin_ms_label_size_disk', 'On-disk size') ?>:</dt>
+                                    <dd class="font-mono text-gray-800"><?= htmlspecialchars($formatBytes((int)$federationMediaStats['disk_total_bytes'])) ?></dd>
+                                </div>
+                                <div class="flex gap-2 sm:col-span-2">
+                                    <dt class="text-gray-600"><?= t_attr('admin_ms_label_path', 'Path') ?>:</dt>
+                                    <dd class="font-mono text-gray-800 text-xs break-all"><?= htmlspecialchars($federationMediaStats['store_dir']) ?></dd>
+                                </div>
+                            </dl>
+                            <?php if ($msDrift): ?>
+                                <p class="text-xs text-amber-700 mt-3"><?= t_attr('admin_ms_drift_warn', 'On-disk count differs from the database; orphaned blobs are present (deferred sweep).') ?></p>
+                            <?php endif; ?>
+                        </div>
                     </div>
 
                     <!-- Per-peer publish and subscribe lists (stage 4f) -->
