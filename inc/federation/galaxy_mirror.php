@@ -2,10 +2,11 @@
 declare(strict_types=1);
 
 /**
- * Stage 5d-ii: galaxy mirror materialization.
+ * Stage 5d-ii / 5d-iii: galaxy mirror materialization.
  *
- * Takes a fetched galaxy envelope, verifies it against the origin's key, and
- * materializes it as a read-only local mirror constellation. Mirrors live in
+ * Takes a fetched galaxy envelope, verifies it against the origin's key,
+ * resolves every content-addressed media blob it references, and materializes
+ * the whole thing as a read-only local mirror constellation. Mirrors live in
  * `constellations`/`nodes` like any galaxy, distinguished by provenance
  * (mirrored_from_peer_id + import_source + read_only + source_attribution), so
  * the visitor surface (5e) and multigalaxy pipeline render them with no extra
@@ -18,30 +19,54 @@ declare(strict_types=1);
  * no incremental diff to keep (unlike the Mocambos bridge). The local
  * constellation id + slug are reused across re-pulls for stability.
  *
- * Spec: Stage 5 galaxy publish design (5d-ii); v10 § State-change propagation.
+ * Content-addressed media is resolved (cache hit, or fetch + re-hash + store)
+ * before the materialization transaction opens. A hash mismatch or fetch
+ * failure aborts the pull and releases the replay nonce; the local mirror is
+ * never mutated on a failed pull.
+ *
+ * Spec: Stage 5 galaxy publish design (5d-ii, 5d-iii); v10 § State-change propagation.
  */
 
 require_once dirname(__DIR__) . '/db.php';
 require_once __DIR__ . '/galaxy_envelope.php';
 require_once __DIR__ . '/sig_verify.php';
+require_once __DIR__ . '/media_store.php';
+require_once __DIR__ . '/galaxy_pull.php';
 
 /** Envelope media-ref field -> node column. */
 const FEDERATION_MIRROR_MEDIA_FIELDS = ['image_url', 'icon_url', 'audio_url', 'video_url', 'pdf_url'];
 
 /**
+ * Relative URL prefix for a locally cached, content-addressed mirror blob. The
+ * full per-blob URL is this prefix + sha256; db_normalize_asset_url turns it
+ * into '/uploads/federation-media/{sha256}', which nginx routes through
+ * serve-upload.php (which serves any file inside UPLOAD_DIR).
+ */
+const FEDERATION_MIRROR_MEDIA_URL_PREFIX = 'uploads/federation-media/';
+
+/**
  * Verify a fetched envelope against the peer's key and materialize it. The
  * single entry point for a pulled galaxy: key resolution + rotation grace,
  * signature + freshness (sequence / published_at) via the 5b verifier,
- * origin/slug/hash binding, per-origin nonce replay, then materialization and
- * subscription bookkeeping.
+ * origin/slug/hash binding, per-origin nonce replay, content-addressed media
+ * resolution, then materialization and subscription bookkeeping.
+ *
+ * Media handling is fail-closed: every content-addressed sha256 referenced by
+ * the envelope is resolved (local cache hit or fetched + re-hashed + stored)
+ * before the materialization transaction opens. A hash mismatch or an
+ * unrecoverable fetch error aborts the pull, the replay nonce is released so a
+ * later retry is not wedged, and the local mirror is not mutated.
  *
  * @param string $expectedContentHash The hash published.json advertised; binds
  *        the envelope to the index entry that triggered the pull.
  * @param int    $lastSeq             The last sequence we accepted for this slug.
- * @param callable|null $mediaResolver fn(string $sha256, string $mime, string $field): ?string
- *        Returns a local URL for a content-addressed blob, or null if not yet
- *        available (5d-ii passes null; 5d-iii supplies a fetching resolver).
- * @return array{ok:bool, error?:string, constellation_id?:int, sequence?:int, content_hash?:string}
+ * @param callable|null $mediaFetcher fn(string $sha256): array{ok:bool, bytes?:string, mime?:string, error?:string}
+ *        Network-fetches a single blob; integrity is verified in this file, so
+ *        a test stub only needs to return bytes (the rehash check still
+ *        applies). Null leaves uncached refs unresolved (the 5d-ii posture,
+ *        preserved for tests / fetch-disabled paths); cron-driven pulls pass
+ *        federation_mirror_default_fetcher().
+ * @return array{ok:bool, error?:string, sha256?:string, constellation_id?:int, sequence?:int, content_hash?:string}
  */
 function federation_pull_apply_envelope(
     int $peerId,
@@ -50,7 +75,7 @@ function federation_pull_apply_envelope(
     string $jws,
     string $expectedContentHash,
     int $lastSeq,
-    ?callable $mediaResolver = null
+    ?callable $mediaFetcher = null
 ): array {
     db_ensure_peers_table();
     $pdo = getDB();
@@ -84,8 +109,9 @@ function federation_pull_apply_envelope(
         return ['ok' => false, 'error' => 'content_hash_mismatch'];
     }
 
-    // Per-origin replay defence. Claim the nonce first; if materialization then
-    // throws, release it so a legitimate retry is not wedged as a replay.
+    // Per-origin replay defence. Claim the nonce first; if any later step (media
+    // resolve or materialize) fails, release it so a legitimate retry is not
+    // wedged as a replay.
     $nonceBytes = _federation_mirror_decode_nonce((string)($payload['nonce'] ?? ''));
     if ($nonceBytes === null) {
         return ['ok' => false, 'error' => 'malformed_nonce'];
@@ -94,8 +120,20 @@ function federation_pull_apply_envelope(
         return ['ok' => false, 'error' => 'envelope_replay'];
     }
 
+    // Resolve all content-addressed media up front. A hash mismatch or fetch
+    // failure aborts the pull (fail-closed) and releases the nonce so a future
+    // retry can proceed.
+    $resolved = federation_mirror_resolve_envelope_media($peerHost, $payload, $mediaFetcher);
+    if (!$resolved['ok']) {
+        federation_seen_nonce_forget($peerHost, $nonceBytes);
+        $out = ['ok' => false, 'error' => $resolved['error']];
+        if (isset($resolved['sha256'])) $out['sha256'] = $resolved['sha256'];
+        return $out;
+    }
+    $resolvedUrls = $resolved['urls'];
+
     try {
-        $cid = federation_mirror_materialize($peerId, $peerHost, $slug, $payload, $expectedContentHash, $mediaResolver);
+        $cid = federation_mirror_materialize($peerId, $peerHost, $slug, $payload, $expectedContentHash, $resolvedUrls);
     } catch (Throwable $e) {
         federation_seen_nonce_forget($peerHost, $nonceBytes);
         error_log('federation_pull_apply_envelope: materialize failed: ' . $e->getMessage());
@@ -111,12 +149,113 @@ function federation_pull_apply_envelope(
 }
 
 /**
+ * Build the default media fetcher for production pull paths (cron / admin
+ * Refresh-now). The returned callable wraps federation_pull_fetch_media bound
+ * to the peer's hostname; the rehash + store check is enforced inside
+ * federation_mirror_resolve_envelope_media regardless of which fetcher is used.
+ */
+function federation_mirror_default_fetcher(string $peerHost): callable {
+    return function (string $sha256) use ($peerHost): array {
+        return federation_pull_fetch_media($peerHost, $sha256);
+    };
+}
+
+/**
+ * Walk an envelope's nodes, fetch every content-addressed blob not already in
+ * the local store, re-hash it, store it under federation-media/{sha256}, and
+ * return a sha256 -> local-URL map. References are deduped: two nodes pointing
+ * at the same hash trigger only one fetch.
+ *
+ * Errors:
+ *   media_hash_mismatch  fetched bytes did not hash to the claimed sha256
+ *   media_unavailable    the fetcher returned ok=false (404, network error, etc.)
+ *   media_write_failed   the local disk store could not place the blob
+ *
+ * When $fetcher is null and a blob is not locally cached, the reference is left
+ * unresolved (no error). The node field then materializes as NULL; this is the
+ * 5d-ii posture, preserved so existing tests and fetch-disabled callers stay
+ * green. Cron callers must pass a real fetcher to get fail-closed semantics.
+ *
+ * @param array<string,mixed> $payload Verified envelope payload.
+ * @return array{ok:bool, urls?:array<string,string>, error?:string, sha256?:string}
+ */
+function federation_mirror_resolve_envelope_media(
+    string $peerHost,
+    array $payload,
+    ?callable $fetcher = null
+): array {
+    $nodes = is_array($payload['nodes'] ?? null) ? $payload['nodes'] : [];
+
+    $referenced = [];
+    foreach ($nodes as $n) {
+        if (!is_array($n)) continue;
+        foreach (($n['media'] ?? []) as $ref) {
+            if (!is_array($ref)) continue;
+            if (!isset($ref['sha256']) || !is_string($ref['sha256'])) continue;
+            $sha256 = (string)$ref['sha256'];
+            if (federation_media_is_sha256($sha256)) {
+                $referenced[$sha256] = true;
+            }
+        }
+    }
+    $urls = [];
+    if ($referenced === []) {
+        return ['ok' => true, 'urls' => $urls];
+    }
+
+    $dir = federation_media_dir();
+    foreach (array_keys($referenced) as $sha256) {
+        if (federation_media_lookup($sha256) !== null) {
+            $urls[$sha256] = FEDERATION_MIRROR_MEDIA_URL_PREFIX . $sha256;
+            continue;
+        }
+        if ($fetcher === null) {
+            // Soft-skip: leave the node field NULL when no fetcher is wired.
+            continue;
+        }
+        $resp = $fetcher($sha256);
+        if (!is_array($resp) || empty($resp['ok'])) {
+            return ['ok' => false, 'error' => 'media_unavailable', 'sha256' => $sha256];
+        }
+        $bytes = (string)($resp['bytes'] ?? '');
+        if (!hash_equals($sha256, hash('sha256', $bytes))) {
+            return ['ok' => false, 'error' => 'media_hash_mismatch', 'sha256' => $sha256];
+        }
+        $dest = $dir . '/' . $sha256;
+        if (!is_file($dest)) {
+            // Temp + rename: a concurrent reader (a sibling pull, a peer GET)
+            // never sees a half-written blob at the content-addressed path.
+            $tmp = $dest . '.tmp.' . bin2hex(random_bytes(6));
+            if (@file_put_contents($tmp, $bytes) === false) {
+                error_log('federation_mirror_resolve_envelope_media: cannot write ' . $tmp);
+                return ['ok' => false, 'error' => 'media_write_failed', 'sha256' => $sha256];
+            }
+            @chmod($tmp, 0664);
+            if (!@rename($tmp, $dest)) {
+                @unlink($tmp);
+                if (!is_file($dest)) {
+                    return ['ok' => false, 'error' => 'media_write_failed', 'sha256' => $sha256];
+                }
+            }
+        }
+        $mime = isset($resp['mime']) && is_string($resp['mime']) && $resp['mime'] !== ''
+            ? (string)$resp['mime']
+            : federation_media_detect_mime($dest);
+        federation_media_record($sha256, $dest, $mime, strlen($bytes));
+        $urls[$sha256] = FEDERATION_MIRROR_MEDIA_URL_PREFIX . $sha256;
+    }
+    return ['ok' => true, 'urls' => $urls];
+}
+
+/**
  * Create or replace the read-only mirror constellation for one envelope, and
  * update the subscription bookkeeping. Transactional. Returns the local
  * constellation id.
  *
- * @param array<string,mixed> $payload Verified envelope payload.
- * @param callable|null $mediaResolver See federation_pull_apply_envelope.
+ * @param array<string,mixed>  $payload          Verified envelope payload.
+ * @param array<string,string> $resolvedMediaUrls sha256 -> local URL, built by
+ *        federation_mirror_resolve_envelope_media. Unresolved hashes are
+ *        absent from the map (the corresponding node field materializes NULL).
  */
 function federation_mirror_materialize(
     int $peerId,
@@ -124,7 +263,7 @@ function federation_mirror_materialize(
     string $slug,
     array $payload,
     string $contentHash,
-    ?callable $mediaResolver = null
+    array $resolvedMediaUrls = []
 ): int {
     // Pre-warm every schema guard the writes below depend on, so no implicit
     // DDL commit can fire mid-transaction (MySQL auto-commits on ALTER/CREATE).
@@ -196,7 +335,7 @@ function federation_mirror_materialize(
         $nodes = is_array($payload['nodes'] ?? null) ? $payload['nodes'] : [];
         foreach ($nodes as $n) {
             if (!is_array($n)) continue;
-            $nodeArr = _federation_mirror_node_array($n, $mediaResolver);
+            $nodeArr = _federation_mirror_node_array($n, $resolvedMediaUrls);
             $nodeId = db_create_node_for_restore($cid, $nodeArr);
             $keywords = [];
             foreach (($n['keywords'] ?? []) as $kw) {
@@ -237,12 +376,14 @@ function federation_mirror_materialize(
 /**
  * Map an envelope node to the db_create_node_for_restore array shape, resolving
  * media refs. External-URL media uses its src directly; content-addressed media
- * is resolved via the callback (null in 5d-ii leaves the field empty until
- * 5d-iii caches the blob).
+ * is looked up in the resolved-URLs map built before the transaction opened. A
+ * hash that is not in the map (no fetcher wired and no local cache) leaves the
+ * field NULL.
  *
- * @param array<string,mixed> $n
+ * @param array<string,mixed>  $n
+ * @param array<string,string> $resolvedMediaUrls sha256 -> local URL
  */
-function _federation_mirror_node_array(array $n, ?callable $mediaResolver): array {
+function _federation_mirror_node_array(array $n, array $resolvedMediaUrls): array {
     $media = [];
     foreach (FEDERATION_MIRROR_MEDIA_FIELDS as $field) $media[$field] = null;
     foreach (($n['media'] ?? []) as $ref) {
@@ -250,9 +391,7 @@ function _federation_mirror_node_array(array $n, ?callable $mediaResolver): arra
         $field = (string)($ref['field'] ?? '');
         if (!in_array($field, FEDERATION_MIRROR_MEDIA_FIELDS, true)) continue;
         if (isset($ref['sha256']) && is_string($ref['sha256']) && $ref['sha256'] !== '') {
-            $media[$field] = $mediaResolver !== null
-                ? $mediaResolver((string)$ref['sha256'], (string)($ref['mime'] ?? ''), $field)
-                : null;
+            $media[$field] = $resolvedMediaUrls[(string)$ref['sha256']] ?? null;
         } elseif (isset($ref['src']) && is_string($ref['src']) && $ref['src'] !== '') {
             $media[$field] = (string)$ref['src'];
         }

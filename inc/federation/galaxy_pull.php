@@ -29,6 +29,11 @@ if (!defined('FEDERATION_PULL_TIMEOUT_CONNECT')) define('FEDERATION_PULL_TIMEOUT
 if (!defined('FEDERATION_PULL_TIMEOUT_TOTAL')) define('FEDERATION_PULL_TIMEOUT_TOTAL', 30);
 // Defensive ceiling on an index/envelope body, mirroring the JWS payload cap.
 const FEDERATION_PULL_MAX_BODY_BYTES = 2 * 1024 * 1024;
+// Ceiling for a single content-addressed media blob. Set above the 55 MB upload
+// limit nginx allows on the publish side, so anything an origin could publish
+// can be mirrored. Larger blobs are out of scope for now (large-file streaming
+// is a 5f operator-surface concern).
+const FEDERATION_PULL_MAX_MEDIA_BYTES = 60 * 1024 * 1024;
 
 /**
  * Issue a signed tel-pull GET to a peer. Signs the request with this instance's
@@ -36,7 +41,7 @@ const FEDERATION_PULL_MAX_BODY_BYTES = 2 * 1024 * 1024;
  * and scope the response to our subscription. Honours conditional GET via the
  * optional if_none_match.
  *
- * @param array{if_none_match?:string, accept?:string} $opts
+ * @param array{if_none_match?:string, accept?:string, max_bytes?:int} $opts
  * @return array{status:int, headers:array<string,string>, body:string, error:?string}
  */
 function federation_peer_signed_get(string $peerHost, string $pathAndQuery, array $opts = []): array {
@@ -74,17 +79,22 @@ function federation_peer_signed_get(string $peerHost, string $pathAndQuery, arra
         $headers['If-None-Match'] = (string)$opts['if_none_match'];
     }
 
-    return federation_pull_curl_get($targetUri, $headers);
+    $maxBytes = isset($opts['max_bytes']) && (int)$opts['max_bytes'] > 0
+        ? (int)$opts['max_bytes']
+        : FEDERATION_PULL_MAX_BODY_BYTES;
+    return federation_pull_curl_get($targetUri, $headers, $maxBytes);
 }
 
 /**
  * Bare signed-GET transport. Split out so the signing in
- * federation_peer_signed_get stays free of curl wiring.
+ * federation_peer_signed_get stays free of curl wiring. The body is bounded by
+ * $maxBodyBytes (defaults to the index/envelope cap; media downloads pass a
+ * larger ceiling).
  *
  * @param array<string,string> $headers
  * @return array{status:int, headers:array<string,string>, body:string, error:?string}
  */
-function federation_pull_curl_get(string $targetUri, array $headers): array {
+function federation_pull_curl_get(string $targetUri, array $headers, int $maxBodyBytes = FEDERATION_PULL_MAX_BODY_BYTES): array {
     $curlHeaders = [];
     foreach ($headers as $k => $v) $curlHeaders[] = $k . ': ' . $v;
 
@@ -117,7 +127,7 @@ function federation_pull_curl_get(string $targetUri, array $headers): array {
     if ($body === false) {
         return ['status' => 0, 'headers' => $respHeaders, 'body' => '', 'error' => 'curl:' . ($err !== '' ? $err : 'unknown')];
     }
-    if (strlen((string)$body) > FEDERATION_PULL_MAX_BODY_BYTES) {
+    if (strlen((string)$body) > $maxBodyBytes) {
         return ['status' => $status, 'headers' => $respHeaders, 'body' => '', 'error' => 'body_too_large'];
     }
     return ['status' => $status, 'headers' => $respHeaders, 'body' => (string)$body, 'error' => null];
@@ -268,4 +278,37 @@ function federation_pull_diff(int $peerId, array $published): array {
         ];
     }
     return ['to_pull' => $toPull, 'unchanged' => $unchanged, 'withdrawn' => $withdrawn, 'stale' => $stale];
+}
+
+/**
+ * Fetch a single content-addressed media blob from a peer. The mirror code
+ * re-hashes the returned bytes before storing them, so this transport does not
+ * vouch for integrity. The serving peer applies its own per-IP rate limit; the
+ * 60 MB body cap here is a downstream defence against a misbehaving peer
+ * shipping a much larger payload than the upload limit allows.
+ *
+ * Returns the bytes on a 200 and the peer-advertised content-type when known;
+ * any non-200 (including 304, which the media endpoint does not currently emit)
+ * is surfaced as an error so callers can fail closed.
+ *
+ * @return array{ok:bool, status:int, bytes:string, mime:string, error:?string}
+ */
+function federation_pull_fetch_media(string $peerHost, string $sha256): array {
+    if (!preg_match('/^[a-f0-9]{64}$/', $sha256)) {
+        return ['ok' => false, 'status' => 0, 'bytes' => '', 'mime' => '', 'error' => 'bad_sha256'];
+    }
+    $resp = federation_peer_signed_get($peerHost, '/api/pluriverse/media/' . $sha256, [
+        'accept' => '*/*',
+        'max_bytes' => FEDERATION_PULL_MAX_MEDIA_BYTES,
+    ]);
+    if ($resp['error'] !== null) {
+        return ['ok' => false, 'status' => $resp['status'], 'bytes' => '', 'mime' => '', 'error' => $resp['error']];
+    }
+    if ($resp['status'] !== 200) {
+        return ['ok' => false, 'status' => $resp['status'], 'bytes' => '', 'mime' => '', 'error' => 'http_' . $resp['status']];
+    }
+    $mime = $resp['headers']['content-type'] ?? '';
+    // Strip parameters from Content-Type (charset, boundary, etc.) for storage.
+    if (($semi = strpos($mime, ';')) !== false) $mime = trim(substr($mime, 0, $semi));
+    return ['ok' => true, 'status' => 200, 'bytes' => $resp['body'], 'mime' => (string)$mime, 'error' => null];
 }
