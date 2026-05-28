@@ -429,6 +429,22 @@ if ($_resolvedInfo && ($_resolvedInfo['type'] ?? 'galaxy') === 'cluster') {
 }
 endif; // empty($multiGalaxyIds)
 
+// Stage 5e: visitor-side mirror provenance. Single-constellation pages render
+// a "Mirrored from <origin>" badge in the HUD; multigalaxy mode skips it
+// (the chrome is a synthesized title, no single origin makes sense).
+$constellationMirrorOrigin = null;
+if (empty($multiGalaxyIds)) {
+    require_once __DIR__ . '/federation/galaxy_mirror.php';
+    $_mirrorInfo = db_get_constellation_by_id((int) $constellationId);
+    if ($_mirrorInfo && !empty($_mirrorInfo['import_source'])) {
+        $_parsed = federation_parse_import_source($_mirrorInfo['import_source']);
+        if ($_parsed !== null) {
+            $constellationMirrorOrigin = $_parsed; // {kind, origin_host, remote_slug, sequence, content_hash}
+        }
+    }
+    unset($_mirrorInfo, $_parsed);
+}
+
 $tourConfig = db_get_constellation_tour_config((int) $constellationId);
 if ($tourConfig === null) {
     $tourConfig = [

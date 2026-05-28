@@ -406,6 +406,22 @@ header("X-Content-Type-Options: nosniff");
                 <?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>
             </h2>
             <p id="constellation-tagline" class="opacity-60 italic text-xs"><?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?></p>
+            <?php
+            // Stage 5e: mirror provenance badge. Only renders on single-
+            // constellation pages where the constellation is a federation
+            // mirror (multigalaxy mode leaves $constellationMirrorOrigin null).
+            if (!empty($constellationMirrorOrigin) && is_array($constellationMirrorOrigin)):
+                $__originHost = (string)$constellationMirrorOrigin['origin_host'];
+                $__remoteSlug = (string)$constellationMirrorOrigin['remote_slug'];
+                $__originUrl = 'https://' . $__originHost . '/' . rawurlencode($__remoteSlug);
+            ?>
+                <p id="constellation-mirror-origin" class="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#00ffcc]/70" data-origin-host="<?= htmlspecialchars($__originHost) ?>" data-remote-slug="<?= htmlspecialchars($__remoteSlug) ?>">
+                    <?= t_attr('visitor_mirror_label', 'Mirrored from') ?>
+                    <a href="<?= htmlspecialchars($__originUrl) ?>" target="_blank" rel="noopener noreferrer"
+                       title="<?= t_attr('visitor_mirror_view_on_origin', 'View on origin') ?>"
+                       class="underline decoration-dotted hover:text-[#00ffcc]"><?= htmlspecialchars($__originHost) ?></a>
+                </p>
+            <?php endif; ?>
         </div>
 
         <div class="hud-line"></div>

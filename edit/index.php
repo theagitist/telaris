@@ -214,7 +214,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         <!-- Nodes List -->
         <div id="read-only-banner" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 text-yellow-800 text-sm" style="display: none;">
-            <?= t_attr('editor_banner_imported_read_only', 'This galaxy was imported from an external source and is read-only. Use the Refresh action in the admin galaxy list to sync changes.') ?>
+            <span id="read-only-banner-text"><?= t_attr('editor_banner_imported_read_only', 'This galaxy was imported from an external source and is read-only. Use the Refresh action in the admin galaxy list to sync changes.') ?></span>
         </div>
         <div class="bg-white rounded-lg shadow-md mb-6">
             <div class="p-6 border-b border-gray-200">
@@ -280,6 +280,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         const API_BASE = '../api/nodes.php';
         const CONSTELLATIONS_API = '../api/constellations.php';
         const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'slug' => $c['slug'], 'import_source' => $c['import_source'] ?? null], $constellations), JSON_THROW_ON_ERROR); ?>;
+        const READ_ONLY_BANNER_GENERIC = <?php echo json_encode((string)t('editor_banner_imported_read_only', 'This galaxy was imported from an external source and is read-only. Use the Refresh action in the admin galaxy list to sync changes.'), JSON_THROW_ON_ERROR); ?>;
+        const READ_ONLY_BANNER_MIRROR_FEDERATION = <?php echo json_encode((string)t('editor_banner_mirror_federation', 'This galaxy is mirrored from %s and is read-only. Updates flow via the galaxy-pull cron, or use Refresh galaxies now in the admin Pluriverse tab.'), JSON_THROW_ON_ERROR); ?>;
 
         // Localized strings consumed by inline JS. Mirrors the visitor-side
         // window.TELARIS_* pattern; bundled in one object to avoid declaring
@@ -405,6 +407,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             return tpl.replace(/%[ds]/g, () => (i < args.length ? String(args[i++]) : ''));
         }
 
+        /** Parse a constellation's import_source JSON; return its provenance shape or null. */
+        function parseImportSource(c) {
+            if (!c || !c.import_source) return null;
+            try {
+                const decoded = JSON.parse(c.import_source);
+                return decoded && typeof decoded === 'object' ? decoded : null;
+            } catch (_) {
+                return null;
+            }
+        }
+
         /** Check if a constellation is imported (read-only). */
         function isImportedConstellation(constellationId) {
             const c = CONSTELLATIONS.find(x => x.id === constellationId);
@@ -414,11 +427,22 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         function updateReadOnlyState() {
             const constellationEl = document.getElementById('current-constellation');
             const cid = constellationEl ? parseInt(constellationEl.value, 10) : NaN;
-            const isImported = !isNaN(cid) && isImportedConstellation(cid);
+            const c = isNaN(cid) ? null : CONSTELLATIONS.find(x => x.id === cid);
+            const isImported = c && c.import_source != null && c.import_source !== '';
             const readOnlyBanner = document.getElementById('read-only-banner');
+            const readOnlyBannerText = document.getElementById('read-only-banner-text');
             const createNodeSection = document.getElementById('create-node-section');
-            const bulkActions = document.getElementById('bulk-actions-bar');
             if (readOnlyBanner) readOnlyBanner.style.display = isImported ? 'block' : 'none';
+            if (isImported && readOnlyBannerText) {
+                // Federation mirrors get an origin-aware message; other imports
+                // (Mocambos bridge) fall back to the generic copy.
+                const src = parseImportSource(c);
+                if (src && src.kind === 'federation' && src.origin_host) {
+                    readOnlyBannerText.textContent = READ_ONLY_BANNER_MIRROR_FEDERATION.replace('%s', src.origin_host);
+                } else {
+                    readOnlyBannerText.textContent = READ_ONLY_BANNER_GENERIC;
+                }
+            }
             if (createNodeSection) createNodeSection.style.display = isImported ? 'none' : '';
             document.querySelectorAll('.node-edit-action').forEach(el => el.style.display = isImported ? 'none' : '');
             document.querySelectorAll('.node-checkbox').forEach(el => el.style.display = isImported ? 'none' : '');

@@ -497,6 +497,34 @@ function _federation_mirror_unique_slug(string $remoteSlug, string $peerHost): s
     return $candidate . '-' . bin2hex(random_bytes(3));
 }
 
+/**
+ * Parse a constellation's `import_source` JSON and return the federation
+ * provenance fields when present. Returns null when the column is empty
+ * (authored galaxy) or when it carries a non-federation origin (e.g. the
+ * Mocambos bridge writes `source=mocambos` here too).
+ *
+ * Used by the visitor + editor surfaces (5e) to render the "Mirrored from
+ * <origin>" badge and to discriminate the read-only banner copy.
+ *
+ * @return array{kind:string, origin_host:string, remote_slug:string, sequence:?int, content_hash:?string}|null
+ */
+function federation_parse_import_source(?string $json): ?array {
+    if ($json === null || $json === '') return null;
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) return null;
+    if (($decoded['kind'] ?? null) !== 'federation') return null;
+    $host = (string)($decoded['origin_host'] ?? '');
+    $slug = (string)($decoded['remote_slug'] ?? '');
+    if ($host === '' || $slug === '') return null;
+    return [
+        'kind' => 'federation',
+        'origin_host' => $host,
+        'remote_slug' => $slug,
+        'sequence' => isset($decoded['sequence']) ? (int)$decoded['sequence'] : null,
+        'content_hash' => isset($decoded['content_hash']) ? (string)$decoded['content_hash'] : null,
+    ];
+}
+
 /** Decode a base64url envelope nonce to raw bytes (8..64), or null if malformed. */
 function _federation_mirror_decode_nonce(string $nonce): ?string {
     if ($nonce === '' || strlen($nonce) > 128) return null;
