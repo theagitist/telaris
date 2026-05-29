@@ -327,4 +327,118 @@ final class GalaxyUnmirrorTest extends TestCase
             $this->assertSame('origin_withdrawal', $r['fossilized_reason']);
         }
     }
+
+    /* ---- 6a uniform-drop primitive ------------------------------------- */
+
+    /** Seed a publish-whitelist row offering one authored galaxy to this peer. */
+    private function seedPublishOffer(): int
+    {
+        $pdo = getDB();
+        db_ensure_galaxy_publish_whitelist_table();
+        $localSlug = 'authored-' . bin2hex(random_bytes(3));
+        $cid = db_create_constellation('Authored offer', '', $localSlug, 'cosmic');
+        $this->cids[] = $cid;
+        $pdo->prepare("INSERT INTO galaxy_publish_whitelist (peer_id, constellation_id, added_by) VALUES (:p, :c, 'test')")
+            ->execute([':p' => $this->peerId, ':c' => $cid]);
+        return $cid;
+    }
+
+    public function testDropAllRemovesEveryMirrorAndClearsPublishOffer(): void
+    {
+        $cidA = $this->seedMirror('slug-a');
+        $cidB = $this->seedMirror('slug-b');
+        $this->seedPublishOffer();
+        // has_active_whitelist is TRUE while either side is populated.
+        db_recompute_peer_active_whitelist($this->peerId);
+
+        $res = federation_unmirror_drop_all_for_peer($this->peerId, 'pluriverse-blacklist');
+        $this->assertTrue($res['ok']);
+        sort($res['dropped']);
+        $this->assertSame(['slug-a', 'slug-b'], $res['dropped']);
+        $this->assertSame([], $res['refused']);
+        $this->assertSame(1, $res['publish_entries_cleared']);
+
+        $this->cids = array_values(array_diff($this->cids, [$cidA, $cidB]));
+        $pdo = getDB();
+        $this->assertSame(0, (int)$pdo->query("SELECT COUNT(*) FROM constellations WHERE id IN ($cidA, $cidB)")->fetchColumn());
+        $this->assertSame(0, (int)$pdo->query("SELECT COUNT(*) FROM galaxy_subscriptions WHERE peer_id = {$this->peerId}")->fetchColumn(), 'all subscriptions removed');
+        $this->assertSame(0, (int)$pdo->query("SELECT COUNT(*) FROM galaxy_publish_whitelist WHERE peer_id = {$this->peerId}")->fetchColumn());
+        $hasWl = (int)$pdo->query("SELECT has_active_whitelist FROM peers WHERE id = {$this->peerId}")->fetchColumn();
+        $this->assertSame(0, $hasWl, 'has_active_whitelist recomputed to FALSE after teardown');
+    }
+
+    public function testDropAllIncludesFossilizedMirrors(): void
+    {
+        // A fossilized (withdrawn, prior-consent-stands) mirror is still torn
+        // down by a hard untrust: revocation/blacklist overrides the consent.
+        $cid = $this->seedMirror('slug-foss');
+        federation_unmirror_fossilize($this->peerId, 'slug-foss', 'origin_withdrawal');
+        $this->assertSame(0, (int)getDB()->query("SELECT is_active FROM galaxy_subscriptions WHERE peer_id = {$this->peerId} AND remote_slug = 'slug-foss'")->fetchColumn());
+
+        $res = federation_unmirror_drop_all_for_peer($this->peerId, 'pluriverse-revoked');
+        $this->assertSame(['slug-foss'], $res['dropped']);
+        $this->cids = array_values(array_diff($this->cids, [$cid]));
+        $this->assertSame(0, (int)getDB()->query("SELECT COUNT(*) FROM constellations WHERE id = $cid")->fetchColumn());
+    }
+
+    public function testDropAllIsIdempotent(): void
+    {
+        $cid = $this->seedMirror('slug-a');
+        federation_unmirror_drop_all_for_peer($this->peerId, 'local-blacklist');
+        $this->cids = array_values(array_diff($this->cids, [$cid]));
+
+        $res = federation_unmirror_drop_all_for_peer($this->peerId, 'local-blacklist');
+        $this->assertTrue($res['ok']);
+        $this->assertSame([], $res['dropped'], 'nothing left to drop on the second sweep');
+        $this->assertSame(0, $res['publish_entries_cleared']);
+    }
+
+    public function testDropAllLeavesOtherPeersUntouched(): void
+    {
+        $cidMine = $this->seedMirror('slug-mine');
+
+        // A second, unrelated peer with its own mirror.
+        $pdo = getDB();
+        $otherKp = sodium_crypto_sign_keypair();
+        $otherHost = 'other-' . bin2hex(random_bytes(4)) . '.example.invalid';
+        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label) VALUES (:h, :u, :e, :k, 'other')")
+            ->execute([':h' => $otherHost, ':u' => "https://$otherHost", ':e' => "https://$otherHost/api/pluriverse", ':k' => sodium_crypto_sign_publickey($otherKp)]);
+        $otherPeerId = (int)$pdo->lastInsertId();
+        $otherSlug = 'mirror-' . bin2hex(random_bytes(3));
+        $otherCid = db_create_constellation('Other mirror', '', $otherSlug, 'cosmic');
+        $importSource = json_encode(['kind' => 'federation', 'origin_host' => $otherHost, 'remote_slug' => 'slug-other', 'sequence' => 1, 'content_hash' => str_repeat('b', 64)], JSON_UNESCAPED_SLASHES);
+        $pdo->prepare("UPDATE constellations SET mirrored_from_peer_id = :p, import_source = :imp, read_only = TRUE WHERE id = :id")
+            ->execute([':p' => $otherPeerId, ':imp' => $importSource, ':id' => $otherCid]);
+        $pdo->prepare("INSERT INTO galaxy_subscriptions (peer_id, remote_slug, local_constellation_id, is_active) VALUES (:p, 'slug-other', :cid, TRUE)")
+            ->execute([':p' => $otherPeerId, ':cid' => $otherCid]);
+
+        try {
+            federation_unmirror_drop_all_for_peer($this->peerId, 'pluriverse-blacklist');
+            $this->cids = array_values(array_diff($this->cids, [$cidMine]));
+
+            // The other peer's mirror + subscription survive.
+            $this->assertSame(1, (int)$pdo->query("SELECT COUNT(*) FROM constellations WHERE id = $otherCid")->fetchColumn());
+            $this->assertSame(1, (int)$pdo->query("SELECT COUNT(*) FROM galaxy_subscriptions WHERE peer_id = $otherPeerId")->fetchColumn());
+        } finally {
+            $pdo->prepare("DELETE FROM nodes WHERE constellation_id = :c")->execute([':c' => $otherCid]);
+            $pdo->prepare("DELETE FROM constellations WHERE id = :c")->execute([':c' => $otherCid]);
+            $pdo->prepare("DELETE FROM peers WHERE id = :p")->execute([':p' => $otherPeerId]);
+        }
+    }
+
+    public function testDropAllEmitsAuditRow(): void
+    {
+        db_ensure_pluriverse_log_tables();
+        $cid = $this->seedMirror('slug-a');
+        federation_unmirror_drop_all_for_peer($this->peerId, 'pluriverse-revoked');
+        $this->cids = array_values(array_diff($this->cids, [$cid]));
+
+        $row = getDB()->prepare("SELECT outcome, details_summary FROM pluriverse_log WHERE event_type = 'peer_untrust_drop' AND target = :h ORDER BY id DESC LIMIT 1");
+        $row->execute([':h' => $this->host]);
+        $log = $row->fetch(PDO::FETCH_ASSOC);
+        $this->assertNotFalse($log, 'a peer_untrust_drop audit row is written');
+        $this->assertSame('success', $log['outcome']);
+        $this->assertStringContainsString('reason=pluriverse-revoked', $log['details_summary']);
+        $this->assertStringContainsString('mirrors_dropped=1', $log['details_summary']);
+    }
 }

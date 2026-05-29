@@ -91,6 +91,99 @@ function federation_unmirror_drop(int $peerId, string $remoteSlug, string $reaso
 }
 
 /**
+ * Stage 6a: tear down every mirror from one peer in a single sweep, the
+ * uniform-drop primitive the governance-untrust channels share (Pluriverse
+ * blacklist enforcement 6b, key-event revocation 6c, operator local blacklist
+ * 6d). v10 § State-change propagation: "governance-driven untrust events
+ * propagate uniformly; receivers drop affected content."
+ *
+ * Drops ALL of the peer's subscriptions, active AND fossilized. Fossilization
+ * (origin withdrawal) is the soft case where prior consent lets the mirror
+ * stand; a hard untrust overrides that ("revocation signals something went
+ * wrong on the origin side; the prior consent is no longer reliable"), so the
+ * peer's whole footprint comes down.
+ *
+ * Also clears the bilateral offer: we stop publishing OUR galaxies to a peer
+ * we've untrusted by deleting its publish-whitelist rows, then recompute
+ * has_active_whitelist. Writes one peer_untrust_drop audit row summarizing the
+ * teardown (one row for the whole peer, not one per slug).
+ *
+ * Does NOT flip peers.trust_state: the caller owns the trust transition (and
+ * the reason it carries), this owns the content teardown. Keeps the primitive
+ * composable across the three untrust channels.
+ *
+ * Idempotent: a second call once everything is gone returns dropped=[] and
+ * still writes an audit row recording a zero-effect sweep.
+ *
+ * @return array{ok:bool, dropped:list<string>, refused:list<string>, publish_entries_cleared:int}
+ */
+function federation_unmirror_drop_all_for_peer(int $peerId, string $reason): array {
+    db_ensure_peers_table();
+    db_ensure_galaxy_subscriptions_table();
+    db_ensure_galaxy_publish_whitelist_table();
+    $pdo = getDB();
+
+    $hostStmt = $pdo->prepare("SELECT hostname FROM peers WHERE id = :p LIMIT 1");
+    $hostStmt->execute([':p' => $peerId]);
+    $hostname = (string)($hostStmt->fetchColumn() ?: '');
+
+    $subStmt = $pdo->prepare("SELECT remote_slug FROM galaxy_subscriptions WHERE peer_id = :p");
+    $subStmt->execute([':p' => $peerId]);
+    $slugs = $subStmt->fetchAll(PDO::FETCH_COLUMN);
+
+    $dropped = [];
+    $refused = [];
+    foreach ($slugs as $slug) {
+        $slug = (string)$slug;
+        if ($slug === '') continue;
+        $res = federation_unmirror_drop($peerId, $slug, $reason);
+        if (!$res['ok']) {
+            // federation_unmirror_drop refuses (and leaves the subscription
+            // intact) only when the local constellation is not a mirror of
+            // this peer, the should-not-happen safety guard. Surface it rather
+            // than silently leaving a dangling subscription.
+            $refused[] = $slug;
+            continue;
+        }
+        // dropped_constellation_id is null for a pending subscription that
+        // never materialized a constellation; the subscription row is still
+        // deleted, but nothing visible disappeared, so it is not "dropped".
+        if ($res['dropped_constellation_id'] !== null) {
+            $dropped[] = $slug;
+        }
+    }
+
+    $delPub = $pdo->prepare("DELETE FROM galaxy_publish_whitelist WHERE peer_id = :p");
+    $delPub->execute([':p' => $peerId]);
+    $publishCleared = $delPub->rowCount();
+    db_recompute_peer_active_whitelist($peerId);
+
+    db_ensure_pluriverse_log_tables();
+    $details = 'reason=' . $reason
+        . '; mirrors_dropped=' . count($dropped)
+        . '; publish_entries_cleared=' . $publishCleared;
+    if ($refused !== []) {
+        $details .= '; refused=' . count($refused);
+    }
+    $log = $pdo->prepare("
+        INSERT INTO pluriverse_log (event_type, actor, target, outcome, details_summary)
+        VALUES ('peer_untrust_drop', 'federation', :h, :o, :d)
+    ");
+    $log->execute([
+        ':h' => $hostname !== '' ? $hostname : ('peer#' . $peerId),
+        ':o' => $refused === [] ? 'success' : 'warning',
+        ':d' => substr($details, 0, 1024),
+    ]);
+
+    return [
+        'ok' => true,
+        'dropped' => $dropped,
+        'refused' => $refused,
+        'publish_entries_cleared' => $publishCleared,
+    ];
+}
+
+/**
  * Fossilize a subscription: keep the local mirror constellation as-is, mark
  * the subscription inactive with a reason so the diff stops pulling it and
  * the admin surface can show "fossilized 2026-05-28: origin_withdrawal".
