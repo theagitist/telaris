@@ -245,7 +245,24 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $message = 'User deleted successfully.';
                 $activeTab = 'users';
             })(),
-            
+
+            'set_user_locale' => (function(): void {
+                global $message, $error, $activeTab;
+                $activeTab = 'users';
+                $id = trim($_POST['id'] ?? '');
+                if ($id === '') {
+                    throw new Exception(t('admin_error_user_not_found', 'User not found.'));
+                }
+                $loc = trim((string)($_POST['locale'] ?? ''));
+                // Empty clears the preference (NULL -> multilingual notices).
+                $normalized = $loc === '' ? null : locale_normalize_code($loc);
+                if ($loc !== '' && ($normalized === null || !in_array($normalized, PROJECT_INFO_LOCALES, true))) {
+                    throw new Exception(t('admin_user_locale_invalid', 'Unsupported language.'));
+                }
+                db_set_user_locale($id, $normalized);
+                $message = t('admin_user_locale_saved', 'Notification language updated.');
+            })(),
+
             'create_constellation' => (function(): void {
                 global $message, $error, $activeTab;
                 $name = trim($_POST['name'] ?? '');
@@ -962,6 +979,28 @@ foreach ($importantExtensions as $ext => $name) {
                                                                 $delConfirmJs = htmlspecialchars(json_encode((string)($user['email'] ?? '')), ENT_QUOTES, 'UTF-8');
                                                                 ?>
                                                                 <li><a onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, <?php echo $delConfirmJs; ?>)" class="text-red-600 text-xs"><?= t_attr('admin_action_delete', 'Delete') ?></a></li>
+                                                            <?php endif; ?>
+                                                            <?php if ($userType === USER_TYPE_ADMIN):
+                                                                // 6f-ii: notification language. Only admins receive
+                                                                // federation drop notices, so only they have a
+                                                                // notification-locale preference. Empty = multilingual.
+                                                                $userLocale = (string)($user['locale'] ?? '');
+                                                            ?>
+                                                            <li class="px-2 py-1" onclick="event.stopPropagation();">
+                                                                <form method="POST" action="index.php" class="flex flex-col gap-1">
+                                                                    <?php echo $csrfField; ?>
+                                                                    <input type="hidden" name="action" value="set_user_locale">
+                                                                    <input type="hidden" name="id" value="<?php echo htmlspecialchars($user['id']); ?>">
+                                                                    <span class="text-[11px] text-gray-500"><?= t_attr('admin_user_locale_label', 'Notification language') ?></span>
+                                                                    <select name="locale" onchange="this.form.submit()" class="text-xs border border-gray-300 rounded p-1 text-gray-700 bg-white">
+                                                                        <option value="" <?php echo $userLocale === '' ? 'selected' : ''; ?>><?= t_attr('admin_user_locale_unset', 'Not set (all languages)') ?></option>
+                                                                        <option value="en" <?php echo $userLocale === 'en' ? 'selected' : ''; ?>>English</option>
+                                                                        <option value="es" <?php echo $userLocale === 'es' ? 'selected' : ''; ?>>Español</option>
+                                                                        <option value="pt" <?php echo $userLocale === 'pt' ? 'selected' : ''; ?>>Português</option>
+                                                                        <option value="fr" <?php echo $userLocale === 'fr' ? 'selected' : ''; ?>>Français</option>
+                                                                    </select>
+                                                                </form>
+                                                            </li>
                                                             <?php endif; ?>
                                                         </ul>
                                                     </div>

@@ -358,6 +358,12 @@ const PROJECT_INFO_KEYS = [
     'auth_email_subject', 'auth_email_greeting_named', 'auth_email_greeting_anon',
     'auth_email_intro', 'auth_email_expiry',
     'auth_email_text_intro', 'auth_email_text_outro',
+    // Stage 6f: federation mirror-dropped operator notification email.
+    'email_drop_subject', 'email_drop_intro', 'email_drop_item', 'email_drop_reason_label',
+    'email_drop_reason_retraction', 'email_drop_reason_blacklist', 'email_drop_reason_revoked',
+    'email_drop_reason_local', 'email_drop_outro',
+    // Stage 6f-ii: admin per-user notification-locale selector.
+    'admin_user_locale_label', 'admin_user_locale_unset', 'admin_user_locale_saved', 'admin_user_locale_invalid',
     'auth_reset_page_title', 'auth_reset_heading',
     'auth_reset_success_message', 'auth_reset_btn_go_to_login',
     'auth_reset_invalid_token_message', 'auth_reset_btn_request_new_link',
@@ -1789,6 +1795,19 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'auth_email_expiry' => 'This link expires in 24 hours and can only be used once. If you did not request a reset, you can safely ignore this email; your password will not change.',
             'auth_email_text_intro' => "We received a request to reset your password.\n\nReset link (24h, single-use):\n",
             'auth_email_text_outro' => "\n\nIf you did not request a reset, ignore this email.",
+            'email_drop_subject' => 'Federated galaxies removed',
+            'email_drop_intro' => 'One or more federated galaxies this instance was mirroring have been removed:',
+            'email_drop_item' => '%1$s (mirrored from %2$s)',
+            'email_drop_reason_label' => 'Reason: %s',
+            'email_drop_reason_retraction' => 'the origin retracted the galaxy',
+            'email_drop_reason_blacklist' => 'the origin instance was blocked on the Pluriverse',
+            'email_drop_reason_revoked' => "the origin instance's federation membership was revoked",
+            'email_drop_reason_local' => 'you blocked the origin instance',
+            'email_drop_outro' => 'The mirrored content has been removed from this instance. This is expected when trust is withdrawn or a galaxy is retracted; no action is needed.',
+            'admin_user_locale_label' => 'Notification language',
+            'admin_user_locale_unset' => 'Not set (all languages)',
+            'admin_user_locale_saved' => 'Notification language updated.',
+            'admin_user_locale_invalid' => 'Unsupported language.',
             'auth_reset_page_title' => 'Set new password - Telaris',
             'auth_reset_heading' => 'Set new password',
             'auth_reset_success_message' => 'Password updated. You can now log in with your new password.',
@@ -3155,6 +3174,19 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'auth_email_expiry' => 'El enlace caduca en 24 horas y solo puede usarse una vez. Si no solicitaste el restablecimiento, puedes ignorar este correo; tu contraseña no cambiará.',
             'auth_email_text_intro' => "Recibimos una solicitud para restablecer tu contraseña.\n\nEnlace de restablecimiento (24h, un solo uso):\n",
             'auth_email_text_outro' => "\n\nSi no solicitaste el restablecimiento, ignora este correo.",
+            'email_drop_subject' => 'Galaxias federadas eliminadas',
+            'email_drop_intro' => 'Se eliminaron una o más galaxias federadas que esta instancia replicaba:',
+            'email_drop_item' => '%1$s (replicada desde %2$s)',
+            'email_drop_reason_label' => 'Motivo: %s',
+            'email_drop_reason_retraction' => 'la instancia de origen retiró la galaxia',
+            'email_drop_reason_blacklist' => 'la instancia de origen fue bloqueada en el Pluriverse',
+            'email_drop_reason_revoked' => 'se revocó la membresía de federación de la instancia de origen',
+            'email_drop_reason_local' => 'bloqueaste la instancia de origen',
+            'email_drop_outro' => 'El contenido replicado se eliminó de esta instancia. Esto es lo esperado cuando se retira la confianza o se retira una galaxia; no necesitas hacer nada.',
+            'admin_user_locale_label' => 'Idioma de las notificaciones',
+            'admin_user_locale_unset' => 'Sin definir (todos los idiomas)',
+            'admin_user_locale_saved' => 'Idioma de las notificaciones actualizado.',
+            'admin_user_locale_invalid' => 'Idioma no admitido.',
             'auth_reset_page_title' => 'Establecer nueva contraseña - Telaris',
             'auth_reset_heading' => 'Establecer nueva contraseña',
             'auth_reset_success_message' => 'Contraseña actualizada. Ya puedes iniciar sesión con la nueva contraseña.',
@@ -4517,6 +4549,19 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'auth_email_expiry' => 'O link expira em 24 horas e só pode ser usado uma vez. Se você não solicitou a redefinição, pode ignorar este e-mail; sua senha não mudará.',
             'auth_email_text_intro' => "Recebemos um pedido para redefinir sua senha.\n\nLink de redefinição (24h, uso único):\n",
             'auth_email_text_outro' => "\n\nSe você não solicitou a redefinição, ignore este e-mail.",
+            'email_drop_subject' => 'Galáxias federadas removidas',
+            'email_drop_intro' => 'Uma ou mais galáxias federadas que esta instância espelhava foram removidas:',
+            'email_drop_item' => '%1$s (espelhada de %2$s)',
+            'email_drop_reason_label' => 'Motivo: %s',
+            'email_drop_reason_retraction' => 'a instância de origem retratou a galáxia',
+            'email_drop_reason_blacklist' => 'a instância de origem foi bloqueada no Pluriverse',
+            'email_drop_reason_revoked' => 'a associação de federação da instância de origem foi revogada',
+            'email_drop_reason_local' => 'você bloqueou a instância de origem',
+            'email_drop_outro' => 'O conteúdo espelhado foi removido desta instância. Isso é esperado quando a confiança é retirada ou uma galáxia é retratada; nenhuma ação é necessária.',
+            'admin_user_locale_label' => 'Idioma das notificações',
+            'admin_user_locale_unset' => 'Não definido (todos os idiomas)',
+            'admin_user_locale_saved' => 'Idioma das notificações atualizado.',
+            'admin_user_locale_invalid' => 'Idioma não suportado.',
             'auth_reset_page_title' => 'Definir nova senha - Telaris',
             'auth_reset_heading' => 'Definir nova senha',
             'auth_reset_success_message' => 'Senha atualizada. Já é possível entrar com a nova senha.',
@@ -5879,6 +5924,19 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'auth_email_expiry' => 'Le lien expire dans 24 heures et ne peut être utilisé qu\'une seule fois. Si tu n\'as pas demandé la réinitialisation, tu peux ignorer ce courriel ; ton mot de passe ne changera pas.',
             'auth_email_text_intro' => "Nous avons reçu une demande de réinitialisation de mot de passe.\n\nLien de réinitialisation (24h, usage unique) :\n",
             'auth_email_text_outro' => "\n\nSi tu n\'as pas demandé la réinitialisation, ignore ce courriel.",
+            'email_drop_subject' => 'Galaxies fédérées supprimées',
+            'email_drop_intro' => 'Une ou plusieurs galaxies fédérées que cette instance reflétait ont été supprimées :',
+            'email_drop_item' => '%1$s (reflétée depuis %2$s)',
+            'email_drop_reason_label' => 'Raison : %s',
+            'email_drop_reason_retraction' => "l'instance d'origine a retiré la galaxie",
+            'email_drop_reason_blacklist' => "l'instance d'origine a été bloquée sur le Pluriverse",
+            'email_drop_reason_revoked' => "l'adhésion à la fédération de l'instance d'origine a été révoquée",
+            'email_drop_reason_local' => "tu as bloqué l'instance d'origine",
+            'email_drop_outro' => "Le contenu reflété a été supprimé de cette instance. C'est le comportement attendu lorsque la confiance est retirée ou qu'une galaxie est retirée ; aucune action n'est nécessaire.",
+            'admin_user_locale_label' => 'Langue des notifications',
+            'admin_user_locale_unset' => 'Non définie (toutes les langues)',
+            'admin_user_locale_saved' => 'Langue des notifications mise à jour.',
+            'admin_user_locale_invalid' => 'Langue non prise en charge.',
             'auth_reset_page_title' => 'Définir un nouveau mot de passe - Telaris',
             'auth_reset_heading' => 'Définir un nouveau mot de passe',
             'auth_reset_success_message' => 'Mot de passe mis à jour. Tu peux maintenant te connecter avec le nouveau.',
@@ -6577,6 +6635,28 @@ function db_ensure_nodes_icon_url_column(): void {
         }
     } catch (PDOException $e) {
         error_log('db_ensure_nodes_icon_url_column: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Stage 6f: per-user preferred locale (2-letter code, one of
+ * PROJECT_INFO_LOCALES). NULL means "not chosen"; operator notifications then
+ * fall back to a multilingual body rather than defaulting to any one language
+ * (the decolonial-identifier stance: no silent English default). Set via the
+ * admin user surface (6f-ii).
+ */
+function db_ensure_users_locale_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM users LIKE 'locale'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN locale VARCHAR(5) NULL DEFAULT NULL AFTER type");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_users_locale_column: ' . $e->getMessage());
     }
 }
 
@@ -8156,13 +8236,27 @@ function db_audit_log(
  * @return list<array<string, mixed>>
  */
 function db_get_users(): array {
+    db_ensure_users_locale_column();
     $pdo = getDB();
     $stmt = $pdo->query("
-        SELECT id, email, firstname, lastname, type, date_created, date_last_login, updated_at
+        SELECT id, email, firstname, lastname, type, locale, date_created, date_last_login, updated_at
         FROM users
         ORDER BY date_created DESC
     ");
     return $stmt->fetchAll();
+}
+
+/**
+ * Stage 6f-ii: set (or clear) a user's preferred notification locale. A null
+ * or empty value clears the preference (operator notifications then fall back
+ * to a multilingual body). The caller validates that a non-empty $locale is
+ * one of PROJECT_INFO_LOCALES.
+ */
+function db_set_user_locale(string $id, ?string $locale): void {
+    db_ensure_users_locale_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE users SET locale = :loc WHERE id = :id");
+    $stmt->execute([':loc' => ($locale === '' ? null : $locale), ':id' => $id]);
 }
 
 function db_insert_user(string $id, string $email, string $hashedPassword, string $firstname, string $lastname, int $type): void {

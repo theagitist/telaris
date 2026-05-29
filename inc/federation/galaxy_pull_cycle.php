@@ -261,6 +261,19 @@ function federation_galaxy_pull_peer(int $peerId, array $opts = []): array {
         }
     }
 
+    // 6f: one operator email per cycle for galaxies dropped by origin
+    // retraction this tick. (Governance-untrust drops via
+    // federation_unmirror_drop_all_for_peer self-notify; the per-slug
+    // retraction path does not, so it is notified here.)
+    $retractedDropped = $report['retracted']['dropped'] ?? [];
+    if ($retractedDropped !== []) {
+        $items = array_map(
+            static fn(string $slug): array => ['slug' => $slug, 'origin_host' => $host],
+            $retractedDropped
+        );
+        federation_notify_operator_mirror_dropped($items, 'origin_retraction');
+    }
+
     federation_galaxy_pull_state_record_success($peerId);
     return $report;
 }

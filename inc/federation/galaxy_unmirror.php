@@ -27,6 +27,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/db.php';
 require_once __DIR__ . '/galaxy_retraction.php';
+require_once __DIR__ . '/drop_notice.php';
 
 /**
  * Drop a mirror: delete the local constellation, clear (delete) the
@@ -174,6 +175,16 @@ function federation_unmirror_drop_all_for_peer(int $peerId, string $reason): arr
         ':o' => $refused === [] ? 'success' : 'warning',
         ':d' => substr($details, 0, 1024),
     ]);
+
+    // 6f: one operator email for the whole peer teardown (no-op if nothing
+    // visible was dropped, mail unconfigured, or no admins).
+    if ($dropped !== []) {
+        $items = array_map(
+            static fn(string $slug): array => ['slug' => $slug, 'origin_host' => $hostname],
+            $dropped
+        );
+        federation_notify_operator_mirror_dropped($items, $reason);
+    }
 
     return [
         'ok' => true,
