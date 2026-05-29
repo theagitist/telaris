@@ -294,6 +294,31 @@ function pluriverse_pull_peers(): array {
         $row = $existing->fetch(PDO::FETCH_ASSOC);
 
         if ($row === false) {
+            // Default for a freshly-discovered peer.
+            $insertTrust = 'discovered';
+            $restoredFromHandshakeId = null;
+            // If a previous handshake against this hostname reached a state
+            // that implies operator-confirmed trust (`complete` for an
+            // initiator, `complete` or `accepted_awaiting_complete` for a
+            // responder), promote the new row back to whitelisted instead of
+            // silently regressing. The handshake row is the durable record of
+            // that agreement; it survives a peer-row delete because there is
+            // no FK CASCADE from peers->handshakes. Same goes for keys held
+            // in peer_keys — they're indexed by api_key_hash, not by host.
+            $hsStmt = $pdo->prepare("
+                SELECT id FROM handshakes
+                WHERE remote_hostname = :h
+                  AND status IN ('complete','accepted_awaiting_complete')
+                ORDER BY id DESC
+                LIMIT 1
+            ");
+            $hsStmt->execute([':h' => $hostname]);
+            $hsRow = $hsStmt->fetch(PDO::FETCH_ASSOC);
+            if ($hsRow !== false) {
+                $insertTrust = 'whitelisted';
+                $restoredFromHandshakeId = (int)$hsRow['id'];
+            }
+
             $ins = $pdo->prepare("
                 INSERT INTO peers
                     (hostname, url, pluriverse_endpoint, public_key,
@@ -302,15 +327,39 @@ function pluriverse_pull_peers(): array {
                      trust_state, has_active_whitelist, health_status)
                 VALUES
                     (:h, :u, :pe, :pk, :pp, :kra, :rr, :l, :b, 'registry',
-                     'pluriverse-pull', 'discovered', FALSE, 'unknown')
+                     'pluriverse-pull', :ts, FALSE, 'unknown')
             ");
             $ins->execute([
                 ':h' => $hostname, ':u' => $url, ':pe' => $url,
                 ':pk' => $publicKey, ':pp' => $previousKey,
                 ':kra' => $keyRotatedAt, ':rr' => $rotationReason,
                 ':l' => $label, ':b' => $bridges,
+                ':ts' => $insertTrust,
             ]);
             $inserted++;
+
+            if ($restoredFromHandshakeId !== null) {
+                $newPeerId = (int)$pdo->lastInsertId();
+                // Relink EVERY orphaned handshake for this hostname (not just
+                // the one that triggered the restore decision) so admin views
+                // and peer_id lookups see the full history, even rows from
+                // earlier wipe/restore cycles.
+                $pdo->prepare("UPDATE handshakes SET peer_id = :p WHERE remote_hostname = :h AND peer_id IS NULL")
+                    ->execute([':p' => $newPeerId, ':h' => $hostname]);
+                // Surface the restoration in the operator audit log. Without
+                // this entry an operator has no way to notice the row was
+                // ever wiped + restored (the user-visible state is identical
+                // to the row never having been touched).
+                db_ensure_pluriverse_log_tables();
+                $pdo->prepare("
+                    INSERT INTO pluriverse_log
+                        (event_type, actor, target, outcome, details_summary)
+                    VALUES
+                        ('peer_trust_state_restored', 'pluriverse-pull',
+                         :h, 'success',
+                         CONCAT('Re-discovered peer; trust_state restored to whitelisted from handshake #', :i))
+                ")->execute([':h' => $hostname, ':i' => (string)$restoredFromHandshakeId]);
+            }
         } elseif ((string)$row['source'] === 'registry') {
             $upd = $pdo->prepare("
                 UPDATE peers SET

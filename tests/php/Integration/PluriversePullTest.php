@@ -106,7 +106,11 @@ final class PluriversePullTest extends TestCase
         $this->clearPullState(PLURIVERSE_PULL_ENDPOINT_PEERS);
 
         $pdo = getDB();
-        $pdo->exec("DELETE FROM peers WHERE source = 'registry' AND hostname IN ('starmaps.polivoxia.ca','telaris.polivoxia.ca')");
+        // Wipe only the self-row, never sibling peers. Wiping a real sibling
+        // hostname here used to silently reset an operator-set trust_state
+        // (e.g. whitelisted) the next pluriverse-pull tick, since the INSERT
+        // branch starts every fresh row at trust_state='discovered'.
+        $pdo->exec("DELETE FROM peers WHERE source = 'registry' AND hostname = 'starmaps.polivoxia.ca'");
 
         $result = pluriverse_pull_peers();
         $this->assertTrue($result['ok']);
@@ -133,5 +137,88 @@ final class PluriversePullTest extends TestCase
         $state = pluriverse_pull_state_get(PLURIVERSE_PULL_ENDPOINT_PEERS);
         $this->assertNotNull($state['last_etag']);
         $this->assertNotEmpty($state['last_etag']);
+    }
+
+    /**
+     * Regression: when a peer row is wiped (e.g. an old test cleanup, or an
+     * accidental admin DELETE), the next pluriverse-pull tick used to re-insert
+     * it with trust_state='discovered', silently regressing any prior
+     * operator-confirmed whitelisting. The handshake row survives a peer-row
+     * delete (no FK CASCADE), so it is a durable record of that agreement and
+     * is now the source for restoring the trust state on re-discovery.
+     */
+    public function testRediscoveryRestoresTrustFromHandshake(): void
+    {
+        if (!$this->reachable()) {
+            $this->markTestSkipped(PLURIVERSE_PULL_BASE_URL . ' unreachable; skipping');
+        }
+        require_once dirname(__DIR__, 3) . '/inc/federation/handshake.php';
+
+        $pdo = getDB();
+        db_ensure_handshakes_table();
+        db_ensure_pluriverse_log_tables();
+
+        // The live registry currently advertises starmaps + telaris. The
+        // self-row is skipped, so the only INSERT path the pull can reach is
+        // for telaris.polivoxia.ca. Anchor the test on that hostname.
+        $target = 'telaris.polivoxia.ca';
+
+        // Ensure there is at least one `complete` handshake row for the
+        // target hostname (idempotent seed so the test runs even on a fresh
+        // dev box that has never handshaked). Use a synthetic thread_id
+        // unique to the test so no real handshake gets clobbered.
+        $threadId = 'rediscovery-restore-test-' . bin2hex(random_bytes(6));
+        $expires = date('Y-m-d H:i:s', time() + 86400 * 30);
+        $pdo->prepare("
+            INSERT INTO handshakes
+                (peer_id, remote_hostname, initiator, status,
+                 requested_galaxies_publish, requested_galaxies_subscribe,
+                 thread_id, expires_at)
+            VALUES (NULL, :h, 'us', 'complete', '[]', '[]', :t, :e)
+        ")->execute([':h' => $target, ':t' => $threadId, ':e' => $expires]);
+        $seededHandshakeId = (int)$pdo->lastInsertId();
+
+        // Wipe the peer row so the INSERT branch fires on next pull.
+        $pdo->exec("DELETE FROM peers WHERE source = 'registry' AND hostname = " . $pdo->quote($target));
+        $this->clearPullState(PLURIVERSE_PULL_ENDPOINT_PEERS);
+
+        try {
+            $result = pluriverse_pull_peers();
+            $this->assertTrue($result['ok'], 'pull failed: ' . ($result['error'] ?? ''));
+
+            $row = $pdo->prepare("SELECT id, trust_state FROM peers WHERE hostname = :h AND source = 'registry'");
+            $row->execute([':h' => $target]);
+            $peer = $row->fetch(PDO::FETCH_ASSOC);
+            $this->assertNotFalse($peer, 'peer row was not re-inserted');
+            $this->assertSame(
+                'whitelisted',
+                $peer['trust_state'],
+                'INSERT branch should restore trust_state from the completed handshake'
+            );
+
+            $newPeerId = (int)$peer['id'];
+            $hsCheck = $pdo->prepare("SELECT peer_id FROM handshakes WHERE id = :i");
+            $hsCheck->execute([':i' => $seededHandshakeId]);
+            $linkedPeerId = $hsCheck->fetchColumn();
+            $this->assertSame(
+                $newPeerId,
+                (int)$linkedPeerId,
+                'handshake row should be relinked to the new peer id'
+            );
+
+            $logCnt = (int)$pdo->query(
+                "SELECT COUNT(*) FROM pluriverse_log
+                 WHERE event_type = 'peer_trust_state_restored'
+                   AND target = " . $pdo->quote($target) . "
+                   AND created_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)"
+            )->fetchColumn();
+            $this->assertGreaterThan(0, $logCnt, 'restoration should be audited');
+        } finally {
+            // Always remove the synthetic handshake so the test doesn't leave
+            // detritus. The peer row stays — it will be the legitimate row
+            // for the live sibling instance.
+            $pdo->prepare("DELETE FROM handshakes WHERE id = :i")
+                ->execute([':i' => $seededHandshakeId]);
+        }
     }
 }
