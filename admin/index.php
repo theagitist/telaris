@@ -113,8 +113,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $lastname = trim($_POST['lastname'] ?? '');
                 $password = $_POST['password'] ?? '';
                 $type = (int)($_POST['type'] ?? 0);
-                if (empty($email) || empty($firstname) || empty($lastname) || empty($password)) {
-                    throw new Exception('All fields are required');
+                if (empty($email) || empty($firstname) || empty($password)) {
+                    throw new Exception('Email, first name, and password are required');
                 }
                 if (strlen($password) < 8) {
                     throw new Exception('Password must be at least 8 characters long');
@@ -128,13 +128,18 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 if (db_user_email_exists($email)) {
                     throw new Exception('Email already exists');
                 }
+                $pr = db_user_pronouns_sanitize(db_user_pronouns_entries_from_request($_POST['pronouns'] ?? null, $_POST['pronouns_custom'] ?? null));
+                if (!$pr['ok']) {
+                    throw new Exception(t('pronouns_error_' . $pr['error']));
+                }
+                $pronouns = $pr['json'];
                 $createConstellation = !empty($_POST['create_constellation']);
                 $newConstellationName = trim((string)($_POST['new_constellation_name'] ?? ''));
                 if ($createConstellation && $newConstellationName === '') {
                     throw new Exception('Galaxy name is required when "Create new galaxy" is checked.');
                 }
                 $hashedPassword = hashPassword($password);
-                $err = createUser(getDB(), $email, $hashedPassword, $firstname, $lastname, $type);
+                $err = createUser(getDB(), $email, $hashedPassword, $firstname, $lastname, $type, $pronouns);
                 if ($err !== null) {
                     throw new Exception($err);
                 }
@@ -171,8 +176,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $lastname = trim($_POST['lastname'] ?? '');
                 $password = $_POST['password'] ?? '';
                 $type = (int)($_POST['type'] ?? 0);
-                if (empty($id) || empty($email) || empty($firstname) || empty($lastname)) {
-                    throw new Exception('All required fields must be filled');
+                if (empty($id) || empty($email) || empty($firstname)) {
+                    throw new Exception('Email and first name are required');
                 }
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     throw new Exception('Invalid email format');
@@ -189,8 +194,13 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 if (!empty($password) && strlen($password) < 8) {
                     throw new Exception('Password must be at least 8 characters long');
                 }
+                $pr = db_user_pronouns_sanitize(db_user_pronouns_entries_from_request($_POST['pronouns'] ?? null, $_POST['pronouns_custom'] ?? null));
+                if (!$pr['ok']) {
+                    throw new Exception(t('pronouns_error_' . $pr['error']));
+                }
+                $pronouns = $pr['json'];
                 $hashedPassword = !empty($password) ? hashPassword($password) : null;
-                db_update_user($id, $email, $firstname, $lastname, $type, $hashedPassword);
+                db_update_user($id, $email, $firstname, $lastname, $type, $hashedPassword, $pronouns);
                 $constellationIds = array_map('intval', array_filter((array)($_POST['constellation_ids'] ?? [])));
                 db_set_user_constellations($id, $type === USER_TYPE_EDITOR ? $constellationIds : []);
                 db_audit_log(
@@ -917,7 +927,8 @@ foreach ($importantExtensions as $ext => $name) {
                                         ];
                                         $typeColors = [0 => 'bg-gray-400', 1 => 'bg-blue-400', 2 => 'bg-purple-400'];
                                         $userType = (int)$user['type'];
-                                        $fullName = htmlspecialchars($user['firstname'] . ' ' . $user['lastname']);
+                                        $fullName = htmlspecialchars(trim($user['firstname'] . ' ' . ($user['lastname'] ?? '')));
+                                        $userPronouns = db_user_pronouns_list($user['pronouns'] ?? null);
                                         $email = htmlspecialchars($user['email']);
                                         $createdTs = strtotime($user['date_created'] ?? '');
                                         $lastLoginTs = !empty($user['date_last_login']) ? strtotime($user['date_last_login']) : false;
@@ -929,7 +940,7 @@ foreach ($importantExtensions as $ext => $name) {
                                         ?>
                                         <tr class="user-row border-b border-gray-300 hover:bg-gray-50" 
                                             data-user-id="<?php echo htmlspecialchars($user['id']); ?>" 
-                                            data-name="<?php echo htmlspecialchars(strtolower($user['firstname'] . ' ' . $user['lastname'])); ?>" 
+                                            data-name="<?php echo htmlspecialchars(strtolower(trim($user['firstname'] . ' ' . ($user['lastname'] ?? '')))); ?>"
                                             data-email="<?php echo htmlspecialchars(strtolower($user['email'])); ?>" 
                                             data-type="<?php echo $userType; ?>" 
                                             data-date-created="<?php echo $createdTs !== false ? $createdTs : '0'; ?>" 
@@ -939,7 +950,8 @@ foreach ($importantExtensions as $ext => $name) {
                                             $userData = [
                                                 'id' => $user['id'],
                                                 'firstname' => $user['firstname'],
-                                                'lastname' => $user['lastname'],
+                                                'lastname' => $user['lastname'] ?? '',
+                                                'pronouns' => $userPronouns,
                                                 'email' => $user['email'],
                                                 'type' => $user['type']
                                             ];
@@ -948,6 +960,7 @@ foreach ($importantExtensions as $ext => $name) {
                                             ?>
                                             <td class="py-2 px-2 font-semibold text-gray-800 max-w-[12rem] cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <span class="block truncate" title="<?php echo $fullName; ?>"><?php echo $fullName; ?><?php if ($isCurrentUser): ?> <span class="ml-1 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded"><?= t_attr('admin_badge_you', 'You') ?></span><?php endif; ?></span>
+                                                <?php if ($userPronouns !== []): ?><span class="block truncate text-xs font-normal text-gray-500" title="<?php echo htmlspecialchars(implode(', ', $userPronouns)); ?>"><?php echo htmlspecialchars(implode(', ', $userPronouns)); ?></span><?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-600 max-w-[14rem] cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <span class="block truncate" title="<?php echo $email; ?>"><?php echo $email; ?></span>
@@ -2778,10 +2791,23 @@ foreach ($importantExtensions as $ext => $name) {
         function editUser(user) {
             document.getElementById('modal-user-id').value = user.id;
             document.getElementById('modal-firstname').value = user.firstname;
-            document.getElementById('modal-lastname').value = user.lastname;
+            document.getElementById('modal-lastname').value = user.lastname || '';
             document.getElementById('modal-email').value = user.email;
             document.getElementById('modal-type').value = user.type;
             document.getElementById('modal-password').value = '';
+
+            // Pronouns: check the common-option boxes that match the stored set;
+            // anything not in the common set goes into the free-text field.
+            const pronouns = Array.isArray(user.pronouns) ? user.pronouns : [];
+            const commonBoxes = document.querySelectorAll('.modal-pronoun-common');
+            const matched = new Set();
+            commonBoxes.forEach(cb => {
+                const hit = pronouns.find(p => String(p).toLowerCase() === cb.value.toLowerCase());
+                cb.checked = !!hit;
+                if (hit !== undefined) matched.add(String(hit).toLowerCase());
+            });
+            const leftovers = pronouns.filter(p => !matched.has(String(p).toLowerCase()));
+            document.getElementById('modal-pronouns-custom').value = leftovers.join(', ');
 
             // Reset and set checkboxes
             const checkboxes = document.querySelectorAll('.modal-user-constellation-checkbox');
@@ -4613,6 +4639,8 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <?php // Locale-specific common pronoun options, shared by the create + edit user modals.
+          $commonPronouns = db_user_pronoun_common_options(); ?>
     <!-- Create User Modal -->
     <dialog id="create_user_modal" class="modal">
         <div class="modal-box max-w-2xl bg-white !pt-0">
@@ -4629,10 +4657,27 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                         <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_first_name', "The user's given name.")) ?></span>
                     </div>
                     <div>
-                        <label for="create-lastname" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_last_name', 'Last Name *')) ?></label>
-                        <input type="text" id="create-lastname" name="lastname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_last_name', "The user's family name.")) ?></span>
+                        <label for="create-lastname" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_last_name', 'Last Name')) ?></label>
+                        <input type="text" id="create-lastname" name="lastname" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_last_name', "The user's family name. Optional.")) ?></span>
                     </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_pronouns', 'Pronouns')) ?></label>
+                    <p class="text-xs text-gray-500 mb-2"><?= htmlspecialchars(t('admin_modal_help_pronouns', 'Optional. Choose up to 3, or add your own. Leave empty if you prefer.')) ?></p>
+                    <?php if ($commonPronouns !== []): ?>
+                    <div class="flex flex-wrap gap-x-4 gap-y-2 mb-2">
+                        <?php foreach ($commonPronouns as $cp): ?>
+                            <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+                                <input type="checkbox" class="create-pronoun-common rounded border-gray-300" name="pronouns[]" value="<?php echo htmlspecialchars($cp, ENT_QUOTES, 'UTF-8'); ?>">
+                                <span class="text-gray-800"><?php echo htmlspecialchars($cp); ?></span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+                    <label for="create-pronouns-custom" class="block mb-1 text-gray-700 text-sm"><?= htmlspecialchars(t('admin_modal_label_pronouns_custom', 'Add your own')) ?></label>
+                    <input type="text" id="create-pronouns-custom" name="pronouns_custom" maxlength="120" placeholder="<?= t_attr('admin_modal_placeholder_pronouns_custom', 'comma-separated, e.g. they/them') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                 </div>
 
                 <div class="mb-4">
@@ -4986,9 +5031,26 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                         <input type="text" id="modal-firstname" name="firstname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     </div>
                     <div>
-                        <label for="modal-lastname" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_last_name', 'Last Name *')) ?></label>
-                        <input type="text" id="modal-lastname" name="lastname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <label for="modal-lastname" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_last_name', 'Last Name')) ?></label>
+                        <input type="text" id="modal-lastname" name="lastname" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_pronouns', 'Pronouns')) ?></label>
+                    <p class="text-xs text-gray-500 mb-2"><?= htmlspecialchars(t('admin_modal_help_pronouns', 'Optional. Choose up to 3, or add your own. Leave empty if you prefer.')) ?></p>
+                    <?php if ($commonPronouns !== []): ?>
+                    <div class="flex flex-wrap gap-x-4 gap-y-2 mb-2">
+                        <?php foreach ($commonPronouns as $cp): ?>
+                            <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+                                <input type="checkbox" class="modal-pronoun-common rounded border-gray-300" name="pronouns[]" value="<?php echo htmlspecialchars($cp, ENT_QUOTES, 'UTF-8'); ?>">
+                                <span class="text-gray-800"><?php echo htmlspecialchars($cp); ?></span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+                    <label for="modal-pronouns-custom" class="block mb-1 text-gray-700 text-sm"><?= htmlspecialchars(t('admin_modal_label_pronouns_custom', 'Add your own')) ?></label>
+                    <input type="text" id="modal-pronouns-custom" name="pronouns_custom" maxlength="120" placeholder="<?= t_attr('admin_modal_placeholder_pronouns_custom', 'comma-separated, e.g. they/them') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                 </div>
 
                 <div class="mb-4">

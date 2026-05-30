@@ -1200,15 +1200,18 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
         $passwordConfirm = $_POST['admin_password_confirm'] ?? '';
         $firstname = trim($_POST['admin_firstname'] ?? '');
         $lastname = trim($_POST['admin_lastname'] ?? '');
-        
-        if (empty($email) || empty($password) || empty($firstname) || empty($lastname)) {
+        $pronounsResult = db_user_pronouns_sanitize(db_user_pronouns_entries_from_request($_POST['admin_pronouns'] ?? null, $_POST['admin_pronouns_custom'] ?? null));
+
+        if (empty($email) || empty($password) || empty($firstname)) {
             $adminUserError = t('admin_setup_validation_all_fields_required', 'All fields are required.');
         } elseif ($password !== $passwordConfirm) {
             $adminUserError = t('admin_setup_validation_passwords_mismatch', 'Passwords do not match.');
         } elseif (strlen($password) < 8) {
             $adminUserError = t('admin_setup_validation_password_too_short', 'Password must be at least 8 characters long.');
+        } elseif (!$pronounsResult['ok']) {
+            $adminUserError = t('pronouns_error_' . $pronounsResult['error']);
         } else {
-            $result = createAdminUser($pdo, $email, $password, $firstname, $lastname);
+            $result = createAdminUser($pdo, $email, $password, $firstname, $lastname, $pronounsResult['json']);
             if ($result === null) {
                 $adminUserCreated = true;
                 $message = t('admin_setup_admin_user_created', '✓ Admin user created successfully!');
@@ -1349,13 +1352,34 @@ $tablesSkippedKey = $tablesSkippedCount === 1 ? 'admin_setup_schema_tables_exist
                         </div>
 
                         <div>
-                            <label for="admin_lastname" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_attr('admin_setup_last_name_label', 'Last Name *'); ?></label>
+                            <label for="admin_lastname" class="block mb-1.5 text-gray-800 font-medium"><?php echo t_attr('admin_setup_last_name_label', 'Last Name'); ?></label>
                             <input type="text"
                                    id="admin_lastname"
                                    name="admin_lastname"
-                                   required
                                    class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
+                    </div>
+
+                    <?php $setupCommonPronouns = db_user_pronoun_common_options(); ?>
+                    <div>
+                        <label class="block mb-1.5 text-gray-800 font-medium"><?php echo t_attr('admin_setup_pronouns_label', 'Pronouns'); ?></label>
+                        <p class="text-xs text-gray-500 mb-2"><?php echo t_attr('admin_setup_pronouns_help', 'Optional. Choose up to 3, or add your own. Leave empty if you prefer.'); ?></p>
+                        <?php if ($setupCommonPronouns !== []): ?>
+                        <div class="flex flex-wrap gap-x-4 gap-y-2 mb-2">
+                            <?php foreach ($setupCommonPronouns as $cp): ?>
+                                <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+                                    <input type="checkbox" name="admin_pronouns[]" value="<?php echo htmlspecialchars($cp, ENT_QUOTES, 'UTF-8'); ?>" class="rounded border-gray-300">
+                                    <span class="text-gray-800"><?php echo htmlspecialchars($cp); ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                        <input type="text"
+                               id="admin_pronouns_custom"
+                               name="admin_pronouns_custom"
+                               maxlength="120"
+                               placeholder="<?php echo t_attr('admin_modal_placeholder_pronouns_custom', 'comma-separated, e.g. they/them'); ?>"
+                               class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                     </div>
 
                     <div>

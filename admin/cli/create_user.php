@@ -77,15 +77,22 @@ try {
         }
     }
     
-    // Last Name
-    $lastname = '';
-    while (empty($lastname)) {
-        $lastname = readInput("Last Name: ");
-        if (empty($lastname)) {
-            echo "Last name is required.\n";
+    // Last Name (optional)
+    $lastname = readInput("Last Name (optional): ");
+
+    // Pronouns (optional; comma-separated, up to 3). Re-prompt on a content-guard
+    // rejection; an empty answer is fine and stores nothing.
+    $pronouns = null;
+    while (true) {
+        $pronounsRaw = readInput("Pronouns (optional, comma-separated, e.g. they/them): ");
+        $pr = db_user_pronouns_sanitize(db_user_pronouns_entries_from_request(null, $pronounsRaw));
+        if ($pr['ok']) {
+            $pronouns = $pr['json'];
+            break;
         }
+        echo "That pronoun entry was rejected (" . $pr['error'] . "). Please try again or leave blank.\n";
     }
-    
+
     // Email
     $email = '';
     while (empty($email)) {
@@ -141,7 +148,8 @@ try {
     echo "User Information Summary:\n";
     echo "------------------------\n";
     echo "First Name: $firstname\n";
-    echo "Last Name: $lastname\n";
+    echo "Last Name: " . ($lastname !== '' ? $lastname : '(none)') . "\n";
+    echo "Pronouns: " . ($pronouns !== null ? implode(', ', db_user_pronouns_list($pronouns)) : '(none)') . "\n";
     echo "Email: $email\n";
     echo "User Type: " . ($userType === USER_TYPE_ADMIN ? 'Admin' : 'Editor') . "\n";
     echo "\n";
@@ -156,7 +164,7 @@ try {
     // Create user
     echo "\nCreating user...\n";
     $hashedPassword = hashPassword($password);
-    $result = createUser($pdo, $email, $hashedPassword, $firstname, $lastname, $userType);
+    $result = createUser($pdo, $email, $hashedPassword, $firstname, $lastname, $userType, $pronouns);
     
     if ($result === null) {
         $created = db_get_user_by_email($email);
@@ -170,7 +178,7 @@ try {
         );
         echo "✓ User created successfully!\n";
         echo "\nUser Details:\n";
-        echo "  Name: $firstname $lastname\n";
+        echo "  Name: " . trim("$firstname $lastname") . "\n";
         echo "  Email: $email\n";
         echo "  Type: " . ($userType === USER_TYPE_ADMIN ? 'Admin' : 'Editor') . "\n";
         echo "\nThe user can now login at /utils/login.php\n";

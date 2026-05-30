@@ -254,6 +254,7 @@ function backup_build_dump(array $opts): array {
                 'email' => $u['email'],
                 'firstname' => $u['firstname'],
                 'lastname' => $u['lastname'],
+                'pronouns' => $u['pronouns'] ?? null,
                 'type' => (int)$u['type'],
                 'password_hash' => $u['password'],
                 'date_created' => $u['date_created'],
@@ -545,9 +546,10 @@ function backup_restore_from_file(string $path, array $opts): array {
                     $email,
                     (string)($u['password_hash'] ?? ''),
                     (string)($u['firstname'] ?? ''),
-                    (string)($u['lastname'] ?? ''),
+                    isset($u['lastname']) && $u['lastname'] !== null ? (string)$u['lastname'] : null,
                     (int)($u['type'] ?? 0),
-                    isset($u['date_created']) ? (string)$u['date_created'] : null
+                    isset($u['date_created']) ? (string)$u['date_created'] : null,
+                    isset($u['pronouns']) && $u['pronouns'] !== null ? (string)$u['pronouns'] : null
                 );
                 $userEmailToId[$email] = $newId;
                 $report['users_created']++;
@@ -556,9 +558,10 @@ function backup_restore_from_file(string $path, array $opts): array {
                     $existing['id'],
                     $email,
                     (string)($u['firstname'] ?? ''),
-                    (string)($u['lastname'] ?? ''),
+                    isset($u['lastname']) && $u['lastname'] !== null ? (string)$u['lastname'] : null,
                     (int)($u['type'] ?? 0),
-                    $usersReplacePw ? (string)($u['password_hash'] ?? '') : null
+                    $usersReplacePw ? (string)($u['password_hash'] ?? '') : null,
+                    isset($u['pronouns']) && $u['pronouns'] !== null ? (string)$u['pronouns'] : null
                 );
                 $userEmailToId[$email] = $existing['id'];
                 $report['users_updated']++;

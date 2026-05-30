@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL,
     firstname VARCHAR(100) NOT NULL,
-    lastname VARCHAR(100) NOT NULL,
+    lastname VARCHAR(100) NULL DEFAULT NULL,
+    pronouns VARCHAR(255) NULL DEFAULT NULL, -- JSON array of up to 3 strings, e.g. ["they/them","elle"]; NULL = not provided
     type INT NOT NULL DEFAULT 0,
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     date_last_login TIMESTAMP NULL DEFAULT NULL,

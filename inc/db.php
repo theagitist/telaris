@@ -276,6 +276,9 @@ const PROJECT_INFO_KEYS = [
     'admin_modal_bulk_users_label_create_galaxy_each', 'admin_modal_bulk_users_help_create_galaxy_each',
     'admin_modal_heading_create_user',
     'admin_modal_label_first_name', 'admin_modal_help_first_name', 'admin_modal_label_last_name', 'admin_modal_help_last_name',
+    'admin_modal_label_pronouns', 'admin_modal_help_pronouns', 'admin_modal_label_pronouns_custom', 'admin_modal_placeholder_pronouns_custom',
+    'pronoun_common_set',
+    'pronouns_error_too_many', 'pronouns_error_too_long', 'pronouns_error_charset', 'pronouns_error_denylist',
     'admin_modal_label_email', 'admin_modal_err_email_in_use', 'admin_modal_help_email',
     'admin_modal_label_password', 'admin_modal_help_password_min',
     'admin_modal_label_user_type', 'admin_modal_opt_user_type_editor', 'admin_modal_opt_user_type_admin', 'admin_modal_help_user_type',
@@ -341,6 +344,7 @@ const PROJECT_INFO_KEYS = [
     'admin_setup_schema_api_key_heading', 'admin_setup_schema_api_key_help',
     'admin_setup_admin_user_heading', 'admin_setup_admin_user_intro',
     'admin_setup_first_name_label', 'admin_setup_last_name_label',
+    'admin_setup_pronouns_label', 'admin_setup_pronouns_help',
     'admin_setup_email_label', 'admin_setup_email_help',
     'admin_setup_password_label', 'admin_setup_password_help',
     'admin_setup_confirm_password_label',
@@ -1634,8 +1638,17 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_modal_heading_create_user' => 'Create New User',
             'admin_modal_label_first_name' => 'First Name *',
             'admin_modal_help_first_name' => 'The user\'s given name.',
-            'admin_modal_label_last_name' => 'Last Name *',
-            'admin_modal_help_last_name' => 'The user\'s family name.',
+            'admin_modal_label_last_name' => 'Last Name',
+            'admin_modal_help_last_name' => 'The user\'s family name. Optional.',
+            'admin_modal_label_pronouns' => 'Pronouns',
+            'admin_modal_help_pronouns' => 'Optional. Choose up to 3, or add your own. Leave empty if you prefer.',
+            'admin_modal_label_pronouns_custom' => 'Add your own',
+            'admin_modal_placeholder_pronouns_custom' => 'comma-separated, e.g. they/them',
+            'pronoun_common_set' => 'they/them,she/her,he/him,ze/zir,xe/xem',
+            'pronouns_error_too_many' => 'Choose at most 3 pronoun sets.',
+            'pronouns_error_too_long' => 'Each pronoun entry must be 30 characters or fewer.',
+            'pronouns_error_charset' => 'Pronouns may use only letters, spaces, and the marks / - and the apostrophe.',
+            'pronouns_error_denylist' => 'That entry cannot be used as a pronoun.',
             'admin_modal_label_email' => 'Email *',
             'admin_modal_err_email_in_use' => 'This email is already in use.',
             'admin_modal_help_email' => 'Login identifier and contact address.',
@@ -1775,7 +1788,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_setup_admin_user_heading' => 'Create Admin User',
             'admin_setup_admin_user_intro' => 'No admin user exists yet. Create one to access the admin console.',
             'admin_setup_first_name_label' => 'First Name *',
-            'admin_setup_last_name_label' => 'Last Name *',
+            'admin_setup_last_name_label' => 'Last Name',
+            'admin_setup_pronouns_label' => 'Pronouns',
+            'admin_setup_pronouns_help' => 'Optional. Choose up to 3, or add your own. Leave empty if you prefer.',
             'admin_setup_email_label' => 'Email *',
             'admin_setup_email_help' => 'This will be the login email.',
             'admin_setup_password_label' => 'Password *',
@@ -3041,8 +3056,17 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_modal_heading_create_user' => 'Crear nueva cuenta',
             'admin_modal_label_first_name' => 'Nombre *',
             'admin_modal_help_first_name' => 'El nombre de pila asociado a la cuenta.',
-            'admin_modal_label_last_name' => 'Apellido *',
-            'admin_modal_help_last_name' => 'El apellido asociado a la cuenta.',
+            'admin_modal_label_last_name' => 'Apellido',
+            'admin_modal_help_last_name' => 'El apellido asociado a la cuenta. Opcional.',
+            'admin_modal_label_pronouns' => 'Pronombres',
+            'admin_modal_help_pronouns' => 'Opcional. Elige hasta 3 o agrega los tuyos. Puedes dejarlo en blanco.',
+            'admin_modal_label_pronouns_custom' => 'Agrega los tuyos',
+            'admin_modal_placeholder_pronouns_custom' => 'separados por comas, p. ej. elle',
+            'pronoun_common_set' => 'elle,ella,él',
+            'pronouns_error_too_many' => 'Elige como máximo 3 conjuntos de pronombres.',
+            'pronouns_error_too_long' => 'Cada pronombre debe tener 30 caracteres o menos.',
+            'pronouns_error_charset' => 'Los pronombres solo admiten letras, espacios y los signos / - y el apóstrofo.',
+            'pronouns_error_denylist' => 'Esa entrada no se puede usar como pronombre.',
             'admin_modal_label_email' => 'Correo *',
             'admin_modal_err_email_in_use' => 'Este correo ya está en uso.',
             'admin_modal_help_email' => 'Identificador de inicio de sesión y dirección de contacto.',
@@ -3182,7 +3206,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_setup_admin_user_heading' => 'Crear cuenta de administración',
             'admin_setup_admin_user_intro' => 'Aún no existe ninguna cuenta de administración. Crea una para acceder a la consola de administración.',
             'admin_setup_first_name_label' => 'Nombre *',
-            'admin_setup_last_name_label' => 'Apellido *',
+            'admin_setup_last_name_label' => 'Apellido',
+            'admin_setup_pronouns_label' => 'Pronombres',
+            'admin_setup_pronouns_help' => 'Opcional. Elige hasta 3 o agrega los tuyos. Puedes dejarlo en blanco.',
             'admin_setup_email_label' => 'Correo electrónico *',
             'admin_setup_email_help' => 'Este será el correo de inicio de sesión.',
             'admin_setup_password_label' => 'Contraseña *',
@@ -4444,8 +4470,17 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_modal_heading_create_user' => 'Criar nova conta',
             'admin_modal_label_first_name' => 'Primeiro nome *',
             'admin_modal_help_first_name' => 'O nome próprio associado à conta.',
-            'admin_modal_label_last_name' => 'Sobrenome *',
-            'admin_modal_help_last_name' => 'O sobrenome associado à conta.',
+            'admin_modal_label_last_name' => 'Sobrenome',
+            'admin_modal_help_last_name' => 'O sobrenome associado à conta. Opcional.',
+            'admin_modal_label_pronouns' => 'Pronomes',
+            'admin_modal_help_pronouns' => 'Opcional. Escolha até 3 ou adicione os seus. Pode deixar em branco.',
+            'admin_modal_label_pronouns_custom' => 'Adicione os seus',
+            'admin_modal_placeholder_pronouns_custom' => 'separados por vírgulas, p. ex. elu',
+            'pronoun_common_set' => 'elu,ela,ele',
+            'pronouns_error_too_many' => 'Escolha no máximo 3 conjuntos de pronomes.',
+            'pronouns_error_too_long' => 'Cada pronome deve ter 30 caracteres ou menos.',
+            'pronouns_error_charset' => 'Os pronomes só aceitam letras, espaços e os sinais / - e o apóstrofo.',
+            'pronouns_error_denylist' => 'Essa entrada não pode ser usada como pronome.',
             'admin_modal_label_email' => 'E-mail *',
             'admin_modal_err_email_in_use' => 'Este e-mail já está em uso.',
             'admin_modal_help_email' => 'Identificador de login e endereço de contato.',
@@ -4585,7 +4620,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_setup_admin_user_heading' => 'Criar conta de administração',
             'admin_setup_admin_user_intro' => 'Ainda não existe nenhuma conta de administração. Crie uma para acessar o console de administração.',
             'admin_setup_first_name_label' => 'Nome *',
-            'admin_setup_last_name_label' => 'Sobrenome *',
+            'admin_setup_last_name_label' => 'Sobrenome',
+            'admin_setup_pronouns_label' => 'Pronomes',
+            'admin_setup_pronouns_help' => 'Opcional. Escolha até 3 ou adicione os seus. Pode deixar em branco.',
             'admin_setup_email_label' => 'E-mail *',
             'admin_setup_email_help' => 'Este será o e-mail de acesso.',
             'admin_setup_password_label' => 'Senha *',
@@ -5847,8 +5884,17 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_modal_heading_create_user' => 'Créer un nouveau compte',
             'admin_modal_label_first_name' => 'Prénom *',
             'admin_modal_help_first_name' => 'Le prénom associé au compte.',
-            'admin_modal_label_last_name' => 'Nom de famille *',
-            'admin_modal_help_last_name' => 'Le nom de famille associé au compte.',
+            'admin_modal_label_last_name' => 'Nom de famille',
+            'admin_modal_help_last_name' => 'Le nom de famille associé au compte. Facultatif.',
+            'admin_modal_label_pronouns' => 'Pronoms',
+            'admin_modal_help_pronouns' => 'Facultatif. Choisis jusqu\'à 3 ou ajoute les tiens. Tu peux laisser vide.',
+            'admin_modal_label_pronouns_custom' => 'Ajoute les tiens',
+            'admin_modal_placeholder_pronouns_custom' => 'séparés par des virgules, p. ex. iel',
+            'pronoun_common_set' => 'iel,elle,il',
+            'pronouns_error_too_many' => 'Choisis au maximum 3 ensembles de pronoms.',
+            'pronouns_error_too_long' => 'Chaque pronom doit faire 30 caractères ou moins.',
+            'pronouns_error_charset' => 'Les pronoms n\'acceptent que les lettres, les espaces et les signes / - et l\'apostrophe.',
+            'pronouns_error_denylist' => 'Cette entrée ne peut pas servir de pronom.',
             'admin_modal_label_email' => 'Courriel *',
             'admin_modal_err_email_in_use' => 'Ce courriel est déjà utilisé.',
             'admin_modal_help_email' => 'Identifiant de connexion et adresse de contact.',
@@ -5988,7 +6034,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_setup_admin_user_heading' => 'Créer le compte d\'administration',
             'admin_setup_admin_user_intro' => 'Il n\'existe pas encore de compte d\'administration. Crées-en un pour accéder à la console d\'administration.',
             'admin_setup_first_name_label' => 'Prénom *',
-            'admin_setup_last_name_label' => 'Nom de famille *',
+            'admin_setup_last_name_label' => 'Nom de famille',
+            'admin_setup_pronouns_label' => 'Pronoms',
+            'admin_setup_pronouns_help' => 'Facultatif. Choisis jusqu\'à 3 ou ajoute les tiens. Tu peux laisser vide.',
             'admin_setup_email_label' => 'Courriel *',
             'admin_setup_email_help' => 'Ce sera le courriel d\'accès.',
             'admin_setup_password_label' => 'Mot de passe *',
@@ -6783,6 +6831,207 @@ function db_ensure_users_locale_column(): void {
     } catch (PDOException $e) {
         error_log('db_ensure_users_locale_column: ' . $e->getMessage());
     }
+}
+
+/**
+ * Make users.lastname nullable. Historically NOT NULL; first name is the only
+ * required name part now, so a last name may be absent (stored NULL). Additive
+ * and idempotent: only flips the column when it is still NOT NULL.
+ */
+function db_ensure_users_lastname_nullable(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM users LIKE 'lastname'")->fetch();
+        if ($row && isset($row['Null']) && strtoupper((string)$row['Null']) === 'NO') {
+            $pdo->exec("ALTER TABLE users MODIFY COLUMN lastname VARCHAR(100) NULL DEFAULT NULL");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_users_lastname_nullable: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Ensure users.pronouns exists. Stores up to USER_PRONOUNS_MAX entries as a JSON
+ * array of strings (e.g. ["they/them","elle"]); NULL means not provided. Pronouns
+ * are always optional. Additive and idempotent.
+ */
+function db_ensure_users_pronouns_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM users LIKE 'pronouns'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN pronouns VARCHAR(255) NULL DEFAULT NULL AFTER lastname");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_users_pronouns_column: ' . $e->getMessage());
+    }
+}
+
+/** Run both account-field migrations together. Cheap (each is statically guarded). */
+function db_ensure_users_account_columns(): void {
+    db_ensure_users_lastname_nullable();
+    db_ensure_users_pronouns_column();
+}
+
+/**
+ * Maximum number of pronoun entries an account may store, and the per-entry
+ * character cap. Enforced server-side (not just in the UI).
+ */
+const USER_PRONOUNS_MAX = 3;
+const USER_PRONOUNS_MAX_LEN = 30;
+
+/**
+ * Content guard denylist for the free-text pronoun field. This is a floor, not
+ * full moderation: a small case-insensitive set of unambiguous slurs / hateful
+ * or obviously spiteful terms, matched as substrings (so inflections and
+ * concatenations are caught too). Keep additions HERE, in one place, so the
+ * list stays easy to extend. Entries are lowercase; matching lowercases input.
+ *
+ * The charset guard already rejects digits, URLs, and markup, so this list only
+ * needs to cover letter-only hateful terms. English plus a few obvious
+ * cross-locale slurs.
+ */
+const USER_PRONOUNS_DENYLIST = [
+    // anti-LGBTQ slurs
+    'faggot', 'fagot', 'tranny', 'trannie', 'shemale', 'dyke',
+    // racial / ethnic slurs
+    'nigger', 'nigga', 'chink', 'spic', 'kike', 'wetback', 'coon', 'gook',
+    // ableist / misogynist slurs commonly used spitefully
+    'retard', 'retarded',
+    // obvious cross-locale slurs
+    'maricon', 'puto', 'veado', 'viado', 'negre',
+];
+
+/**
+ * Decode a stored pronouns JSON value into a plain list of non-empty strings.
+ * Returns [] for null / empty / malformed input.
+ *
+ * @return list<string>
+ */
+function db_user_pronouns_list(?string $pronounsJson): array {
+    if ($pronounsJson === null || $pronounsJson === '') return [];
+    $decoded = json_decode($pronounsJson, true);
+    if (!is_array($decoded)) return [];
+    $out = [];
+    foreach ($decoded as $v) {
+        if (is_string($v) && trim($v) !== '') $out[] = $v;
+    }
+    return $out;
+}
+
+/**
+ * Sanitize + validate a set of raw pronoun entries (e.g. the checked common
+ * options merged with the free-text field, comma/newline split by the caller).
+ *
+ * Trims, drops empties, dedupes case-insensitively (first spelling wins), then
+ * applies the content guard: max count, per-entry length, allowed charset, and
+ * the denylist. Pronouns are optional, so an empty set is valid (ok=true,
+ * json=null).
+ *
+ * @param list<string> $entries
+ * @return array{ok:bool, json:?string, error:?string}
+ *   On success: json is a JSON array string, or null when no entries were given.
+ *   On failure: error is an i18n key suffix ('too_many'|'too_long'|'charset'|'denylist').
+ */
+function db_user_pronouns_sanitize(array $entries): array {
+    $seen = [];
+    $clean = [];
+    foreach ($entries as $raw) {
+        $e = trim((string)$raw);
+        if ($e === '') continue;
+        $k = mb_strtolower($e, 'UTF-8');
+        if (isset($seen[$k])) continue;
+        $seen[$k] = true;
+        $clean[] = $e;
+    }
+
+    if ($clean === []) {
+        return ['ok' => true, 'json' => null, 'error' => null];
+    }
+    if (count($clean) > USER_PRONOUNS_MAX) {
+        return ['ok' => false, 'json' => null, 'error' => 'too_many'];
+    }
+    foreach ($clean as $e) {
+        if (mb_strlen($e, 'UTF-8') > USER_PRONOUNS_MAX_LEN) {
+            return ['ok' => false, 'json' => null, 'error' => 'too_long'];
+        }
+        // Allowed: Unicode letters, space, slash, hyphen, apostrophe. This
+        // rejects digits, URLs (no ':' or '.'), and markup ('<', '>').
+        if (!preg_match("/^[\\p{L} \\/'-]+$/u", $e)) {
+            return ['ok' => false, 'json' => null, 'error' => 'charset'];
+        }
+        $low = mb_strtolower($e, 'UTF-8');
+        foreach (USER_PRONOUNS_DENYLIST as $bad) {
+            if ($bad !== '' && mb_strpos($low, $bad) !== false) {
+                return ['ok' => false, 'json' => null, 'error' => 'denylist'];
+            }
+        }
+    }
+
+    $json = json_encode(array_values($clean), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return ['ok' => true, 'json' => ($json === false ? null : $json), 'error' => null];
+}
+
+/**
+ * Build the raw entry list from a request: the checked common options plus the
+ * free-text field (comma- or newline-separated). The caller passes the result
+ * to db_user_pronouns_sanitize().
+ *
+ * @param mixed $checked    the pronouns[] POST value (array of strings) or null
+ * @param mixed $customRaw  the free-text POST value (string) or null
+ * @return list<string>
+ */
+function db_user_pronouns_entries_from_request($checked, $customRaw): array {
+    $entries = [];
+    foreach ((array)$checked as $c) {
+        if (is_string($c)) $entries[] = $c;
+    }
+    $custom = is_string($customRaw) ? $customRaw : '';
+    if ($custom !== '') {
+        $parts = preg_split('/[,\n\r]+/', $custom);
+        if ($parts !== false) {
+            foreach ($parts as $p) {
+                $p = trim($p);
+                if ($p !== '') $entries[] = $p;
+            }
+        }
+    }
+    return $entries;
+}
+
+/**
+ * The locale's common pronoun options, parsed from the localized
+ * 'pronoun_common_set' string (a comma-separated list). Used to render the
+ * picker chips. Returns [] when the key is missing (t() returns the key).
+ *
+ * @return list<string>
+ */
+function db_user_pronoun_common_options(): array {
+    $raw = t('pronoun_common_set');
+    if ($raw === 'pronoun_common_set' || trim($raw) === '') return [];
+    $parts = array_map('trim', explode(',', $raw));
+    return array_values(array_filter($parts, static fn(string $p): bool => $p !== ''));
+}
+
+/**
+ * "If a pronoun must be used, pick one at random." Returns one entry chosen at
+ * random from the stored set, or null if none is stored.
+ *
+ * NOTE: the project's standing rule is gender-neutral, pronoun-avoiding phrasing
+ * everywhere, so there may be no current call site. The helper exists for any
+ * future surface where a third-person pronoun is genuinely unavoidable; do not
+ * invent gendered copy just to call it.
+ */
+function db_user_pronoun_random(?string $pronounsJson): ?string {
+    $list = db_user_pronouns_list($pronounsJson);
+    if ($list === []) return null;
+    return $list[random_int(0, count($list) - 1)];
 }
 
 /** Ensure nodes.pdf_url column exists. */
@@ -8362,9 +8611,10 @@ function db_audit_log(
  */
 function db_get_users(): array {
     db_ensure_users_locale_column();
+    db_ensure_users_account_columns();
     $pdo = getDB();
     $stmt = $pdo->query("
-        SELECT id, email, firstname, lastname, type, locale, date_created, date_last_login, updated_at
+        SELECT id, email, firstname, lastname, pronouns, type, locale, date_created, date_last_login, updated_at
         FROM users
         ORDER BY date_created DESC
     ");
@@ -8384,38 +8634,44 @@ function db_set_user_locale(string $id, ?string $locale): void {
     $stmt->execute([':loc' => ($locale === '' ? null : $locale), ':id' => $id]);
 }
 
-function db_insert_user(string $id, string $email, string $hashedPassword, string $firstname, string $lastname, int $type): void {
+function db_insert_user(string $id, string $email, string $hashedPassword, string $firstname, ?string $lastname, int $type, ?string $pronouns = null): void {
+    db_ensure_users_account_columns();
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        INSERT INTO users (id, email, password, firstname, lastname, type)
-        VALUES (:id, :email, :password, :firstname, :lastname, :type)
+        INSERT INTO users (id, email, password, firstname, lastname, pronouns, type)
+        VALUES (:id, :email, :password, :firstname, :lastname, :pronouns, :type)
     ");
     $stmt->execute([
         ':id' => $id,
         ':email' => $email,
         ':password' => $hashedPassword,
         ':firstname' => $firstname,
-        ':lastname' => $lastname,
+        ':lastname' => ($lastname === null || $lastname === '') ? null : $lastname,
+        ':pronouns' => ($pronouns === null || $pronouns === '') ? null : $pronouns,
         ':type' => $type
     ]);
 }
 
-function db_update_user(string $id, string $email, string $firstname, string $lastname, int $type, ?string $hashedPassword = null): void {
+function db_update_user(string $id, string $email, string $firstname, ?string $lastname, int $type, ?string $hashedPassword = null, ?string $pronouns = null): void {
+    db_ensure_users_account_columns();
     $pdo = getDB();
+    $lastVal = ($lastname === null || $lastname === '') ? null : $lastname;
+    $pronounVal = ($pronouns === null || $pronouns === '') ? null : $pronouns;
     if ($hashedPassword !== null) {
         $stmt = $pdo->prepare("
-            UPDATE users SET email = :email, firstname = :firstname, lastname = :lastname, password = :password, type = :type WHERE id = :id
+            UPDATE users SET email = :email, firstname = :firstname, lastname = :lastname, pronouns = :pronouns, password = :password, type = :type WHERE id = :id
         ");
         $stmt->execute([
-            ':id' => $id, ':email' => $email, ':firstname' => $firstname, ':lastname' => $lastname,
-            ':password' => $hashedPassword, ':type' => $type
+            ':id' => $id, ':email' => $email, ':firstname' => $firstname, ':lastname' => $lastVal,
+            ':pronouns' => $pronounVal, ':password' => $hashedPassword, ':type' => $type
         ]);
     } else {
         $stmt = $pdo->prepare("
-            UPDATE users SET email = :email, firstname = :firstname, lastname = :lastname, type = :type WHERE id = :id
+            UPDATE users SET email = :email, firstname = :firstname, lastname = :lastname, pronouns = :pronouns, type = :type WHERE id = :id
         ");
         $stmt->execute([
-            ':id' => $id, ':email' => $email, ':firstname' => $firstname, ':lastname' => $lastname, ':type' => $type
+            ':id' => $id, ':email' => $email, ':firstname' => $firstname, ':lastname' => $lastVal,
+            ':pronouns' => $pronounVal, ':type' => $type
         ]);
     }
 }
@@ -8459,8 +8715,9 @@ function hasAdminUser(PDO $pdo): bool {
 /**
  * Create admin user (type 2). Returns null on success, error message string on failure.
  */
-function createAdminUser(PDO $pdo, string $email, string $password, string $firstname, string $lastname): ?string {
+function createAdminUser(PDO $pdo, string $email, string $password, string $firstname, ?string $lastname, ?string $pronouns = null): ?string {
     try {
+        db_ensure_users_account_columns();
         $checkStmt = $pdo->prepare("SELECT id FROM users WHERE email = :email");
         $checkStmt->execute([':email' => $email]);
         if ($checkStmt->fetch()) {
@@ -8472,15 +8729,16 @@ function createAdminUser(PDO $pdo, string $email, string $password, string $firs
         }
         $userId = 'admin_' . bin2hex(random_bytes(8));
         $stmt = $pdo->prepare("
-            INSERT INTO users (id, email, password, firstname, lastname, type)
-            VALUES (:id, :email, :password, :firstname, :lastname, 2)
+            INSERT INTO users (id, email, password, firstname, lastname, pronouns, type)
+            VALUES (:id, :email, :password, :firstname, :lastname, :pronouns, 2)
         ");
         $stmt->execute([
             ':id' => $userId,
             ':email' => $email,
             ':password' => $hash,
             ':firstname' => $firstname,
-            ':lastname' => $lastname
+            ':lastname' => ($lastname === null || $lastname === '') ? null : $lastname,
+            ':pronouns' => ($pronouns === null || $pronouns === '') ? null : $pronouns
         ]);
         return null;
     } catch (PDOException $e) {
@@ -8493,8 +8751,9 @@ function createAdminUser(PDO $pdo, string $email, string $password, string $firs
  * Create user (editor or admin). Returns null on success, error message on failure.
  * $hashedPassword must already be hashed (e.g. by auth hashPassword).
  */
-function createUser(PDO $pdo, string $email, string $hashedPassword, string $firstname, string $lastname, int $type): ?string {
+function createUser(PDO $pdo, string $email, string $hashedPassword, string $firstname, ?string $lastname, int $type, ?string $pronouns = null): ?string {
     try {
+        db_ensure_users_account_columns();
         $checkStmt = $pdo->prepare("SELECT id FROM users WHERE email = :email");
         $checkStmt->execute([':email' => $email]);
         if ($checkStmt->fetch()) {
@@ -8502,15 +8761,16 @@ function createUser(PDO $pdo, string $email, string $hashedPassword, string $fir
         }
         $userId = 'user_' . bin2hex(random_bytes(8));
         $stmt = $pdo->prepare("
-            INSERT INTO users (id, email, password, firstname, lastname, type)
-            VALUES (:id, :email, :password, :firstname, :lastname, :type)
+            INSERT INTO users (id, email, password, firstname, lastname, pronouns, type)
+            VALUES (:id, :email, :password, :firstname, :lastname, :pronouns, :type)
         ");
         $stmt->execute([
             ':id' => $userId,
             ':email' => $email,
             ':password' => $hashedPassword,
             ':firstname' => $firstname,
-            ':lastname' => $lastname,
+            ':lastname' => ($lastname === null || $lastname === '') ? null : $lastname,
+            ':pronouns' => ($pronouns === null || $pronouns === '') ? null : $pronouns,
             ':type' => $type
         ]);
         return null;
@@ -11433,8 +11693,9 @@ function db_get_galaxy_for_dump(int $id): ?array {
  */
 function db_get_users_for_dump(): array {
     $pdo = getDB();
+    db_ensure_users_account_columns();
     $rows = $pdo->query("
-        SELECT id, email, password, firstname, lastname, type, date_created, date_last_login
+        SELECT id, email, password, firstname, lastname, pronouns, type, date_created, date_last_login
         FROM users ORDER BY date_created
     ")->fetchAll();
 
@@ -11469,20 +11730,24 @@ function db_set_default_constellation_id(int $id): void {
  * Insert a user with an explicit id and password hash (used during restore to preserve identity).
  * date_created is preserved if provided.
  */
-function db_user_create_raw(string $id, string $email, string $passwordHash, string $firstname, string $lastname, int $type, ?string $dateCreated = null): void {
+function db_user_create_raw(string $id, string $email, string $passwordHash, string $firstname, ?string $lastname, int $type, ?string $dateCreated = null, ?string $pronouns = null): void {
+    db_ensure_users_account_columns();
     $pdo = getDB();
     if ($dateCreated !== null && $dateCreated !== '') {
         $stmt = $pdo->prepare("
-            INSERT INTO users (id, email, password, firstname, lastname, type, date_created)
-            VALUES (:id, :email, :password, :firstname, :lastname, :type, :date_created)
+            INSERT INTO users (id, email, password, firstname, lastname, pronouns, type, date_created)
+            VALUES (:id, :email, :password, :firstname, :lastname, :pronouns, :type, :date_created)
         ");
         $stmt->execute([
             ':id' => $id, ':email' => $email, ':password' => $passwordHash,
-            ':firstname' => $firstname, ':lastname' => $lastname, ':type' => $type,
+            ':firstname' => $firstname,
+            ':lastname' => ($lastname === null || $lastname === '') ? null : $lastname,
+            ':pronouns' => ($pronouns === null || $pronouns === '') ? null : $pronouns,
+            ':type' => $type,
             ':date_created' => $dateCreated,
         ]);
     } else {
-        db_insert_user($id, $email, $passwordHash, $firstname, $lastname, $type);
+        db_insert_user($id, $email, $passwordHash, $firstname, $lastname, $type, $pronouns);
     }
 }
 

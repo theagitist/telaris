@@ -83,7 +83,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                         // Set session variables
                         $_SESSION['admin_user_id'] = $user['id'];
                         $_SESSION['admin_user_email'] = $user['email'];
-                        $_SESSION['admin_user_name'] = $user['firstname'] . ' ' . $user['lastname'];
+                        $_SESSION['admin_user_name'] = trim(((string)($user['firstname'] ?? '')) . ' ' . ((string)($user['lastname'] ?? '')));
                         $_SESSION['admin_user_type'] = $user['type'];
 
                         // Redirect based on user type
