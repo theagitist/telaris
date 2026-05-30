@@ -92,6 +92,55 @@ function federation_unmirror_drop(int $peerId, string $remoteSlug, string $reaso
 }
 
 /**
+ * Drop a mirror identified by its LOCAL constellation id (not by a
+ * (peer, remote_slug) subscription lookup), blob-safe.
+ *
+ * The post-restore reconciliation (federation_reconcile_after_restore) needs
+ * this: a wipe_all restore mints fresh constellation ids, so the surviving
+ * galaxy_subscriptions rows point at stale ids and cannot be the lookup key for
+ * federation_unmirror_drop. Here the caller already knows the exact restored
+ * constellation to remove (resolved from its import_source).
+ *
+ * Reuses _federation_unmirror_delete_constellation_keep_blobs so shared
+ * content-addressed blobs are preserved exactly as in federation_unmirror_drop,
+ * then removes any subscription row still pointing at this id. Idempotent: a
+ * missing constellation is a no-op success.
+ *
+ * @return array{ok:bool, error?:string}
+ */
+function federation_unmirror_drop_constellation(int $constellationId, string $reason): array {
+    if ($constellationId <= 0) {
+        return ['ok' => true];
+    }
+    db_ensure_galaxy_subscriptions_table();
+    // Same DDL pre-fire as federation_unmirror_drop: the delete path calls
+    // db_get_referencing_portals -> db_ensure_nodes_node_type_index (CREATE
+    // INDEX), which implicit-commits a transaction in MySQL. Fire it first so
+    // the transaction below stays intact.
+    db_ensure_nodes_node_type_index();
+    $pdo = getDB();
+
+    $exists = $pdo->prepare("SELECT 1 FROM constellations WHERE id = :c LIMIT 1");
+    $exists->execute([':c' => $constellationId]);
+    if (!$exists->fetchColumn()) {
+        return ['ok' => true];
+    }
+
+    $pdo->beginTransaction();
+    try {
+        _federation_unmirror_delete_constellation_keep_blobs($constellationId);
+        $pdo->prepare("DELETE FROM galaxy_subscriptions WHERE local_constellation_id = :c")
+            ->execute([':c' => $constellationId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('federation_unmirror_drop_constellation: ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'drop_failed'];
+    }
+    return ['ok' => true];
+}
+
+/**
  * Stage 6a: tear down every mirror from one peer in a single sweep, the
  * uniform-drop primitive the governance-untrust channels share (Pluriverse
  * blacklist enforcement 6b, key-event revocation 6c, operator local blacklist

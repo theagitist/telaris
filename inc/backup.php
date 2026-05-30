@@ -15,6 +15,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/federation/restore_reconcile.php';
 
 const BACKUP_FORMAT = 'telaris-backup';
 const BACKUP_FORMAT_VERSION = 1;
@@ -707,6 +708,18 @@ function backup_restore_from_file(string $path, array $opts): array {
     // 6. Update default galaxy pointer for snapshot restores
     if ($mode === 'wipe_all' && $report['default_galaxy_id'] !== null) {
         db_set_default_constellation_id((int)$report['default_galaxy_id']);
+    }
+
+    // 7. Federation reconciliation (q22). Snapshots carry mirrored galaxies but
+    // not their read_only / mirrored_from_peer_id linkage, and never the
+    // instance-local governance tables (which survive the wipe). Without this,
+    // a restore would resurrect retracted/withdrawn/banned community content
+    // and strand surviving mirrors as plain editable galaxies. Runs only after
+    // a wipe_all (where every constellation is freshly restored) and outside
+    // any transaction (the per-galaxy loop above committed its own). Drops
+    // first, then relinks survivors.
+    if ($mode === 'wipe_all') {
+        $report['federation_reconcile'] = federation_reconcile_after_restore();
     }
 
     return $report;
