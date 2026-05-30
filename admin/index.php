@@ -1431,6 +1431,7 @@ foreach ($importantExtensions as $ext => $name) {
                                         <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pluriverse_peers_col_fingerprint', 'Fingerprint') ?></th>
                                         <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pluriverse_peers_col_trust_state', 'Trust state') ?></th>
                                         <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_pluriverse_peers_col_last_seen', 'Last seen') ?></th>
+                                        <th class="px-3 py-2 font-medium text-gray-700"><?= t_attr('admin_peer_block_col_actions', 'Actions') ?></th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100">
@@ -1448,12 +1449,61 @@ foreach ($importantExtensions as $ext => $name) {
                                                 <?php endif; ?>
                                             </td>
                                             <td class="px-3 py-2 font-mono text-xs text-gray-700"><?= htmlspecialchars($peer['fingerprint']) ?></td>
-                                            <td class="px-3 py-2 text-xs text-gray-600"><?= htmlspecialchars($peer['trust_state']) ?></td>
-                                            <td class="px-3 py-2 text-xs text-gray-600"><?= htmlspecialchars($peer['last_seen_at'] ?? '—') ?></td>
+                                            <td class="px-3 py-2 text-xs text-gray-600">
+                                                <?php if ($peer['trust_state'] === 'blocked'): ?>
+                                                    <span class="inline-block px-2 py-0.5 text-xs rounded bg-red-50 text-red-700 border border-red-200"><?= t_attr('admin_peer_block_blocked_label', 'Blocked') ?></span>
+                                                <?php else: ?>
+                                                    <?= htmlspecialchars($peer['trust_state']) ?>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="px-3 py-2 text-xs text-gray-600"><?= htmlspecialchars($peer['last_seen_at'] ?? '(never)') ?></td>
+                                            <td class="px-3 py-2 text-xs text-gray-600">
+                                                <?php if ($peer['trust_state'] === 'blocked'): ?>
+                                                    <?php if (($peer['local_blacklisted_reason'] ?? '') !== ''): ?>
+                                                        <div class="text-gray-500 mb-1"><?= t_attr('admin_peer_block_reason_shown', 'Reason:') ?> <span class="font-mono"><?= htmlspecialchars((string)$peer['local_blacklisted_reason']) ?></span></div>
+                                                    <?php endif; ?>
+                                                    <form method="POST" action="peer-block.php" class="inline">
+                                                        <?= $csrfField ?>
+                                                        <input type="hidden" name="action" value="unblock">
+                                                        <input type="hidden" name="peer_id" value="<?= (int)$peer['id'] ?>">
+                                                        <button type="submit" class="px-2 py-1 text-xs rounded border border-gray-300 text-gray-700 hover:bg-gray-50"><?= t_attr('admin_peer_block_unblock_btn', 'Unblock') ?></button>
+                                                        <span class="block text-gray-400 mt-1"><?= t_attr('admin_peer_block_unblock_help', 'Returns the peer to discovered. Mirrors are not restored.') ?></span>
+                                                    </form>
+                                                <?php else: ?>
+                                                    <details class="text-xs">
+                                                        <summary class="cursor-pointer text-red-700 hover:underline"><?= t_attr('admin_peer_block_btn', 'Block this peer') ?></summary>
+                                                        <form method="POST" action="peer-block.php" class="mt-2 space-y-2 max-w-sm border border-red-200 rounded p-3 bg-red-50">
+                                                            <?= $csrfField ?>
+                                                            <input type="hidden" name="action" value="block">
+                                                            <input type="hidden" name="peer_id" value="<?= (int)$peer['id'] ?>">
+                                                            <p class="text-gray-700"><?= t_attr('admin_peer_block_warn', 'Blocking drops every galaxy you mirror from this peer and stops offering yours to it. The content is removed, not paused; you cannot auto-restore it later, only re-subscribe deliberately. Re-enter your password to confirm.') ?></p>
+                                                            <label class="block">
+                                                                <span class="block font-medium text-gray-800 mb-1"><?= t_attr('admin_peer_block_field_category', 'Category') ?></span>
+                                                                <select name="category" class="w-full border border-gray-300 rounded px-2 py-1">
+                                                                    <option value="spam"><?= t_attr('admin_peer_block_cat_spam', 'Spam or abuse') ?></option>
+                                                                    <option value="harmful"><?= t_attr('admin_peer_block_cat_harmful', 'Harmful content') ?></option>
+                                                                    <option value="legal"><?= t_attr('admin_peer_block_cat_legal', 'Legal or takedown') ?></option>
+                                                                    <option value="consent"><?= t_attr('admin_peer_block_cat_consent', 'Consent withdrawn') ?></option>
+                                                                    <option value="other"><?= t_attr('admin_peer_block_cat_other', 'Other') ?></option>
+                                                                </select>
+                                                            </label>
+                                                            <label class="block">
+                                                                <span class="block font-medium text-gray-800 mb-1"><?= t_attr('admin_peer_block_field_reason', 'Reason') ?></span>
+                                                                <input type="text" name="reason" maxlength="1024" required placeholder="<?= t_attr('admin_peer_block_reason_ph', 'Why you are blocking this peer (recorded locally)') ?>" class="w-full border border-gray-300 rounded px-2 py-1">
+                                                            </label>
+                                                            <label class="block">
+                                                                <span class="block font-medium text-gray-800 mb-1"><?= t_attr('admin_peer_block_field_password', 'Re-enter your password') ?></span>
+                                                                <input type="password" name="password" required autocomplete="current-password" class="w-full border border-gray-300 rounded px-2 py-1">
+                                                            </label>
+                                                            <button type="submit" class="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700"><?= t_attr('admin_peer_block_confirm_btn', 'Confirm block') ?></button>
+                                                        </form>
+                                                    </details>
+                                                <?php endif; ?>
+                                            </td>
                                         </tr>
                                         <?php if ($peer['source'] === 'manual' && ($peer['manual_added_by'] !== null || $peer['manual_added_at'] !== null)): ?>
                                             <tr class="bg-amber-50">
-                                                <td colspan="6" class="px-3 py-1 text-xs text-amber-800">
+                                                <td colspan="7" class="px-3 py-1 text-xs text-amber-800">
                                                     <?= htmlspecialchars(sprintf(
                                                         t('admin_pluriverse_peers_manual_banner', 'Manual peer added by %s on %s; verify intended.'),
                                                         $peer['manual_added_by'] ?? '?',
