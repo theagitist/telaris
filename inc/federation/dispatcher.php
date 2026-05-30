@@ -30,6 +30,7 @@ require_once __DIR__ . '/http_sig.php';
 require_once __DIR__ . '/sig_verify.php';
 
 const FEDERATION_DISPATCH_RELAY_URL = 'https://www.telaris.ca/api/pluriverse/relay';
+const FEDERATION_DISPATCH_BLACKLIST_NOTICE_URL = 'https://www.telaris.ca/api/pluriverse/peer-blacklist-notice';
 const FEDERATION_DISPATCH_BATCH_SIZE = 50;
 const FEDERATION_DISPATCH_MAX_ATTEMPTS = 7;
 const FEDERATION_DISPATCH_HTTP_TIMEOUT = 15;
@@ -173,6 +174,14 @@ function federation_dispatcher_classify_delivery(array $row): ?array {
         $body['thread_id'] = $inner['thread_id'] ?? (string)$row['thread_id'];
         $bodyJson = json_encode($body, JSON_UNESCAPED_SLASHES);
         return ['https://' . $peerHost . '/api/pluriverse/handshake', 'tel-handshake', (string)$bodyJson];
+    }
+
+    if ($messageType === 'peer_blacklist_notice') {
+        // 6e: advisory notice to the Pluriverse coord. The body is plain JSON
+        // signed only at the HTTP layer with tel-bl-notice; jws_envelope holds
+        // that JSON body (not a JWS). The reporter is asserted by the keyid the
+        // dispatcher signs with, never the body.
+        return [FEDERATION_DISPATCH_BLACKLIST_NOTICE_URL, 'tel-bl-notice', $envelope];
     }
 
     // Default: freeform / typed message direct to peer /messages. Body is the

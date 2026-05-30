@@ -29,6 +29,7 @@ requireAdminLogin();
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../inc/federation/peer_block.php';
+require_once __DIR__ . '/../inc/federation/peer_blacklist_notice.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     header('Location: index.php?tab=pluriverse');
@@ -108,6 +109,11 @@ if (!$res['ok']) {
     header('Location: index.php?tab=pluriverse');
     exit;
 }
+
+// 6e: advisory peer-blacklist-notice to the Pluriverse for admin review. Rides
+// the dispatcher queue; best-effort, so a failure here never affects the block
+// the operator just made.
+federation_send_peer_blacklist_notice($peerId, $reason, $category);
 
 $_SESSION['pluriverse_apply_message'] = sprintf(
     t('admin_peer_block_ok', 'Peer blocked. %d mirror(s) dropped and any publish offer to it cleared.'),
