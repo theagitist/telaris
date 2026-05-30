@@ -21,6 +21,7 @@ requireAdminLogin();
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../inc/federation/pluriverse_pull.php';
+require_once __DIR__ . '/../inc/federation/blacklist_enforce.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     header('Location: index.php?tab=pluriverse');
@@ -39,6 +40,14 @@ $results = [
     'key-events' => pluriverse_pull_key_events(),
 ];
 
+// 6b: enforce the blacklist whenever the pull actually changed the table
+// (a 304 leaves the prior enforcement in force). Mirrors the CLI puller.
+$blocked = 0;
+if ($results['blacklist']['ok'] && !$results['blacklist']['not_modified']) {
+    $enf = federation_enforce_pluriverse_blacklist();
+    $blocked = count($enf['enforced']);
+}
+
 $summaryParts = [];
 $anyFail = false;
 foreach ($results as $name => $r) {
@@ -53,6 +62,10 @@ foreach ($results as $name => $r) {
             $name, $r['rows_processed'], $r['rows_inserted']
         );
     }
+}
+
+if ($blocked > 0) {
+    $summaryParts[] = $blocked . ' ' . t('admin_pluriverse_enforce_blocked', 'peer(s) blocked and their mirrors dropped:');
 }
 
 if ($anyFail) {

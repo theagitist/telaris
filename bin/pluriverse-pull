@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * bin/pluriverse-pull — pull peers / blacklist / key-events from the Pluriverse.
+ * bin/pluriverse-pull: pull peers / blacklist / key-events from the Pluriverse.
  *
  * Idempotent: each invocation honours conditional GET (If-None-Match /
  * If-Modified-Since) and short-circuits on 304. Safe to run from cron.
@@ -35,6 +35,7 @@ if (PHP_SAPI !== 'cli') {
 
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/inc/federation/pluriverse_pull.php';
+require_once dirname(__DIR__) . '/inc/federation/blacklist_enforce.php';
 
 $opts = getopt('', ['endpoint:', 'status', 'help']);
 if (isset($opts['help'])) {
@@ -104,5 +105,23 @@ foreach ($targets as $t) {
         echo "    error: " . $result['error'] . "\n";
     }
     if (!$result['ok']) $exit = 1;
+
+    // 6b: after a blacklist pull that actually changed the table, enforce it.
+    // A 304 means nothing changed, so the previous enforcement still holds.
+    if ($t === 'blacklist' && $result['ok'] && !$result['not_modified']) {
+        $enf = federation_enforce_pluriverse_blacklist();
+        echo sprintf(
+            "    enforcement: %d peer(s) checked, %d newly blocked\n",
+            $enf['peers_checked'], count($enf['enforced'])
+        );
+        foreach ($enf['enforced'] as $en) {
+            echo sprintf(
+                "      blocked %s: dropped %d mirror(s), cleared %d publish entr%s\n",
+                $en['hostname'], count($en['dropped']),
+                $en['publish_entries_cleared'],
+                $en['publish_entries_cleared'] === 1 ? 'y' : 'ies'
+            );
+        }
+    }
 }
 exit($exit);
