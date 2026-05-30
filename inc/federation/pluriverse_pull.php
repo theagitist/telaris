@@ -302,9 +302,14 @@ function pluriverse_pull_peers(): array {
             // initiator, `complete` or `accepted_awaiting_complete` for a
             // responder), promote the new row back to whitelisted instead of
             // silently regressing. The handshake row is the durable record of
-            // that agreement; it survives a peer-row delete because there is
-            // no FK CASCADE from peers->handshakes. Same goes for keys held
-            // in peer_keys — they're indexed by api_key_hash, not by host.
+            // that agreement; it survives a peer-row delete because its FK is
+            // ON DELETE SET NULL (peer_id is nulled, the row stays). The peer's
+            // signing keys do NOT survive: peer_keys is ON DELETE CASCADE, so
+            // a wipe drops them and inbound request auth (which gates on
+            // peer_keys, not on trust_state) stays closed until a fresh
+            // handshake re-mints them. So whitelisted here restores the
+            // operator-facing label and the admin-UI precondition, not live
+            // signing authority; that is intentional and safe.
             $hsStmt = $pdo->prepare("
                 SELECT id FROM handshakes
                 WHERE remote_hostname = :h

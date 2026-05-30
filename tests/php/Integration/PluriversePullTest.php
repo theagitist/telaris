@@ -215,7 +215,7 @@ final class PluriversePullTest extends TestCase
             $this->assertGreaterThan(0, $logCnt, 'restoration should be audited');
         } finally {
             // Always remove the synthetic handshake so the test doesn't leave
-            // detritus. The peer row stays — it will be the legitimate row
+            // detritus. The peer row stays; it will be the legitimate row
             // for the live sibling instance.
             $pdo->prepare("DELETE FROM handshakes WHERE id = :i")
                 ->execute([':i' => $seededHandshakeId]);
