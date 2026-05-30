@@ -88,6 +88,7 @@ declare(strict_types=1);
  *   403.006 — only the author or admin can edit             (api/keyword-canvas.php)
  *   403.007 — only the author or admin can delete           (api/keyword-canvas.php)
  *   403.008 — user existence check is admin-only            (api/validate.php)
+ *   403.009 : galaxy is read-only (imported or mirrored)    (api/nodes.php, api/keywords.php, api/keyword-canvas.php)
  *
  *   404.001 — node not found                                (api/nodes.php)
  *   404.002 — galaxy not found                              (api/constellations.php, api/nodes.php)
@@ -187,4 +188,21 @@ function api_error(string $code, string $fallback, array $args = [], array $extr
 
     echo json_encode($envelope, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;
+}
+
+/**
+ * API-boundary read-only guard. Call AFTER the editor/admin access check on any
+ * mutation path that targets a constellation (or a node/keyword within one):
+ * if the constellation is a bridge import or a federation mirror, emit 403.009
+ * and exit. This is the server-side counterpart to the editor UI hiding the
+ * controls; direct API calls bypass the UI, so the gate must live here too.
+ *
+ * The localized title comes from the t() system (no English fallback at render
+ * per the decolonial-identifier rule); when the locale row is missing api_error
+ * surfaces the code 403.009 itself.
+ */
+function api_require_writable_constellation(int $constellationId): void {
+    if (db_constellation_is_readonly($constellationId)) {
+        api_error('403.009', 'This galaxy is read-only: it is imported or mirrored from another instance and cannot be edited here.');
+    }
 }

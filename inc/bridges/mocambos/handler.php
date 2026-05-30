@@ -1071,7 +1071,9 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
             }
 
             if ($needsUpdate) {
-                db_update_node($nodeId, $nodeName, $nodeDesc ?: null, $nodeUrl, $animation, $constellationId, 'object', null, $imageUrl, null, $audioUrl, true, false, $videoUrl, true, false, false, $iconUrl);
+                // The Mocambos galaxy carries import_source (read-only to
+                // editors); this importer is the legitimate upstream writer.
+                db_update_node($nodeId, $nodeName, $nodeDesc ?: null, $nodeUrl, $animation, $constellationId, 'object', null, $imageUrl, null, $audioUrl, true, false, $videoUrl, true, false, false, $iconUrl, allowReadOnly: true);
                 $mediaCount++;
             }
         }

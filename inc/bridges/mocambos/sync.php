@@ -162,9 +162,11 @@ function mocambos_apply_modifications(array $modifications, int $constellationId
             ':source_created_at' => $api['source_created_at'] ?: null,
         ]);
 
-        // Update keywords if changed
+        // Update keywords if changed. The Mocambos galaxy carries import_source,
+        // so it is read-only to editors; this sync is the legitimate upstream
+        // writer and bypasses the guard.
         if (in_array('tags', $mod['changes'], true)) {
-            db_save_node_keywords($nodeId, $api['tags']);
+            db_save_node_keywords($nodeId, $api['tags'], allowReadOnly: true);
         }
     }
 }
@@ -180,7 +182,7 @@ function mocambos_apply_deletions(array $deletions, int $constellationId, PDO $p
     // pattern as api/nodes.php bulk-by-keyword delete. Pre-fix this was a
     // per-row N+1 fan-out on every Mocambos re-sync.
     $nodeIds = array_map(fn($d) => (int)$d['node_id'], $deletions);
-    db_bulk_delete_nodes_by_ids($nodeIds);
+    db_bulk_delete_nodes_by_ids($nodeIds, true); // upstream-driven prune of the read-only import
     // Clean up orphan keywords
     $pdo->prepare("
         DELETE k FROM keywords k

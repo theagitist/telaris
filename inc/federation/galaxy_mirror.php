@@ -342,7 +342,9 @@ function federation_mirror_materialize(
                 if (is_string($kw) && trim($kw) !== '') $keywords[] = trim($kw);
             }
             if ($keywords !== []) {
-                db_save_node_keywords($nodeId, $keywords);
+                // The mirror constellation is read_only; this materializer is
+                // the legitimate writer populating it from the signed envelope.
+                db_save_node_keywords($nodeId, $keywords, allowReadOnly: true);
             }
         }
 

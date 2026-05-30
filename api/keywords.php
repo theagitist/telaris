@@ -87,6 +87,7 @@ try {
                 error_log('keywords.php access (create): ' . $accessError);
                 api_error('403.005', 'Access denied.');
             }
+            api_require_writable_constellation($constellationId);
             $createdBy = $_SESSION['admin_user_id'] ?? null;
             $keywordId = db_create_keyword($keyword, $constellationId, $createdBy);
             echo json_encode(['id' => $keywordId, 'keyword' => $keyword, 'success' => true], JSON_THROW_ON_ERROR);
@@ -114,6 +115,7 @@ try {
                 error_log('keywords.php access (delete): ' . $accessError);
                 api_error('403.005', 'Access denied.');
             }
+            api_require_writable_constellation($actualConstellationId);
             db_delete_keyword((int)$id);
             echo json_encode(['success' => true], JSON_THROW_ON_ERROR);
         })(),

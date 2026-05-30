@@ -300,6 +300,7 @@ try {
                     return;
                 }
                 if ($op === 'delete') {
+                    api_require_writable_constellation($constellationId);
                     // Single bulk DELETE + one SELECT for the asset paths.
                     // Pre-fix this was a foreach of db_delete_node = 2 queries
                     // per node, which N+1'd at scale.
@@ -327,6 +328,10 @@ try {
                         return;
                     }
                 }
+                // A move mutates both ends: nodes leave the source galaxy and
+                // land in the target. Neither may be imported or mirrored.
+                api_require_writable_constellation($constellationId);
+                api_require_writable_constellation($target);
                 $moved = db_bulk_move_nodes_by_keyword($constellationId, $keywordId, $target);
                 echo json_encode(['success' => true, 'op' => 'move', 'affected' => $moved], JSON_THROW_ON_ERROR);
                 return;
@@ -349,6 +354,7 @@ try {
                         return;
                     }
                 }
+                api_require_writable_constellation($constellationId);
                 $value = !empty($data['value']);
                 $affected = db_bulk_set_nodes_use_image_as_node($constellationId, $value);
                 echo json_encode(['success' => true, 'updated' => $affected, 'value' => $value], JSON_THROW_ON_ERROR);
@@ -390,6 +396,10 @@ try {
                         return;
                     }
                 }
+                // The duplicate lands in the target galaxy (or the source's own
+                // galaxy when no target is given); that destination must be
+                // writable.
+                api_require_writable_constellation($targetConstellationId ?? $sourceConstellationId);
                 try {
                     $newId = db_duplicate_node($sourceId, $targetConstellationId);
                     echo json_encode(['id' => $newId, 'success' => true, 'duplicated_from' => $sourceId], JSON_THROW_ON_ERROR);
@@ -454,6 +464,8 @@ try {
                 error_log('nodes.php access: ' . $accessError);
                 api_error('403.005', 'Access denied.');
             }
+            // Imported / mirrored galaxies are owned upstream: no new content.
+            api_require_writable_constellation($constellationId);
 
             $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
             if ($targetConstellationId !== null) {
@@ -720,6 +732,8 @@ try {
                 api_error('403.005', 'Access denied.');
                 return;
             }
+            // A node living in an imported / mirrored galaxy cannot be edited.
+            api_require_writable_constellation($currentConstellationId);
 
             // If the body requests a move into a different galaxy, seat-check the target.
             if ($bodyConstellationId !== null && $bodyConstellationId !== $currentConstellationId) {
@@ -735,6 +749,8 @@ try {
                     api_error('403.005', 'Access denied.');
                     return;
                 }
+                // ...and cannot be moved into an imported / mirrored galaxy.
+                api_require_writable_constellation($bodyConstellationId);
             }
 
             $targetConstellationId = parseTargetConstellationId($data['target_constellation_id'] ?? null);
@@ -991,6 +1007,13 @@ try {
                         }
                     }
                 }
+            }
+
+            // Read-only guard for all roles (the seat check above is editor-only;
+            // admins skip it but still must not delete mirrored/imported content).
+            $delConstellationId = db_get_node_constellation_id((int)$id);
+            if ($delConstellationId !== null) {
+                api_require_writable_constellation($delConstellationId);
             }
 
             if ($fileType && in_array($fileType, ['image', 'audio', 'video', 'icon'])) {

@@ -149,6 +149,7 @@ switch ($action) {
         if ($galaxyId === null) api_error('404.003', 'Keyword not found.');
         if (!kc_can_edit_galaxy($galaxyId)) api_error('403.004', 'No edit access to this galaxy.');
 
+        api_require_writable_constellation($galaxyId);
         db_record_keyword_position($keywordId, $x, $y, $userId);
         echo json_encode(['ok' => true, 'keyword_id' => $keywordId], JSON_THROW_ON_ERROR);
         exit();
@@ -168,6 +169,7 @@ switch ($action) {
         if ($galaxyA === null || $galaxyB === null) api_error('404.003', 'Keyword not found.');
         if ($galaxyA !== $galaxyB) api_error('400.019', 'Both keywords must belong to the same galaxy.');
         if (!kc_can_edit_galaxy($galaxyA)) api_error('403.004', 'No edit access to this galaxy.');
+        api_require_writable_constellation($galaxyA);
 
         try {
             $id = db_create_keyword_relation($a, $b, $userId, $note, $anchorA, $anchorB);
@@ -208,6 +210,7 @@ switch ($action) {
         if (!kc_is_admin() && (string)$rel['created_by'] !== (string)$userId) {
             api_error('403.006', 'Only the author or an admin can edit this relation.');
         }
+        api_require_writable_constellation($galaxyId);
         db_update_keyword_relation($relationId, $note);
         echo json_encode(['ok' => true, 'id' => $relationId, 'note' => $note], JSON_THROW_ON_ERROR);
         exit();
@@ -226,6 +229,7 @@ switch ($action) {
         if (!kc_is_admin() && (string)$rel['created_by'] !== (string)$userId) {
             api_error('403.007', 'Only the author or an admin can delete this relation.');
         }
+        api_require_writable_constellation($galaxyId);
         db_delete_keyword_relation($relationId);
         echo json_encode(['ok' => true, 'id' => $relationId], JSON_THROW_ON_ERROR);
         exit();
@@ -238,6 +242,7 @@ switch ($action) {
         if ($galaxyId === null) api_error('404.003', 'Keyword not found.');
         if (!kc_can_edit_galaxy($galaxyId)) api_error('403.004', 'No edit access to this galaxy.');
 
+        api_require_writable_constellation($galaxyId);
         db_reset_keyword_position($keywordId, $userId);
         echo json_encode(['ok' => true, 'keyword_id' => $keywordId], JSON_THROW_ON_ERROR);
         exit();
@@ -248,6 +253,7 @@ switch ($action) {
         if ($galaxyId <= 0) api_error('400.023', 'reset_galaxy requires galaxy_id.');
         if (!kc_can_edit_galaxy($galaxyId)) api_error('403.004', 'No edit access to this galaxy.');
 
+        api_require_writable_constellation($galaxyId);
         $count = db_reset_galaxy_positions($galaxyId, $userId);
         echo json_encode(['ok' => true, 'reset_count' => $count], JSON_THROW_ON_ERROR);
         exit();
@@ -263,6 +269,7 @@ switch ($action) {
         if ($galaxyId === null) api_error('404.003', 'Keyword not found.');
         if (!kc_can_edit_galaxy($galaxyId)) api_error('403.004', 'No edit access to this galaxy.');
 
+        api_require_writable_constellation($galaxyId);
         db_delete_keyword($keywordId);
         echo json_encode(['ok' => true, 'keyword_id' => $keywordId], JSON_THROW_ON_ERROR);
         exit();
@@ -279,6 +286,7 @@ switch ($action) {
         if ($galaxyId === null) api_error('404.003', 'Keyword not found.');
         if (!kc_can_edit_galaxy($galaxyId)) api_error('403.004', 'No edit access to this galaxy.');
 
+        api_require_writable_constellation($galaxyId);
         $existingId = db_find_keyword_in_galaxy($newName, $galaxyId);
         if ($existingId !== null && $existingId !== $keywordId) {
             // 409 + the existing id so the client can offer merge.
@@ -317,6 +325,7 @@ switch ($action) {
         if ($sourceGalaxy !== $targetGalaxy) api_error('400.019', 'Both keywords must belong to the same galaxy.');
         if (!kc_can_edit_galaxy($sourceGalaxy)) api_error('403.004', 'No edit access to this galaxy.');
 
+        api_require_writable_constellation($sourceGalaxy);
         db_merge_keywords($sourceId, $targetId);
         echo json_encode([
             'ok' => true,

@@ -434,6 +434,7 @@ const PROJECT_INFO_KEYS = [
     'api_error_401_001', 'api_error_401_002',
     'api_error_403_001', 'api_error_403_002', 'api_error_403_003', 'api_error_403_004',
     'api_error_403_005', 'api_error_403_006', 'api_error_403_007', 'api_error_403_008',
+    'api_error_403_009',
     'api_error_404_001', 'api_error_404_002', 'api_error_404_003', 'api_error_404_004',
     'api_error_404_005', 'api_error_404_006', 'api_error_404_007', 'api_error_404_008',
     'api_error_404_009', 'api_error_404_010', 'api_error_404_011', 'api_error_404_012',
@@ -1979,6 +1980,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_006' => 'Only the author or an admin can edit this relation.',
             'api_error_403_007' => 'Only the author or an admin can delete this relation.',
             'api_error_403_008' => 'User existence checks are restricted to administrative sessions.',
+            'api_error_403_009' => 'This galaxy is read-only: it is imported or mirrored from another instance and cannot be edited here.',
 
             'api_error_404_001' => 'Node not found.',
             'api_error_404_002' => 'Galaxy not found.',
@@ -3385,6 +3387,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_006' => 'Solo quien creó la relación o una cuenta de administración pueden editarla.',
             'api_error_403_007' => 'Solo quien creó la relación o una cuenta de administración pueden eliminarla.',
             'api_error_403_008' => 'La verificación de la existencia de una cuenta se restringe a sesiones de administración.',
+            'api_error_403_009' => 'Esta galaxia es de solo lectura: se importó o se refleja desde otra instancia y no se puede editar aquí.',
 
             'api_error_404_001' => 'Nodo no encontrado.',
             'api_error_404_002' => 'Galaxia no encontrada.',
@@ -4787,6 +4790,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_006' => 'Apenas quem criou a relação ou uma conta de administração pode editá-la.',
             'api_error_403_007' => 'Apenas quem criou a relação ou uma conta de administração pode apagá-la.',
             'api_error_403_008' => 'A verificação de existência de conta é restrita a sessões de administração.',
+            'api_error_403_009' => 'Esta galáxia é somente leitura: foi importada ou espelhada de outra instância e não pode ser editada aqui.',
 
             'api_error_404_001' => 'Nó não encontrado.',
             'api_error_404_002' => 'Galáxia não encontrada.',
@@ -6189,6 +6193,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_006' => 'Seul le compte ayant créé la relation ou un compte d\'administration peut la modifier.',
             'api_error_403_007' => 'Seul le compte ayant créé la relation ou un compte d\'administration peut la supprimer.',
             'api_error_403_008' => 'La vérification d\'existence de compte est réservée aux sessions d\'administration.',
+            'api_error_403_009' => 'Cette galaxie est en lecture seule : elle est importée ou en miroir depuis une autre instance et ne peut pas être modifiée ici.',
 
             'api_error_404_001' => 'Nœud introuvable.',
             'api_error_404_002' => 'Galaxie introuvable.',
@@ -10011,7 +10016,10 @@ function db_delete_constellation(int $id): void {
         // N+1 on every galaxy delete that had referencing portals.
         $referencing = db_get_referencing_portals($id);
         if ($referencing !== []) {
-            db_bulk_delete_nodes_by_ids(array_map(fn($r) => (int)$r['id'], $referencing));
+            // Structural delete: a referencing portal may live in a read-only
+            // galaxy (a mirror that links into this one). Tearing it down with
+            // the galaxy is legitimate, not an editorial mutation, so bypass.
+            db_bulk_delete_nodes_by_ids(array_map(fn($r) => (int)$r['id'], $referencing), true);
         }
 
         // 2. Delete nodes in this constellation in a single batch (reads asset paths,
@@ -10513,7 +10521,7 @@ function db_format_node(array $node): array {
     ];
 }
 
-function db_save_node_keywords(int $nodeId, array $keywords, ?string $createdBy = null): void {
+function db_save_node_keywords(int $nodeId, array $keywords, ?string $createdBy = null, bool $allowReadOnly = false): void {
     db_ensure_keywords_created_by_column();
     db_ensure_node_keywords_created_by_column();
     $pdo = getDB();
@@ -10521,6 +10529,7 @@ function db_save_node_keywords(int $nodeId, array $keywords, ?string $createdBy 
     $nodeStmt->execute([':id' => $nodeId]);
     $nodeRow = $nodeStmt->fetch();
     $constellationId = $nodeRow ? (int)$nodeRow['constellation_id'] : db_get_default_constellation_id();
+    db_assert_constellation_writable($constellationId, $allowReadOnly);
     $pdo->prepare("DELETE FROM node_keywords WHERE node_id = :node_id")->execute([':node_id' => $nodeId]);
     if ($keywords === []) {
         return;
@@ -10690,10 +10699,22 @@ function db_create_node(string $name, ?string $description, ?string $url, string
     return (int)$pdo->lastInsertId();
 }
 
-function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false, ?string $videoUrl = null, bool $videoAutoplay = true, bool $audioLoop = false, bool $showKeywords = false, ?string $iconUrl = null, ?string $imageAttribution = null, bool $useImageAsNode = false, ?string $pdfUrl = null): void {
+function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false, ?string $videoUrl = null, bool $videoAutoplay = true, bool $audioLoop = false, bool $showKeywords = false, ?string $iconUrl = null, ?string $imageAttribution = null, bool $useImageAsNode = false, ?string $pdfUrl = null, bool $allowReadOnly = false): void {
     db_ensure_nodes_image_attribution_column();
     db_ensure_nodes_use_image_as_node_column();
     db_ensure_nodes_pdf_url_column();
+    // Read-only guard: refuse to mutate a node that lives in a non-writable
+    // galaxy, and refuse to move one into a non-writable galaxy. Internal
+    // writers (Mocambos re-sync) pass allowReadOnly: true.
+    if (!$allowReadOnly) {
+        $currentConstellationId = db_get_node_constellation_id($id);
+        if ($currentConstellationId !== null) {
+            db_assert_constellation_writable($currentConstellationId, false);
+        }
+        if ($constellationId !== null) {
+            db_assert_constellation_writable($constellationId, false);
+        }
+    }
     $pdo = getDB();
     if ($constellationId !== null) {
         $stmt = $pdo->prepare("
@@ -10775,6 +10796,9 @@ function db_get_node_ids_with_keyword(int $constellationId, int $keywordId): arr
  * That mirrors the existing per-node bulkMove behavior in the editor.
  */
 function db_bulk_move_nodes_by_keyword(int $constellationId, int $keywordId, int $targetConstellationId): int {
+    // Both ends mutate: nodes leave the source galaxy and land in the target.
+    db_assert_constellation_writable($constellationId, false);
+    db_assert_constellation_writable($targetConstellationId, false);
     $pdo = getDB();
     $stmt = $pdo->prepare("
         UPDATE nodes n
@@ -10791,6 +10815,7 @@ function db_bulk_move_nodes_by_keyword(int $constellationId, int $keywordId, int
  * Returns the number of rows affected.
  */
 function db_bulk_set_nodes_use_image_as_node(int $constellationId, bool $value): int {
+    db_assert_constellation_writable($constellationId, false);
     db_ensure_nodes_use_image_as_node_column();
     $pdo = getDB();
     $stmt = $pdo->prepare("UPDATE nodes SET use_image_as_node = :v WHERE constellation_id = :cid");
@@ -10811,11 +10836,32 @@ function db_delete_node(int $id): void {
  * Replaces the api/nodes.php bulk-by-keyword delete loop (one round trip per
  * node) with a constant number of round trips regardless of $ids count.
  */
-function db_bulk_delete_nodes_by_ids(array $ids): int {
+function db_bulk_delete_nodes_by_ids(array $ids, bool $allowReadOnly = false): int {
     $ids = array_values(array_unique(array_map('intval', array_filter($ids, fn($v) => (int)$v > 0))));
     if ($ids === []) return 0;
     $pdo = getDB();
     $place = implode(',', array_fill(0, count($ids), '?'));
+
+    // Read-only guard: refuse if ANY target node lives in a non-writable
+    // galaxy. Internal teardown writers (unmirror, structural galaxy delete,
+    // Mocambos sync) pass allowReadOnly: true.
+    if (!$allowReadOnly) {
+        db_ensure_constellations_import_source_column();
+        db_ensure_federation_attribution_columns();
+        $guard = $pdo->prepare("
+            SELECT 1 FROM nodes n
+            INNER JOIN constellations c ON c.id = n.constellation_id
+            WHERE n.id IN ($place)
+              AND ((c.import_source IS NOT NULL AND c.import_source <> '')
+                   OR c.read_only = TRUE
+                   OR c.mirrored_from_peer_id IS NOT NULL)
+            LIMIT 1
+        ");
+        $guard->execute($ids);
+        if ($guard->fetchColumn()) {
+            throw new RuntimeException('constellation_read_only');
+        }
+    }
 
     // 1. Read every asset path in one SELECT.
     $stmt = $pdo->prepare("SELECT image_url, icon_url, audio_url, video_url, pdf_url FROM nodes WHERE id IN ($place)");
@@ -10960,6 +11006,55 @@ function db_get_node_constellation_id(int $nodeId): ?int {
     $stmt->execute([':id' => $nodeId]);
     $row = $stmt->fetch();
     return $row ? (int)$row['constellation_id'] : null;
+}
+
+/**
+ * True if a constellation is non-writable by editorial action: it is either a
+ * bridge import (import_source set) or a federation mirror (read_only TRUE or
+ * mirrored_from_peer_id set). Such a galaxy is owned upstream; local edits are
+ * illegitimate and get clobbered on the next Mocambos sync or galaxy pull, so
+ * the write APIs refuse them server-side (the editor UI already hides the
+ * controls, but those are bypassable via direct API calls). One query.
+ *
+ * Legitimate internal writers (federation materialization, Mocambos sync,
+ * unmirror, structural galaxy delete) populate or tear down these galaxies on
+ * purpose; they opt out of the helper-level guard via the $allowReadOnly
+ * parameter on the mutation helpers below. This predicate is the shared truth
+ * the API boundary and those helpers both consult.
+ */
+function db_constellation_is_readonly(int $constellationId): bool {
+    if ($constellationId <= 0) {
+        return false;
+    }
+    db_ensure_constellations_import_source_column();
+    db_ensure_federation_attribution_columns();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT 1 FROM constellations
+        WHERE id = :id
+          AND ((import_source IS NOT NULL AND import_source <> '')
+               OR read_only = TRUE
+               OR mirrored_from_peer_id IS NOT NULL)
+        LIMIT 1
+    ");
+    $stmt->execute([':id' => $constellationId]);
+    return (bool)$stmt->fetchColumn();
+}
+
+/**
+ * Belt-and-suspenders guard for the node/keyword mutation helpers: throw if the
+ * target constellation is read-only, unless the caller is a legitimate internal
+ * writer that passed $allowReadOnly = true. Throws RuntimeException (the same
+ * signal db_duplicate_node uses) so a future API caller that forgets the
+ * boundary guard fails loudly rather than silently clobbering mirrored content.
+ */
+function db_assert_constellation_writable(int $constellationId, bool $allowReadOnly): void {
+    if ($allowReadOnly) {
+        return;
+    }
+    if (db_constellation_is_readonly($constellationId)) {
+        throw new RuntimeException('constellation_read_only:' . $constellationId);
+    }
 }
 
 function db_get_keyword_constellation_id(int $id): ?int {

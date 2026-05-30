@@ -468,8 +468,9 @@ function _federation_unmirror_delete_constellation_keep_blobs(int $constellation
         // authored on another (NOT-mirror) constellation. Use the standard
         // by-ids helper which performs the file cleanup for those rows; it
         // never touches our content-addressed blob path because portals are
-        // not on the mirror constellation we are about to delete.
-        db_bulk_delete_nodes_by_ids($ids);
+        // not on the mirror constellation we are about to delete. This is the
+        // legitimate unmirror teardown, so it bypasses the read-only guard.
+        db_bulk_delete_nodes_by_ids($ids, true);
     }
     // 2. Drop nodes in THIS constellation without touching their asset files.
     //    Their file refs are either external URLs (we never own them) or
