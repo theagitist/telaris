@@ -48,6 +48,17 @@ function mail_is_configured(): bool {
  * @param string|null $toName Optional display name for the recipient.
  */
 function mail_send(string $to, string $subject, string $html, ?string $text = null, ?string $toName = null): bool {
+    // Dry-run short-circuit: when MAIL_DRY_RUN is defined and truthy (the test
+    // bootstrap sets it), no message leaves the host. The recipient is redacted
+    // to a SHA-256 tag and the subject logged so a test run is still traceable,
+    // and true is returned so callers that branch on send-success behave as if
+    // the message went out. Production never defines this constant, so live
+    // sends are unaffected.
+    if (defined('MAIL_DRY_RUN') && MAIL_DRY_RUN) {
+        error_log('mail_send: MAIL_DRY_RUN active; not sending to ' . mail_recipient_tag($to) . ' subject=' . $subject);
+        return true;
+    }
+
     if (!mail_is_configured()) {
         error_log('mail_send: MAIL_SMTP_* not configured; skipping send to ' . mail_recipient_tag($to));
         return false;

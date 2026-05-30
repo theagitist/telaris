@@ -6,9 +6,11 @@ use PHPUnit\Framework\TestCase;
 /**
  * Integration test: stage 6f operator drop-notification composer.
  *
- * mail_send is a no-op in the test environment (MAIL_SMTP_* unset), so the
- * public federation_notify_operator_mirror_dropped is exercised only for its
- * guard behaviour; the per-locale composition is tested directly through
+ * mail_send dry-runs in the test environment (the bootstrap defines
+ * MAIL_DRY_RUN, so no message leaves the host even though config.php populates
+ * the real MAIL_SMTP_* relay constants), so the public
+ * federation_notify_operator_mirror_dropped is exercised only for its guard
+ * behaviour; the per-locale composition is tested directly through
  * _federation_drop_render_locale (a real DB read against project_info).
  *
  * Spec: Stage 6 trust revocation design (6f).
