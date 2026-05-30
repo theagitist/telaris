@@ -20,7 +20,8 @@ declare(strict_types=1);
  *     keep peers.previous_public_key set to the prior value with the
  *     standard 30-day grace.
  *   - revocation: flip peers.trust_state = 'blocked', record
- *     local_blacklisted_reason = 'pluriverse-revoked'.
+ *     local_blacklisted_reason = 'pluriverse-revoked', then uniformly drop
+ *     every mirror from that peer (6c; see key_events_apply.php).
  *
  * Idempotent on replay: INSERT IGNORE into key_events keyed on
  * (origin_host, occurred_at, event_type) per v10 § Sequence-gap
@@ -34,6 +35,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/sig_verify.php';
 require_once __DIR__ . '/jws.php';
 require_once __DIR__ . '/coord_key.php';
+require_once __DIR__ . '/key_events_apply.php';
 
 $body = (string)file_get_contents('php://input');
 $request = [
@@ -186,63 +188,5 @@ function federation_key_events_insert(array $payload, string $envelope): void {
     ]);
 }
 
-/**
- * Apply the side-effects of a per-peer key event. Idempotent: re-applying
- * the same compromise event is safe (target columns end in the same state).
- */
-function federation_key_events_apply_peer_event(string $eventType, string $originHost, array $payload): array {
-    db_ensure_peers_table();
-    $pdo = getDB();
-
-    if ($eventType === 'compromise' || $eventType === 'revocation') {
-        $newPubB64 = (string)($payload['new_public_key'] ?? '');
-        $newPubBytes = $newPubB64 !== '' ? base64_decode($newPubB64, true) : false;
-
-        if ($eventType === 'compromise') {
-            if ($newPubBytes === false || strlen($newPubBytes) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
-                return ['ok' => false, 'reason' => 'missing_new_public_key'];
-            }
-            $stmt = $pdo->prepare("
-                UPDATE peers
-                SET public_key = :p,
-                    previous_public_key = NULL,
-                    key_rotated_at = NOW(),
-                    rotation_reason = 'compromise'
-                WHERE hostname = :h
-            ");
-            $stmt->execute([':p' => $newPubBytes, ':h' => $originHost]);
-            return ['ok' => true, 'updated_rows' => $stmt->rowCount()];
-        }
-
-        // revocation
-        $stmt = $pdo->prepare("
-            UPDATE peers
-            SET trust_state = 'blocked',
-                local_blacklisted_reason = COALESCE(local_blacklisted_reason, 'pluriverse-revoked')
-            WHERE hostname = :h
-        ");
-        $stmt->execute([':h' => $originHost]);
-        return ['ok' => true, 'updated_rows' => $stmt->rowCount()];
-    }
-
-    // scheduled_rotation / operational_rotation: 30-day grace.
-    $newPubB64 = (string)($payload['new_public_key'] ?? '');
-    $newPubBytes = base64_decode($newPubB64, true);
-    if ($newPubBytes === false || strlen($newPubBytes) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
-        return ['ok' => false, 'reason' => 'missing_new_public_key'];
-    }
-    $stmt = $pdo->prepare("
-        UPDATE peers
-        SET previous_public_key = public_key,
-            public_key = :p,
-            key_rotated_at = NOW(),
-            rotation_reason = :r
-        WHERE hostname = :h
-    ");
-    $stmt->execute([
-        ':p' => $newPubBytes,
-        ':r' => $eventType === 'scheduled_rotation' ? 'scheduled' : 'operational',
-        ':h' => $originHost,
-    ]);
-    return ['ok' => true, 'updated_rows' => $stmt->rowCount()];
-}
+// federation_key_events_apply_peer_event lives in key_events_apply.php (split
+// out so the apply logic is testable without invoking this HTTP handler).
