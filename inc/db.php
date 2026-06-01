@@ -12605,6 +12605,7 @@ function db_get_local_peers(): array {
  * @return list<array{id:int,name:string,slug:string}>
  */
 function db_get_authored_galaxies(): array {
+    db_ensure_federation_attribution_columns();
     $pdo = getDB();
     $rows = $pdo->query("
         SELECT id, name, slug
@@ -12633,6 +12634,7 @@ function db_get_authored_galaxies(): array {
  */
 function db_get_peer_publish_whitelist(int $peerId): array {
     db_ensure_galaxy_publish_whitelist_table();
+    db_ensure_federation_attribution_columns();
     $stmt = getDB()->prepare("
         SELECT w.constellation_id
         FROM galaxy_publish_whitelist w
@@ -12711,6 +12713,7 @@ function db_recompute_peer_active_whitelist(int $peerId): void {
 function db_set_peer_publish_whitelist(int $peerId, array $constellationIds, ?string $adminActor): array {
     db_ensure_peers_table();
     db_ensure_galaxy_publish_whitelist_table();
+    db_ensure_federation_attribution_columns();
     $pdo = getDB();
 
     $exists = $pdo->prepare("SELECT id FROM peers WHERE id = :p LIMIT 1");
