@@ -647,7 +647,7 @@ function backup_restore_from_file(string $path, array $opts): array {
         if ($name === '' || $slug === '') continue;
         $tagline = (string)($cl['tagline'] ?? '');
         $theme = (string)($cl['theme'] ?? 'cosmic');
-        $allowedThemes = ['cosmic', 'simple', 'abstract', 'rectangles', 'stripes', 'tech'];
+        $allowedThemes = ['cosmic', 'simple', 'abstract', 'rectangles', 'stripes', 'tech', 'light-rainbow'];
         if (!in_array($theme, $allowedThemes, true)) $theme = 'cosmic';
 
         $memberIds = [];

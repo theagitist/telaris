@@ -53,6 +53,7 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
                     <option value="rectangles"><?= t_attr('gem_theme_rectangles', 'Rectangles (Custom Rectangle Icons)') ?></option>
                     <option value="stripes"><?= t_attr('gem_theme_stripes', 'Stripes (Custom Stripe Icons)') ?></option>
                     <option value="tech"><?= t_attr('gem_theme_tech', 'Tech (Circuit Board Icons)') ?></option>
+                    <?php // light-rainbow theme intentionally hidden from the picker pending rework; still defined in js/themes.js, the validation allowlists, and i18n (gem_theme_light_rainbow). Restore an option element with value light-rainbow to expose it again. ?>
                 </select>
             </div>
 

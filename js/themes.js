@@ -147,6 +147,35 @@ export const THEMES = {
             portalImage: '/img/themes/tech/portal_icon.gif',
             images: Array.from({ length: 12 }, (_, i) => `/img/themes/tech/icon_${String(i + 1).padStart(3, '0')}.png`)
         }
+    },
+    'light-rainbow': {
+        id: 'light-rainbow',
+        name: 'Light Rainbow',
+        // The only light-background theme. Node labels and overlay controls
+        // carry their own translucent dark pills, so they stay legible on
+        // the pale paper background. Geometry nodes are emissive, so they
+        // glow their own (author-set) colours regardless of scene lighting;
+        // the rainbow point-lights add a gentle multicolour wash + speculars.
+        background: {
+            starfield: false,
+            nebulas: false,
+            grid: false,
+            color: 0xfffdf8
+        },
+        animations: {},
+        lighting: {
+            ambient: { color: 0xffffff, intensity: 0.85 },
+            points: [
+                { color: 0xf2602a, x: 10, y: 10, z: 10 },   // orange
+                { color: 0x11b4e3, x: -10, y: -10, z: 10 },  // cyan
+                { color: 0xc74b9c, x: 0, y: 10, z: -10 },    // magenta
+                { color: 0xfcc147, x: 0, y: -10, z: 10 }     // gold
+            ]
+        },
+        nodes: {
+            type: 'geometry',
+            factories: ['sphere', 'five-point-star', 'sparkle']
+        }
     }
 };
 
