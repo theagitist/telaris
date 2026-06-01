@@ -1,0 +1,74 @@
+# Telaris nginx vhost — TEMPLATE for a new instance.
+#
+# Why this file exists: a vhost hand-copied from another instance is easy to get
+# subtly wrong. Two omissions have bitten real installs:
+#   1. Dropping the versioned-JS `location` block (see below) → /js/vX.Y.Z/*.js
+#      falls through to index.php, returns text/html, and `nosniff` makes the
+#      browser refuse every module. Symptom: 3D scene stuck on "Loading" forever.
+#   2. Forgetting the writable `var/` cache dir (not nginx, but deploy-adjacent)
+#      → the bootstrap versioned-path probe can't cache its result and re-runs
+#      on every page load. Create it: install -d -o www-data -g www-data -m 775 var
+#
+# USAGE — copy and substitute, then enable:
+#   sed 's/{{DOMAIN}}/qwsp.telaris.ca/g' telaris-vhost.conf.template \
+#     | sudo tee /etc/nginx/sites-available/qwsp.telaris.ca.conf
+#   sudo ln -s ../sites-available/qwsp.telaris.ca.conf /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#   sudo certbot --nginx -d qwsp.telaris.ca          # adds the TLS server block
+#
+# {{DOMAIN}} also IS the document root name: /var/www/{{DOMAIN}}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{DOMAIN}};
+
+    root /var/www/{{DOMAIN}};
+    index index.php index.html;
+
+    include snippets/cloudflare-realip.conf;
+    client_max_body_size 55m;
+
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # --- deny source/config -------------------------------------------------
+    location ~ /\.        { deny all; return 404; }
+    location ~* \.(sql|md|sh|yml|yaml|ini|log|bak|swp)$ { deny all; return 404; }
+    location ~* ^/(config\.php|config_default\.php|VERSION|SCHEMA\.sql|CLAUDE\.md|composer\.(json|lock))$ { deny all; return 404; }
+
+    # --- uploaded media served via PHP (files live outside the doc root) -----
+    location /uploads/ {
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root/serve-upload.php;
+        include fastcgi_params;
+    }
+
+    # --- REQUIRED: versioned static JS --------------------------------------
+    # /js/vX.Y.Z/foo.js  ->  /js/foo.js, immutable cache. This is what makes
+    # Safari's ES-module cache refetch on each release. WITHOUT IT the app does
+    # not boot (see header note). inc/bootstrap.php probes this rule and shows a
+    # red warning banner if it's missing. add_header inheritance breaks once a
+    # location sets its own, so the security headers are repeated here.
+    location ~ ^/js/v[0-9]+\.[0-9]+\.[0-9]+/(.+\.js)$ {
+        alias /var/www/{{DOMAIN}}/js/$1;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
+    # --- front controller ---------------------------------------------------
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+}

@@ -10,6 +10,16 @@ Current version: **6.11.16** (tracked in `VERSION` file). v6.11.0 was the stabil
 
 **Federation deploy notes**: each instance must run `php bin/init-identity` (writes `secrets/pluriverse.key`, 0600, www-data-owned) and `php bin/init-log-key` (writes `secrets/log.key`, 32 bytes, 0600); `sudo php bin/setup-host.php` ensures the `secrets/` dir at 0700 www-data:www-data. After a code pull that bumps composer.json, run `composer update <pkg> --no-dev` (not `install`) because `composer.lock` is gitignored.
 
+**Provisioning a NEW instance (checklist).** Don't hand-write the vhost — copy the template, which bakes in the non-obvious required bits. Order:
+
+1. Code in place at `/var/www/{{DOMAIN}}` (rsync from a sibling, or `git clone`). Keep `vendor/`.
+2. **Writable dirs as www-data**: `sudo install -d -o www-data -g www-data -m 775 /var/www/{{DOMAIN}}/{uploads,logs,var}`. The `var/` dir is REQUIRED — the bootstrap versioned-path probe caches its `.ok` marker there; omit it and the probe re-runs on every page load.
+3. **DB + `config.php`** (per-site, never shared). Load `SCHEMA.sql` with `SET FOREIGN_KEY_CHECKS=0;` around it (the schema has forward FK references).
+4. **Secrets**: `sudo php bin/setup-host.php` → `sudo -u www-data php bin/init-log-key` → `sudo -u www-data php bin/init-identity`.
+5. **nginx vhost from the template** — `etc/nginx/telaris-vhost.conf.template`. It includes the **REQUIRED versioned-JS `location` block**; without it `/js/vX.Y.Z/*.js` falls through to index.php, returns `text/html`, and `nosniff` makes the browser refuse every module → the 3D scene hangs on "Loading" forever. `sed 's/{{DOMAIN}}/.../g'`, enable, `nginx -t`, reload, then `certbot --nginx -d {{DOMAIN}}`.
+6. **Seed/setup**: browser wizard at `/admin/setup.php`, or a seed script. ⚠️ If you INSERT nodes directly via SQL, set the `animation` column (`{radius:5–8, theta:0–6.28, phi:0–3.14, speed, phase}`, randomized per node) — `api/nodes.php` does this on create, but raw inserts leave it NULL → all nodes stack at one point and the galaxy looks empty.
+7. **Verify**: page has no red versioned-asset banner; `curl /api/apikey.php` returns a key; `/api/nodes.php?constellation_id=N` returns spread-out nodes.
+
 **Versioning convention.** Patch bumps for incremental work; minor/major only when explicitly directed. The `VERSION` file is read at runtime to drive Safari-safe ES module path-versioning (`/js/vX.Y.Z/foo.js` → alias). Bump on any visitor-side JS change so old browsers don't run stale modules.
 
 **Audit-thread status (closed).** Five adversarial passes shipped across v6.10.0–v6.10.18. 84 of 91 findings shipped. 7 remaining items in the BACKLOG are architectural (optimistic concurrency on PUT, bcrypt global cap, audit-log tamper-evidence, API-key hashing gated on federation, per-editor disk quota, keyword-canvas broadcast, M-D2 vhost dedup). Test suite at 197/197.
