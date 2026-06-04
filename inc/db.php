@@ -385,7 +385,7 @@ const PROJECT_INFO_KEYS = [
     // Stage 6f: federation mirror-dropped operator notification email.
     'email_drop_subject', 'email_drop_intro', 'email_drop_item', 'email_drop_reason_label',
     'email_drop_reason_retraction', 'email_drop_reason_blacklist', 'email_drop_reason_revoked',
-    'email_drop_reason_local', 'email_drop_outro',
+    'email_drop_reason_local', 'email_drop_reason_publish_revoked', 'email_drop_outro',
     // Stage 6f-ii: admin per-user notification-locale selector.
     'admin_user_locale_label', 'admin_user_locale_unset', 'admin_user_locale_saved', 'admin_user_locale_invalid',
     'auth_reset_page_title', 'auth_reset_heading',
@@ -1867,6 +1867,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'email_drop_reason_blacklist' => 'the origin instance was blocked on the Pluriverse',
             'email_drop_reason_revoked' => "the origin instance's federation membership was revoked",
             'email_drop_reason_local' => 'you blocked the origin instance',
+            'email_drop_reason_publish_revoked' => 'the origin revoked your access to the galaxy',
             'email_drop_outro' => 'The mirrored content has been removed from this instance. This is expected when trust is withdrawn or a galaxy is retracted; no action is needed.',
             'admin_user_locale_label' => 'Notification language',
             'admin_user_locale_unset' => 'Not set (all languages)',
@@ -3286,6 +3287,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'email_drop_reason_blacklist' => 'la instancia de origen fue bloqueada en el Pluriverse',
             'email_drop_reason_revoked' => 'se revocó la membresía de federación de la instancia de origen',
             'email_drop_reason_local' => 'bloqueaste la instancia de origen',
+            'email_drop_reason_publish_revoked' => 'la instancia de origen revocó tu acceso a la galaxia',
             'email_drop_outro' => 'El contenido replicado se eliminó de esta instancia. Esto es lo esperado cuando se retira la confianza o se retira una galaxia; no necesitas hacer nada.',
             'admin_user_locale_label' => 'Idioma de las notificaciones',
             'admin_user_locale_unset' => 'Sin definir (todos los idiomas)',
@@ -4701,6 +4703,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'email_drop_reason_blacklist' => 'a instância de origem foi bloqueada no Pluriverse',
             'email_drop_reason_revoked' => 'a associação de federação da instância de origem foi revogada',
             'email_drop_reason_local' => 'você bloqueou a instância de origem',
+            'email_drop_reason_publish_revoked' => 'a instância de origem revogou o seu acesso à galáxia',
             'email_drop_outro' => 'O conteúdo espelhado foi removido desta instância. Isso é esperado quando a confiança é retirada ou uma galáxia é retratada; nenhuma ação é necessária.',
             'admin_user_locale_label' => 'Idioma das notificações',
             'admin_user_locale_unset' => 'Não definido (todos os idiomas)',
@@ -6116,6 +6119,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'email_drop_reason_blacklist' => "l'instance d'origine a été bloquée sur le Pluriverse",
             'email_drop_reason_revoked' => "l'adhésion à la fédération de l'instance d'origine a été révoquée",
             'email_drop_reason_local' => "tu as bloqué l'instance d'origine",
+            'email_drop_reason_publish_revoked' => "l'instance d'origine a révoqué votre accès à la galaxie",
             'email_drop_outro' => "Le contenu reflété a été supprimé de cette instance. C'est le comportement attendu lorsque la confiance est retirée ou qu'une galaxie est retirée ; aucune action n'est nécessaire.",
             'admin_user_locale_label' => 'Langue des notifications',
             'admin_user_locale_unset' => 'Non définie (toutes les langues)',
@@ -12055,6 +12059,37 @@ function db_ensure_galaxy_publish_whitelist_table(): void {
     }
 }
 
+/**
+ * Per-peer publish-revocation markers. When an operator removes a galaxy from a
+ * peer's publish whitelist, we record (peer_id, slug) here so the peer's signed
+ * revoked.json can tell the subscriber to DROP the mirror, distinct from a
+ * benign disappearance (which fossilizes). Keyed by slug (not constellation_id)
+ * because the subscriber knows only the remote slug, and the marker must outlive
+ * a galaxy deletion. Sticky until the galaxy is re-offered to that peer.
+ *
+ * Spec: BACKLOG ^fed-revoke-vs-withdraw-diff; v10 § State-change propagation.
+ */
+function db_ensure_galaxy_publish_revocations_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_peers_table();
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS galaxy_publish_revocations (
+                peer_id INT UNSIGNED NOT NULL,
+                slug VARCHAR(255) NOT NULL,
+                revoked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (peer_id, slug),
+                FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_galaxy_publish_revocations_table: ' . $e->getMessage());
+    }
+}
+
 function db_ensure_galaxy_subscriptions_table(): void {
     static $checked = false;
     if ($checked) return;
@@ -12730,6 +12765,7 @@ function db_recompute_peer_active_whitelist(int $peerId): void {
 function db_set_peer_publish_whitelist(int $peerId, array $constellationIds, ?string $adminActor): array {
     db_ensure_peers_table();
     db_ensure_galaxy_publish_whitelist_table();
+    db_ensure_galaxy_publish_revocations_table();
     db_ensure_federation_attribution_columns();
     $pdo = getDB();
 
@@ -12782,6 +12818,30 @@ function db_set_peer_publish_whitelist(int $peerId, array $constellationIds, ?st
             $ins = $pdo->prepare("INSERT IGNORE INTO galaxy_publish_whitelist (peer_id, constellation_id, added_by) VALUES (:p, :c, :a)");
             foreach ($toAdd as $cid) {
                 $ins->execute([':p' => $peerId, ':c' => $cid, ':a' => $adminActor]);
+            }
+        }
+        // Per-peer publish revocations: removing a galaxy from this peer's
+        // whitelist records a revocation marker (by slug) so the peer's signed
+        // revoked.json tells the subscriber to DROP the mirror rather than
+        // fossilize it. Re-offering the galaxy rescinds the marker. Sticky
+        // otherwise (survives a later galaxy deletion).
+        if ($toRemove !== []) {
+            $place = implode(',', array_fill(0, count($toRemove), '?'));
+            $slugStmt = $pdo->prepare("SELECT slug FROM constellations WHERE id IN ($place) AND slug IS NOT NULL AND slug <> ''");
+            $slugStmt->execute($toRemove);
+            $revoke = $pdo->prepare("INSERT INTO galaxy_publish_revocations (peer_id, slug) VALUES (:p, :s)
+                                     ON DUPLICATE KEY UPDATE revoked_at = CURRENT_TIMESTAMP");
+            foreach ($slugStmt->fetchAll(PDO::FETCH_COLUMN) as $slug) {
+                $revoke->execute([':p' => $peerId, ':s' => (string)$slug]);
+            }
+        }
+        if ($toAdd !== []) {
+            $place = implode(',', array_fill(0, count($toAdd), '?'));
+            $slugStmt = $pdo->prepare("SELECT slug FROM constellations WHERE id IN ($place) AND slug IS NOT NULL AND slug <> ''");
+            $slugStmt->execute($toAdd);
+            $rescind = $pdo->prepare("DELETE FROM galaxy_publish_revocations WHERE peer_id = :p AND slug = :s");
+            foreach ($slugStmt->fetchAll(PDO::FETCH_COLUMN) as $slug) {
+                $rescind->execute([':p' => $peerId, ':s' => (string)$slug]);
             }
         }
         $pdo->commit();

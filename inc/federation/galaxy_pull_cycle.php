@@ -30,6 +30,8 @@ require_once dirname(__DIR__) . '/db.php';
 require_once __DIR__ . '/galaxy_pull.php';
 require_once __DIR__ . '/galaxy_mirror.php';
 require_once __DIR__ . '/galaxy_unmirror.php';
+require_once __DIR__ . '/identity.php';
+require_once __DIR__ . '/publish_revocation.php';
 
 /**
  * Backoff schedule, matching the 4d dispatcher's curve so operator mental
@@ -195,6 +197,7 @@ function federation_galaxy_pull_peer(int $peerId, array $opts = []): array {
         'ok' => true, 'peer_id' => $peerId, 'host' => $host,
         'retracted' => ['processed' => 0, 'dropped' => [], 'recorded' => [], 'invalid' => []],
         'withdrawn' => ['fossilized' => []],
+        'revoked_dropped' => [],
         'materialized' => [],
         'errors' => [],
     ];
@@ -225,7 +228,51 @@ function federation_galaxy_pull_peer(int $peerId, array $opts = []): array {
     if (!$pResp['not_modified']) {
         $diff = federation_pull_diff($peerId, $pResp['published']);
         if ($diff['withdrawn'] !== []) {
-            $report['withdrawn'] = federation_pull_apply_withdrawn($peerId, $diff['withdrawn']);
+            // A subscribed slug that is no longer offered is either a deliberate
+            // per-peer un-publish (DROP the mirror) or a benign disappearance
+            // (fossilize: prior consent stands). The origin's SIGNED revoked.json
+            // names the slugs it revoked for us; everything else fossilizes.
+            // Fail closed: any revoked.json transport/verify problem leaves the
+            // entire withdrawn set on the conservative fossilize branch, so a
+            // revoked.json outage never causes a spurious destructive drop.
+            $revoked = [];
+            $rvResp = federation_pull_fetch_revoked($host);
+            if ($rvResp['ok'] && !$rvResp['not_modified'] && $rvResp['jws'] !== '') {
+                $keys = federation_pull_peer_keys($peerId);
+                $v = federation_publish_revocation_verify(
+                    $rvResp['jws'],
+                    $keys['public_key'],
+                    $keys['previous_public_key'],
+                    $host,
+                    federation_local_hostname()
+                );
+                if ($v['ok']) {
+                    $revoked = array_fill_keys($v['slugs'], true);
+                }
+            }
+
+            $toDrop = [];
+            $toFossilize = [];
+            foreach ($diff['withdrawn'] as $slug) {
+                if (isset($revoked[$slug])) {
+                    $toDrop[] = $slug;
+                } else {
+                    $toFossilize[] = $slug;
+                }
+            }
+
+            $revokedDropped = [];
+            foreach ($toDrop as $slug) {
+                $d = federation_unmirror_drop($peerId, $slug, 'publish-revoked');
+                if ($d['ok'] && $d['dropped_constellation_id'] !== null) {
+                    $revokedDropped[] = $slug;
+                }
+            }
+            $report['revoked_dropped'] = $revokedDropped;
+
+            if ($toFossilize !== []) {
+                $report['withdrawn'] = federation_pull_apply_withdrawn($peerId, $toFossilize);
+            }
         }
         $fetcher = federation_mirror_default_fetcher($host);
         foreach ($diff['to_pull'] as $item) {
@@ -272,6 +319,18 @@ function federation_galaxy_pull_peer(int $peerId, array $opts = []): array {
             $retractedDropped
         );
         federation_notify_operator_mirror_dropped($items, 'origin_retraction');
+    }
+
+    // 6f: likewise notify for galaxies dropped because the origin revoked this
+    // peer's publish access (the per-peer un-publish path, distinct from a
+    // global retraction).
+    $revokedDropped = $report['revoked_dropped'] ?? [];
+    if ($revokedDropped !== []) {
+        $items = array_map(
+            static fn(string $slug): array => ['slug' => $slug, 'origin_host' => $host],
+            $revokedDropped
+        );
+        federation_notify_operator_mirror_dropped($items, 'publish_revoked');
     }
 
     federation_galaxy_pull_state_record_success($peerId);

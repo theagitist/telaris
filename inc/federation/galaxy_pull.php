@@ -326,6 +326,54 @@ function federation_pull_fetch_retracted(string $peerHost, ?string $ifNoneMatch 
 }
 
 /**
+ * Fetch a peer's revoked.json: the signed per-peer publish-revocation digest.
+ * Returns the raw JWS for the caller to verify with the peer's key (the drop
+ * decision must not trust an unsigned signal). A 304 surfaces as not_modified
+ * with an empty jws.
+ *
+ * @return array{ok:bool, status:int, not_modified:bool, jws:string, error:?string}
+ */
+function federation_pull_fetch_revoked(string $peerHost, ?string $ifNoneMatch = null): array {
+    $resp = federation_peer_signed_get($peerHost, '/api/pluriverse/revoked.json', [
+        'if_none_match' => $ifNoneMatch ?? '',
+    ]);
+    if ($resp['error'] !== null) {
+        return ['ok' => false, 'status' => $resp['status'], 'not_modified' => false, 'jws' => '', 'error' => $resp['error']];
+    }
+    if ($resp['status'] === 304) {
+        return ['ok' => true, 'status' => 304, 'not_modified' => true, 'jws' => '', 'error' => null];
+    }
+    if ($resp['status'] !== 200) {
+        return ['ok' => false, 'status' => $resp['status'], 'not_modified' => false, 'jws' => '', 'error' => 'http_' . $resp['status']];
+    }
+    $data = json_decode($resp['body'], true);
+    $jws = is_array($data) ? (string)($data['revocations_jws'] ?? '') : '';
+    if ($jws === '' || substr_count($jws, '.') !== 2) {
+        return ['ok' => false, 'status' => 200, 'not_modified' => false, 'jws' => '', 'error' => 'malformed_revoked_json'];
+    }
+    return ['ok' => true, 'status' => 200, 'not_modified' => false, 'jws' => $jws, 'error' => null];
+}
+
+/**
+ * The peer's current + previous signing keys (for envelope / revocation
+ * verification with rotation grace). Empty strings when the peer is unknown.
+ *
+ * @return array{public_key:string, previous_public_key:string}
+ */
+function federation_pull_peer_keys(int $peerId): array {
+    $stmt = getDB()->prepare("SELECT public_key, previous_public_key FROM peers WHERE id = :p LIMIT 1");
+    $stmt->execute([':p' => $peerId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row === false) {
+        return ['public_key' => '', 'previous_public_key' => ''];
+    }
+    return [
+        'public_key' => (string)$row['public_key'],
+        'previous_public_key' => $row['previous_public_key'] !== null ? (string)$row['previous_public_key'] : '',
+    ];
+}
+
+/**
  * Fetch a single content-addressed media blob from a peer. The mirror code
  * re-hashes the returned bytes before storing them, so this transport does not
  * vouch for integrity. The serving peer applies its own per-IP rate limit; the

@@ -30,6 +30,7 @@ const FEDERATION_DROP_REASON_KEYS = [
     'pluriverse-blacklist' => 'email_drop_reason_blacklist',
     'pluriverse-revoked'   => 'email_drop_reason_revoked',
     'local-blacklist'      => 'email_drop_reason_local',
+    'publish_revoked'      => 'email_drop_reason_publish_revoked',
 ];
 
 /**

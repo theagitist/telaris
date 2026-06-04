@@ -35,6 +35,7 @@ $routes = [
     '/api/pluriverse/galaxies.json' => ['methods' => ['GET'], 'handler' => __DIR__ . '/galaxies_handler.php'],
     '/api/pluriverse/published.json' => ['methods' => ['GET'], 'handler' => __DIR__ . '/published_handler.php'],
     '/api/pluriverse/retracted.json' => ['methods' => ['GET'], 'handler' => __DIR__ . '/retracted_list_handler.php'],
+    '/api/pluriverse/revoked.json' => ['methods' => ['GET'], 'handler' => __DIR__ . '/revoked_list_handler.php'],
     '/api/pluriverse/schema/envelope-1.0.json' => ['methods' => ['GET'], 'handler' => __DIR__ . '/schema_handler.php'],
     '/api/pluriverse/handshake' => ['methods' => ['POST'], 'handler' => __DIR__ . '/handshake_handler.php'],
     '/api/pluriverse/key-events-push' => ['methods' => ['POST'], 'handler' => __DIR__ . '/key_events_push_handler.php'],
