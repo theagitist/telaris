@@ -10816,7 +10816,11 @@ function db_save_node_keywords(int $nodeId, array $keywords, ?string $createdBy 
         if ($keyword === '') continue;
         $namesSet[$keyword] = true;
     }
-    $names = array_keys($namesSet);
+    // array_keys coerces numeric-string keywords ("1", "2") to int keys, so
+    // force them back to strings. Otherwise the int flows into the param binds
+    // and into mb_strtolower() below, which throws under strict_types on a
+    // node carrying a purely-numeric keyword (e.g. a federation mirror pull).
+    $names = array_map('strval', array_keys($namesSet));
     if ($names === []) return;
 
     try {
