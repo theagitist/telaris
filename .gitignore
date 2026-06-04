@@ -7,10 +7,6 @@ composer.phar
 composer
 .phpunit.cache/
 
-# Track vendored frontend libraries (e.g. PDF.js) even though `vendor/` is ignored.
-!js/vendor/
-!js/vendor/**
-
 # IDE
 .idea/
 .vscode/
@@ -65,3 +61,13 @@ var/
 
 # Planning docs
 docs/planning/
+
+# Vendored front-end libraries (PDF.js, Three.js build + addons, DaisyUI) are
+# TRACKED even though `vendor/` and `build/` are ignored above. These negations
+# are placed last so they override both patterns (last match wins), including
+# the Three.js `build/` subdir. CI builds the published Docker image from the
+# tracked tree, so these must be in git.
+!js/vendor/
+!js/vendor/**
+!css/vendor/
+!css/vendor/**

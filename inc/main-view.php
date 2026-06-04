@@ -15,7 +15,7 @@ $cspNonce = base64_encode(random_bytes(16));
 //   auth-gated or otherwise sensitive click target (anything that mutates
 //   state, opens admin paths, or reveals other-user data). All current
 //   interactions are visitor-public reads.
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$cspNonce}' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://cloudflareinsights.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors *");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$cspNonce}' https://static.cloudflareinsights.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cloudflareinsights.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors *");
 header("X-Content-Type-Options: nosniff");
 ?>
 <!DOCTYPE html>
@@ -31,7 +31,7 @@ header("X-Content-Type-Options: nosniff");
     <meta name="twitter:title" content="<?php echo htmlspecialchars(isset($constellationName) ? $constellationName : $projectName); ?>">
     <meta name="twitter:description" content="<?php echo htmlspecialchars(isset($constellationTagline) ? $constellationTagline : $projectTagline); ?>">
     <script src="<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'tailwind.min.js')); ?>"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" integrity="sha384-yxrQVVFFRZdq4Z/YbeTDzSYbn1W6VnVonm2vAgnxtxUMehcccE4k2NufOz2tJnOe" crossorigin="anonymous" />
+    <link href="/css/vendor/daisyui-4.12.10.full.min.css" rel="stylesheet" type="text/css" />
     <style>
         :root {
             --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -634,8 +634,8 @@ header("X-Content-Type-Options: nosniff");
     <script type="importmap" nonce="<?php echo htmlspecialchars($cspNonce); ?>">
         {
             "imports": {
-                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"<?php /* Pinned at 0.160 (Dec 2023). The 2026-05-22 audit flagged ~24 newer minors of perf and stability fixes; a bump to 0.170+ needs a manual visual regression pass on the 3D scene (BokehPass, UnrealBloomPass, custom shaders), the Tech-theme corridor effect, and Portal-torus animations. Queued in [[Documentation/ROADMAP]] as a focused regression session. */ ?>,
+                "three": "/js/vendor/three-0.160.0/build/three.module.js",
+                "three/addons/": "/js/vendor/three-0.160.0/examples/jsm/"<?php /* Vendored locally from the official three@0.160.0 npm tarball (no CDN, no IP leak, importmap closure served same-origin). Version pinned in the dir name; do NOT bump to 0.170+ without a manual visual regression pass on the 3D scene (BokehPass, UnrealBloomPass, custom shaders), the Tech-theme corridor effect, and Portal-torus animations. Queued in [[Documentation/ROADMAP]] as a focused regression session. */ ?>,
                 "./telaris-3d.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-3d.js')); ?>",
                 "./network-manager.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'network-manager.js')); ?>",
                 "./geometry-manager.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'geometry-manager.js')); ?>",
