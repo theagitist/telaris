@@ -76,6 +76,19 @@ Active deployed instances are listed at <https://www.telaris.ca/instances/>.
 
 For operators who want to run a Telaris instance. The Admin Manual will carry the depth; this section is enough to get a development install running.
 
+### Docker (recommended for self-hosting)
+
+The fastest way to run a production instance is the published Docker images. One `docker compose up -d` brings up the app, web server, federation schedulers, and (optionally) a bundled database and automatic HTTPS. You can also point it at an external database server you already run. Full instructions, including the external-database setup, are in **[docker/README.md](docker/README.md)**.
+
+```sh
+cp .env.example .env
+# edit .env: set TELARIS_HOSTNAME (your dedicated DNS name), ACME_EMAIL, a strong DB_PASS
+docker compose up -d
+# then open https://<your-hostname>/admin/setup.php
+```
+
+Every instance needs its own stable, dedicated DNS name (it is the federation identity and the TLS certificate subject). The manual setup below remains available for development or non-container deployments.
+
 ### Requirements
 
 - **PHP 8.3+** with PDO MySQL extension
