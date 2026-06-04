@@ -1,0 +1,12 @@
+# Caddy auto-TLS front (only runs under the `tls` compose profile).
+# Provisions a Let's Encrypt certificate for the instance's dedicated hostname
+# and reverse-proxies to the nginx `web` service. Requires that TELARIS_HOSTNAME
+# resolves publicly to this host and that ports 80 + 443 are reachable.
+{
+	email {$ACME_EMAIL}
+}
+
+{$TELARIS_HOSTNAME} {
+	encode zstd gzip
+	reverse_proxy web:80
+}

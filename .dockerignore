@@ -1,0 +1,52 @@
+# Telaris Docker build context exclusions (DRAFT scaffold).
+#
+# SECURITY-CRITICAL. The published image must contain NO secrets and NO PII.
+# The authoritative publish happens in CI from a clean git checkout, so the
+# gitignored paths below are absent there by construction. This file is the
+# second layer: it keeps the same data out of a LOCAL `docker build`, where the
+# working tree may hold a real config.php, secrets, uploads, snapshots, logs.
+#
+# Deny the sensitive per-instance data explicitly:
+config.php
+config.local.php
+.env
+.env.*
+secrets/
+uploads/
+logs/
+telaris-snapshots/
+*.log
+*.sql.gz
+*.dump
+certs/
+
+# VCS + history (could carry local-only commits/config; also bloat):
+.git/
+.gitignore
+.github/
+
+# Rebuilt inside the image; never copy the host's:
+vendor/
+node_modules/
+var/
+.phpunit.cache/
+
+# Not needed in a runtime image (slims it + removes test fixtures):
+tests/
+Audits/
+docs/planning/
+
+# Editor / OS cruft:
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Docker scaffolding itself doesn't belong inside the image:
+Dockerfile
+docker-compose.yml
+.dockerignore
+docker/README.md

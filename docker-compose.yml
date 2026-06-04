@@ -1,0 +1,115 @@
+# Telaris instance — docker-compose (DRAFT scaffold, 2026-06-04).
+#
+# Services:
+#   app    php-fpm 8.3 + Telaris code (the federation node)
+#   web    nginx (static assets + proxies PHP/uploads to app:9000)
+#   cron   the federation schedulers (dispatch / pull / galaxy-pull)
+#   db     MariaDB — ONLY starts under the `bundled-db` profile
+#   caddy  auto-TLS reverse proxy — ONLY starts under the `tls` profile
+#
+# Which services run is driven by COMPOSE_PROFILES in .env, so switching
+# bundled-vs-external DB or on-vs-off TLS is an .env edit, not a command change:
+#   COMPOSE_PROFILES=bundled-db,tls   -> local DB + auto HTTPS (full turnkey)
+#   COMPOSE_PROFILES=tls              -> external DB + auto HTTPS
+#   COMPOSE_PROFILES=bundled-db       -> local DB, bring-your-own reverse proxy
+#   COMPOSE_PROFILES=                 -> external DB, bring-your-own reverse proxy
+#
+# Then always: docker compose up -d
+#
+# Images are pulled from GHCR by default; `build:` lets you build locally too.
+
+x-app-image: &app-image "${TELARIS_APP_IMAGE:-ghcr.io/theagitist/telaris-app}:${TELARIS_TAG:-latest}"
+
+services:
+  app:
+    image: *app-image
+    build:
+      context: .
+      target: app
+    env_file: .env
+    volumes:
+      - uploads:/var/www/html/uploads
+      - secrets:/var/www/html/secrets
+      - snapshots:/var/www/html/telaris-snapshots
+      - logs:/var/www/html/logs
+      - varcache:/var/www/html/var
+      # Optional: mount a CA cert for an external TLS DB and set DB_SSL_CA to its path.
+      # - ./certs:/certs:ro
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+    restart: unless-stopped
+
+  web:
+    image: "${TELARIS_WEB_IMAGE:-ghcr.io/theagitist/telaris-web}:${TELARIS_TAG:-latest}"
+    build:
+      context: .
+      target: web
+    depends_on:
+      - app
+    ports:
+      # The port your own reverse proxy (or the bundled Caddy) targets.
+      - "${WEB_HTTP_PORT:-8080}:80"
+    restart: unless-stopped
+
+  cron:
+    image: *app-image
+    build:
+      context: .
+      target: app
+    entrypoint: ["/usr/local/bin/entrypoint-cron.sh"]
+    env_file: .env
+    volumes:
+      - uploads:/var/www/html/uploads
+      - secrets:/var/www/html/secrets
+      - snapshots:/var/www/html/telaris-snapshots
+      - logs:/var/www/html/logs
+      - varcache:/var/www/html/var
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  db:
+    image: mariadb:11
+    profiles: ["bundled-db"]
+    environment:
+      MARIADB_DATABASE: "${DB_NAME:-telaris}"
+      MARIADB_USER: "${DB_USER:-telaris}"
+      MARIADB_PASSWORD: "${DB_PASS:?set DB_PASS in .env}"
+      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    profiles: ["tls"]
+    environment:
+      TELARIS_HOSTNAME: "${TELARIS_HOSTNAME:?set TELARIS_HOSTNAME in .env}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    restart: unless-stopped
+
+volumes:
+  uploads:
+  secrets:
+  snapshots:
+  logs:
+  varcache:
+  db_data:
+  caddy_data:
+  caddy_config:

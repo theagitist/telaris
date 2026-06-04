@@ -30,6 +30,14 @@ config.php
 # Per-instance, never in source control.
 secrets/
 
+# Per-instance user data — MUST never enter source control (PII: editor
+# emails/names inside snapshots, uploaded media). Lives in volumes/backups, not
+# the repo. Also guarantees it can never reach the published Docker image, which
+# CI builds from the tracked tree only.
+uploads/
+logs/
+telaris-snapshots/
+
 # OS
 .DS_Store
 .DS_Store?
