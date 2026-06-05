@@ -14,11 +14,13 @@ declare(strict_types=1);
  * Scope: EDITORS only (USER_TYPE_EDITOR). The operator who provisions the
  * instance effectively sets its terms, so admin/operator logins are not gated.
  *
- * INERT BY DEFAULT. With both document versions empty (the default), the gate
- * is a complete no-op: consent_enforced() is false and consent_gate_or_redirect()
- * returns immediately. This lets the whole mechanism ship and deploy BEFORE the
- * Terms/Privacy content is finalized. To activate, set the versions (e.g. '1.0')
- * once the documents are final, either in config.php or via the environment.
+ * ENFORCED BY DEFAULT (since the Terms/Privacy were finalized to v1.0 on
+ * 2026-06-04). Out of the box, every instance gates editors on first login and
+ * on a version bump; new installs inherit this with no configuration. An
+ * operator may override in config.php or the environment: pin a different
+ * version, or define CONSENT_TOS_VERSION / CONSENT_PRIVACY_VERSION as '' in
+ * config.php to disable the gate for that instance. With both versions empty the
+ * gate is a complete no-op (consent_enforced() is false).
  *
  * Hybrid content model (operator decision 2026-06-04): the in-app consent page
  * shows a short localized SUMMARY plus links to the full Terms + Privacy on the
@@ -31,10 +33,16 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 
 // --- Document version + URL configuration -------------------------------
-// EMPTY version string => that document is NOT enforced. config.php (or the
-// container environment) may define these to activate the gate.
-if (!defined('CONSENT_TOS_VERSION'))     define('CONSENT_TOS_VERSION', (string)(getenv('CONSENT_TOS_VERSION') ?: ''));
-if (!defined('CONSENT_PRIVACY_VERSION')) define('CONSENT_PRIVACY_VERSION', (string)(getenv('CONSENT_PRIVACY_VERSION') ?: ''));
+// The gate is ON by default: both documents enforce their current published
+// version (1.0, effective 2026-06-04). This default must track the version of
+// the published Terms/Privacy on www.telaris.ca; bump it here in lockstep when
+// those documents are revised, which re-prompts editors. An operator may
+// override in config.php (or the container environment): set a different
+// version to pin one, or define the constant as '' in config.php to disable
+// the gate for that instance (operator sovereignty). An EMPTY version string
+// means that document is not enforced.
+if (!defined('CONSENT_TOS_VERSION'))     define('CONSENT_TOS_VERSION', (string)(getenv('CONSENT_TOS_VERSION') ?: '1.0'));
+if (!defined('CONSENT_PRIVACY_VERSION')) define('CONSENT_PRIVACY_VERSION', (string)(getenv('CONSENT_PRIVACY_VERSION') ?: '1.0'));
 
 // The full public documents the in-app summary links to (hybrid model).
 if (!defined('CONSENT_TOS_URL'))     define('CONSENT_TOS_URL', (string)(getenv('CONSENT_TOS_URL') ?: 'https://www.telaris.ca/terms'));

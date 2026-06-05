@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
  *
  * Covers the DB layer (db_ensure_user_consents_table / db_record_user_consent /
  * db_get_user_accepted_consents) and the inc/consent.php logic: required-document
- * resolution, the inert-by-default safety property, needs-consent including
+ * resolution, the enforced-by-default behaviour with operator override, needs-consent including
  * version bumps and partial acceptance, idempotent recording, and the localized
  * strings (4-locale parity, no English-only fallback, no em-dashes).
  *
@@ -47,13 +47,20 @@ final class ConsentGateTest extends TestCase
         return $id;
     }
 
-    // --- inert-by-default safety -------------------------------------------
+    // --- default-on behaviour + inert code path ----------------------------
 
-    public function testEnforcedFalseByDefault(): void
+    public function testEnforcedByDefault(): void
     {
-        // No CONSENT_*_VERSION configured in the test process, so the gate is inert.
-        $this->assertSame([], consent_required_documents());
-        $this->assertFalse(consent_enforced());
+        // The gate is ON by default now (Terms/Privacy shipped at v1.0). The
+        // exact version is asserted via the constants rather than a literal, so
+        // this stays correct across future version bumps. Operators may override
+        // CONSENT_*_VERSION in config.php/env to pin a version or disable it.
+        $this->assertTrue(consent_enforced());
+        $docs = consent_required_documents();
+        $this->assertArrayHasKey('tos', $docs);
+        $this->assertArrayHasKey('privacy', $docs);
+        $this->assertSame(CONSENT_TOS_VERSION, $docs['tos']);
+        $this->assertSame(CONSENT_PRIVACY_VERSION, $docs['privacy']);
     }
 
     public function testInertGateNeverPromptsWhenNoDocsRequired(): void
