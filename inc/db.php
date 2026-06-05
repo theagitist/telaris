@@ -6897,6 +6897,83 @@ function db_ensure_users_account_columns(): void {
 }
 
 /**
+ * Consent records for the first-login consent gate (BACKLOG ^consent-gate-first-login).
+ *
+ * One row per (user, document, accepted version). History is preserved across
+ * version bumps: accepting v2 of the Terms does not delete the v1 row, so the
+ * record of what each editor agreed to, and when, stays auditable. The UNIQUE
+ * key makes re-recording the same acceptance idempotent.
+ *
+ * The actual document text + the "current version" live in inc/consent.php; this
+ * table only stores the fact and time of acceptance, with no IP or other PII
+ * beyond the user id (matches the documented fix shape and the project's PII
+ * minimization stance).
+ */
+function db_ensure_user_consents_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        getDB()->exec("
+            CREATE TABLE IF NOT EXISTS user_consents (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                user_id VARCHAR(255) NOT NULL,
+                document_type VARCHAR(32) NOT NULL,
+                document_version VARCHAR(32) NOT NULL,
+                consented_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_user_doc_version (user_id, document_type, document_version),
+                INDEX idx_user (user_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_user_consents_table: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Record that $userId accepted version $version of document $documentType
+ * (e.g. 'tos', 'privacy'). Idempotent: re-recording the same acceptance is a
+ * no-op via the UNIQUE key. Returns true on success.
+ */
+function db_record_user_consent(string $userId, string $documentType, string $version): bool {
+    db_ensure_user_consents_table();
+    try {
+        $stmt = getDB()->prepare("
+            INSERT INTO user_consents (user_id, document_type, document_version)
+            VALUES (:u, :d, :v)
+            ON DUPLICATE KEY UPDATE consented_at = consented_at
+        ");
+        return $stmt->execute([':u' => $userId, ':d' => $documentType, ':v' => $version]);
+    } catch (PDOException $e) {
+        error_log('db_record_user_consent: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Return the set of document versions $userId has accepted, as
+ * [documentType => [version => true]] for O(1) membership checks.
+ *
+ * @return array<string, array<string, bool>>
+ */
+function db_get_user_accepted_consents(string $userId): array {
+    db_ensure_user_consents_table();
+    try {
+        $stmt = getDB()->prepare("SELECT document_type, document_version FROM user_consents WHERE user_id = :u");
+        $stmt->execute([':u' => $userId]);
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $out[(string)$row['document_type']][(string)$row['document_version']] = true;
+        }
+        return $out;
+    } catch (PDOException $e) {
+        error_log('db_get_user_accepted_consents: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
  * Maximum number of pronoun entries an account may store, and the per-entry
  * character cap. Enforced server-side (not just in the UI).
  */

@@ -18,6 +18,10 @@ header('Content-Type: text/html; charset=UTF-8');
 require_once __DIR__ . '/../utils/auth.php';
 requireEditorOrAdminLogin();
 
+// First-login consent gate (no-op when not enforced or for admins).
+require_once __DIR__ . '/../inc/consent.php';
+consent_gate_or_redirect('../');
+
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://cloudflareinsights.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
 header('X-Content-Type-Options: nosniff');

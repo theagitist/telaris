@@ -19,6 +19,19 @@ CREATE TABLE IF NOT EXISTS users (
     INDEX idx_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- First-login consent records (BACKLOG ^consent-gate-first-login). One row per
+-- (user, document, accepted version); history preserved across version bumps.
+CREATE TABLE IF NOT EXISTS user_consents (
+    id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    user_id VARCHAR(255) NOT NULL,
+    document_type VARCHAR(32) NOT NULL,    -- 'tos' | 'privacy'
+    document_version VARCHAR(32) NOT NULL,
+    consented_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_user_doc_version (user_id, document_type, document_version),
+    INDEX idx_user (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Table for constellations (id 0 = default, created by setup, cannot be erased)
 CREATE TABLE IF NOT EXISTS constellations (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,

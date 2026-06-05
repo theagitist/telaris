@@ -7,6 +7,12 @@ header('Content-Type: text/html; charset=UTF-8');
 require_once __DIR__ . '/../utils/auth.php';
 requireEditorOrAdminLogin();
 
+// First-login consent gate: an editor who has not accepted the current Terms +
+// Privacy versions is sent to the consent page before reaching the editor. No-op
+// when not enforced or for admins (BACKLOG ^consent-gate-first-login).
+require_once __DIR__ . '/../inc/consent.php';
+consent_gate_or_redirect('../');
+
 // Per-request nonce for the (currently report-only) strict CSP. The enforced
 // CSP keeps 'unsafe-inline' on script-src because edit/index.php carries
 // ~76 inline event handlers (onclick=, onsubmit=, etc.). Migrating them to
