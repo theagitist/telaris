@@ -1,0 +1,93 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * bin/consent-notify — operator CLI for the "documents changed" notification.
+ *
+ * Shell parity with the admin-console alert. The email send is the operator's
+ * deliberate action; this is the same action from the command line, plus a
+ * preview that sends nothing.
+ *
+ * Usage:
+ *   php bin/consent-notify --status     # pending document versions + recipient count
+ *   php bin/consent-notify --dry-run    # preview the email + who would receive it
+ *   php bin/consent-notify --send       # email the editors who owe the new version
+ *
+ * --send respects MAIL_DRY_RUN (set in config or the environment to rehearse
+ * without delivering). Disregarding the alert is intentionally NOT offered here:
+ * that high-friction step lives only in the admin console.
+ *
+ * Run as the web user so it can read the config + reach the DB:
+ *   sudo -u www-data php bin/consent-notify --status
+ */
+
+if (PHP_SAPI !== 'cli') {
+    fwrite(STDERR, "Refusing to run outside CLI.\n");
+    exit(1);
+}
+
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../utils/auth.php'; // defines USER_TYPE_EDITOR (CLI-safe: no session)
+require_once __DIR__ . '/../inc/consent_notify.php';
+
+$mode = null;
+foreach (array_slice($argv, 1) as $a) {
+    if ($a === '--status')  $mode = 'status';
+    elseif ($a === '--dry-run') $mode = 'dry-run';
+    elseif ($a === '--send') $mode = 'send';
+    else { fwrite(STDERR, "Unknown argument: {$a}\n"); exit(2); }
+}
+if ($mode === null) {
+    fwrite(STDERR, "Usage: consent-notify --status | --dry-run | --send\n");
+    exit(2);
+}
+
+if (!consent_enforced()) {
+    fwrite(STDOUT, "Consent gate is inert (no enforced document version); nothing to notify.\n");
+    exit(0);
+}
+
+$state = consent_notify_alert_state();
+$pending = $state['pending'];
+$recipients = $state['recipients'];
+
+if ($pending === []) {
+    fwrite(STDOUT, "No pending document versions; the alert is resolved.\n");
+    exit(0);
+}
+
+$loc = defined('PROJECT_INFO_LOCALES') ? PROJECT_INFO_LOCALES[0] : 'en';
+
+fwrite(STDOUT, "Pending document versions (not yet sent or disregarded):\n");
+foreach ($pending as $docType => $version) {
+    fwrite(STDOUT, sprintf("  - %s v%s\n", $docType, $version));
+}
+fwrite(STDOUT, sprintf("Editors who would be notified: %d\n", count($recipients)));
+
+if ($mode === 'status') {
+    exit(0);
+}
+
+if ($mode === 'dry-run') {
+    [$subject, $html] = consent_notify_build_email(['locale' => $loc, 'firstname' => ''], $pending);
+    fwrite(STDOUT, "\n--- email preview (" . $loc . ") ---\n");
+    fwrite(STDOUT, "Subject: " . $subject . "\n\n");
+    fwrite(STDOUT, trim(strip_tags(str_replace(['</p>', '</li>', '<hr>'], ["\n", "\n", "\n----\n"], $html))) . "\n");
+    exit(0);
+}
+
+// --send
+$adminId = 'cli';
+$r = consent_notify_send($adminId);
+if ($r['resolved'] && $r['sent'] > 0) {
+    fwrite(STDOUT, sprintf("Sent %d notification(s)%s; alert cleared.\n",
+        $r['sent'], $r['failed'] > 0 ? sprintf(" (%d failed)", $r['failed']) : ''));
+    exit(0);
+}
+if ($r['resolved']) {
+    fwrite(STDOUT, "No editors needed notifying; alert cleared.\n");
+    exit(0);
+}
+fwrite(STDERR, "Nothing sent (mail not configured or all sends failed); alert still active.\n");
+exit(1);

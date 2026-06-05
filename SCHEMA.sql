@@ -32,6 +32,32 @@ CREATE TABLE IF NOT EXISTS user_consents (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Operator decision per document version for the "documents changed" alert.
+-- A row ('sent' | 'disregarded') clears the persistent admin alert for that
+-- version; a later version bump has no row, so the alert re-raises.
+CREATE TABLE IF NOT EXISTS consent_notice_decisions (
+    id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    document_type VARCHAR(32) NOT NULL,    -- 'tos' | 'privacy'
+    document_version VARCHAR(32) NOT NULL,
+    decision VARCHAR(16) NOT NULL,         -- 'sent' | 'disregarded'
+    decided_by VARCHAR(255) NULL,          -- admin user id (no FK; audit kept if admin deleted)
+    decided_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_doc_version (document_type, document_version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One row per editor actually emailed about a document version, so a re-send
+-- never double-notifies. Cascades away with the user.
+CREATE TABLE IF NOT EXISTS consent_notifications (
+    id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    user_id VARCHAR(255) NOT NULL,
+    document_type VARCHAR(32) NOT NULL,
+    document_version VARCHAR(32) NOT NULL,
+    notified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_user_doc_version (user_id, document_type, document_version),
+    INDEX idx_user (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Table for constellations (id 0 = default, created by setup, cannot be erased)
 CREATE TABLE IF NOT EXISTS constellations (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,

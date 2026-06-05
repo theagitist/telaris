@@ -785,6 +785,60 @@ foreach ($importantExtensions as $ext => $name) {
             </div>
         </div>
 
+        <?php
+        // Persistent "documents changed" alert. Shows whenever a considerable
+        // change (a version bump) has left editors un-notified. Clears only on
+        // Send or an explicitly-typed Disregard. CSP-safe: no JS, <details> for
+        // the preview + disregard reveal.
+        require_once __DIR__ . '/../inc/consent_notify.php';
+        $cnState = consent_notify_alert_state();
+        if ($cnState['active']):
+            $cnLoc = consent_notify_current_locale();
+            $cnCount = count($cnState['recipients']);
+            $cnPhrase = consent_notify_disregard_phrase($cnLoc);
+            [$cnPreviewSubject, $cnPreviewHtml] = consent_notify_build_email(['locale' => $cnLoc, 'firstname' => ''], $cnState['pending']);
+        ?>
+        <div class="bg-amber-50 border-2 border-amber-400 text-amber-900 p-5 rounded-lg shadow-md mb-6">
+            <h2 class="font-semibold text-lg mb-2"><?= htmlspecialchars(consent_notify_t('alert_title', $cnLoc)) ?></h2>
+            <p class="mb-2"><?= htmlspecialchars(consent_notify_t('alert_intro', $cnLoc)) ?></p>
+            <ul class="list-disc ml-6 mb-2">
+                <?php foreach ($cnState['pending'] as $cnDocType => $cnVersion): ?>
+                    <li><?= htmlspecialchars(consent_document_label($cnDocType, $cnLoc)) ?> &middot; <?= htmlspecialchars(consent_notify_t('email_version_word', $cnLoc)) ?> <?= htmlspecialchars($cnVersion) ?></li>
+                <?php endforeach; ?>
+            </ul>
+            <p class="mb-3"><strong><?= htmlspecialchars((string)$cnCount) ?></strong> <?= htmlspecialchars(consent_notify_t('alert_recipients', $cnLoc)) ?> <?= htmlspecialchars(consent_notify_t('alert_question', $cnLoc)) ?></p>
+
+            <details class="mb-3">
+                <summary class="cursor-pointer font-medium"><?= htmlspecialchars(consent_notify_t('preview_summary', $cnLoc)) ?></summary>
+                <div class="mt-2 p-3 bg-white border border-amber-200 rounded text-sm text-gray-800">
+                    <p class="mb-1"><strong><?= htmlspecialchars($cnPreviewSubject) ?></strong></p>
+                    <div class="prose prose-sm max-w-none"><?= $cnPreviewHtml ?></div>
+                    <p class="mt-2 text-gray-600"><?= htmlspecialchars(consent_notify_t('preview_recipients', $cnLoc)) ?></p>
+                </div>
+            </details>
+
+            <form method="POST" action="consent-notify.php" class="inline-block mr-2">
+                <?= $csrfField ?>
+                <input type="hidden" name="action" value="send">
+                <button type="submit" class="btn btn-neutral"><?= htmlspecialchars(consent_notify_t('send_button', $cnLoc)) ?> (<?= htmlspecialchars((string)$cnCount) ?>)</button>
+            </form>
+
+            <details class="mt-3">
+                <summary class="cursor-pointer font-medium"><?= htmlspecialchars(consent_notify_t('disregard_summary', $cnLoc)) ?></summary>
+                <div class="mt-2 p-3 bg-white border border-amber-200 rounded">
+                    <p class="text-sm text-gray-800 mb-2"><?= htmlspecialchars(consent_notify_t('disregard_explain', $cnLoc)) ?></p>
+                    <form method="POST" action="consent-notify.php">
+                        <?= $csrfField ?>
+                        <input type="hidden" name="action" value="disregard">
+                        <label class="block text-sm font-medium mb-1"><?= htmlspecialchars(consent_notify_t('disregard_field', $cnLoc)) ?> <code class="bg-gray-100 px-1 rounded"><?= htmlspecialchars($cnPhrase) ?></code></label>
+                        <input type="text" name="confirm_phrase" autocomplete="off" spellcheck="false" class="border border-gray-400 rounded p-2 text-sm w-64 mr-2" required>
+                        <button type="submit" class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm"><?= htmlspecialchars(consent_notify_t('disregard_button', $cnLoc)) ?></button>
+                    </form>
+                </div>
+            </details>
+        </div>
+        <?php endif; ?>
+
         <!-- Messages Data (Hidden) -->
         <div id="php-messages" class="hidden">
             <?php if ($newApiKey): ?>
@@ -811,6 +865,14 @@ foreach ($importantExtensions as $ext => $name) {
             <?php if (!empty($_SESSION['pluriverse_apply_error'])): ?>
                 <div data-type="error"><?= htmlspecialchars((string)$_SESSION['pluriverse_apply_error']) ?></div>
                 <?php unset($_SESSION['pluriverse_apply_error']); ?>
+            <?php endif; ?>
+            <?php if (!empty($_SESSION['consent_notify_message'])): ?>
+                <div data-type="success"><?= htmlspecialchars((string)$_SESSION['consent_notify_message']) ?></div>
+                <?php unset($_SESSION['consent_notify_message']); ?>
+            <?php endif; ?>
+            <?php if (!empty($_SESSION['consent_notify_error'])): ?>
+                <div data-type="error"><?= htmlspecialchars((string)$_SESSION['consent_notify_error']) ?></div>
+                <?php unset($_SESSION['consent_notify_error']); ?>
             <?php endif; ?>
         </div>
 

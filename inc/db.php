@@ -6974,6 +6974,134 @@ function db_get_user_accepted_consents(string $userId): array {
 }
 
 /**
+ * Consent-notification tables (operator-initiated "documents changed" email).
+ *
+ * consent_notice_decisions: one row per (document_type, document_version) the
+ *   operator has resolved, with the decision ('sent' | 'disregarded'). Its
+ *   presence is what clears the persistent admin alert for that version; a
+ *   later version bump has no row, so the alert re-raises. No FK (the deciding
+ *   admin may later be deleted; we keep the audit row).
+ * consent_notifications: one row per (user, document_type, document_version)
+ *   actually emailed, so a re-send never double-notifies an editor. Cascades
+ *   away with the user.
+ */
+function db_ensure_consent_notice_tables(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS consent_notice_decisions (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                document_type VARCHAR(32) NOT NULL,
+                document_version VARCHAR(32) NOT NULL,
+                decision VARCHAR(16) NOT NULL,
+                decided_by VARCHAR(255) NULL,
+                decided_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_doc_version (document_type, document_version)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS consent_notifications (
+                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                user_id VARCHAR(255) NOT NULL,
+                document_type VARCHAR(32) NOT NULL,
+                document_version VARCHAR(32) NOT NULL,
+                notified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_user_doc_version (user_id, document_type, document_version),
+                INDEX idx_user (user_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_consent_notice_tables: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Record the operator's decision for a (documentType, version): 'sent' or
+ * 'disregarded'. Idempotent on the (doc, version) unique key; a later decision
+ * for the same pair updates it (e.g. disregarded then sent). Returns true on
+ * success.
+ */
+function db_record_consent_notice_decision(string $documentType, string $version, string $decision, ?string $adminId): bool {
+    db_ensure_consent_notice_tables();
+    try {
+        $stmt = getDB()->prepare("
+            INSERT INTO consent_notice_decisions (document_type, document_version, decision, decided_by)
+            VALUES (:d, :v, :dec, :by)
+            ON DUPLICATE KEY UPDATE decision = VALUES(decision), decided_by = VALUES(decided_by), decided_at = CURRENT_TIMESTAMP
+        ");
+        return $stmt->execute([':d' => $documentType, ':v' => $version, ':dec' => $decision, ':by' => $adminId]);
+    } catch (PDOException $e) {
+        error_log('db_record_consent_notice_decision: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Return resolved decisions as [documentType => [version => decision]].
+ *
+ * @return array<string, array<string, string>>
+ */
+function db_get_consent_notice_decisions(): array {
+    db_ensure_consent_notice_tables();
+    try {
+        $stmt = getDB()->query("SELECT document_type, document_version, decision FROM consent_notice_decisions");
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $out[(string)$row['document_type']][(string)$row['document_version']] = (string)$row['decision'];
+        }
+        return $out;
+    } catch (PDOException $e) {
+        error_log('db_get_consent_notice_decisions: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Record that $userId was emailed about version $version of $documentType.
+ * Idempotent via the unique key. Returns true on success.
+ */
+function db_record_consent_notification(string $userId, string $documentType, string $version): bool {
+    db_ensure_consent_notice_tables();
+    try {
+        $stmt = getDB()->prepare("
+            INSERT INTO consent_notifications (user_id, document_type, document_version)
+            VALUES (:u, :d, :v)
+            ON DUPLICATE KEY UPDATE notified_at = notified_at
+        ");
+        return $stmt->execute([':u' => $userId, ':d' => $documentType, ':v' => $version]);
+    } catch (PDOException $e) {
+        error_log('db_record_consent_notification: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Versions $userId has already been emailed about, as
+ * [documentType => [version => true]].
+ *
+ * @return array<string, array<string, bool>>
+ */
+function db_get_user_consent_notifications(string $userId): array {
+    db_ensure_consent_notice_tables();
+    try {
+        $stmt = getDB()->prepare("SELECT document_type, document_version FROM consent_notifications WHERE user_id = :u");
+        $stmt->execute([':u' => $userId]);
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $out[(string)$row['document_type']][(string)$row['document_version']] = true;
+        }
+        return $out;
+    } catch (PDOException $e) {
+        error_log('db_get_user_consent_notifications: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
  * Maximum number of pronoun entries an account may store, and the per-entry
  * character cap. Enforced server-side (not just in the UI).
  */
