@@ -16,11 +16,20 @@ declare(strict_types=1);
 header('Content-Type: text/html; charset=UTF-8');
 
 require_once __DIR__ . '/../utils/auth.php';
-requireEditorOrAdminLogin();
 
-// First-login consent gate (no-op when not enforced or for admins).
-require_once __DIR__ . '/../inc/consent.php';
-consent_gate_or_redirect('../');
+// The keyword canvas is the per-galaxy keyword map. It is PUBLIC to view in a
+// read-only mode (this powers the visitor "Keyword view"); editors/admins with
+// access to the galaxy get the full authoring surface. Every write action is
+// enforced server-side in /api/keyword-canvas.php, so opening this page to
+// visitors does not let anyone mutate the canvas.
+$kcLoggedIn = isEditorOrAdminLoggedIn();
+
+// First-login consent gate applies to logged-in editors only (no-op when not
+// enforced or for admins). Visitors viewing read-only never reach it.
+if ($kcLoggedIn) {
+    require_once __DIR__ . '/../inc/consent.php';
+    consent_gate_or_redirect('../');
+}
 
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://cloudflareinsights.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
 header('X-Frame-Options: DENY');
@@ -64,16 +73,17 @@ if (($galaxyInfo['type'] ?? 'galaxy') === 'cluster') {
     exit();
 }
 
-// Editors need a seat on this galaxy; admins always pass.
-if (!$isAdmin) {
-    $seatIds = $currentUserId !== null ? db_get_user_constellation_ids($currentUserId) : [];
-    if (!in_array($galaxyId, array_map('intval', $seatIds), true)) {
-        http_response_code(403);
-        echo '<!doctype html><meta charset="utf-8"><title>' . $kcPageTitle . '</title>';
-        echo '<p style="font-family:sans-serif;padding:2rem">' . t('editor_kc_err_no_edit_access', 'You do not have edit access to this galaxy.') . '</p>';
-        exit();
-    }
+// Edit access: admins always; editors need a seat on this galaxy. Anyone else
+// (a logged-in editor without a seat, or a not-logged-in visitor) gets the
+// read-only view rather than a 403. Writes stay gated in the API regardless.
+$canEdit = false;
+if ($isAdmin) {
+    $canEdit = true;
+} elseif ($kcLoggedIn && $currentUserId !== null) {
+    $seatIds = db_get_user_constellation_ids($currentUserId);
+    $canEdit = in_array($galaxyId, array_map('intval', $seatIds), true);
 }
+$readOnly = !$canEdit;
 
 $galaxySlug = (string)($galaxyInfo['slug'] ?? '');
 // The back link aims at "wherever the user came from." The client-side script
@@ -165,12 +175,14 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
             <h1 class="text-base font-semibold">
                 <?php echo htmlspecialchars(sprintf(t('editor_kc_page_title_template', 'Keyword canvas; %s'), $galaxyInfo['name'] ?? '')); ?>
             </h1>
+<?php if (!$readOnly): ?>
             <button type="button" id="kc-help-btn"
                     class="btn btn-ghost btn-xs text-gray-300 hover:text-white"
                     title="<?php echo t_attr('editor_kc_help_button', 'Help'); ?>"
                     aria-label="<?php echo t_attr('editor_kc_help_button', 'Help'); ?>">
                 ?
             </button>
+<?php endif; ?>
             <span id="kc-status" class="kc-status"><?php echo t_attr('editor_kc_status_loading', 'Loading…'); ?></span>
         </header>
 
@@ -320,6 +332,7 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
             GALAXY_ID: <?php echo (int)$galaxyId; ?>,
             GALAXY_NAME: <?php echo json_encode($galaxyInfo['name'] ?? ''); ?>,
             GALAXY_SLUG: <?php echo json_encode($galaxySlug); ?>,
+            READ_ONLY: <?php echo $readOnly ? 'true' : 'false'; ?>,
             IS_ADMIN: <?php echo $isAdmin ? 'true' : 'false'; ?>,
             CURRENT_USER_ID: <?php echo json_encode($currentUserId); ?>,
             BACK_URL: <?php echo json_encode($backUrl); ?>,

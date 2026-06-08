@@ -468,12 +468,13 @@ header("X-Content-Type-Options: nosniff");
             </div>
         </div>
 
-        <?php if ($isEditorOrAdmin && !empty($keywordViewGalaxyId)): ?>
-        <!-- Keyword view: the per-galaxy keyword canvas. In multi-galaxy
-             contexts (clusters or emergent unions) we route to the FIRST
-             member galaxy — the canvas is strictly per-galaxy. Editor-only:
-             the canvas page requires a login + galaxy seat; non-editors
-             would just bounce to /utils/login.php. -->
+        <?php if (!empty($keywordViewGalaxyId) && ($isEditorOrAdmin || !empty($keywordChipsEnabled))): ?>
+        <!-- Keyword view: the per-galaxy keyword map. In multi-galaxy contexts
+             (clusters or emergent unions) we route to the FIRST member galaxy;
+             the canvas is strictly per-galaxy. Public read-only for visitors
+             (shown on galaxies that use keyword chips); editors/admins with a
+             seat get the full authoring surface. Read access is served by
+             /edit/keyword-canvas.php; all writes stay gated in the API. -->
         <div class="mt-4 text-xs uppercase">
             <a href="/edit/keyword-canvas.php?galaxy_id=<?php echo (int)$keywordViewGalaxyId; ?>&amp;back=visitor"
                class="font-bold hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1">

@@ -93,13 +93,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $galaxyId = isset($_GET['galaxy_id']) ? (int)$_GET['galaxy_id'] : 0;
     if ($galaxyId <= 0) api_error('400.015', 'A galaxy id is required.');
 
-    // Hydration is read-only but still scoped to editors/admins of the galaxy.
-    // (Visitors see no canvas in v1.) We require a session here too — calling
-    // requireWriteAccess() is the simplest way to enforce session presence.
-    requireWriteAccess();
-    if (!kc_can_edit_galaxy($galaxyId)) api_error('403.004', 'No edit access to this galaxy.');
+    // Hydration is read-only and PUBLIC: it powers the visitor keyword map as
+    // well as the editor canvas. Every WRITE action below stays gated by
+    // requireWriteAccess() + a per-galaxy seat check, so serving reads to
+    // visitors changes nothing about who can mutate the canvas. Editors/admins
+    // of the galaxy get the full payload; everyone else (kc_can_edit_galaxy is
+    // false, not an error, for a session-less visitor) gets it with author
+    // identity stripped, so the public map never leaks which editor placed a
+    // keyword or authored a relation.
+    $canEdit = kc_can_edit_galaxy($galaxyId);
 
     $payload = db_get_keyword_canvas_hydration($galaxyId);
+    if (!$canEdit) {
+        if (!empty($payload['positions']) && is_array($payload['positions'])) {
+            foreach ($payload['positions'] as &$kcPos) { unset($kcPos['moved_by'], $kcPos['moved_at']); }
+            unset($kcPos);
+        }
+        if (!empty($payload['relations']) && is_array($payload['relations'])) {
+            foreach ($payload['relations'] as &$kcRel) { unset($kcRel['created_by'], $kcRel['created_at']); }
+            unset($kcRel);
+        }
+    }
     echo json_encode($payload, JSON_THROW_ON_ERROR);
     exit();
 }

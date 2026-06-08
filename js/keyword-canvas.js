@@ -19,6 +19,7 @@
     'use strict';
 
     const KC = window.TELARIS_KC || {};
+    const READONLY = !!KC.READ_ONLY; // visitor read-only mode: view + pan + zoom + read relation notes; no writes
     const KC_STR = KC.STRINGS || {};
     // printf-style %d/%s substituter for parametric localized strings.
     function tFmt(tpl, ...args) {
@@ -604,7 +605,7 @@
             const g = document.createElementNS(SVG_NS, 'g');
             g.setAttribute('data-kc-node', String(id));
             setNodeTransform(g, id);
-            g.style.cursor = 'grab';
+            g.style.cursor = READONLY ? 'default' : 'grab';
 
             // Pill — match the chip style used everywhere else in Telaris
             // (edit/index.php preview, keyword-chips visitor strip): pastel
@@ -665,7 +666,7 @@
             // styling redirects to the visible dot via a JS property reference.
             const anchors = anchorPoints({ x: 0, y: 0 }, w, h);
             const HIT_RADIUS = ANCHOR_RADIUS_REST * 3;
-            Object.entries(anchors).forEach(([side, ap]) => {
+            if (!READONLY) Object.entries(anchors).forEach(([side, ap]) => {
                 const dot = document.createElementNS(SVG_NS, 'circle');
                 dot.setAttribute('cx', String(ap.x));
                 dot.setAttribute('cy', String(ap.y));
@@ -863,6 +864,7 @@
     // Save (debounced)
     // ---------------------------------------------------------------------
     function queueSavePosition(kwId, x, y) {
+        if (READONLY) return; // read-only visitors never persist positions
         state.pendingSaves.set(kwId, { x, y });
         if (state.saveTimer) clearTimeout(state.saveTimer);
         setStatus(KC_STR.statusSaving || 'Saving…', 'saving');
@@ -912,6 +914,15 @@
 
     svg.addEventListener('pointerdown', (ev) => {
         const target = ev.target;
+        // Read-only (visitor) mode: the only interactions are reading a relation
+        // note (click a line) and panning the view. No drag, no line drawing,
+        // no keyword inspector. Writes are also blocked server-side.
+        if (READONLY) {
+            const roRel = target.getAttribute && target.getAttribute('data-kc-relation');
+            if (roRel) { selectRelation(parseInt(roRel, 10), ev); ev.preventDefault(); return; }
+            startBackgroundPan(ev);
+            return;
+        }
         // Anchor click? Start drawing a line.
         const anchorSide = target.getAttribute && target.getAttribute('data-kc-anchor');
 
