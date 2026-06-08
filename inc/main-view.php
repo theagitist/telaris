@@ -475,7 +475,7 @@ header("X-Content-Type-Options: nosniff");
              the canvas page requires a login + galaxy seat; non-editors
              would just bounce to /utils/login.php. -->
         <div class="mt-4 text-xs uppercase">
-            <a href="edit/keyword-canvas.php?galaxy_id=<?php echo (int)$keywordViewGalaxyId; ?>&amp;back=visitor"
+            <a href="/edit/keyword-canvas.php?galaxy_id=<?php echo (int)$keywordViewGalaxyId; ?>&amp;back=visitor"
                class="font-bold hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1">
                 Keyword view
             </a>
@@ -484,13 +484,13 @@ header("X-Content-Type-Options: nosniff");
 
         <div class="flex gap-6 mt-4 font-bold text-xs uppercase">
             <?php if ($isEditorOrAdmin): ?>
-                <a href="edit/index.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectEditButtonText ?? 'Edit'); ?></a>
+                <a href="/edit/index.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectEditButtonText ?? 'Edit'); ?></a>
                 <?php if (isAdminLoggedIn()): ?>
-                    <a href="admin/index.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectAdminLabelText ?? 'Admin'); ?></a>
+                    <a href="/admin/index.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectAdminLabelText ?? 'Admin'); ?></a>
                 <?php endif; ?>
-                <a href="utils/logout.php" class="opacity-40 hover:opacity-100 transition-opacity"><?php echo htmlspecialchars($projectLogoutLabelText ?? 'Logout'); ?></a>
+                <a href="/utils/logout.php" class="opacity-40 hover:opacity-100 transition-opacity"><?php echo htmlspecialchars($projectLogoutLabelText ?? 'Logout'); ?></a>
             <?php else: ?>
-                <a href="utils/login.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectInitializeAuthText ?? 'Login'); ?></a>
+                <a href="/utils/login.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectInitializeAuthText ?? 'Login'); ?></a>
             <?php endif; ?>
         </div>
     </div>

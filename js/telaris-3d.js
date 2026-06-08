@@ -110,7 +110,7 @@ class TelarisNetwork {
             }));
         } catch (e) { /* storage full — fall through to URL params */ }
 
-        const frameUrl = 'utils/frame.php?key=' + encodeURIComponent(frameKey) +
+        const frameUrl = '/utils/frame.php?key=' + encodeURIComponent(frameKey) +
             '&url=' + encodeURIComponent(url) +
             '&r=' + r + '&g=' + g + '&b=' + b +
             '&app=' + encodeURIComponent(app) +
