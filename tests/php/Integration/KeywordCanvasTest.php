@@ -179,7 +179,7 @@ final class KeywordCanvasTest extends TestCase
         if ($stmt === false) return;
         $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
         foreach ($ids as $id) {
-            // Manually unwind the cascade — db_delete_galaxy_deep is heavier than we need
+            // Manually unwind the cascade; a full constellation delete is heavier than we need
             $this->pdo->prepare("DELETE FROM keywords WHERE constellation_id = ?")->execute([(int)$id]);
             $this->pdo->prepare("DELETE FROM constellations WHERE id = ?")->execute([(int)$id]);
         }

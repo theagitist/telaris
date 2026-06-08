@@ -8003,18 +8003,6 @@ function db_backfill_import_slugs(int $constellationId): int {
     return $count;
 }
 
-/** Set clustering metadata on a node. */
-function db_set_node_clustering_metadata(int $nodeId, ?string $sourceFacet, ?string $mediaType, ?string $sourceCreatedAt): void {
-    $pdo = getDB();
-    $stmt = $pdo->prepare("UPDATE nodes SET source_facet = :source_facet, media_type = :media_type, source_created_at = :source_created_at WHERE id = :id");
-    $stmt->execute([
-        ':id' => $nodeId,
-        ':source_facet' => $sourceFacet,
-        ':media_type' => $mediaType,
-        ':source_created_at' => $sourceCreatedAt,
-    ]);
-}
-
 /** No-op: schema is created by setup only. */
 function db_ensure_project_info_table(): void {
 }
@@ -8129,48 +8117,12 @@ function db_insert_default_project_info_rows(PDO $pdo, string $enName = 'Telaris
 
 
 /**
- * Read the description for English (Edit form).
- */
-function db_get_project_description(): string {
-    try {
-        db_ensure_project_info_table();
-        $pdo = getDB();
-        $stmt = $pdo->prepare("SELECT description FROM project_info WHERE locale = 'en' LIMIT 1");
-        $stmt->execute();
-        $row = $stmt->fetch(PDO::FETCH_NUM);
-        return $row !== false && isset($row[0]) ? (string) $row[0] : '';
-    } catch (PDOException $e) {
-        return '';
-    }
-}
-
-/**
  * Return English project strings (legacy).
  * @return array{name: string, description: string, iframe_back_text: string, alert_message: string}|null
  */
 function db_get_project_info(): ?array {
     $row = db_get_project_info_for_locale('en');
     return $row;
-}
-
-/**
- * Upsert project name and description for English. Used by setup and website form.
- */
-function db_upsert_project_info(string $name, string $description): void {
-    db_ensure_project_info_table();
-    $pdo = getDB();
-    $stmt = $pdo->prepare("INSERT INTO project_info (locale, name, description) VALUES ('en', :name, :description) ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description)");
-    $stmt->execute([':name' => $name, ':description' => $description]);
-}
-
-/**
- * Update English project settings only.
- */
-function db_update_project_settings(string $name, string $description, string $iframe_back_text, string $alert_message): void {
-    db_ensure_project_info_columns();
-    $pdo = getDB();
-    $stmt = $pdo->prepare("UPDATE project_info SET name = :name, description = :description, iframe_back_text = :iframe_back_text, alert_message = :alert_message WHERE locale = 'en'");
-    $stmt->execute([':name' => $name, ':description' => $description, ':iframe_back_text' => $iframe_back_text, ':alert_message' => $alert_message]);
 }
 
 /**
@@ -8263,52 +8215,6 @@ function db_get_project_info_for_locale(string $locale): array {
     } catch (PDOException $e) {
         $defaults = db_default_project_info_rows();
         return $defaults['en'];
-    }
-}
-
-/**
- * Update project settings for all locales (one row per locale in project_info).
- */
-function db_update_project_settings_with_locales(array $en, array $es, array $pt, ?int $defaultConstellationId = null): void {
-    db_ensure_project_info_table();
-    $pdo = getDB();
-    
-    $keys = PROJECT_INFO_KEYS;
-    $cols = implode(', ', $keys);
-    $placeholders = ':' . implode(', :', $keys);
-    $updates = [];
-    foreach ($keys as $k) {
-        $updates[] = "$k = VALUES($k)";
-    }
-    $updateStr = implode(', ', $updates);
-    
-    // Check if column exists (it should, but just in case for older migrations)
-    $stmt = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'default_constellation_id'");
-    $hasDefaultCol = $stmt->fetch() !== false;
-    
-    $sql = "INSERT INTO project_info (locale, $cols" . ($hasDefaultCol ? ", default_constellation_id" : "") . ") 
-            VALUES (:locale, $placeholders" . ($hasDefaultCol ? ", :default_constellation_id" : "") . ") 
-            ON DUPLICATE KEY UPDATE $updateStr" . ($hasDefaultCol ? ", default_constellation_id = VALUES(default_constellation_id)" : "");
-    
-    $stmt = $pdo->prepare($sql);
-    
-    $locales = ['en' => $en, 'es' => $es, 'pt' => $pt];
-    $defaults = db_default_project_info_rows();
-    
-    foreach (PROJECT_INFO_LOCALES as $locale) {
-        $data = $locales[$locale] ?? [];
-        $params = [':locale' => $locale];
-        foreach ($keys as $k) {
-            $val = trim((string)($data[$k] ?? ''));
-            if ($val === '' && isset($defaults[$locale][$k])) {
-                $val = $defaults[$locale][$k];
-            }
-            $params[':' . $k] = $val;
-        }
-        if ($hasDefaultCol) {
-            $params[':default_constellation_id'] = $defaultConstellationId ?? 0;
-        }
-        $stmt->execute($params);
     }
 }
 
@@ -9020,34 +8926,6 @@ function db_slugify(string $text): string {
     // Collapse multiple hyphens and trim them from ends
     $text = preg_replace('/-+/', '-', $text);
     return trim($text, '-');
-}
-
-/**
- * Return the display name for the default constellation: app name from project_info (en) if non-empty, else 'Default'.
- */
-function db_default_constellation_name(PDO $pdo): string {
-    try {
-        $stmt = $pdo->query("SELECT name FROM project_info WHERE locale = 'en' LIMIT 1");
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        $name = $row && isset($row['name']) ? trim((string) $row['name']) : '';
-        return $name !== '' ? $name : 'Default';
-    } catch (PDOException $e) {
-        return 'Default';
-    }
-}
-
-/**
- * Return the tagline for the default constellation: description from project_info (en) if non-empty, else ''.
- */
-function db_default_constellation_tagline(PDO $pdo): string {
-    try {
-        $stmt = $pdo->query("SELECT description FROM project_info WHERE locale = 'en' LIMIT 1");
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        $tagline = $row && isset($row['description']) ? trim((string) $row['description']) : '';
-        return $tagline;
-    } catch (PDOException $e) {
-        return '';
-    }
 }
 
 /**
@@ -12046,15 +11924,6 @@ function db_set_node_target_constellation(int $nodeId, ?int $targetCid): void {
 }
 
 /**
- * Set the created_by user_id for a node (used during restore once users exist).
- */
-function db_set_node_created_by(int $nodeId, ?string $userId): void {
-    $pdo = getDB();
-    $pdo->prepare("UPDATE nodes SET created_by = :uid WHERE id = :id")
-        ->execute([':uid' => $userId, ':id' => $nodeId]);
-}
-
-/**
  * Find a constellation id by slug, returning null if missing.
  */
 function db_get_constellation_id_by_slug(string $slug): ?int {
@@ -12063,51 +11932,6 @@ function db_get_constellation_id_by_slug(string $slug): ?int {
     $stmt->execute([':slug' => $slug]);
     $row = $stmt->fetch();
     return $row ? (int)$row['id'] : null;
-}
-
-/**
- * Delete a galaxy and everything inside it: nodes, keywords, node_keywords,
- * user_constellations rows, portal references from other galaxies, and the
- * uploads/{id}/ directory on disk. Optionally allows deleting the default galaxy.
- */
-function db_delete_galaxy_deep(int $id, bool $allowDefault = false): void {
-    if (!$allowDefault && $id === db_get_default_constellation_id()) {
-        throw new InvalidArgumentException('The default galaxy cannot be deleted.');
-    }
-    $pdo = getDB();
-    $pdo->beginTransaction();
-    try {
-        // Null out portal references in OTHER galaxies that target this one
-        $pdo->prepare("UPDATE nodes SET target_constellation_id = NULL WHERE target_constellation_id = :id AND constellation_id != :id2")
-            ->execute([':id' => $id, ':id2' => $id]);
-
-        // Delete node_keywords for this galaxy's nodes (FK cascade will also handle this, but be explicit)
-        $pdo->prepare("DELETE nk FROM node_keywords nk INNER JOIN nodes n ON n.id = nk.node_id WHERE n.constellation_id = :id")
-            ->execute([':id' => $id]);
-
-        // Delete this galaxy's nodes
-        $pdo->prepare("DELETE FROM nodes WHERE constellation_id = :id")->execute([':id' => $id]);
-
-        // Delete keywords
-        $pdo->prepare("DELETE FROM keywords WHERE constellation_id = :id")->execute([':id' => $id]);
-
-        // Delete user_constellations rows (FK ON DELETE CASCADE will also handle this)
-        $pdo->prepare("DELETE FROM user_constellations WHERE constellation_id = :id")->execute([':id' => $id]);
-
-        // Delete the constellation itself
-        $pdo->prepare("DELETE FROM constellations WHERE id = :id")->execute([':id' => $id]);
-
-        $pdo->commit();
-    } catch (Exception $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        throw $e;
-    }
-
-    // Wipe the uploads directory for this galaxy. Bounded to UPLOAD_DIR.
-    if (defined('UPLOAD_DIR')) {
-        $dir = rtrim(UPLOAD_DIR, '/') . '/' . $id;
-        db_rrmdir($dir, UPLOAD_DIR);
-    }
 }
 
 /**

@@ -64,10 +64,6 @@ function handshake_generate_peer_key(): string {
     return base64_encode(random_bytes(FEDERATION_HANDSHAKE_PEER_KEY_BYTES));
 }
 
-function handshake_hash_peer_key(string $apiKey): string {
-    return hash('sha256', $apiKey, true);
-}
-
 /**
  * Round 1: build the outbound envelope + persist a handshakes row + queue an
  * outbound message row for the dispatcher.

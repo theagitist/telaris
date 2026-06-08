@@ -24,8 +24,7 @@ const BACKUP_FORMAT_VERSION = 1;
  * Resolve the SNAPSHOTS_DIR path. Falls back to <UPLOAD_DIR>/../snapshots
  * when the constant isn't defined (older config.php files).
  * Creates the directory if missing. Read-only callers can use this safely
- * even when the directory doesn't exist; writers should call
- * backup_snapshots_dir_writable() to get an actionable error up front.
+ * even when the directory doesn't exist.
  */
 function backup_snapshots_dir(): string {
     if (defined('SNAPSHOTS_DIR')) {
@@ -42,33 +41,6 @@ function backup_snapshots_dir(): string {
         @mkdir($dir, 02775, true);
     }
     return rtrim($dir, '/');
-}
-
-/**
- * Same path, but throws a clear actionable RuntimeException if the directory
- * is missing or not writable by the current process user. Writers should call
- * this so failures point at the real cause (perms, missing parent, fallback
- * path on a path the web user can't reach) instead of a generic write error.
- */
-function backup_snapshots_dir_writable(): string {
-    $dir = backup_snapshots_dir();
-    $configured = defined('SNAPSHOTS_DIR');
-    $hint = $configured
-        ? "Set permissions so the web/cron user can write to {$dir} (e.g. chmod 02775 {$dir} && chgrp www-data {$dir})."
-        : "SNAPSHOTS_DIR is not defined in config.php; the snapshot subsystem is falling back to {$dir}, which the current user can't create or write to. Add `define('SNAPSHOTS_DIR', '/your/path/starmaps-snapshots');` to config.php and ensure the directory exists with mode 02775.";
-
-    if (!is_dir($dir)) {
-        throw new RuntimeException("Snapshots directory does not exist and could not be created: {$dir}. {$hint}");
-    }
-    if (!is_writable($dir)) {
-        $owner = function_exists('posix_getpwuid') ? (posix_getpwuid(fileowner($dir))['name'] ?? '?') : '?';
-        $perms = substr(sprintf('%o', fileperms($dir)), -4);
-        $whoami = function_exists('posix_geteuid') && function_exists('posix_getpwuid')
-            ? (posix_getpwuid(posix_geteuid())['name'] ?? '?')
-            : '?';
-        throw new RuntimeException("Snapshots directory {$dir} is not writable by '{$whoami}' (currently owned by '{$owner}', mode {$perms}). {$hint}");
-    }
-    return $dir;
 }
 
 // ---------------------------------------------------------------------------

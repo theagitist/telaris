@@ -34,14 +34,6 @@ function api_client_ip(): string {
 }
 
 /**
- * Validate API key and return true if valid, false otherwise
- * Updates last_used_at timestamp on successful validation
- */
-function validateApiKey(PDO $pdo, string $apiKey): bool {
-    return db_validate_api_key($apiKey);
-}
-
-/**
  * Get API key from request (checks headers first, then query parameters)
  * Works in all PHP environments (Apache, FastCGI, FPM, etc.)
  */
@@ -116,17 +108,6 @@ function requireWriteAccess(): void {
     // session cookie is the belt; this is the suspenders, and the right primitive
     // when the cookie boundary shifts (subdomains, CORS, future flows).
     verify_csrf_token();
-}
-
-/**
- * Default cache headers for every JSON API response. no-store keeps responses
- * out of the browser back-cache (admin/editor surfaces contain other-user
- * data) and out of any intermediate proxy. Individual endpoints can override
- * by emitting their own Cache-Control after this.
- */
-function api_no_store(): void {
-    header('Cache-Control: no-store, max-age=0');
-    header('Pragma: no-cache');
 }
 
 /**
