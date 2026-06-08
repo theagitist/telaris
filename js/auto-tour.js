@@ -6,19 +6,7 @@
  * Configured per galaxy via window.TELARIS_TOUR_CONFIG. Disabled on phones.
  */
 
-const MOBILE_MIN_WIDTH = 768;
-
-// Same palette as the keyword chips in telaris-3d.js, so the dwell bar reads
-// as on-brand without coupling to the per-node accent color.
-const DWELL_BAR_COLORS = [
-    '#fca5a5', '#fdba74', '#fcd34d', '#fde047', '#bef264', '#86efac',
-    '#6ee7b7', '#5eead4', '#67e8f9', '#7dd3fc', '#93c5fd', '#a5b4fc',
-    '#c4b5fd', '#d8b4fe', '#f0abfc', '#f9a8d4', '#fda4af',
-];
-
-function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+import { MOBILE_MIN_WIDTH, delay, computeDwellSeconds, DwellBar } from './tour-shared.js';
 
 function shuffle(arr) {
     const out = arr.slice();
@@ -42,7 +30,7 @@ export class TourController {
         this.active = false;
         this.paused = false;
         this.dwellTimerId = null;
-        this.dwellAnimation = null;
+        this.dwellBar = new DwellBar();
         this.attachedAudio = null;
         this.attachedVideo = null;
         this.idleTimerId = null;
@@ -227,7 +215,7 @@ export class TourController {
             this.resumeIcon?.classList.add('hidden');
             if (this.attachedAudio && audio) audio.play().catch(() => {});
             if (this.attachedVideo && video) video.play().catch(() => {});
-            this.resumeDwellBar();
+            this.dwellBar.resume();
             if (this._dwellRemainingMs != null) {
                 const remaining = this._dwellRemainingMs;
                 this._dwellRemainingMs = null;
@@ -243,12 +231,11 @@ export class TourController {
             if (this.attachedAudio && audio) audio.pause();
             if (this.attachedVideo && video) video.pause();
             if (this.dwellTimerId) {
-                if (this.dwellAnimation) {
-                    const total = this.dwellAnimation.effect.getTiming().duration;
-                    const elapsed = Number(this.dwellAnimation.currentTime || 0);
-                    this._dwellRemainingMs = Math.max(0, total - elapsed);
+                const remaining = this.dwellBar.remainingMs();
+                if (remaining != null) {
+                    this._dwellRemainingMs = remaining;
                 }
-                this.pauseDwellBar();
+                this.dwellBar.pause();
                 clearTimeout(this.dwellTimerId);
                 this.dwellTimerId = null;
             }
@@ -327,7 +314,7 @@ export class TourController {
         const media = video || audio;
 
         const baseDwell = Math.max(1, this.config.tour_default_dwell || 8);
-        const visibleDwellSec = this.computeDwellSeconds(node, baseDwell);
+        const visibleDwellSec = computeDwellSeconds(node, baseDwell);
 
         if (!media) {
             this.scheduleDwellAdvance(visibleDwellSec * 1000);
@@ -355,7 +342,7 @@ export class TourController {
         const onPlaySuccess = () => {
             // Hide the visible bar; replace with a hidden failsafe that lasts
             // the full media length + 3s, so 'ended' normally fires first.
-            this.cancelDwellBar();
+            this.dwellBar.cancel();
             if (this.dwellTimerId) {
                 clearTimeout(this.dwellTimerId);
                 this.dwellTimerId = null;
@@ -388,22 +375,6 @@ export class TourController {
         }
     }
 
-/**
-     * How long to keep the dwell bar up for this node. If the card has
-     * descriptive text, scale by an estimated reading time (180 wpm + 2s
-     * to settle in). Otherwise fall back to the configured default.
-     */
-    computeDwellSeconds(node, baseDwell) {
-        const text = node?.userData?.description || '';
-        if (!text) return baseDwell;
-        const stripped = String(text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-        if (!stripped) return baseDwell;
-        const words = stripped.split(/\s+/).length;
-        const wpm = 180;
-        const seconds = (words / wpm) * 60;
-        return Math.max(baseDwell, seconds + 2);
-    }
-
     scheduleDwellAdvance(durationMs) {
         if (durationMs == null) {
             durationMs = Math.max(1, this.config.tour_default_dwell || 8) * 1000;
@@ -413,12 +384,12 @@ export class TourController {
             clearTimeout(this.dwellTimerId);
             this.dwellTimerId = null;
         }
-        this.cancelDwellBar();
+        this.dwellBar.cancel();
         this.dwellTimerId = setTimeout(() => {
             this.dwellTimerId = null;
             if (this.active && !this.paused) this.advance(1);
         }, durationMs);
-        this.startDwellBar(durationMs);
+        this.dwellBar.start(durationMs);
     }
 
     clearDwellTimer() {
@@ -426,47 +397,7 @@ export class TourController {
             clearTimeout(this.dwellTimerId);
             this.dwellTimerId = null;
         }
-        this.cancelDwellBar();
-    }
-
-    startDwellBar(durationMs) {
-        const track = document.getElementById('tour-dwell-bar-track');
-        const bar = document.getElementById('tour-dwell-bar');
-        if (!track || !bar) return;
-        track.classList.remove('hidden');
-        const color = DWELL_BAR_COLORS[Math.floor(Math.random() * DWELL_BAR_COLORS.length)];
-        bar.style.backgroundColor = color;
-        bar.style.transform = 'scaleX(1)';
-        if (this.dwellAnimation) {
-            this.dwellAnimation.cancel();
-            this.dwellAnimation = null;
-        }
-        if (typeof bar.animate !== 'function') return;
-        this.dwellAnimation = bar.animate(
-            [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
-            { duration: durationMs, easing: 'linear', fill: 'forwards' }
-        );
-    }
-
-    cancelDwellBar() {
-        if (this.dwellAnimation) {
-            this.dwellAnimation.cancel();
-            this.dwellAnimation = null;
-        }
-        const track = document.getElementById('tour-dwell-bar-track');
-        if (track) track.classList.add('hidden');
-    }
-
-    pauseDwellBar() {
-        if (this.dwellAnimation && this.dwellAnimation.playState === 'running') {
-            this.dwellAnimation.pause();
-        }
-    }
-
-    resumeDwellBar() {
-        if (this.dwellAnimation && this.dwellAnimation.playState === 'paused') {
-            this.dwellAnimation.play();
-        }
+        this.dwellBar.cancel();
     }
 
     detachMediaListeners() {

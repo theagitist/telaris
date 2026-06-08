@@ -644,6 +644,7 @@ header("X-Content-Type-Options: nosniff");
                 "./themes.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'themes.js')); ?>",
                 "./telaris-soundscape.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'telaris-soundscape.js')); ?>",
                 "./auto-tour.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'auto-tour.js')); ?>",
+                "./tour-shared.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'tour-shared.js')); ?>",
                 "./keyword-chips.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'keyword-chips.js')); ?>",
                 "./idle-spotlight.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'idle-spotlight.js')); ?>",
                 "./galaxy-list-strip.js": "<?php echo htmlspecialchars(asset_versioned_js_url($appVersion, 'galaxy-list-strip.js')); ?>",

@@ -13,16 +13,7 @@
  * Disabled on phones (matches auto-tour's mobile gating).
  */
 
-const MOBILE_MIN_WIDTH = 768;
-
-// Pastel palette shared with the auto-tour dwell bar so cycles stay visually consistent.
-const DWELL_BAR_COLORS = [
-    '#fca5a5', '#fdba74', '#fcd34d', '#fde047', '#bef264', '#86efac',
-    '#6ee7b7', '#5eead4', '#67e8f9', '#7dd3fc', '#93c5fd', '#a5b4fc',
-    '#c4b5fd', '#d8b4fe', '#f0abfc', '#f9a8d4', '#fda4af',
-];
-
-function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+import { MOBILE_MIN_WIDTH, computeDwellSeconds, DwellBar } from './tour-shared.js';
 
 export class IdleSpotlightController {
     constructor(app, config) {
@@ -30,7 +21,7 @@ export class IdleSpotlightController {
         this.config = config || {};
         this.idleTimerId = null;
         this.dwellTimerId = null;
-        this.dwellAnimation = null;
+        this.dwellBar = new DwellBar();
         this.attachedMedia = null;
         this.attachedOnEnded = null;
         this.busy = false;
@@ -121,7 +112,7 @@ export class IdleSpotlightController {
         const media = video || audio;
 
         const baseDwell = Math.max(1, this.config.default_dwell || 8);
-        const visibleDwellSec = this.computeDwellSeconds(node, baseDwell);
+        const visibleDwellSec = computeDwellSeconds(node, baseDwell);
 
         if (!media) {
             this.scheduleDwellEnd(visibleDwellSec * 1000);
@@ -144,7 +135,7 @@ export class IdleSpotlightController {
 
         const playPromise = media.play();
         const onPlaySuccess = () => {
-            this.cancelDwellBar();
+            this.dwellBar.cancel();
             if (this.dwellTimerId) { clearTimeout(this.dwellTimerId); this.dwellTimerId = null; }
             const arm = () => {
                 const seconds = (isFinite(media.duration) && media.duration > 0)
@@ -165,52 +156,20 @@ export class IdleSpotlightController {
         }
     }
 
-    /** Reading-time estimate (180 wpm + 2s settle) bounded by baseDwell. */
-    computeDwellSeconds(node, baseDwell) {
-        const text = node?.userData?.description || '';
-        if (!text) return baseDwell;
-        const stripped = String(text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-        if (!stripped) return baseDwell;
-        const words = stripped.split(/\s+/).length;
-        const seconds = (words / 180) * 60;
-        return Math.max(baseDwell, seconds + 2);
-    }
-
     scheduleDwellEnd(durationMs) {
         if (this.dwellTimerId) { clearTimeout(this.dwellTimerId); this.dwellTimerId = null; }
-        this.cancelDwellBar();
+        this.dwellBar.cancel();
         this.dwellTimerId = setTimeout(() => {
             this.dwellTimerId = null;
             this.endStop();
         }, durationMs);
-        this.startDwellBar(durationMs);
-    }
-
-    startDwellBar(durationMs) {
-        const track = document.getElementById('tour-dwell-bar-track');
-        const bar = document.getElementById('tour-dwell-bar');
-        if (!track || !bar) return;
-        track.classList.remove('hidden');
-        bar.style.backgroundColor = DWELL_BAR_COLORS[Math.floor(Math.random() * DWELL_BAR_COLORS.length)];
-        bar.style.transform = 'scaleX(1)';
-        if (this.dwellAnimation) { this.dwellAnimation.cancel(); this.dwellAnimation = null; }
-        if (typeof bar.animate !== 'function') return;
-        this.dwellAnimation = bar.animate(
-            [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
-            { duration: durationMs, easing: 'linear', fill: 'forwards' }
-        );
-    }
-
-    cancelDwellBar() {
-        if (this.dwellAnimation) { this.dwellAnimation.cancel(); this.dwellAnimation = null; }
-        const track = document.getElementById('tour-dwell-bar-track');
-        if (track) track.classList.add('hidden');
+        this.dwellBar.start(durationMs);
     }
 
     /** Close the card, clear spotlight, and restart the idle watch. */
     endStop() {
         if (this.dwellTimerId) { clearTimeout(this.dwellTimerId); this.dwellTimerId = null; }
-        this.cancelDwellBar();
+        this.dwellBar.cancel();
         if (this.attachedMedia && this.attachedOnEnded) {
             this.attachedMedia.removeEventListener('ended', this.attachedOnEnded);
         }
@@ -232,7 +191,7 @@ export class IdleSpotlightController {
         if (e.currentTarget === overlay && e.target !== overlay) return;
         // Don't double-call closeRichMediaWindow — the existing handlers will fire.
         if (this.dwellTimerId) { clearTimeout(this.dwellTimerId); this.dwellTimerId = null; }
-        this.cancelDwellBar();
+        this.dwellBar.cancel();
         if (this.attachedMedia && this.attachedOnEnded) {
             this.attachedMedia.removeEventListener('ended', this.attachedOnEnded);
         }
