@@ -887,7 +887,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             try {
                 const response = await fetch('create_constellation.php', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
                     body: JSON.stringify({ name: name.trim() })
                 });
                 const text = await response.text();
@@ -1835,6 +1835,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const xhr = new XMLHttpRequest();
             xhr.open('POST', API_BASE, true);
             xhr.setRequestHeader('X-API-Key', API_KEY);
+            xhr.setRequestHeader('X-CSRF-Token', CSRF_TOKEN);
             if (method === 'PUT') {
                 xhr.setRequestHeader('X-HTTP-Method-Override', 'PUT');
             }
