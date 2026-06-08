@@ -1,0 +1,41 @@
+{
+  // Fallow (https://fallow.tools) config for the Telaris front-end JS.
+  //
+  // Telaris loads every non-vendor module directly from PHP via
+  // asset_versioned_js_url() / importmaps, so each is a real runtime entry
+  // point. Without listing them here Fallow finds 0 entry points and reports
+  // the entire codebase as "unused files". Keep this list in sync when a new
+  // top-level js/<module>.js is added to the page loaders.
+  //
+  // Vendored libraries (Three.js, PDF.js, DaisyUI, Tailwind) are excluded:
+  // they are third-party, pinned, and not ours to refactor.
+  //
+  // Run:  npx fallow            (dead-code + dupes + health)
+  //       npx fallow dupes      (duplication only)
+  //       npx fallow health     (complexity / hotspots)
+  "entry": [
+    "js/main.js",
+    "js/telaris-3d.js",
+    "js/network-manager.js",
+    "js/geometry-manager.js",
+    "js/api.js",
+    "js/themes.js",
+    "js/keyword-canvas.js",
+    "js/keyword-chips.js",
+    "js/galaxy-edit-modal.js",
+    "js/galaxy-list-strip.js",
+    "js/wormhole-grid-2d.js",
+    "js/pdf-viewer.js",
+    "js/auto-tour.js",
+    "js/idle-spotlight.js",
+    "js/telaris-node-icons.js",
+    "js/telaris-soundscape.js",
+    "tests/js/*.test.js"
+  ],
+  "ignorePatterns": [
+    "js/vendor/**",
+    "css/vendor/**",
+    "js/tailwind.min.js",
+    "vendor/**"
+  ]
+}
