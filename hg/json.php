@@ -10,6 +10,7 @@
  */
 
 @require_once('config.inc.php');
+require_once('telaris-auth.inc.php');	// Telaris session + auth bridge; starts the session before any output
 require_once('log.inc.php');
 log_msg('info', '--- json request ---');
 require_once('common.inc.php');
@@ -89,12 +90,10 @@ if (!($m = get_service($method))) {
 	die();
 }
 
-// check authentication
-if (isset($m['auth']) && $m['auth']) {
-	if (!is_auth()) {
-		prompt_auth(true);
-	}
-}
+// check authentication via the Telaris bridge (replaces hotglue's global
+// single-password is_auth(); enforces editor session + per-galaxy seat + CSRF,
+// and rejects read-only/mirrored galaxies with 403.009 parity).
+telaris_hg_authorize_json($method, !empty($m['auth']), $args);
 
 if (isset($m['cross-origin']) && $m['cross-origin']) {
 	// output cross-origin header if requested

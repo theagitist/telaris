@@ -106,6 +106,7 @@ $denyDst = '/etc/nginx/snippets/telaris-deny.conf';
 $hgSnippetSrc = $root . '/etc/nginx/telaris-hotglue.conf.sample';
 $hgSnippetDst = '/etc/nginx/snippets/telaris-hotglue.conf';
 $hgContentDir = $root . '/hg/content';
+$hgUserConfig = $root . '/hg/user-config.inc.php';
 $fpmUser = 'www-data';  // Debian/Ubuntu php-fpm pool user (this script is Debian/Ubuntu-only)
 
 $logrotateSrc = $root . '/etc/logrotate/telaris-snapshots.sample';
@@ -376,6 +377,35 @@ $tasks[] = (function() use ($hgContentDir, $fpmUser) {
         return ['ok' => true, 'detail' => "ensured {$hgContentDir} (0755, {$fpmUser})"];
     };
     return ['name' => 'hotglue content dir', 'status' => $exists ? 'mismatch' : 'missing', 'detail' => $exists ? "{$hgContentDir} not owned by {$fpmUser}" : "{$hgContentDir} missing", 'fix' => $fix];
+})();
+
+// hotglue's per-instance user-config.inc.php carries CONTENT_DIR, BASE_URL,
+// USE_MIN_FILES and auth. php-fpm (www-data) must be able to READ it, else
+// hotglue's @include silently fails and the whole install reverts to upstream
+// defaults (wrong content dir, minified JS without the Telaris CSRF patch).
+// It is per-instance + gitignored, so absence is fine; when present, ensure it
+// is www-data-readable (theagitist:www-data 0640). Editing it with an editor
+// can reset the group to the owner, so this self-heals it (cf. config.php).
+$tasks[] = (function() use ($hgUserConfig, $fpmUser) {
+    if (!file_exists($hgUserConfig)) {
+        return ['name' => 'hotglue user-config perms', 'status' => 'ok', 'detail' => 'no per-instance user-config (using defaults)', 'fix' => null];
+    }
+    $groupOk = function_exists('posix_getgrgid')
+        && ($gr = posix_getgrgid(filegroup($hgUserConfig))) && $gr['name'] === $fpmUser;
+    $perms = fileperms($hgUserConfig) & 0777;
+    $groupReadable = $groupOk && ($perms & 0040);
+    $worldReadable = ($perms & 0004);
+    if ($groupReadable || $worldReadable) {
+        return ['name' => 'hotglue user-config perms', 'status' => 'ok', 'detail' => "{$hgUserConfig} readable by {$fpmUser}", 'fix' => null];
+    }
+    $fix = function() use ($hgUserConfig, $fpmUser) {
+        if (!@chgrp($hgUserConfig, $fpmUser)) {
+            return ['ok' => false, 'detail' => "could not chgrp {$hgUserConfig} to {$fpmUser}"];
+        }
+        @chmod($hgUserConfig, 0640);
+        return ['ok' => true, 'detail' => "set {$hgUserConfig} to {$fpmUser}-readable (0640)"];
+    };
+    return ['name' => 'hotglue user-config perms', 'status' => 'mismatch', 'detail' => "{$hgUserConfig} not readable by {$fpmUser}", 'fix' => $fix];
 })();
 
 // 4. Logrotate entry matches canonical (with __SITE_LOGS__ substitution).

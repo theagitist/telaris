@@ -34,8 +34,10 @@ $.glue.backend = function()
 	});
 	
 	return function(param, func, print_errors) {
-		// ten seconds timeout
-		$.ajaxSetup({ timeout: 10000 });
+		// ten seconds timeout; attach the Telaris CSRF token (set as
+		// $.glue.csrf_token by the edit controller) so json.php's bridge accepts
+		// the write. Read at call time so a late-set token is still picked up.
+		$.ajaxSetup({ timeout: 10000, headers: { 'X-CSRF-Token': ($.glue.csrf_token || '') } });
 		// make sure parameters are json encoded
 		// otherwise we would get complaints from the php parser for empty 
 		// strings, arrays and thelike

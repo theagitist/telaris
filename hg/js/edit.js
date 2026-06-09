@@ -1672,6 +1672,8 @@ $.glue.upload = function()
 				}
 			}
 			xhr.open('POST', $.glue.base_url+'json.php', true);
+			// attach the Telaris CSRF token so the bridge accepts the upload
+			xhr.setRequestHeader('X-CSRF-Token', ($.glue.csrf_token || ''));
 			if (window.FormData) {
 				// DEBUG
 				//console.log('upload: using FormData');

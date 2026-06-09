@@ -8,14 +8,16 @@
 #   - hotglue serves EVERYTHING (pages AND uploaded media) through its single
 #     front controller, index.php?<name>. The content/ flat-file store is
 #     never linked directly, so we deny direct access to it outright.
-#   - Only index.php (and, once the Telaris auth gate lands, json.php) may
-#     execute. The .inc.php library files and repo metadata are denied so they
-#     cannot be fetched or run directly.
-#   - PHASE 2 (current): editing is not yet gated by Telaris. hotglue's own
-#     auth (a strong random password in user-config.inc.php, never shared)
-#     locks editing at the app level, and this snippet additionally denies the
-#     write API (json.php) as defense in depth. PHASE 3 removes the json.php
-#     deny and adds the Telaris session + per-galaxy seat + CSRF guard.
+#   - Only the two front controllers, index.php and json.php, may execute. The
+#     .inc.php library files (including the auth bridge) and repo metadata are
+#     denied so they cannot be fetched or run directly.
+#   - PHASE 3 (current): editing is gated by Telaris itself. telaris-auth.inc.php
+#     resumes the editor's Telaris session and enforces, server-side on every
+#     write path (the page/edit GET and every json.php call): an editor/admin
+#     login, a seat on the node's galaxy, that the galaxy is not read-only
+#     (403.009 parity), and a valid CSRF token on writes. hotglue's own basic
+#     auth remains configured with a never-shared random password as a dormant
+#     secondary gate, but is not reached on the edit/json paths.
 #
 # Install: bin/setup-host.php writes this to /etc/nginx/snippets/telaris-hotglue.conf.
 # Then add inside the vhost server{} block:  include snippets/telaris-hotglue.conf;
@@ -28,17 +30,11 @@ location ^~ /hg/ {
         return 404;
     }
 
-    # PHASE 2 only: deny the write API until the Telaris gate replaces this.
-    # Exact match wins over the regexes below. PHASE 3 removes this and adds
-    # json.php to the front-controller execute rule.
-    location = /hg/json.php {
-        deny all;
-        return 403;
-    }
-
-    # Only the front controller may execute. Regex locations are tried in
-    # order, first match wins, so this must precede the catch-all below.
-    location ~ ^/hg/index\.php$ {
+    # Only the two front controllers may execute. The Telaris auth bridge
+    # (telaris-auth.inc.php) gates both before any privileged action. Regex
+    # locations are tried in order, first match wins, so this must precede the
+    # catch-all below that denies every other .php.
+    location ~ ^/hg/(index|json)\.php$ {
         try_files $uri =404;
         fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
         fastcgi_index index.php;

@@ -12,7 +12,11 @@
 error_reporting(E_ALL & ~E_STRICT);						// see php documentation
 
 // try to include user configuration
-@include('user-config.inc.php');
+// Telaris change: resolve relative to this file (__DIR__), not the CWD or the
+// include_path. Under php-fpm with nginx try_files routing the bare
+// 'user-config.inc.php' did not resolve, so the per-instance overrides
+// (CONTENT_DIR, LOG_FILE, USE_MIN_FILES, auth) were silently ignored.
+@include(__DIR__.'/user-config.inc.php');
 
 // otherwise fall back to these defaults
 @define('ALWAYS_PROMPT_CREATE_PAGE', false);	// invoke the "create page" controller when trying to access a non-existing page even if the user is not logged in yet (otherwise they receive a 404)

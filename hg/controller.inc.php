@@ -10,6 +10,7 @@
  */
 
 @require_once('config.inc.php');
+require_once('telaris-auth.inc.php');	// Telaris session + auth bridge
 require_once('common.inc.php');
 require_once('html.inc.php');
 require_once('log.inc.php');
@@ -45,6 +46,9 @@ function controller_create_page($args)
 		html_add_js(base_url().'js/create_page.js');
 	}
 	html_add_js_var('$.glue.page', $page);
+	// hand the Telaris CSRF token to hotglue's AJAX layer (create_page.js POSTs
+	// glue.create_page through json.php, which the bridge CSRF-checks)
+	html_add_js_var('$.glue.csrf_token', $_SESSION['csrf_token'] ?? '');
 	html_add_js_var('$.glue.q', (SHORT_URLS ? '' : '?'));
 	$bdy = &body();
 	elem_attr($bdy, 'id', 'create_page');
@@ -97,6 +101,8 @@ function controller_edit($args)
 	load_modules('glue');
 	default_html(true);
 	html_add_js_var('$.glue.page', $page);
+	// hand the Telaris CSRF token to hotglue's AJAX layer (see glue.js/edit.js)
+	html_add_js_var('$.glue.csrf_token', $_SESSION['csrf_token'] ?? '');
 	html_add_css(base_url().'css/farbtastic.css', 2);
 	html_add_css(base_url().'css/edit.css', 5);
 	if (USE_MIN_FILES) {
@@ -308,11 +314,14 @@ function invoke_controller($args)
 	if ($match !== false) {
 		// check authentication for those controllers that require it
 		if (isset($match['auth']) && $match['auth']) {
-			if (!is_auth()) {
-				prompt_auth();
-			}
-			
-			// also check the referer to prevent against cross site request 
+			// Telaris bridge replaces hotglue's global is_auth()/prompt_auth():
+			// requires an editor session + a seat on the node's galaxy, and
+			// rejects read-only/mirrored galaxies. args[0][0] is the page
+			// (node-<id> for edit/create_page/revisions; non-node controllers
+			// like the page browser are denied).
+			telaris_hg_authorize_get($args[0][0]);
+
+			// also check the referer to prevent against cross site request
 			// forgery (xsrf)
 			// this is not really optimal, since proxies can filter the referer 
 			// header, but as a first step..

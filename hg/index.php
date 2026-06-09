@@ -10,6 +10,7 @@
  */
 
 @require_once('config.inc.php');
+require_once('telaris-auth.inc.php');	// Telaris session + auth bridge; starts the session before any output
 require_once('log.inc.php');
 log_msg('info', '--- request ---');
 require_once('controller.inc.php');
