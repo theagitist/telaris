@@ -1460,6 +1460,28 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             // Ensure relative upload paths resolve correctly from /edit/
             const absUrl = (url) => url && url.startsWith('uploads/') ? '/' + url : url;
 
+            // Hotglue media mode: preview the per-node hotglue page in a sandboxed
+            // iframe (allow-scripts WITHOUT allow-same-origin, exactly as the visitor
+            // popup) and skip the classic media. Mirrors showRichMediaWindow in
+            // js/telaris-3d.js; the two preview paths must stay in sync.
+            const hgWrap = document.getElementById('preview-hotglue-wrap');
+            const hgEl = document.getElementById('preview-hotglue');
+            const previewIsHotglue = (node.media_mode === 'hotglue');
+            if (previewIsHotglue && hgWrap && hgEl) {
+                const hgPage = node.hotglue_page || ('node-' + node.id);
+                hgEl.src = '/hg/?' + encodeURIComponent(hgPage);
+                hgEl.title = node.name || '';
+                hgWrap.classList.remove('hidden');
+                imageWrap.classList.add('hidden');
+                embedWrap.classList.add('hidden'); embed.innerHTML = '';
+                videoWrap.classList.add('hidden'); try { video.pause(); } catch (e) {}
+                audioWrap.classList.add('hidden'); try { audio.pause(); } catch (e) {}
+            } else if (hgWrap && hgEl) {
+                hgWrap.classList.add('hidden');
+                hgEl.src = 'about:blank';
+            }
+
+            if (!previewIsHotglue) {
             if (node.image_url) {
                 image.src = absUrl(node.image_url);
                 imageWrap.classList.remove('hidden');
@@ -1555,6 +1577,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 audio.src = '';
                 audioWrap.classList.add('hidden');
             }
+            } // end if (!previewIsHotglue): classic media blocks
 
             desc.textContent = node.description || '';
             desc.classList.toggle('hidden', !node.description);
@@ -2968,6 +2991,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             <div class="p-6 md:p-8">
                 <h3 id="preview-title" class="text-2xl font-bold mb-4 tracking-tight uppercase border-b-2 border-white/20 pb-2"></h3>
                 <div class="space-y-6">
+                    <!-- Hotglue page (media_mode=hotglue), sandboxed without allow-same-origin -->
+                    <div id="preview-hotglue-wrap" class="hidden">
+                        <iframe id="preview-hotglue" src="about:blank" sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer" class="w-full rounded-md border border-white/20 bg-white" style="height: 65vh;"></iframe>
+                    </div>
+
                     <!-- Image -->
                     <div id="preview-image-wrap" class="hidden relative">
                         <img id="preview-image" src="" alt="" class="w-full h-auto rounded-md border border-white/20">

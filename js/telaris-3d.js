@@ -170,6 +170,32 @@ class TelarisNetwork {
             descriptionEl.classList.toggle('hidden', !d.description);
         }
 
+        // Hotglue media mode: show the per-node hotglue page in a sandboxed iframe
+        // and skip the classic media blocks entirely. The iframe is sandboxed
+        // allow-scripts WITHOUT allow-same-origin, so editor-authored page scripts
+        // run in a null origin and cannot reach the visitor session, cookies, or
+        // this DOM. The page is requested anonymously (show mode, no auth).
+        const hotglueWrap = document.getElementById('rm-hotglue-wrap');
+        const hotglueEl = document.getElementById('rm-hotglue');
+        const isHotglue = (d.media_mode === 'hotglue');
+        if (isHotglue && hotglueWrap && hotglueEl) {
+            const hgPage = d.hotglue_page || ('node-' + d.id);
+            const hgSrc = '/hg/?' + encodeURIComponent(hgPage);
+            if (hotglueEl.getAttribute('src') !== hgSrc) hotglueEl.setAttribute('src', hgSrc);
+            hotglueEl.title = d.name || '';
+            hotglueWrap.classList.remove('hidden');
+            // hide every classic media block and stop any media still playing
+            [imageWrap, embedWrap, audioWrap, videoWrap, pdfWrap].forEach(w => { if (w) w.classList.add('hidden'); });
+            const cw = document.getElementById('rm-credit-wrap'); if (cw) cw.classList.add('hidden');
+            if (embedEl) embedEl.innerHTML = '';
+            try { if (audioEl) audioEl.pause(); } catch (e) {}
+            try { if (videoEl) videoEl.pause(); } catch (e) {}
+        } else if (hotglueWrap && hotglueEl) {
+            hotglueWrap.classList.add('hidden');
+            hotglueEl.setAttribute('src', 'about:blank');
+        }
+
+        if (!isHotglue) {
         // Image
         if (imageWrap && imageEl) {
             if (d.image_url) {
@@ -332,6 +358,7 @@ class TelarisNetwork {
                 pdfWrap.classList.add('hidden');
             }
         }
+        } // end if (!isHotglue): classic media blocks
 
         // Keywords
         const keywordsWrap = document.getElementById('rm-keywords-wrap');

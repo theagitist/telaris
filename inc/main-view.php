@@ -320,6 +320,13 @@ header("X-Content-Type-Options: nosniff");
                     <h2 id="rm-title" class="text-2xl font-bold mb-4 tracking-tight uppercase border-b-2 pb-2" style="border-color: var(--node-accent-muted);"></h2>
                     
                     <div id="rm-media-container" class="space-y-6">
+                        <!-- Hotglue page (media_mode=hotglue). Sandboxed allow-scripts WITHOUT
+                             allow-same-origin: editor-authored page scripts run in a null origin
+                             and cannot reach the visitor's session, cookies, or this DOM. -->
+                        <div id="rm-hotglue-wrap" class="hidden">
+                            <iframe id="rm-hotglue" src="about:blank" sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer" class="w-full rounded-md border bg-white" style="border-color: var(--node-accent-muted); height: 65vh;"></iframe>
+                        </div>
+
                         <!-- Image -->
                         <div id="rm-image-wrap" class="hidden relative">
                             <img id="rm-image" src="" alt="" class="w-full h-auto rounded-md border" style="border-color: var(--node-accent-muted);">
