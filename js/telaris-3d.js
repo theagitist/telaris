@@ -2911,6 +2911,8 @@ class TelarisNetwork {
                     is_accentuated: !!data.is_accentuated,
                     show_keywords: !!data.show_keywords,
                     use_image_as_node: !!data.use_image_as_node,
+                    media_mode: (data.media_mode === 'hotglue') ? 'hotglue' : 'classic',
+                    hotglue_page: data.hotglue_page || null,
                     cluster_key: data.cluster_key || null,
                     cluster_count: data.cluster_count || null,
                     icon_url: data.icon_url || null,
