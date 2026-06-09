@@ -581,6 +581,7 @@ const PROJECT_INFO_KEYS = [
     // C7h: operator-only nginx-config warning banner in inc/main-view.php.
     'visitor_nginx_warning_heading', 'visitor_nginx_warning_intro',
     'visitor_nginx_warning_reload', 'visitor_nginx_warning_footer',
+    'viewer_maximize_text', 'viewer_minimize_text',
 
     // Stage 3 follow-up: shared CSRF-failure flash message (used by every admin
     // POST handler that checks the synchronizer token).
@@ -2254,6 +2255,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'visitor_nginx_warning_intro' => 'JavaScript modules will not be served. Add this block to the server\'s nginx vhost (replacing the docroot if different), then run %s.',
             'visitor_nginx_warning_reload' => '<code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>',
             'visitor_nginx_warning_footer' => 'This banner disappears automatically once the rule serves %s with HTTP 200.',
+            'viewer_maximize_text' => 'Maximize',
+            'viewer_minimize_text' => 'Minimize',
         ],
         'es' => [
             'name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 
@@ -3676,6 +3679,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'visitor_nginx_warning_intro' => 'Los módulos de JavaScript no se servirán. Añade este bloque al vhost nginx del servidor (sustituyendo el docroot si es diferente), y luego ejecuta %s.',
             'visitor_nginx_warning_reload' => '<code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>',
             'visitor_nginx_warning_footer' => 'Este aviso desaparece automáticamente cuando la regla sirve %s con HTTP 200.',
+            'viewer_maximize_text' => 'Maximizar',
+            'viewer_minimize_text' => 'Minimizar',
         ],
         'pt' => [
             'name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 
@@ -5098,6 +5103,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'visitor_nginx_warning_intro' => 'Os módulos JavaScript não serão servidos. Adicione este bloco ao vhost nginx do servidor (substituindo o docroot se for diferente), e depois execute %s.',
             'visitor_nginx_warning_reload' => '<code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>',
             'visitor_nginx_warning_footer' => 'Este aviso desaparece automaticamente quando a regra serve %s com HTTP 200.',
+            'viewer_maximize_text' => 'Maximizar',
+            'viewer_minimize_text' => 'Minimizar',
         ],
         'fr' => [
             'name' => 'Telaris', 'description' => 'Tisser la mémoire', 'iframe_back_text' => 'Retour',
@@ -6520,6 +6527,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'visitor_nginx_warning_intro' => 'Les modules JavaScript ne seront pas servis. Ajoute ce bloc au vhost nginx du serveur (en remplaçant le docroot s\'il diffère), puis exécute %s.',
             'visitor_nginx_warning_reload' => '<code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>',
             'visitor_nginx_warning_footer' => 'Cet avertissement disparaît automatiquement quand la règle sert %s avec HTTP 200.',
+            'viewer_maximize_text' => 'Agrandir',
+            'viewer_minimize_text' => 'Réduire',
         ],
     ];
 }

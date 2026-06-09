@@ -294,6 +294,16 @@ header("X-Content-Type-Options: nosniff");
         </div>
 
         <!-- Rich Media Window Overlay -->
+        <style>
+            /* Maximize: enlarge the whole rich-media window so any media (image, video,
+               pdf, embed, hotglue) gets near-full-screen room. Toggled by #rm-maximize-btn
+               and the hotglue maximize link. */
+            #rich-media-window.rm-maximized { max-width: 96vw !important; width: 96vw !important; max-height: 95vh !important; }
+            #rich-media-window.rm-maximized #rm-hotglue { height: 84vh !important; }
+            #rich-media-window.rm-maximized #rm-image,
+            #rich-media-window.rm-maximized #rm-video { max-height: 82vh; width: auto; margin-left: auto; margin-right: auto; }
+            #rich-media-window.rm-maximized #rm-pdf-pages { max-height: 80vh !important; }
+        </style>
         <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md hidden transition-opacity duration-500 opacity-0">
             <div id="rich-media-window" class="bg-[#0a0a0c]/90 border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative text-white transition-all duration-500 ease-out transform scale-50 opacity-0"
                  style="box-shadow: 0 0 50px -10px rgba(0, 255, 204, 0.3);">
@@ -307,6 +317,18 @@ header("X-Content-Type-Options: nosniff");
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M10 14a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.5 1.5"/>
                         <path d="M14 10a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1.5-1.5"/>
+                    </svg>
+                </button>
+                <button id="rm-maximize-btn" class="absolute top-4 right-20 text-white/50 hover:text-white transition-colors z-10"
+                        data-label-max="<?php echo htmlspecialchars(t('viewer_maximize_text', 'Maximize')); ?>"
+                        data-label-min="<?php echo htmlspecialchars(t('viewer_minimize_text', 'Minimize')); ?>"
+                        title="<?php echo htmlspecialchars(t('viewer_maximize_text', 'Maximize')); ?>"
+                        aria-label="<?php echo htmlspecialchars(t('viewer_maximize_text', 'Maximize')); ?>">
+                    <svg id="rm-maximize-icon-max" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/>
+                    </svg>
+                    <svg id="rm-maximize-icon-min" class="hidden" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 8h3a2 2 0 002-2V3M21 8h-3a2 2 0 01-2-2V3M5 16h3a2 2 0 012 2v3M21 16h-3a2 2 0 00-2 2v3"/>
                     </svg>
                 </button>
                 <button id="rm-close-btn" class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-10">
@@ -325,6 +347,11 @@ header("X-Content-Type-Options: nosniff");
                              and cannot reach the visitor's session, cookies, or this DOM. -->
                         <div id="rm-hotglue-wrap" class="hidden">
                             <iframe id="rm-hotglue" src="about:blank" sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer" class="w-full rounded-md border bg-white" style="border-color: var(--node-accent-muted); height: 65vh;"></iframe>
+                            <div class="text-right mt-1">
+                                <button type="button" id="rm-hotglue-maximize-link" class="text-xs uppercase tracking-[0.18em] text-white/55 hover:text-white underline underline-offset-2 transition-colors"
+                                        data-label-max="<?php echo htmlspecialchars(t('viewer_maximize_text', 'Maximize')); ?>"
+                                        data-label-min="<?php echo htmlspecialchars(t('viewer_minimize_text', 'Minimize')); ?>"><?php echo htmlspecialchars(t('viewer_maximize_text', 'Maximize')); ?></button>
+                            </div>
                         </div>
 
                         <!-- Image -->
@@ -554,6 +581,36 @@ header("X-Content-Type-Options: nosniff");
         window.TELARIS_CHIP_OPEN_PREFIX_TEXT = <?php echo json_encode($projectChipOpenPrefixText ?? 'Open'); ?>;
         window.TELARIS_SEARCH_RESULT_TEXT = <?php echo json_encode($projectSearchResultText ?? 'Search result'); ?>;
         window.TELARIS_SEARCH_RESULTS_TEXT = <?php echo json_encode($projectSearchResultsText ?? 'Search results'); ?>;
+    </script>
+    <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
+    // Maximize the rich-media window (generic across all media types). Two triggers:
+    // the chrome button (#rm-maximize-btn) and the explicit text link under the
+    // hotglue iframe (#rm-hotglue-maximize-link). Resets to normal when the window closes.
+    (function() {
+        var win = document.getElementById('rich-media-window');
+        var overlay = document.getElementById('rich-media-overlay');
+        var btn = document.getElementById('rm-maximize-btn');
+        var iconMax = document.getElementById('rm-maximize-icon-max');
+        var iconMin = document.getElementById('rm-maximize-icon-min');
+        var link = document.getElementById('rm-hotglue-maximize-link');
+        if (!win) return;
+        function apply(on) {
+            win.classList.toggle('rm-maximized', on);
+            if (iconMax) iconMax.classList.toggle('hidden', on);
+            if (iconMin) iconMin.classList.toggle('hidden', !on);
+            if (btn) { var l = on ? btn.getAttribute('data-label-min') : btn.getAttribute('data-label-max'); if (l) { btn.title = l; btn.setAttribute('aria-label', l); } }
+            if (link) { var ll = on ? link.getAttribute('data-label-min') : link.getAttribute('data-label-max'); if (ll) link.textContent = ll; }
+        }
+        function toggle() { apply(!win.classList.contains('rm-maximized')); }
+        if (btn) btn.addEventListener('click', toggle);
+        if (link) link.addEventListener('click', toggle);
+        // Reset to normal size whenever the window closes (any close path).
+        if (overlay && typeof MutationObserver === 'function') {
+            new MutationObserver(function() {
+                if (overlay.classList.contains('hidden')) apply(false);
+            }).observe(overlay, { attributes: true, attributeFilter: ['class'] });
+        }
+    })();
     </script>
     <script nonce="<?php echo htmlspecialchars($cspNonce); ?>">
     (function() {
