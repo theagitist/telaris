@@ -581,6 +581,20 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
         $error = $e->getMessage();
     }
     } // end CSRF-valid block
+
+    // The Edit Galaxy and Edit User modals auto-save: they POST the same form with
+    // ajax=1 and expect JSON instead of a full-page re-render. $message / $error were
+    // just set by the dispatch (or the CSRF check) above.
+    if (($_POST['ajax'] ?? '') === '1') {
+        header('Content-Type: application/json; charset=utf-8');
+        if ($error !== null) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => $error], JSON_UNESCAPED_UNICODE);
+        } else {
+            echo json_encode(['ok' => true, 'message' => $message], JSON_UNESCAPED_UNICODE);
+        }
+        exit;
+    }
 }
 
 // Get all API keys, users, and constellations

@@ -54,6 +54,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             $galaxyEditError = $result['message'];
         }
     }
+    // The Edit Galaxy modal auto-saves: it POSTs the same form with ajax=1 and
+    // expects JSON instead of a full-page re-render. Emit it and stop here.
+    if (($_POST['ajax'] ?? '') === '1') {
+        header('Content-Type: application/json; charset=utf-8');
+        if ($galaxyEditError !== null) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => $galaxyEditError], JSON_UNESCAPED_UNICODE);
+        } else {
+            echo json_encode(['ok' => true, 'message' => $galaxyEditMessage ?? ''], JSON_UNESCAPED_UNICODE);
+        }
+        exit;
+    }
 }
 
 $pdo = getDB();

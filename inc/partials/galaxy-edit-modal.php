@@ -218,9 +218,15 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
                 </div>
             </div>
 
-            <div class="modal-action">
-                <button type="submit" class="btn btn-neutral"><?= t_attr('gem_submit_btn', 'Update Galaxy') ?></button>
-                <button type="button" class="btn" onclick="document.getElementById('constellation_modal').close()"><?= t_attr('gem_cancel_btn', 'Cancel') ?></button>
+            <div class="modal-action items-center justify-between">
+                <div id="gem-autosave-status" class="flex items-center gap-2" aria-live="polite"
+                     data-saving="<?= t_attr('editor_autosave_saving', 'Saving…') ?>"
+                     data-saved="<?= t_attr('editor_autosave_saved', 'All changes saved') ?>"
+                     data-failed="<?= t_attr('editor_autosave_failed', 'Save failed; keep editing to retry') ?>">
+                    <span class="loading loading-spinner loading-xs text-gray-400 hidden" data-autosave-spinner></span>
+                    <span data-autosave-text class="text-xs font-medium text-gray-400"></span>
+                </div>
+                <button type="button" class="btn btn-neutral" onclick="document.getElementById('constellation_modal').close()"><?= t_attr('editor_btn_close', 'Close') ?></button>
             </div>
         </form>
     </div>

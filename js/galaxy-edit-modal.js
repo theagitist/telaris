@@ -58,6 +58,7 @@
     }
 
     async function editConstellation(c) {
+        gemAutosave.beginPopulate(); // suspend autosave + install listeners while we fill fields
         document.getElementById('modal-constellation-id').value = c.id;
         document.getElementById('modal-constellation-name').value = c.name || '';
         const slugEl = document.getElementById('modal-constellation-slug');
@@ -73,6 +74,7 @@
             loadGalaxyTagsIntoModal(c.id),
         ]);
         document.getElementById('constellation_modal').showModal();
+        gemAutosave.endPopulate(); // resume autosave now that the form reflects the galaxy
     }
 
     // ---------------------------------------------------------------------
@@ -106,6 +108,9 @@
         });
 
         hidden.value = galaxyTagState.labels.join(',');
+
+        // Tag add/remove auto-saves (no-op while populating or closed).
+        gemAutosave.saveNow();
     }
 
     function addGalaxyTag(label) {
@@ -420,6 +425,147 @@
     } else {
         bind();
     }
+
+    // ---------------------------------------------------------------------
+    // Autosave controller for the Edit Galaxy modal.
+    // ---------------------------------------------------------------------
+    // Replaces the explicit "Update Galaxy" button. Text edits debounce (~1s),
+    // toggles/selects/tour-keyword checkboxes/tag chips save immediately, and the
+    // slug field (admins only) saves on blur rather than per-keystroke to avoid
+    // churning bookmarked URLs. Each save POSTs the whole form (with ajax=1) back to
+    // the page handler, which calls handle_galaxy_update_post() and returns JSON.
+    // On close, a pending edit is flushed and the page reloads once if anything was
+    // saved (galaxy name/theme affect page chrome, matching the old POST-reload).
+    const gemAutosave = (function () {
+        const DEBOUNCE_MS = 1000;
+        let dirty = false, inflight = false, queued = false, timer = null;
+        let suspended = true, installed = false, touched = false, reloadOnDrain = false;
+
+        function setStatus(state, override) {
+            const root = document.getElementById('gem-autosave-status');
+            if (!root) return;
+            const textEl = root.querySelector('[data-autosave-text]');
+            const spinEl = root.querySelector('[data-autosave-spinner]');
+            const cfg = ({
+                idle:   { attr: 'data-saved',  cls: 'text-gray-400',  spin: false },
+                saving: { attr: 'data-saving', cls: 'text-gray-500',  spin: true  },
+                saved:  { attr: 'data-saved',  cls: 'text-green-600', spin: false },
+                failed: { attr: 'data-failed', cls: 'text-red-600',   spin: false },
+            })[state] || { attr: 'data-saved', cls: 'text-gray-400', spin: false };
+            if (textEl) {
+                textEl.textContent = override || root.getAttribute(cfg.attr) || '';
+                textEl.className = 'text-xs font-medium ' + cfg.cls;
+            }
+            if (spinEl) spinEl.classList.toggle('hidden', !cfg.spin);
+        }
+
+        function mainForm() {
+            const modal = document.getElementById('constellation_modal');
+            return modal ? modal.querySelector('form[action]') : null;
+        }
+        function saveUrl() { return window.GALAXY_EDIT_SAVE_URL || window.location.pathname; }
+
+        function drained() {
+            if (reloadOnDrain && !queued && !inflight) {
+                reloadOnDrain = false;
+                if (touched) window.location.reload();
+            }
+        }
+
+        async function send() {
+            if (suspended) return;
+            const form = mainForm();
+            const nameEl = document.getElementById('modal-constellation-name');
+            if (!form || !nameEl) return;
+            if (nameEl.value.trim() === '') { setStatus('failed'); drained(); return; }
+            if (timer) { clearTimeout(timer); timer = null; }
+            inflight = true;
+            touched = true;
+            dirty = false;
+            setStatus('saving');
+            const fd = new FormData(form);
+            fd.set('ajax', '1');
+            try {
+                const r = await fetch(saveUrl(), {
+                    method: 'POST',
+                    body: fd,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+                let data = {};
+                try { data = await r.json(); } catch (e) { /* non-JSON */ }
+                inflight = false;
+                if (r.ok && data.ok) {
+                    setStatus('saved');
+                } else {
+                    dirty = true; // allow retry on the next edit
+                    setStatus('failed', data && data.error ? data.error : undefined);
+                }
+            } catch (e) {
+                inflight = false;
+                dirty = true;
+                setStatus('failed');
+            }
+            if (queued) { queued = false; flush(); return; }
+            drained();
+        }
+
+        function flush() {
+            if (suspended || !dirty) return;
+            if (inflight) { queued = true; return; }
+            if (timer) { clearTimeout(timer); timer = null; }
+            send();
+        }
+        function scheduleSave() {
+            if (suspended) return;
+            dirty = true;
+            setStatus('saving');
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(flush, DEBOUNCE_MS);
+        }
+        function saveNow() { if (suspended) return; dirty = true; flush(); }
+        function flushNow() { if (suspended || !dirty) return; flush(); }
+
+        function install() {
+            if (installed) return;
+            const form = mainForm();
+            if (!form) return;
+            installed = true;
+            form.addEventListener('submit', (e) => { e.preventDefault(); saveNow(); }); // Enter key
+            form.addEventListener('input', (e) => {
+                const t = e.target;
+                if (!t || t.disabled) return;
+                if (t.id === 'modal-galaxy-tags-input') return;       // tag entry; commit hooks saveNow
+                if (t.id === 'modal-constellation-slug') { dirty = true; return; } // slug saves on blur only
+                const type = (t.type || '').toLowerCase();
+                if (type === 'checkbox' || type === 'radio' || t.tagName === 'SELECT') return;
+                scheduleSave();
+            });
+            form.addEventListener('change', (e) => {
+                const t = e.target;
+                if (!t || t.disabled) return;
+                if (t.id === 'modal-galaxy-tags-input') return;
+                const type = (t.type || '').toLowerCase();
+                if (type === 'checkbox' || type === 'radio' || t.tagName === 'SELECT' || t.id === 'modal-constellation-slug') {
+                    saveNow();
+                } else {
+                    flushNow(); // text-field blur: send only if an edit is pending
+                }
+            });
+            const modal = document.getElementById('constellation_modal');
+            if (modal) modal.addEventListener('close', () => {
+                if (dirty && !inflight) { reloadOnDrain = true; send(); }
+                else if (inflight) { reloadOnDrain = true; }
+                else if (touched) { window.location.reload(); }
+            });
+        }
+
+        return {
+            beginPopulate() { suspended = true; if (timer) { clearTimeout(timer); timer = null; } dirty = false; queued = false; touched = false; reloadOnDrain = false; install(); },
+            endPopulate() { suspended = false; inflight = false; setStatus('idle'); },
+            scheduleSave, saveNow,
+        };
+    })();
 
     // Expose so inline onclick handlers and the row builders can call them.
     window.editConstellation = editConstellation;
