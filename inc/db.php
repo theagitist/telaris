@@ -10837,6 +10837,8 @@ function db_format_nodes_bulk(array $nodes): array {
             'source_facet' => isset($node['source_facet']) && $node['source_facet'] !== null && $node['source_facet'] !== '' ? (string)$node['source_facet'] : null,
             'media_type' => isset($node['media_type']) && $node['media_type'] !== null && $node['media_type'] !== '' ? (string)$node['media_type'] : null,
             'source_created_at' => isset($node['source_created_at']) && $node['source_created_at'] !== null && $node['source_created_at'] !== '' ? (string)$node['source_created_at'] : null,
+            'media_mode' => (isset($node['media_mode']) && (string)$node['media_mode'] === 'hotglue') ? 'hotglue' : 'classic',
+            'hotglue_page' => isset($node['hotglue_page']) && $node['hotglue_page'] !== null && $node['hotglue_page'] !== '' ? (string)$node['hotglue_page'] : null,
         ];
     }
     return $result;
@@ -10930,6 +10932,8 @@ function db_format_node(array $node): array {
         'source_facet' => isset($node['source_facet']) && $node['source_facet'] !== null && $node['source_facet'] !== '' ? (string)$node['source_facet'] : null,
         'media_type' => isset($node['media_type']) && $node['media_type'] !== null && $node['media_type'] !== '' ? (string)$node['media_type'] : null,
         'source_created_at' => isset($node['source_created_at']) && $node['source_created_at'] !== null && $node['source_created_at'] !== '' ? (string)$node['source_created_at'] : null,
+        'media_mode' => (isset($node['media_mode']) && (string)$node['media_mode'] === 'hotglue') ? 'hotglue' : 'classic',
+        'hotglue_page' => isset($node['hotglue_page']) && $node['hotglue_page'] !== null && $node['hotglue_page'] !== '' ? (string)$node['hotglue_page'] : null,
     ];
 }
 
