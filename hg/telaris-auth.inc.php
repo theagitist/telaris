@@ -77,37 +77,51 @@ function telaris_hg_first_token(string $nameOrPage): string
 
 
 /**
- *	best-effort: resolve the target node id from a json service's arguments
+ *	resolve every node id a json service's arguments target
  *
- *	different services name their target under different keys; we scan the ones
- *	that can carry a page or object name. Returns null when none resolve to a
- *	node-<id> page (in which case a mutating service is denied, fail-closed).
+ *	Different services name their target under different keys. We scan all the
+ *	keys that can carry a page or object name, the names[] array, and the `html`
+ *	element used by save_state (whose root id attribute IS the object name, i.e.
+ *	node-<id>.rev.obj, exactly what save_state derives its target from, so this
+ *	is the authoritative target and is safe to authorize against). Every node id
+ *	found must be authorized; a mutating service that resolves to no node id is
+ *	denied (fail-closed).
  *
  *	@param array $args decoded json arguments
- *	@return int|null
+ *	@return list<int> distinct node ids referenced by the arguments
  */
-function telaris_hg_node_id_from_args(array $args): ?int
+function telaris_hg_node_ids_from_args(array $args): array
 {
-	foreach (array('page', 'name', 'obj', 'to', 'from') as $k) {
+	$ids = array();
+	// scalar target keys across the mutating services (page/name/obj/to/from
+	// for objects and pages, old/new for rename+copy, pagename for uploads)
+	foreach (array('page', 'name', 'obj', 'to', 'from', 'old', 'new', 'pagename') as $k) {
 		if (!empty($args[$k]) && is_string($args[$k])) {
 			$id = telaris_hg_node_id(telaris_hg_first_token($args[$k]));
 			if ($id !== null) {
-				return $id;
+				$ids[$id] = true;
 			}
 		}
 	}
-	// some services take an array of object names (e.g. save_state)
+	// services that take an array of object names
 	if (!empty($args['names']) && is_array($args['names'])) {
 		foreach ($args['names'] as $n) {
 			if (is_string($n)) {
 				$id = telaris_hg_node_id(telaris_hg_first_token($n));
 				if ($id !== null) {
-					return $id;
+					$ids[$id] = true;
 				}
 			}
 		}
 	}
-	return null;
+	// save_state sends the object as a serialized html element; its root id
+	// attribute is the object name. Match the first id="node-<id>...".
+	if (!empty($args['html']) && is_string($args['html'])) {
+		if (preg_match('/id=["\']?node-([0-9]+)/', $args['html'], $m) === 1) {
+			$ids[(int)$m[1]] = true;
+		}
+	}
+	return array_map('intval', array_keys($ids));
 }
 
 
@@ -242,10 +256,13 @@ function telaris_hg_authorize_json(string $method, bool $isMutating, array $args
 	if (!$isMutating) {
 		return;
 	}
-	$nodeId = telaris_hg_node_id_from_args($args);
-	if ($nodeId === null) {
+	$nodeIds = telaris_hg_node_ids_from_args($args);
+	if (count($nodeIds) === 0) {
 		// a write we cannot scope to an authorized node: refuse
 		telaris_hg_deny_json(403, '403.030');
 	}
-	telaris_hg_enforce_node_access($nodeId, 'telaris_hg_deny_json');
+	// every node the request touches must be writable by this editor
+	foreach ($nodeIds as $nodeId) {
+		telaris_hg_enforce_node_access($nodeId, 'telaris_hg_deny_json');
+	}
 }

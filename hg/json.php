@@ -45,7 +45,12 @@ switch ($_SERVER['REQUEST_METHOD']) {
 	//	break;
 	case 'POST':
 		foreach ($_POST as $key=>$val) {
-			$val = stripslashes($val);
+			// Telaris/PHP 8 fix: the original stripslashes() here undid PHP's
+			// magic_quotes_gpc (removed in PHP 5.4+, gone entirely in PHP 8).
+			// On PHP 8.3 the POST values are raw, so stripslashes() instead
+			// corrupted JSON-encoded values containing escaped quotes (e.g. the
+			// `html` argument of save_state, full of class=\"...\" id=\"...\"),
+			// breaking every object position/state save. Decode the raw value.
 			$dec = @json_decode($val, true);
 			if ($dec === NULL) {
 				$err = response('Error decoding the argument '.quot($key).' => '.var_dump_inl($val), 400);
