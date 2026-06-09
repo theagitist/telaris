@@ -7,6 +7,11 @@ composer.phar
 composer
 .phpunit.cache/
 
+# Vendored hotglue (hg/) app files ARE tracked, but its runtime content store
+# and per-instance config (which carries the auth secret) are not.
+/hg/content/
+/hg/user-config.inc.php
+
 # IDE
 .idea/
 .vscode/

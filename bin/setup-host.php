@@ -103,6 +103,11 @@ $cfDst = '/etc/nginx/snippets/cloudflare-realip.conf';
 $denySrc = $root . '/etc/nginx/telaris-deny.conf.sample';
 $denyDst = '/etc/nginx/snippets/telaris-deny.conf';
 
+$hgSnippetSrc = $root . '/etc/nginx/telaris-hotglue.conf.sample';
+$hgSnippetDst = '/etc/nginx/snippets/telaris-hotglue.conf';
+$hgContentDir = $root . '/hg/content';
+$fpmUser = 'www-data';  // Debian/Ubuntu php-fpm pool user (this script is Debian/Ubuntu-only)
+
 $logrotateSrc = $root . '/etc/logrotate/telaris-snapshots.sample';
 $logrotateDst = '/etc/logrotate.d/telaris-snapshots-' . $siteName;
 
@@ -282,6 +287,95 @@ $tasks[] = (function() use ($vhostCandidates) {
         return ['name' => 'vhost includes deny snippet', 'status' => 'ok', 'detail' => "include found in {$present}", 'fix' => null];
     }
     return ['name' => 'vhost includes deny snippet', 'status' => 'missing', 'detail' => "{$present} does not include snippets/telaris-deny.conf — add manually inside the server { } block", 'fix' => null];
+})();
+
+// 3c. Hotglue media-surface snippet matches canonical (atomic write + nginx -t).
+// Same pattern as the cloudflare/deny snippets. Serves the vendored hotglue
+// fork securely under /hg/ (see etc/nginx/telaris-hotglue.conf.sample).
+$tasks[] = (function() use ($hgSnippetSrc, $hgSnippetDst) {
+    if (!file_exists($hgSnippetSrc)) {
+        return ['name' => 'hotglue snippet', 'status' => 'error', 'detail' => "repo source missing at {$hgSnippetSrc}", 'fix' => null];
+    }
+    $canonical = file_get_contents($hgSnippetSrc);
+    $installed = file_exists($hgSnippetDst) ? file_get_contents($hgSnippetDst) : '';
+    if ($installed === $canonical) {
+        return ['name' => 'hotglue snippet', 'status' => 'ok', 'detail' => "matches {$hgSnippetSrc}", 'fix' => null];
+    }
+    $fix = function() use ($hgSnippetSrc, $hgSnippetDst, $canonical) {
+        if (is_link($hgSnippetDst)) {
+            return ['ok' => false, 'detail' => "{$hgSnippetDst} is a symlink; refusing to write through it (unlink first if intentional)"];
+        }
+        if (file_exists($hgSnippetDst)) {
+            $real = realpath($hgSnippetDst);
+            if ($real === false || !str_starts_with($real, '/etc/nginx/')) {
+                return ['ok' => false, 'detail' => "{$hgSnippetDst} resolves outside /etc/nginx/ (real='{$real}'); refusing to write"];
+            }
+        }
+        $tmp = $hgSnippetDst . '.new.' . posix_getpid();
+        if (file_put_contents($tmp, $canonical) === false) {
+            return ['ok' => false, 'detail' => "could not write to {$tmp}"];
+        }
+        @chmod($tmp, 0644);
+        @chown($tmp, 'root');
+        @chgrp($tmp, 'root');
+        $backup = file_exists($hgSnippetDst) ? file_get_contents($hgSnippetDst) : null;
+        if (!rename($tmp, $hgSnippetDst)) {
+            @unlink($tmp);
+            return ['ok' => false, 'detail' => "could not move {$tmp} → {$hgSnippetDst}"];
+        }
+        $rc = 1; $out = [];
+        @exec('/usr/sbin/nginx -t 2>&1', $out, $rc);
+        if ($rc !== 0) {
+            if ($backup !== null) {
+                file_put_contents($hgSnippetDst, $backup);
+            } else {
+                @unlink($hgSnippetDst);
+            }
+            return ['ok' => false, 'detail' => "nginx -t rejected the new snippet:\n" . implode("\n", $out)];
+        }
+        return ['ok' => true, 'detail' => "wrote {$hgSnippetDst} (validated by nginx -t)"];
+    };
+    return ['name' => 'hotglue snippet', 'status' => file_exists($hgSnippetDst) ? 'mismatch' : 'missing', 'detail' => "{$hgSnippetDst} differs from canonical", 'fix' => $fix];
+})();
+
+// 3d. nginx vhost includes the telaris-hotglue snippet. Report-only, same as 3/3b.
+$tasks[] = (function() use ($vhostCandidates) {
+    $present = null;
+    foreach ($vhostCandidates as $path) {
+        if (file_exists($path)) { $present = $path; break; }
+    }
+    if ($present === null) {
+        return ['name' => 'vhost includes hotglue snippet', 'status' => 'missing', 'detail' => 'no vhost found at ' . implode(' or ', $vhostCandidates), 'fix' => null];
+    }
+    $body = file_get_contents($present) ?: '';
+    if (str_contains($body, 'include snippets/telaris-hotglue.conf')) {
+        return ['name' => 'vhost includes hotglue snippet', 'status' => 'ok', 'detail' => "include found in {$present}", 'fix' => null];
+    }
+    return ['name' => 'vhost includes hotglue snippet', 'status' => 'missing', 'detail' => "{$present} does not include snippets/telaris-hotglue.conf — add manually inside the server { } block", 'fix' => null];
+})();
+
+// 3e. Hotglue content directory exists and is writable by the web user.
+// hotglue stores its flat-file pages + uploaded media here; php-fpm (www-data)
+// must own it. Never web-served directly (the snippet denies /hg/content/).
+$tasks[] = (function() use ($hgContentDir, $fpmUser) {
+    $exists = is_dir($hgContentDir);
+    $ownerOk = $exists && (function_exists('fileowner') && function_exists('posix_getpwuid')
+        ? (($pw = posix_getpwuid(fileowner($hgContentDir))) && $pw['name'] === $fpmUser)
+        : false);
+    if ($exists && $ownerOk) {
+        return ['name' => 'hotglue content dir', 'status' => 'ok', 'detail' => "{$hgContentDir} owned by {$fpmUser}", 'fix' => null];
+    }
+    $fix = function() use ($hgContentDir, $fpmUser) {
+        if (!is_dir($hgContentDir) && !@mkdir($hgContentDir, 0755, true)) {
+            return ['ok' => false, 'detail' => "could not create {$hgContentDir}"];
+        }
+        if (!@chown($hgContentDir, $fpmUser) || !@chgrp($hgContentDir, $fpmUser)) {
+            return ['ok' => false, 'detail' => "could not chown {$hgContentDir} to {$fpmUser}"];
+        }
+        @chmod($hgContentDir, 0755);
+        return ['ok' => true, 'detail' => "ensured {$hgContentDir} (0755, {$fpmUser})"];
+    };
+    return ['name' => 'hotglue content dir', 'status' => $exists ? 'mismatch' : 'missing', 'detail' => $exists ? "{$hgContentDir} not owned by {$fpmUser}" : "{$hgContentDir} missing", 'fix' => $fix];
 })();
 
 // 4. Logrotate entry matches canonical (with __SITE_LOGS__ substitution).

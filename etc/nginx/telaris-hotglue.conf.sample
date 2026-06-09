@@ -1,0 +1,65 @@
+# Telaris hotglue media surface. Include from any Telaris vhost's server{} block.
+#
+# Serves the vendored GPL fork of hotglue (k0a1a/hotglue2) same-origin under
+# /hg/. Each wormhole gets one hotglue page; the wormhole popup embeds it in a
+# sandboxed iframe. See the vault note "Hotglue integration plan".
+#
+# SECURITY MODEL
+#   - hotglue serves EVERYTHING (pages AND uploaded media) through its single
+#     front controller, index.php?<name>. The content/ flat-file store is
+#     never linked directly, so we deny direct access to it outright.
+#   - Only index.php (and, once the Telaris auth gate lands, json.php) may
+#     execute. The .inc.php library files and repo metadata are denied so they
+#     cannot be fetched or run directly.
+#   - PHASE 2 (current): editing is not yet gated by Telaris. hotglue's own
+#     auth (a strong random password in user-config.inc.php, never shared)
+#     locks editing at the app level, and this snippet additionally denies the
+#     write API (json.php) as defense in depth. PHASE 3 removes the json.php
+#     deny and adds the Telaris session + per-galaxy seat + CSRF guard.
+#
+# Install: bin/setup-host.php writes this to /etc/nginx/snippets/telaris-hotglue.conf.
+# Then add inside the vhost server{} block:  include snippets/telaris-hotglue.conf;
+
+location ^~ /hg/ {
+    # Never serve the flat-file content store (objects, revisions, log, cache,
+    # uploaded media). All of it is reached only through index.php.
+    location ^~ /hg/content/ {
+        deny all;
+        return 404;
+    }
+
+    # PHASE 2 only: deny the write API until the Telaris gate replaces this.
+    # Exact match wins over the regexes below. PHASE 3 removes this and adds
+    # json.php to the front-controller execute rule.
+    location = /hg/json.php {
+        deny all;
+        return 403;
+    }
+
+    # Only the front controller may execute. Regex locations are tried in
+    # order, first match wins, so this must precede the catch-all below.
+    location ~ ^/hg/index\.php$ {
+        try_files $uri =404;
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    # Any other PHP under /hg/ (library .inc.php, tests, etc.) must never be
+    # executed or served as source.
+    location ~* ^/hg/.+\.php$ {
+        deny all;
+        return 404;
+    }
+
+    # Repo metadata that would otherwise be served as static text.
+    location ~* ^/hg/(COPYING|INSTALL|README|UPSTREAM\.md|htaccess-dist)$ {
+        deny all;
+        return 404;
+    }
+
+    # Static app assets (css/js/img/modules); anything else routes through the
+    # front controller (which also serves media and renders the hotglue 404).
+    try_files $uri /hg/index.php?$query_string;
+}
