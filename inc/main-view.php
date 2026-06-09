@@ -295,32 +295,38 @@ header("X-Content-Type-Options: nosniff");
 
         <!-- Rich Media Window Overlay -->
         <style>
-            /* Single scroll surface (no nested window+iframe scrollbars, either axis):
-               the window never scrolls horizontally, and in hotglue mode the iframe
-               flex-fills the window so the IFRAME is the only vertical scroll region. */
+            /* Default window size is untouched. We only stop the WINDOW from scrolling
+               horizontally; the hotglue iframe keeps its own internal horizontal scroll,
+               so there is never a horizontal window-around-iframe double scrollbar. */
             #rich-media-window { overflow-x: hidden; }
-            #rich-media-window.rm-hotglue-mode { overflow-y: hidden; display: flex; flex-direction: column; }
-            #rich-media-window.rm-hotglue-mode #rm-content,
-            #rich-media-window.rm-hotglue-mode #rm-media-container,
-            #rich-media-window.rm-hotglue-mode #rm-hotglue-wrap { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
-            #rich-media-window.rm-hotglue-mode #rm-hotglue { flex: 1 1 auto; height: auto !important; min-height: 220px; }
 
-            /* Maximize: enlarge the whole rich-media window so any media (image, video,
-               pdf, embed, hotglue) gets near-full-screen room. Toggled by #rm-maximize-btn
-               and the hotglue maximize link. */
+            /* Maximize: widen the window; height grows to content, capped at 95vh. */
             #rich-media-window.rm-maximized { max-width: 96vw !important; width: 96vw !important; max-height: 95vh !important; }
             #rich-media-window.rm-maximized #rm-image,
             #rich-media-window.rm-maximized #rm-video { max-height: 82vh; width: auto; margin-left: auto; margin-right: auto; }
             #rich-media-window.rm-maximized #rm-pdf-pages { max-height: 80vh !important; }
 
-            /* Maximized hotglue: show ONLY the hotglue page. With no surrounding chrome
-               (title, description, tags, related) there is nothing else to scroll to, so
-               the iframe is unambiguously the single scroll surface. The close/maximize
-               buttons are absolute siblings of #rm-content, so they stay reachable; the
-               maximize link inside the iframe wrap also stays (to restore). */
+            /* Maximized hotglue: a full-height window showing ONLY the hotglue page, with
+               the iframe flex-filling it. No surrounding chrome means nothing else to
+               scroll to, so the iframe is unambiguously the single scroll surface (this
+               is where the double-scroll is fully avoided). The close/maximize buttons are
+               absolute siblings of #rm-content so they stay reachable; the maximize link
+               inside the iframe wrap stays too (to restore). */
+            #rich-media-window.rm-hotglue-mode.rm-maximized {
+                height: 95vh !important; display: flex; flex-direction: column; overflow: hidden;
+            }
             #rich-media-window.rm-hotglue-mode.rm-maximized #rm-content > :not(#rm-media-container) { display: none; }
             #rich-media-window.rm-hotglue-mode.rm-maximized #rm-media-container > :not(#rm-hotglue-wrap) { display: none; }
+            #rich-media-window.rm-hotglue-mode.rm-maximized #rm-content,
+            #rich-media-window.rm-hotglue-mode.rm-maximized #rm-media-container,
+            #rich-media-window.rm-hotglue-mode.rm-maximized #rm-hotglue-wrap { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
             #rich-media-window.rm-hotglue-mode.rm-maximized #rm-content { padding: 0.5rem; }
+            #rich-media-window.rm-hotglue-mode.rm-maximized #rm-hotglue { flex: 1 1 auto; height: auto !important; min-height: 0; }
+
+            /* The explicit Close link (beside Restore, under the iframe) appears only when
+               maximized, where the chrome is hidden and a second obvious exit is useful. */
+            #rm-hotglue-close-link { display: none; }
+            #rich-media-window.rm-maximized #rm-hotglue-close-link { display: inline-block; }
         </style>
         <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md hidden transition-opacity duration-500 opacity-0">
             <div id="rich-media-window" class="bg-[#0a0a0c]/90 border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative text-white transition-all duration-500 ease-out transform scale-50 opacity-0"
@@ -339,7 +345,7 @@ header("X-Content-Type-Options: nosniff");
                 </button>
                 <button id="rm-maximize-btn" class="absolute top-4 right-20 text-white/50 hover:text-white transition-colors z-10"
                         data-label-max="<?php echo htmlspecialchars(t('viewer_maximize_text', 'Maximize')); ?>"
-                        data-label-min="<?php echo htmlspecialchars(t('viewer_minimize_text', 'Minimize')); ?>"
+                        data-label-min="<?php echo htmlspecialchars(t('viewer_restore_text', 'Restore')); ?>"
                         title="<?php echo htmlspecialchars(t('viewer_maximize_text', 'Maximize')); ?>"
                         aria-label="<?php echo htmlspecialchars(t('viewer_maximize_text', 'Maximize')); ?>">
                     <svg id="rm-maximize-icon-max" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
@@ -368,7 +374,8 @@ header("X-Content-Type-Options: nosniff");
                             <div class="text-right mt-1">
                                 <button type="button" id="rm-hotglue-maximize-link" class="text-xs uppercase tracking-[0.18em] text-white/55 hover:text-white underline underline-offset-2 transition-colors"
                                         data-label-max="<?php echo htmlspecialchars(t('viewer_maximize_text', 'Maximize')); ?>"
-                                        data-label-min="<?php echo htmlspecialchars(t('viewer_minimize_text', 'Minimize')); ?>"><?php echo htmlspecialchars(t('viewer_maximize_text', 'Maximize')); ?></button>
+                                        data-label-min="<?php echo htmlspecialchars(t('viewer_restore_text', 'Restore')); ?>"><?php echo htmlspecialchars(t('viewer_maximize_text', 'Maximize')); ?></button>
+                                <button type="button" id="rm-hotglue-close-link" class="ml-4 text-xs uppercase tracking-[0.18em] text-white/55 hover:text-white underline underline-offset-2 transition-colors"><?php echo htmlspecialchars(t('viewer_close_text', 'Close')); ?></button>
                             </div>
                         </div>
 
@@ -611,6 +618,7 @@ header("X-Content-Type-Options: nosniff");
         var iconMax = document.getElementById('rm-maximize-icon-max');
         var iconMin = document.getElementById('rm-maximize-icon-min');
         var link = document.getElementById('rm-hotglue-maximize-link');
+        var closeLink = document.getElementById('rm-hotglue-close-link');
         if (!win) return;
         function apply(on) {
             win.classList.toggle('rm-maximized', on);
@@ -622,6 +630,16 @@ header("X-Content-Type-Options: nosniff");
         function toggle() { apply(!win.classList.contains('rm-maximized')); }
         if (btn) btn.addEventListener('click', toggle);
         if (link) link.addEventListener('click', toggle);
+        // Explicit Close (maximized hotglue view): close the window the same way the
+        // chrome X does.
+        if (closeLink) closeLink.addEventListener('click', function() {
+            if (window.telarisNetwork && typeof window.telarisNetwork.closeRichMediaWindow === 'function') {
+                window.telarisNetwork.closeRichMediaWindow();
+            } else {
+                var x = document.getElementById('rm-close-btn');
+                if (x) x.click();
+            }
+        });
         // Reset to normal size whenever the window closes (any close path).
         if (overlay && typeof MutationObserver === 'function') {
             new MutationObserver(function() {

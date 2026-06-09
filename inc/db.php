@@ -581,7 +581,7 @@ const PROJECT_INFO_KEYS = [
     // C7h: operator-only nginx-config warning banner in inc/main-view.php.
     'visitor_nginx_warning_heading', 'visitor_nginx_warning_intro',
     'visitor_nginx_warning_reload', 'visitor_nginx_warning_footer',
-    'viewer_maximize_text', 'viewer_minimize_text',
+    'viewer_maximize_text', 'viewer_restore_text', 'viewer_close_text',
 
     // Stage 3 follow-up: shared CSRF-failure flash message (used by every admin
     // POST handler that checks the synchronizer token).
@@ -2256,7 +2256,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'visitor_nginx_warning_reload' => '<code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>',
             'visitor_nginx_warning_footer' => 'This banner disappears automatically once the rule serves %s with HTTP 200.',
             'viewer_maximize_text' => 'Maximize',
-            'viewer_minimize_text' => 'Minimize',
+            'viewer_restore_text' => 'Restore',
+            'viewer_close_text' => 'Close',
         ],
         'es' => [
             'name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 
@@ -3680,7 +3681,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'visitor_nginx_warning_reload' => '<code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>',
             'visitor_nginx_warning_footer' => 'Este aviso desaparece automáticamente cuando la regla sirve %s con HTTP 200.',
             'viewer_maximize_text' => 'Maximizar',
-            'viewer_minimize_text' => 'Minimizar',
+            'viewer_restore_text' => 'Restaurar',
+            'viewer_close_text' => 'Cerrar',
         ],
         'pt' => [
             'name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 
@@ -5104,7 +5106,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'visitor_nginx_warning_reload' => '<code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>',
             'visitor_nginx_warning_footer' => 'Este aviso desaparece automaticamente quando a regra serve %s com HTTP 200.',
             'viewer_maximize_text' => 'Maximizar',
-            'viewer_minimize_text' => 'Minimizar',
+            'viewer_restore_text' => 'Restaurar',
+            'viewer_close_text' => 'Fechar',
         ],
         'fr' => [
             'name' => 'Telaris', 'description' => 'Tisser la mémoire', 'iframe_back_text' => 'Retour',
@@ -6528,7 +6531,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'visitor_nginx_warning_reload' => '<code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>',
             'visitor_nginx_warning_footer' => 'Cet avertissement disparaît automatiquement quand la règle sert %s avec HTTP 200.',
             'viewer_maximize_text' => 'Agrandir',
-            'viewer_minimize_text' => 'Réduire',
+            'viewer_restore_text' => 'Rétablir',
+            'viewer_close_text' => 'Fermer',
         ],
     ];
 }
