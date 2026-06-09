@@ -372,6 +372,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             'errorFailedCreate' => t('editor_error_failed_create', 'Failed to create wormhole'),
             'errorNetworkUpload' => t('editor_error_network_upload', 'Network error occurred during upload'),
             'errorNameRequired' => t('editor_error_name_required', 'Wormhole name is required'),
+            'autosaveSaving' => t('editor_autosave_saving', 'Saving…'),
+            'autosaveSaved' => t('editor_autosave_saved', 'All changes saved'),
+            'autosaveFailed' => t('editor_autosave_failed', 'Save failed; keep editing to retry'),
             'errorLoadingNode' => t('editor_error_loading_node', 'Error loading wormhole: %s'),
             'confirmDeleteFile' => t('editor_confirm_delete_file', 'Are you sure you want to delete this uploaded %s file?'),
             'toastFileDeleted' => t('editor_toast_file_deleted', '%s file deleted'),
@@ -1406,6 +1409,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (hotglueContent) hotglueContent.classList.toggle('hidden', !isHotglue);
             const hidden = document.getElementById(`${ctx}-media-mode`);
             if (hidden) hidden.value = mode;
+
+            // The Edit Wormhole tab choice (Classic vs Hotglue) is a persisted field;
+            // selecting a tab auto-saves it. (Suspended during populate, so no-op then.)
+            if (ctx === 'edit' && typeof editAutosave !== 'undefined') editAutosave.saveNow();
         }
 
         // Open the per-node hotglue editor in the full-screen overlay. Same-origin,
@@ -1656,7 +1663,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
 
             editingNodeId = id;
-            
+
+            // Suspend autosave while we set fields programmatically (setting .value does
+            // not fire input/change, but this also installs listeners + resets state).
+            editAutosave.beginPopulate();
+
             // Populate basic fields
             document.getElementById('edit-id').value = node.id;
             document.getElementById('edit-name').value = node.name || '';
@@ -1789,24 +1800,25 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
 
             document.getElementById('edit_modal').showModal();
+
+            // Resume autosave now that the form reflects the node.
+            editAutosave.endPopulate();
         }
-        
-        // Save node edit from modal
-        async function saveNodeEdit(event) {
-            event.preventDefault();
-            
+
+        // Edit Wormhole modal save.
+        //
+        // The modal auto-saves (no explicit "Update" button): text edits are debounced,
+        // toggles/selects/keywords/file-picks save immediately, and closing the modal
+        // flushes any pending change. buildEditFormData() assembles the current form
+        // state; the editAutosave controller (below) drives sending it. Returns
+        // { fd, fileTypes } or null when the form can't be saved yet (empty name, or no
+        // API key) — the controller reflects that in the status chip.
+        function buildEditFormData() {
             const nodeId = parseInt(document.getElementById('edit-id').value);
             const nodeName = document.getElementById('edit-name').value.trim();
-            
-            if (!nodeName) {
-                showMessage(TELARIS_EDIT.errorNameRequired, 'error');
-                return;
-            }
 
-            if (!API_KEY) {
-                showMessage(TELARIS_EDIT.errorApiKeyMissing, 'error');
-                return;
-            }
+            if (!nodeName) return null;
+            if (!API_KEY) return null;
 
             const node = allNodes.find(n => n.id === nodeId);
 
@@ -1881,7 +1893,271 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const audioFile = document.getElementById('edit-audio-file').files[0];
             if (audioFile) formData.append('audio_file', audioFile);
 
-            handleNodeSubmit(formData, 'edit', 'PUT');
+            const fileTypes = [];
+            ['image', 'video', 'pdf', 'audio', 'icon'].forEach(t => {
+                if (formData.get(t + '_file') instanceof File) fileTypes.push(t);
+            });
+            return { fd: formData, fileTypes };
+        }
+
+        // Update one file field's UI (existing-file chip vs file picker) from a stored
+        // URL. Mirrors the per-type blocks in editNode(); used to refresh the picker
+        // after an autosave upload so the new uploads/ path shows and is not re-sent.
+        function setEditFileFieldUI(type, url) {
+            const wrap = document.getElementById(`edit-${type}-file-wrap`);
+            const existing = document.getElementById(`edit-${type}-existing`);
+            const nameEl = document.getElementById(`edit-${type}-existing-name`);
+            const urlInput = document.getElementById(`edit-${type}-url`);
+            if (!urlInput) return;
+            if (url && url.startsWith('uploads/')) {
+                if (wrap) wrap.classList.add('hidden');
+                if (existing) existing.classList.remove('hidden');
+                if (nameEl) nameEl.value = url.split('/').pop();
+                urlInput.value = url;
+            } else {
+                if (wrap) wrap.classList.remove('hidden');
+                if (existing) existing.classList.add('hidden');
+                urlInput.value = url || '';
+            }
+        }
+
+        // Edit Wormhole autosave controller. Replaces the explicit "Update Wormhole"
+        // button. Debounces text edits, saves toggles/selects/keywords/file-picks
+        // immediately, serializes overlapping saves, and flushes on modal close. The
+        // hotglue overlay has its own autosave; this only ever persists wormhole
+        // fields (never hotglue page content), so the two never fight.
+        const editAutosave = (function () {
+            const DEBOUNCE_MS = 1000;
+            let dirty = false;       // an un-sent change is pending
+            let inflight = false;    // a save request is currently in flight
+            let queued = false;      // a change arrived while a save was in flight
+            let timer = null;
+            let suspended = true;    // true while populating the form or modal closed
+            let installed = false;   // listeners attached once
+            let pendingReload = false; // reload the list once the in-flight save drains
+            let touched = false;     // at least one save was sent during this open
+
+            function statusEls() {
+                const root = document.getElementById('edit-autosave-status');
+                if (!root) return null;
+                return {
+                    spinner: root.querySelector('[data-autosave-spinner]'),
+                    text: root.querySelector('[data-autosave-text]'),
+                };
+            }
+            function setStatus(state, overrideText) {
+                const els = statusEls();
+                if (!els) return;
+                const map = {
+                    idle:   { txt: TELARIS_EDIT.autosaveSaved,  cls: 'text-gray-400', spin: false },
+                    saving: { txt: TELARIS_EDIT.autosaveSaving, cls: 'text-gray-500', spin: true  },
+                    saved:  { txt: TELARIS_EDIT.autosaveSaved,  cls: 'text-green-600', spin: false },
+                    failed: { txt: TELARIS_EDIT.autosaveFailed, cls: 'text-red-600',  spin: false },
+                };
+                const s = map[state] || map.idle;
+                if (els.text) {
+                    els.text.textContent = overrideText || s.txt;
+                    els.text.className = 'text-xs font-medium ' + s.cls;
+                }
+                if (els.spinner) els.spinner.classList.toggle('hidden', !s.spin);
+            }
+
+            function patchLocalNode(fd) {
+                const id = parseInt(document.getElementById('edit-id').value, 10);
+                const node = allNodes.find(n => n.id === id);
+                if (!node) return;
+                const g = k => fd.get(k);
+                node.name = g('name');
+                node.description = g('description');
+                node.url = g('url');
+                node.embed_code = g('embed_code');
+                node.is_accentuated = g('is_accentuated') === '1' ? 1 : 0;
+                node.show_keywords = g('show_keywords') === '1' ? 1 : 0;
+                node.constellation_id = parseInt(g('constellation_id'), 10);
+                node.node_type = g('node_type');
+                if (node.node_type === 'portal') {
+                    node.target_constellation_id = parseInt(g('target_constellation_id'), 10) || null;
+                }
+                node.media_mode = g('media_mode') || 'classic';
+                node.hotglue_page = document.getElementById('edit-hotglue-page').value || ('node-' + id);
+                node.icon_url = g('icon_url');
+                node.image_attribution = g('image_attribution');
+                node.keywords = (keywordState['modal'] || []).slice();
+                node.audio_autoplay = g('audio_autoplay') === '1' ? 1 : 0;
+                node.audio_loop = g('audio_loop') === '1' ? 1 : 0;
+                node.video_autoplay = g('video_autoplay') === '1' ? 1 : 0;
+                // URLs: skip when a file was uploaded — the stored path comes from refetch.
+                if (!(fd.get('image_file') instanceof File)) node.image_url = g('image_url');
+                if (!(fd.get('video_file') instanceof File)) node.video_url = g('video_url');
+                if (!(fd.get('pdf_file') instanceof File)) node.pdf_url = g('pdf_url');
+                if (!(fd.get('audio_file') instanceof File)) node.audio_url = g('audio_url');
+            }
+
+            async function refetchFileUI() {
+                const id = document.getElementById('edit-id').value;
+                try {
+                    const r = await fetch(`${API_BASE}?id=${id}`, {
+                        headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN }
+                    });
+                    if (!r.ok) return;
+                    const node = await r.json();
+                    ['image', 'audio', 'video', 'icon', 'pdf'].forEach(t => setEditFileFieldUI(t, node[`${t}_url`]));
+                    const ln = allNodes.find(n => n.id === parseInt(id, 10));
+                    if (ln) ['image', 'audio', 'video', 'icon', 'pdf'].forEach(t => { ln[`${t}_url`] = node[`${t}_url`]; });
+                } catch (e) { /* leave the picker as-is on a transient fetch error */ }
+            }
+
+            function drained() {
+                if (pendingReload && !queued && !inflight) {
+                    pendingReload = false;
+                    loadNodes();
+                }
+            }
+
+            function send() {
+                if (suspended) return;
+                const built = buildEditFormData();
+                if (!built) {
+                    // Can't save yet (empty name). Keep the change pending so a later
+                    // valid edit retries; surface it quietly in the chip, no toast.
+                    setStatus('failed', TELARIS_EDIT.errorNameRequired);
+                    drained();
+                    return;
+                }
+                if (timer) { clearTimeout(timer); timer = null; }
+                inflight = true;
+                touched = true;
+                dirty = false;
+                setStatus('saving');
+
+                const { fd, fileTypes } = built;
+                const progressWrap = document.getElementById('edit-progress-wrap');
+                const progressBar = document.getElementById('edit-progress-bar');
+                const progressText = document.getElementById('edit-progress-text');
+                if (fileTypes.length && progressWrap) progressWrap.classList.remove('hidden');
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', API_BASE, true);
+                xhr.setRequestHeader('X-API-Key', API_KEY);
+                xhr.setRequestHeader('X-CSRF-Token', CSRF_TOKEN);
+                xhr.setRequestHeader('X-HTTP-Method-Override', 'PUT');
+
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable && progressBar) {
+                        const pct = Math.round((e.loaded / e.total) * 100);
+                        progressBar.value = pct;
+                        progressText.textContent = pct + '%';
+                    }
+                };
+                const finishProgress = () => {
+                    if (progressWrap) progressWrap.classList.add('hidden');
+                    if (progressBar) progressBar.value = 0;
+                    if (progressText) progressText.textContent = '0%';
+                };
+
+                xhr.onload = () => {
+                    inflight = false;
+                    finishProgress();
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        setStatus('saved');
+                        // Clear uploaded file inputs so the next save won't re-send them.
+                        fileTypes.forEach(t => { const fi = document.getElementById(`edit-${t}-file`); if (fi) fi.value = ''; });
+                        patchLocalNode(fd);
+                        if (fileTypes.length) refetchFileUI();
+                    } else {
+                        dirty = true; // allow retry on the next edit
+                        let msg = TELARIS_EDIT.errorFailedUpdate;
+                        try { const r = JSON.parse(xhr.responseText); msg = r.error || msg; } catch (e) {}
+                        setStatus('failed');
+                        showMessage(`Error: ${msg} (${xhr.status})`, 'error');
+                    }
+                    if (queued) { queued = false; flush(); return; }
+                    drained();
+                };
+                xhr.onerror = () => {
+                    inflight = false;
+                    dirty = true;
+                    finishProgress();
+                    setStatus('failed');
+                    showMessage(TELARIS_EDIT.errorNetworkUpload, 'error');
+                    if (queued) { queued = false; flush(); return; }
+                    drained();
+                };
+                xhr.send(fd);
+            }
+
+            function flush() {
+                if (suspended || !dirty) return;
+                if (inflight) { queued = true; return; }
+                if (timer) { clearTimeout(timer); timer = null; }
+                send();
+            }
+
+            function scheduleSave() {
+                if (suspended) return;
+                dirty = true;
+                setStatus('saving');
+                if (timer) clearTimeout(timer);
+                timer = setTimeout(flush, DEBOUNCE_MS);
+            }
+            function saveNow() {
+                if (suspended) return;
+                dirty = true;
+                flush();
+            }
+            // Send a pending edit immediately, but never force a save when nothing changed
+            // (used for text-field blur, which fires whether or not the value changed).
+            function flushNow() {
+                if (suspended || !dirty) return;
+                flush();
+            }
+
+            function installListeners() {
+                if (installed) return;
+                installed = true;
+                const form = document.getElementById('edit-node-form');
+                if (!form) return;
+                form.addEventListener('input', (e) => {
+                    const t = e.target;
+                    if (!t || t.disabled) return;
+                    if (t.id === 'edit-keywords-input-modal') return; // keyword text box; commit fires saveNow
+                    const type = (t.type || '').toLowerCase();
+                    if (type === 'file' || type === 'checkbox' || type === 'radio' || t.tagName === 'SELECT') return;
+                    scheduleSave();
+                });
+                form.addEventListener('change', (e) => {
+                    const t = e.target;
+                    if (!t || t.disabled) return;
+                    if (t.id === 'edit-keywords-input-modal') return;
+                    const type = (t.type || '').toLowerCase();
+                    if (type === 'file' || type === 'checkbox' || type === 'radio' || t.tagName === 'SELECT') {
+                        saveNow(); // a real value change: file pick, toggle, or select
+                    } else {
+                        flushNow(); // text-field blur: send only if an edit is pending
+                    }
+                });
+                const modal = document.getElementById('edit_modal');
+                if (modal) modal.addEventListener('close', () => {
+                    // Flush any pending edit; refresh the list once saves drain, but only
+                    // if something was actually saved (or is still pending) this session.
+                    if (dirty && !inflight) { pendingReload = true; send(); }
+                    else if (inflight) { pendingReload = true; }
+                    else if (touched) { loadNodes(); }
+                });
+            }
+
+            return {
+                // Called by editNode(): suspend autosave, then resume after populate.
+                beginPopulate() { suspended = true; if (timer) { clearTimeout(timer); timer = null; } dirty = false; queued = false; touched = false; pendingReload = false; installListeners(); },
+                endPopulate() { suspended = false; inflight = false; pendingReload = false; setStatus('idle'); },
+                scheduleSave, saveNow,
+            };
+        })();
+
+        // Thin wrapper kept for the form's onsubmit (Enter key) — flush immediately.
+        function saveNodeEdit(event) {
+            if (event) event.preventDefault();
+            editAutosave.saveNow();
         }
 
         function handleNodeSubmit(formData, context, method = 'POST') {
@@ -2212,6 +2488,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 `;
                 container.insertBefore(badge, input);
             });
+
+            // Keyword changes in the Edit Wormhole modal auto-save immediately.
+            // (No-op while the modal is populating or closed — the controller is suspended.)
+            if (contextId === 'modal' && typeof editAutosave !== 'undefined') editAutosave.saveNow();
         }
 
         function addKeywords(text, contextId) {
@@ -2856,12 +3136,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     </div>
                     <progress id="edit-progress-bar" class="progress progress-neutral w-full" value="0" max="100"></progress>
                 </div>
-                <div class="modal-action">
-                    <button type="submit" id="edit-submit-btn" class="btn btn-neutral">
-                        <span class="loading loading-spinner hidden" id="edit-submit-loader"></span>
-                        <?= t_attr('editor_btn_update_wormhole', 'Update Wormhole') ?>
-                    </button>
-                    <button type="button" class="btn" onclick="document.getElementById('edit_modal').close()"><?= t_attr('editor_btn_cancel', 'Cancel') ?></button>
+                <div class="modal-action items-center justify-between">
+                    <div id="edit-autosave-status" class="flex items-center gap-2" aria-live="polite">
+                        <span class="loading loading-spinner loading-xs text-gray-400 hidden" data-autosave-spinner></span>
+                        <span data-autosave-text class="text-xs font-medium text-gray-400"></span>
+                    </div>
+                    <button type="button" class="btn btn-neutral" onclick="document.getElementById('edit_modal').close()"><?= t_attr('editor_btn_close', 'Close') ?></button>
                 </div>
             </form>
         </div>
