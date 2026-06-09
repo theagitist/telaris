@@ -190,9 +190,14 @@ class TelarisNetwork {
             if (embedEl) embedEl.innerHTML = '';
             try { if (audioEl) audioEl.pause(); } catch (e) {}
             try { if (videoEl) videoEl.pause(); } catch (e) {}
+            // Single scroll surface: in hotglue mode the iframe (not the window)
+            // is the vertical scroll region, so there is no window-around-iframe
+            // double scrollbar. See the .rm-hotglue-mode CSS in main-view.php.
+            if (win) win.classList.add('rm-hotglue-mode');
         } else if (hotglueWrap && hotglueEl) {
             hotglueWrap.classList.add('hidden');
             hotglueEl.setAttribute('src', 'about:blank');
+            if (win) win.classList.remove('rm-hotglue-mode');
         }
 
         if (!isHotglue) {

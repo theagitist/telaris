@@ -295,14 +295,32 @@ header("X-Content-Type-Options: nosniff");
 
         <!-- Rich Media Window Overlay -->
         <style>
+            /* Single scroll surface (no nested window+iframe scrollbars, either axis):
+               the window never scrolls horizontally, and in hotglue mode the iframe
+               flex-fills the window so the IFRAME is the only vertical scroll region. */
+            #rich-media-window { overflow-x: hidden; }
+            #rich-media-window.rm-hotglue-mode { overflow-y: hidden; display: flex; flex-direction: column; }
+            #rich-media-window.rm-hotglue-mode #rm-content,
+            #rich-media-window.rm-hotglue-mode #rm-media-container,
+            #rich-media-window.rm-hotglue-mode #rm-hotglue-wrap { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+            #rich-media-window.rm-hotglue-mode #rm-hotglue { flex: 1 1 auto; height: auto !important; min-height: 220px; }
+
             /* Maximize: enlarge the whole rich-media window so any media (image, video,
                pdf, embed, hotglue) gets near-full-screen room. Toggled by #rm-maximize-btn
                and the hotglue maximize link. */
             #rich-media-window.rm-maximized { max-width: 96vw !important; width: 96vw !important; max-height: 95vh !important; }
-            #rich-media-window.rm-maximized #rm-hotglue { height: 84vh !important; }
             #rich-media-window.rm-maximized #rm-image,
             #rich-media-window.rm-maximized #rm-video { max-height: 82vh; width: auto; margin-left: auto; margin-right: auto; }
             #rich-media-window.rm-maximized #rm-pdf-pages { max-height: 80vh !important; }
+
+            /* Maximized hotglue: show ONLY the hotglue page. With no surrounding chrome
+               (title, description, tags, related) there is nothing else to scroll to, so
+               the iframe is unambiguously the single scroll surface. The close/maximize
+               buttons are absolute siblings of #rm-content, so they stay reachable; the
+               maximize link inside the iframe wrap also stays (to restore). */
+            #rich-media-window.rm-hotglue-mode.rm-maximized #rm-content > :not(#rm-media-container) { display: none; }
+            #rich-media-window.rm-hotglue-mode.rm-maximized #rm-media-container > :not(#rm-hotglue-wrap) { display: none; }
+            #rich-media-window.rm-hotglue-mode.rm-maximized #rm-content { padding: 0.5rem; }
         </style>
         <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md hidden transition-opacity duration-500 opacity-0">
             <div id="rich-media-window" class="bg-[#0a0a0c]/90 border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative text-white transition-all duration-500 ease-out transform scale-50 opacity-0"
@@ -338,7 +356,7 @@ header("X-Content-Type-Options: nosniff");
                 </button>
 
                 <!-- Content -->
-                <div class="p-6 md:p-8">
+                <div id="rm-content" class="p-6 md:p-8">
                     <h2 id="rm-title" class="text-2xl font-bold mb-4 tracking-tight uppercase border-b-2 pb-2" style="border-color: var(--node-accent-muted);"></h2>
                     
                     <div id="rm-media-container" class="space-y-6">
