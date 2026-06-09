@@ -11825,12 +11825,14 @@ function db_get_galaxy_for_dump(int $id): ?array {
 
     // Nodes for this galaxy. Pull all relevant columns.
     db_ensure_nodes_pdf_url_column();
+    db_ensure_nodes_hotglue_columns();
     $nodeStmt = $pdo->prepare("
         SELECT id, name, description, url, image_url, image_attribution, icon_url,
                embed_code, audio_url, audio_autoplay, audio_loop,
                video_url, video_autoplay, pdf_url, animation,
                node_type, target_constellation_id, is_accentuated, show_keywords, use_image_as_node,
-               source_facet, media_type, source_created_at, import_slug, created_by
+               source_facet, media_type, source_created_at, import_slug, created_by,
+               media_mode, hotglue_page
         FROM nodes WHERE constellation_id = :id ORDER BY id
     ");
     $nodeStmt->execute([':id' => $id]);
@@ -11995,7 +11997,12 @@ function db_create_node_for_restore(int $constellationId, array $node): int {
     db_ensure_nodes_import_slug_column();
     db_ensure_nodes_show_keywords_column();
     db_ensure_nodes_pdf_url_column();
+    db_ensure_nodes_hotglue_columns();
     $pdo = getDB();
+    // media_mode falls back to 'classic' for legacy dumps without the column.
+    $mediaMode = (string)($node['media_mode'] ?? 'classic');
+    if ($mediaMode !== 'hotglue') { $mediaMode = 'classic'; }
+    $hotgluePage = isset($node['hotglue_page']) && $node['hotglue_page'] !== '' ? (string)$node['hotglue_page'] : null;
     $stmt = $pdo->prepare("
         INSERT INTO nodes (
             constellation_id, name, description, url,
@@ -12003,14 +12010,16 @@ function db_create_node_for_restore(int $constellationId, array $node): int {
             audio_url, audio_autoplay, audio_loop,
             video_url, video_autoplay, pdf_url, animation,
             node_type, target_constellation_id, is_accentuated, show_keywords,
-            source_facet, media_type, source_created_at, import_slug, created_by
+            source_facet, media_type, source_created_at, import_slug, created_by,
+            media_mode, hotglue_page
         ) VALUES (
             :constellation_id, :name, :description, :url,
             :image_url, :image_attribution, :icon_url, :embed_code,
             :audio_url, :audio_autoplay, :audio_loop,
             :video_url, :video_autoplay, :pdf_url, :animation,
             :node_type, :target_constellation_id, :is_accentuated, :show_keywords,
-            :source_facet, :media_type, :source_created_at, :import_slug, :created_by
+            :source_facet, :media_type, :source_created_at, :import_slug, :created_by,
+            :media_mode, :hotglue_page
         )
     ");
     $stmt->execute([
@@ -12038,6 +12047,8 @@ function db_create_node_for_restore(int $constellationId, array $node): int {
         ':source_created_at' => $node['source_created_at'] ?? null,
         ':import_slug' => $node['import_slug'] ?? null,
         ':created_by' => $node['created_by'] ?? null,
+        ':media_mode' => $mediaMode,
+        ':hotglue_page' => $hotgluePage,
     ]);
     return (int)$pdo->lastInsertId();
 }

@@ -128,6 +128,8 @@ function backup_build_dump(array $opts): array {
                     'target_galaxy_slug' => $n['target_constellation_slug'] ?? null,
                     'is_accentuated' => (bool)$n['is_accentuated'],
                     'show_keywords' => (bool)$n['show_keywords'],
+                    'media_mode' => ($n['media_mode'] ?? 'classic') === 'hotglue' ? 'hotglue' : 'classic',
+                    'hotglue_page' => (isset($n['hotglue_page']) && $n['hotglue_page'] !== '') ? $n['hotglue_page'] : null,
                     'source_facet' => $n['source_facet'] ?? null,
                     'media_type' => $n['media_type'] ?? null,
                     'source_created_at' => $n['source_created_at'] ?? null,
@@ -177,6 +179,17 @@ function backup_build_dump(array $opts): array {
                 if ($mediaRefs !== []) {
                     $nodeOut['media_refs'] = $mediaRefs;
                 }
+
+                // Hotglue page content (live head/ + shared/). Skipped in 'none'
+                // media mode (which strips embedded media for a metadata-only dump).
+                if ($nodeOut['media_mode'] === 'hotglue' && $mediaMode !== 'none') {
+                    $page = $nodeOut['hotglue_page'] ?? ('node-' . $n['id']);
+                    $hgFiles = backup_hotglue_collect_files($page);
+                    if ($hgFiles !== []) {
+                        $nodeOut['hotglue_content'] = ['page' => $page, 'files' => $hgFiles];
+                    }
+                }
+
                 $nodesOut[] = $nodeOut;
             }
 
@@ -296,6 +309,110 @@ function backup_resolve_upload_path(string $url): ?string {
     if ($real === false || $allowed === false) return null;
     if (strpos($real, rtrim($allowed, '/') . '/') !== 0 && $real !== $allowed) return null;
     return $real;
+}
+
+// ---------------------------------------------------------------------------
+// Hotglue per-node content (media_mode='hotglue').
+// ---------------------------------------------------------------------------
+// A hotglue wormhole keeps its media as a flat-file page tree under
+// <app>/hg/content/<page>/, where <page> = node.hotglue_page ?? "node-<id>".
+// Backups round-trip the live page: the `head` revision plus the `shared`
+// media directory (autosave `auto-*` revisions are ephemeral churn and are
+// deliberately skipped to keep dumps small). On restore the tree is rewritten
+// under the NEW node's page name so default-named pages follow the new id.
+
+/** Absolute path of this instance's hotglue content store, or null if absent. */
+function backup_hotglue_content_dir(): ?string {
+    $dir = dirname(__DIR__) . '/hg/content'; // inc/ -> app root -> hg/content
+    return is_dir($dir) ? $dir : null;
+}
+
+/** True if $page is a safe hotglue page name (no traversal / separators). */
+function backup_hotglue_page_name_ok(string $page): bool {
+    return $page !== '' && (bool)preg_match('/^[A-Za-z0-9._-]+$/', $page);
+}
+
+/**
+ * Collect a hotglue page's live files (head/ + shared/) as blob records.
+ * Returns [] when the page has no on-disk content.
+ *
+ * @return array<int, array{path:string, content_b64:string, sha256:string, size:int}>
+ */
+function backup_hotglue_collect_files(string $page): array {
+    if (!backup_hotglue_page_name_ok($page)) return [];
+    $base = backup_hotglue_content_dir();
+    if ($base === null) return [];
+    $pageDir = $base . '/' . $page;
+    $rp = realpath($pageDir);
+    $rpBase = realpath($base);
+    if ($rp === false || $rpBase === false || !str_starts_with($rp . '/', $rpBase . '/')) return [];
+
+    $files = [];
+    foreach (['head', 'shared'] as $sub) {
+        $subDir = $rp . '/' . $sub;
+        if (!is_dir($subDir)) continue;
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($subDir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+        foreach ($it as $f) {
+            if (!$f->isFile()) continue;
+            $rel = $sub . '/' . substr($f->getPathname(), strlen($subDir) + 1);
+            $bytes = @file_get_contents($f->getPathname());
+            if ($bytes === false) continue;
+            $files[] = [
+                'path' => str_replace('\\', '/', $rel),
+                'content_b64' => base64_encode($bytes),
+                'sha256' => hash('sha256', $bytes),
+                'size' => strlen($bytes),
+            ];
+        }
+    }
+    return $files;
+}
+
+/**
+ * Write hotglue page files (from backup_hotglue_collect_files) under $page.
+ * Only head/ and shared/ relative paths are accepted; bad paths are skipped.
+ * Returns the number of files written.
+ */
+function backup_hotglue_write_files(string $page, array $files): int {
+    if (!backup_hotglue_page_name_ok($page)) return 0;
+    $base = backup_hotglue_content_dir();
+    if ($base === null) return 0;
+    $pageRoot = $base . '/' . $page;
+    $written = 0;
+    foreach ($files as $file) {
+        $rel = (string)($file['path'] ?? '');
+        if ($rel === '' || str_contains($rel, '..') || !preg_match('#^(head|shared)/[A-Za-z0-9._/-]+$#', $rel)) continue;
+        $bytes = base64_decode((string)($file['content_b64'] ?? ''), true);
+        if ($bytes === false) continue;
+        if (isset($file['sha256']) && hash('sha256', $bytes) !== $file['sha256']) continue;
+        $abs = $pageRoot . '/' . $rel;
+        $absDir = dirname($abs);
+        if (!is_dir($absDir) && !@mkdir($absDir, 0775, true) && !is_dir($absDir)) continue;
+        if (@file_put_contents($abs, $bytes) === false) continue;
+        @chmod($abs, 0664);
+        $written++;
+    }
+    return $written;
+}
+
+/**
+ * Wipe the entire hotglue content store (every page). Used by a full
+ * snapshot (wipe_all) restore so stale pages for nodes not in the snapshot do
+ * not linger. No-op when the store is absent.
+ */
+function backup_wipe_hotglue_content(): void {
+    $base = backup_hotglue_content_dir();
+    if ($base === null) return;
+    foreach (glob($base . '/*', GLOB_ONLYDIR) ?: [] as $pageDir) {
+        // Guard: only remove direct children of the content dir.
+        $rp = realpath($pageDir);
+        $rpBase = realpath($base);
+        if ($rp === false || $rpBase === false || dirname($rp) !== $rpBase) continue;
+        db_rrmdir($rp, $rpBase);
+    }
 }
 
 /**
@@ -486,12 +603,18 @@ function backup_restore_from_file(string $path, array $opts): array {
         'users_skipped' => 0,
         'media_files_written' => 0,
         'media_files_skipped' => 0,
+        'hotglue_files_written' => 0,
         'default_galaxy_id' => null,
     ];
 
     // 1. Wipe everything for snapshot restore
     if ($mode === 'wipe_all') {
         db_wipe_all_data();
+        if ($restoreMedia) {
+            // Drop every hotglue page too, so stale pages for nodes not in the
+            // snapshot do not linger; pages are rewritten from the dump below.
+            backup_wipe_hotglue_content();
+        }
     }
 
     // 2. Restore users first so node.created_by can be resolved
@@ -587,6 +710,7 @@ function backup_restore_from_file(string $path, array $opts): array {
             }
             $report['media_files_written'] += $result['media_written'];
             $report['media_files_skipped'] += $result['media_skipped'];
+            $report['hotglue_files_written'] += $result['hotglue_written'] ?? 0;
             if (!empty($g['is_default'])) {
                 $report['default_galaxy_id'] = $result['new_id'];
             }
@@ -820,6 +944,7 @@ function backup_restore_one_galaxy(array $g, array $dump, array $opts): array {
     $portalUpdates = [];
     $mediaWritten = 0;
     $mediaSkipped = 0;
+    $hotglueWritten = 0;
     foreach ($g['nodes'] ?? [] as $n) {
         $nodePayload = $n;
         // Strip target_constellation_id at insert time; resolve in second pass
@@ -874,6 +999,16 @@ function backup_restore_one_galaxy(array $g, array $dump, array $opts): array {
                 ->execute([':id' => $newNodeId]);
         }
 
+        // Hotglue page content. Write under the NEW node's effective page name:
+        // a default (null) hotglue_page follows the new id (node-<newid>); a custom
+        // page name is preserved. db_create_node_for_restore already set the column,
+        // so the page we write to matches what the node will resolve at view time.
+        if ($restoreMedia && !empty($n['hotglue_content']['files'])) {
+            $dumpedHotgluePage = (isset($n['hotglue_page']) && $n['hotglue_page'] !== '') ? (string)$n['hotglue_page'] : null;
+            $targetPage = $dumpedHotgluePage ?? ('node-' . $newNodeId);
+            $hotglueWritten += backup_hotglue_write_files($targetPage, $n['hotglue_content']['files']);
+        }
+
         // Link keywords
         foreach ($n['keyword_refs'] ?? [] as $kwRef) {
             if (!isset($kwRefToId[$kwRef])) continue;
@@ -899,6 +1034,7 @@ function backup_restore_one_galaxy(array $g, array $dump, array $opts): array {
         'portal_updates' => $portalUpdates,
         'media_written' => $mediaWritten,
         'media_skipped' => $mediaSkipped,
+        'hotglue_written' => $hotglueWritten,
     ];
 
         if ($ownTxn && $pdo->inTransaction()) {
