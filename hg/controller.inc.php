@@ -92,11 +92,22 @@ function controller_edit($args)
 	page_canonical($args[0][0]);
 	$page = $args[0][0];
 	if (!page_exists($page)) {
-		log_msg('debug', 'controller_edit: page '.quot($page).' does not exist, invoking controller_create_page');
-		controller_create_page($args);
-		return;
+		// Telaris: lazily auto-create the page so the editor never sees
+		// hotglue's "create page" UI. The Telaris auth bridge has already
+		// authorized this node page (editor session + seat + not read-only),
+		// so creating it here is safe; we then fall through to render the
+		// editor on the now-empty canvas. Fall back to the create UI only if
+		// the auto-create fails for some reason.
+		load_modules('glue');
+		$created = create_page(array('page' => $page));
+		if (!empty($created['#error'])) {
+			log_msg('warn', 'controller_edit: auto-create of '.quot($page).' failed, invoking controller_create_page');
+			controller_create_page($args);
+			return;
+		}
+		log_msg('info', 'controller_edit: auto-created '.quot($page));
 	}
-	
+
 	// create page on the fly
 	load_modules('glue');
 	default_html(true);

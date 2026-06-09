@@ -123,6 +123,8 @@ CREATE TABLE IF NOT EXISTS nodes (
     media_type VARCHAR(50) NULL,
     source_created_at VARCHAR(30) NULL,
     import_slug VARCHAR(255) NULL,
+    media_mode VARCHAR(16) NOT NULL DEFAULT 'classic',
+    hotglue_page VARCHAR(255) NULL DEFAULT NULL,
     -- NEW FIELDS END HERE --
     created_by VARCHAR(255) NULL,
     animation JSON NOT NULL DEFAULT (JSON_OBJECT('radius', 5.0, 'theta', 0, 'phi', 0, 'speed', 0.0025, 'phase', 0)),

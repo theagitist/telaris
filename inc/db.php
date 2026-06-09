@@ -6531,6 +6531,30 @@ function db_ensure_nodes_use_image_as_node_column(): void {
     }
 }
 
+/**
+ * Ensure nodes.media_mode + nodes.hotglue_page columns exist (hotglue media
+ * integration). media_mode is 'classic' (the existing image/audio/embed/pdf
+ * media block) or 'hotglue' (an embedded per-node hotglue page). hotglue_page
+ * holds the hotglue page base name when it differs from the default node-<id>
+ * (e.g. an imported self-hosted page); NULL means use the default.
+ */
+function db_ensure_nodes_hotglue_columns(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        if (!$pdo->query("SHOW COLUMNS FROM nodes LIKE 'media_mode'")->fetch()) {
+            $pdo->exec("ALTER TABLE nodes ADD COLUMN media_mode VARCHAR(16) NOT NULL DEFAULT 'classic'");
+        }
+        if (!$pdo->query("SHOW COLUMNS FROM nodes LIKE 'hotglue_page'")->fetch()) {
+            $pdo->exec("ALTER TABLE nodes ADD COLUMN hotglue_page VARCHAR(255) NULL DEFAULT NULL");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_nodes_hotglue_columns: ' . $e->getMessage());
+    }
+}
+
 function db_ensure_constellations_import_source_column(): void {
     static $checked = false;
     if ($checked) return;
@@ -10438,6 +10462,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         db_ensure_nodes_image_attribution_column();
         db_ensure_nodes_clustering_columns();
         db_ensure_nodes_pdf_url_column();
+        db_ensure_nodes_hotglue_columns();
         $ensured = true;
     }
     $pdo = getDB();
@@ -10447,7 +10472,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         $stmt = $pdo->query("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.pdf_url, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords, n.use_image_as_node,
-                   n.source_facet, n.media_type, n.source_created_at,
+                   n.source_facet, n.media_type, n.source_created_at, n.media_mode, n.hotglue_page,
                    c.name AS constellation_name,
                    tc.slug AS target_constellation_slug
             FROM nodes n
@@ -10471,7 +10496,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         $stmt = $pdo->prepare("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.pdf_url, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords, n.use_image_as_node,
-                   n.source_facet, n.media_type, n.source_created_at,
+                   n.source_facet, n.media_type, n.source_created_at, n.media_mode, n.hotglue_page,
                    c.name AS constellation_name,
                    tc.slug AS target_constellation_slug
             FROM nodes n
@@ -10489,7 +10514,7 @@ function db_get_nodes(?int $constellationId = null, ?string $userId = null, bool
         $stmt = $pdo->prepare("
             SELECT n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.pdf_url, n.animation, n.created_at, n.updated_at, n.constellation_id,
                    n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords, n.use_image_as_node,
-                   n.source_facet, n.media_type, n.source_created_at,
+                   n.source_facet, n.media_type, n.source_created_at, n.media_mode, n.hotglue_page,
                    c.name AS constellation_name,
                    tc.slug AS target_constellation_slug
             FROM nodes n
@@ -10520,6 +10545,7 @@ function db_get_nodes_for_constellations(array $constellationIds): array {
     db_ensure_nodes_image_attribution_column();
     db_ensure_nodes_clustering_columns();
     db_ensure_nodes_pdf_url_column();
+    db_ensure_nodes_hotglue_columns();
     $ids = array_values(array_unique(array_map('intval', $constellationIds)));
     if ($ids === []) return [];
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -10527,7 +10553,7 @@ function db_get_nodes_for_constellations(array $constellationIds): array {
     $stmt = $pdo->prepare("
         SELECT n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.pdf_url, n.animation, n.created_at, n.updated_at, n.constellation_id,
                n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords, n.use_image_as_node,
-               n.source_facet, n.media_type, n.source_created_at,
+               n.source_facet, n.media_type, n.source_created_at, n.media_mode, n.hotglue_page,
                c.name AS constellation_name,
                c.theme AS constellation_theme,
                tc.slug AS target_constellation_slug
@@ -10552,10 +10578,11 @@ function db_get_node_by_id(int $nodeId): ?array {
     db_ensure_nodes_image_attribution_column();
     db_ensure_nodes_clustering_columns();
     db_ensure_nodes_pdf_url_column();
+    db_ensure_nodes_hotglue_columns();
     $stmt = $pdo->prepare("
         SELECT n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.pdf_url, n.animation, n.created_at, n.updated_at, n.constellation_id,
                n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords,
-               n.source_facet, n.media_type, n.source_created_at,
+               n.source_facet, n.media_type, n.source_created_at, n.media_mode, n.hotglue_page,
                c.name AS constellation_name,
                tc.slug AS target_constellation_slug
         FROM nodes n
@@ -10594,7 +10621,7 @@ function db_get_nodes_paginated(
 
     $columns = "n.id, n.name, n.description, n.url, n.image_url, n.image_attribution, n.icon_url, n.embed_code, n.audio_url, n.audio_autoplay, n.audio_loop, n.video_url, n.video_autoplay, n.pdf_url, n.animation, n.created_at, n.updated_at, n.constellation_id,
                n.node_type, n.target_constellation_id, n.is_accentuated, n.show_keywords, n.use_image_as_node,
-               n.source_facet, n.media_type, n.source_created_at,
+               n.source_facet, n.media_type, n.source_created_at, n.media_mode, n.hotglue_page,
                c.name AS constellation_name,
                tc.slug AS target_constellation_slug";
 
@@ -11370,6 +11397,39 @@ function db_get_node_constellation_id(int $nodeId): ?int {
     $stmt->execute([':id' => $nodeId]);
     $row = $stmt->fetch();
     return $row ? (int)$row['constellation_id'] : null;
+}
+
+/**
+ * The hotglue page base name for a node: the stored hotglue_page when set (e.g.
+ * an imported self-hosted page), otherwise the default "node-<id>". This is the
+ * single source of truth for the node <-> hotglue-page mapping; both the viewer
+ * iframe and the editor build their /hg/ URLs from it.
+ */
+function db_node_hotglue_page(int $nodeId): string {
+    db_ensure_nodes_hotglue_columns();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT hotglue_page FROM nodes WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $nodeId]);
+    $v = $stmt->fetchColumn();
+    $v = is_string($v) ? trim($v) : '';
+    return $v !== '' ? $v : ('node-' . $nodeId);
+}
+
+/**
+ * Set a node's media mode ('classic' | 'hotglue'). Honours the read-only galaxy
+ * guard (throws constellation_read_only:<id> for imported/mirrored galaxies)
+ * unless $allowReadOnly is true (internal/restore paths).
+ */
+function db_set_node_media_mode(int $nodeId, string $mode, bool $allowReadOnly = false): void {
+    db_ensure_nodes_hotglue_columns();
+    $mode = ($mode === 'hotglue') ? 'hotglue' : 'classic';
+    $cid = db_get_node_constellation_id($nodeId);
+    if ($cid !== null) {
+        db_assert_constellation_writable($cid, $allowReadOnly);
+    }
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE nodes SET media_mode = :m WHERE id = :id");
+    $stmt->execute([':m' => $mode, ':id' => $nodeId]);
 }
 
 /**
