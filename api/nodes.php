@@ -968,6 +968,11 @@ try {
             applyVisualMutex($imageUrl, $videoUrl, $pdfUrl, $audioUrl);
 
             db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode, $pdfUrl);
+            // Media mode (Classic vs Hotglue). The constellation was already
+            // asserted writable above; the setter re-checks the read-only guard.
+            if (isset($data['media_mode'])) {
+                db_set_node_media_mode((int)$id, (string)$data['media_mode']);
+            }
             if (isset($data['keywords'])) {
                 $keywords = is_array($data['keywords']) ? $data['keywords'] : explode(',', (string)$data['keywords']);
                 if (session_status() === PHP_SESSION_NONE) { session_start(); }

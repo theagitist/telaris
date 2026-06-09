@@ -332,17 +332,15 @@ function invoke_controller($args)
 			// like the page browser are denied).
 			telaris_hg_authorize_get($args[0][0]);
 
-			// also check the referer to prevent against cross site request
-			// forgery (xsrf)
-			// this is not really optimal, since proxies can filter the referer 
-			// header, but as a first step..
-			if (!empty($_SERVER['HTTP_REFERER'])) {
-				$bu = base_url();
-				if (substr($_SERVER['HTTP_REFERER'], 0, strlen($bu)) != $bu) {
-					log_msg('warn', 'controller: possible xsrf detected, referer is '.quot($_SERVER['HTTP_REFERER']).', arguments '.var_dump_inl($args));
-					hotglue_error(400);
-				}
-			}
+			// Telaris: hotglue's referer XSRF check is intentionally NOT applied
+			// here. This is a GET that renders the editor (no state change), and
+			// the edit window is embedded in a same-origin iframe from the Telaris
+			// editor (/edit/), whose Referer is the Telaris page rather than a /hg/
+			// URL, which the original check would wrongly reject (400). The real
+			// defenses remain: the bridge's session + per-galaxy seat gate, the
+			// SameSite=Strict session cookie, and the Telaris CSRF token enforced
+			// on every state-changing json.php call (which keeps its own referer
+			// check, since those requests originate inside the /hg/ iframe).
 		}
 		
 		log_msg('info', 'controller: invoking controller '.quot($reason).' => '.$match['func']);

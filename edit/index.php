@@ -1391,6 +1391,43 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (hidden) hidden.value = tab;
         }
 
+        // Media mode tabs (Classic vs Hotglue). The active mode is persisted to
+        // nodes.media_mode on save, and decides what visitors see (phase 6).
+        function switchMediaMode(mode, ctx) {
+            if (mode !== 'hotglue') mode = 'classic';
+            const classicTab = document.getElementById(`${ctx}-media-classic-tab`);
+            const hotglueTab = document.getElementById(`${ctx}-media-hotglue-tab`);
+            const classicContent = document.getElementById(`${ctx}-media-classic-content`);
+            const hotglueContent = document.getElementById(`${ctx}-media-hotglue-content`);
+            const isHotglue = (mode === 'hotglue');
+            if (classicTab) classicTab.classList.toggle('tab-active', !isHotglue);
+            if (hotglueTab) hotglueTab.classList.toggle('tab-active', isHotglue);
+            if (classicContent) classicContent.classList.toggle('hidden', isHotglue);
+            if (hotglueContent) hotglueContent.classList.toggle('hidden', !isHotglue);
+            const hidden = document.getElementById(`${ctx}-media-mode`);
+            if (hidden) hidden.value = mode;
+        }
+
+        // Open the per-node hotglue editor in the full-screen overlay. Same-origin,
+        // so the editor's Telaris session + CSRF ride into the iframe; the phase-3
+        // auth bridge enforces the seat + read-only checks on every write.
+        function openHotglueEditor() {
+            const id = document.getElementById('edit-id').value;
+            if (!id) return;
+            const stored = (document.getElementById('edit-hotglue-page').value || '').trim();
+            const page = stored !== '' ? stored : ('node-' + id);
+            const iframe = document.getElementById('hotglue-iframe');
+            iframe.src = '../hg/?' + encodeURIComponent(page) + '/edit';
+            document.getElementById('hotglue_modal').showModal();
+        }
+
+        function closeHotglueEditor() {
+            const iframe = document.getElementById('hotglue-iframe');
+            // Blank the iframe so its session/editor state is torn down on close.
+            iframe.src = 'about:blank';
+            document.getElementById('hotglue_modal').close();
+        }
+
         // View node - preview modal
         async function viewNode(id) {
             let node = allNodes.find(n => n.id === id);
@@ -1718,6 +1755,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             else if (node.video_url) visual = 'video';
             switchVisualTab(visual, 'edit');
 
+            // Media mode (Classic vs Hotglue) and the node's hotglue page slug.
+            document.getElementById('edit-hotglue-page').value = node.hotglue_page || ('node-' + node.id);
+            switchMediaMode(node.media_mode === 'hotglue' ? 'hotglue' : 'classic', 'edit');
+
             // Toggle target constellation if portal
             toggleTargetConstellation(node.node_type || 'object', 'modal');
             if (node.node_type === 'portal') {
@@ -1771,6 +1812,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
             
             formData.append('keywords', (keywordState['modal'] || []).join(','));
+
+            // Media mode: whichever tab (Classic / Hotglue) is active is what visitors get.
+            formData.append('media_mode', document.getElementById('edit-media-mode').value || 'classic');
 
             // Icon (independent of the visual mutex).
             formData.append('icon_url', document.getElementById('edit-icon-url').value.trim());
@@ -2652,11 +2696,35 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_description', 'Description') ?></label>
                     <textarea id="edit-description" name="description" rows="3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
                 </div>
-                <div>
-                    <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_url', 'URL') ?></label>
-                    <input type="url" id="edit-url" name="url" placeholder="<?= t_attr('editor_placeholder_url', 'https://example.com') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_url', 'URL') ?></label>
+                        <input type="url" id="edit-url" name="url" placeholder="<?= t_attr('editor_placeholder_url', 'https://example.com') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <!-- Icon lives next to the URL (it is the node's 3D-scene icon, not part of the media block). -->
+                    <div id="edit-icon-container">
+                        <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_icon_url_file', 'Icon URL / File') ?></label>
+                        <div id="edit-icon-file-wrap">
+                            <input type="text" id="edit-icon-url" name="icon_url" placeholder="<?= t_attr('editor_placeholder_icon_url', 'https://example.com/icon.png') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
+                            <input type="file" id="edit-icon-file" name="icon_file" accept="image/*" class="text-xs">
+                        </div>
+                        <div id="edit-icon-existing" class="hidden flex items-center gap-2 mb-2">
+                            <input type="text" id="edit-icon-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
+                            <button type="button" onclick="deleteModalFile('icon')" class="btn btn-error btn-sm btn-outline"><?= t_attr('editor_btn_delete_file', 'Delete') ?></button>
+                        </div>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_icon', 'Custom icon displayed in the 3D scene (overrides theme icon).') ?></span>
+                    </div>
                 </div>
                 <div class="divider text-gray-400 text-xs"><?= t_attr('editor_divider_media', 'Media') ?></div>
+                <!-- Media is either the Classic block (image/video/pdf/audio/embed) or a Hotglue page.
+                     Whichever tab is active on save is persisted to nodes.media_mode (phase 5). -->
+                <div class="tabs tabs-bordered mb-2">
+                    <button type="button" id="edit-media-classic-tab" onclick="switchMediaMode('classic', 'edit')" class="tab tab-sm tab-active"><?= t_attr('editor_tab_classic', 'Classic') ?></button>
+                    <button type="button" id="edit-media-hotglue-tab" onclick="switchMediaMode('hotglue', 'edit')" class="tab tab-sm"><?= t_attr('editor_tab_hotglue', 'Hotglue') ?></button>
+                </div>
+                <input type="hidden" id="edit-media-mode" name="media_mode" value="classic">
+                <input type="hidden" id="edit-hotglue-page" value="">
+                <div id="edit-media-classic-content">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Left column: Primary visual (Image / Video / PDF, mutually exclusive). -->
                     <div class="flex flex-col">
@@ -2721,21 +2789,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <span class="text-xs text-gray-500 mt-0.5 block"><?= t_attr('editor_help_credit', 'Optional credit shown on the visual in the info box (image, video, or PDF).') ?></span>
                     </div>
 
-                    <!-- Right column: Icon (top), Audio (middle), Embed code (bottom, independent of mutex). -->
+                    <!-- Right column: Audio (top), Embed code (bottom, independent of the visual mutex). -->
                     <div class="flex flex-col gap-4">
-                        <div id="edit-icon-container">
-                            <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_icon_url_file', 'Icon URL / File') ?></label>
-                            <div id="edit-icon-file-wrap">
-                                <input type="text" id="edit-icon-url" name="icon_url" placeholder="<?= t_attr('editor_placeholder_icon_url', 'https://example.com/icon.png') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                                <input type="file" id="edit-icon-file" name="icon_file" accept="image/*" class="text-xs">
-                            </div>
-                            <div id="edit-icon-existing" class="hidden flex items-center gap-2 mb-2">
-                                <input type="text" id="edit-icon-existing-name" readonly class="flex-1 p-2.5 border border-gray-200 bg-gray-50 rounded text-sm text-gray-500 cursor-not-allowed">
-                                <button type="button" onclick="deleteModalFile('icon')" class="btn btn-error btn-sm btn-outline"><?= t_attr('editor_btn_delete_file', 'Delete') ?></button>
-                            </div>
-                            <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_icon', 'Custom icon displayed in the 3D scene (overrides theme icon).') ?></span>
-                        </div>
-
                         <div>
                             <label for="edit-audio-url" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_audio_url_file', 'Audio URL / File') ?></label>
                             <div id="edit-audio-file-wrap">
@@ -2766,6 +2821,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </div>
                     </div>
                 </div>
+                </div><!-- /edit-media-classic-content -->
+                <div id="edit-media-hotglue-content" class="hidden">
+                    <p class="text-xs text-gray-500 mb-3"><?= t_attr('editor_help_hotglue', 'Compose this wormhole\'s media as a freeform hotglue page. Whichever tab is selected when you save is what visitors see.') ?></p>
+                    <button type="button" onclick="openHotglueEditor()" class="btn btn-neutral btn-sm"><?= t_attr('editor_btn_edit_hotglue', 'Edit hotglue content') ?></button>
+                </div>
                 <div id="edit-progress-wrap" class="hidden space-y-2">
                     <div class="flex justify-between text-xs font-medium">
                         <span><?= t_attr('editor_text_uploading', 'Uploading...') ?></span>
@@ -2785,6 +2845,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <form method="dialog" class="modal-backdrop">
             <button>close</button>
         </form>
+    </dialog>
+
+    <!-- Hotglue content editor: near-full-screen overlay that embeds the per-node
+         hotglue page same-origin (so the editor's Telaris session + CSRF ride).
+         openHotglueEditor() sets the iframe src from the node being edited. -->
+    <dialog id="hotglue_modal" class="modal">
+        <div class="modal-box max-w-none w-[96vw] h-[94vh] p-0 bg-white flex flex-col overflow-hidden">
+            <div class="px-4 py-2 bg-neutral text-neutral-content flex items-center justify-between shrink-0">
+                <h3 class="font-bold text-sm"><?= t_attr('editor_hotglue_modal_heading', 'Edit hotglue content') ?></h3>
+                <button type="button" class="btn btn-sm" onclick="closeHotglueEditor()"><?= t_attr('editor_btn_hotglue_done', 'Done') ?></button>
+            </div>
+            <iframe id="hotglue-iframe" src="about:blank" class="grow w-full border-0" title="<?= t_attr('editor_hotglue_modal_heading', 'Edit hotglue content') ?>"></iframe>
+        </div>
     </dialog>
 
     <!-- Delete Confirmation Modal -->
