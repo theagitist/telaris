@@ -2865,6 +2865,7 @@ foreach ($importantExtensions as $ext => $name) {
         }
 
         function editUser(user) {
+            userAutosave.beginPopulate(); // suspend autosave + install listeners while filling fields
             document.getElementById('modal-user-id').value = user.id;
             document.getElementById('modal-firstname').value = user.firstname;
             document.getElementById('modal-lastname').value = user.lastname || '';
@@ -2895,7 +2896,126 @@ foreach ($importantExtensions as $ext => $name) {
             toggleModalUserConstellations();
             document.getElementById('modal-user-id-badge').textContent = '#' + user.id;
             document.getElementById('user_modal').showModal();
+            userAutosave.endPopulate(); // resume autosave now that the form reflects the user
         }
+
+        // ---------------------------------------------------------------------
+        // Edit User modal autosave.
+        // ---------------------------------------------------------------------
+        // Everything except the password auto-saves: text edits debounce (~1s),
+        // type/galaxy-access/pronoun toggles save immediately. The PASSWORD is never
+        // autosaved (a half-typed secret could lock the account out): it is excluded
+        // from every autosave payload and only changes via the explicit "Update
+        // password" button, which validates >= 8 chars and then saves with the
+        // password included. Each save POSTs the whole form (ajax=1) to the admin
+        // handler, which returns JSON. On close, a pending edit flushes and the page
+        // reloads once if anything was saved (the user list shows name/email/type).
+        const USERPW_TOO_SHORT = <?= json_encode(t('admin_user_pw_too_short', 'Password must be at least 8 characters.'), JSON_UNESCAPED_UNICODE) ?>;
+        const USERPW_UPDATED = <?= json_encode(t('admin_user_pw_updated', 'Password updated.'), JSON_UNESCAPED_UNICODE) ?>;
+        const userAutosave = (function () {
+            const DEBOUNCE_MS = 1000;
+            let dirty = false, inflight = false, queued = false, timer = null;
+            let suspended = true, installed = false, touched = false, reloadOnDrain = false;
+
+            function setStatus(state, override) {
+                const root = document.getElementById('user-autosave-status');
+                if (!root) return;
+                const textEl = root.querySelector('[data-autosave-text]');
+                const spinEl = root.querySelector('[data-autosave-spinner]');
+                const cfg = ({
+                    idle:   { attr: 'data-saved',  cls: 'text-gray-400',  spin: false },
+                    saving: { attr: 'data-saving', cls: 'text-gray-500',  spin: true  },
+                    saved:  { attr: 'data-saved',  cls: 'text-green-600', spin: false },
+                    failed: { attr: 'data-failed', cls: 'text-red-600',   spin: false },
+                })[state] || { attr: 'data-saved', cls: 'text-gray-400', spin: false };
+                if (textEl) { textEl.textContent = override || root.getAttribute(cfg.attr) || ''; textEl.className = 'text-xs font-medium ' + cfg.cls; }
+                if (spinEl) spinEl.classList.toggle('hidden', !cfg.spin);
+            }
+            function userForm() { const m = document.getElementById('user_modal'); return m ? m.querySelector('form[action]') : null; }
+            function drained() { if (reloadOnDrain && !queued && !inflight) { reloadOnDrain = false; if (touched) window.location.reload(); } }
+            function hideEmailError() { const e = document.getElementById('modal-email-error'); if (e) e.classList.add('hidden'); }
+            function maybeEmailError(msg) { if (msg && /mail/i.test(String(msg))) { const e = document.getElementById('modal-email-error'); if (e) e.classList.remove('hidden'); } }
+
+            // includePassword is true only for the explicit "Update password" action.
+            async function send(includePassword) {
+                if (suspended && !includePassword) return false;
+                const f = userForm();
+                const email = document.getElementById('modal-email');
+                const first = document.getElementById('modal-firstname');
+                if (!f || !email || !first) return false;
+                if (email.value.trim() === '' || first.value.trim() === '') { setStatus('failed'); drained(); return false; }
+                if (timer) { clearTimeout(timer); timer = null; }
+                inflight = true; touched = true; dirty = false; setStatus('saving');
+                const fd = new FormData(f);
+                fd.set('ajax', '1');
+                fd.set('csrf_token', (window.TELARIS_CSRF_TOKEN || ''));
+                if (!includePassword) fd.delete('password'); // never autosave the password
+                let ok = false;
+                try {
+                    const r = await fetch(window.location.pathname, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+                    let data = {};
+                    try { data = await r.json(); } catch (e) { /* non-JSON */ }
+                    inflight = false;
+                    ok = !!(r.ok && data.ok);
+                    if (ok) { setStatus('saved'); hideEmailError(); }
+                    else { dirty = true; setStatus('failed'); maybeEmailError(data && data.error); }
+                } catch (e) { inflight = false; dirty = true; setStatus('failed'); }
+                if (queued) { queued = false; flush(); } else { drained(); }
+                return ok;
+            }
+
+            function flush() { if (suspended || !dirty) return; if (inflight) { queued = true; return; } if (timer) { clearTimeout(timer); timer = null; } send(false); }
+            function scheduleSave() { if (suspended) return; dirty = true; setStatus('saving'); if (timer) clearTimeout(timer); timer = setTimeout(flush, DEBOUNCE_MS); }
+            function saveNow() { if (suspended) return; dirty = true; flush(); }
+            function flushNow() { if (suspended || !dirty) return; flush(); }
+
+            async function updatePassword() {
+                const pw = document.getElementById('modal-password');
+                const msg = document.getElementById('modal-password-msg');
+                if (!pw) return;
+                const show = (text, good) => { if (!msg) return; msg.textContent = text; msg.className = 'text-xs mt-1 block ' + (good ? 'text-green-600' : 'text-red-600'); msg.classList.remove('hidden'); };
+                if (pw.value.length < 8) { show(USERPW_TOO_SHORT, false); return; }
+                const ok = await send(true);
+                if (ok) { pw.value = ''; show(USERPW_UPDATED, true); }
+            }
+
+            function install() {
+                if (installed) return;
+                const f = userForm();
+                if (!f) return;
+                installed = true;
+                f.addEventListener('submit', (e) => { e.preventDefault(); saveNow(); }); // Enter key
+                f.addEventListener('input', (e) => {
+                    const t = e.target;
+                    if (!t || t.disabled) return;
+                    if (t.id === 'modal-password') return; // password handled by its own button
+                    const type = (t.type || '').toLowerCase();
+                    if (type === 'checkbox' || type === 'radio' || t.tagName === 'SELECT') return;
+                    scheduleSave();
+                });
+                f.addEventListener('change', (e) => {
+                    const t = e.target;
+                    if (!t || t.disabled) return;
+                    if (t.id === 'modal-password') return;
+                    const type = (t.type || '').toLowerCase();
+                    if (type === 'checkbox' || type === 'radio' || t.tagName === 'SELECT') { saveNow(); }
+                    else { flushNow(); }
+                });
+                const pwBtn = document.getElementById('modal-password-btn');
+                if (pwBtn) pwBtn.addEventListener('click', updatePassword);
+                const modal = document.getElementById('user_modal');
+                if (modal) modal.addEventListener('close', () => {
+                    if (dirty && !inflight) { reloadOnDrain = true; send(false); }
+                    else if (inflight) { reloadOnDrain = true; }
+                    else if (touched) { window.location.reload(); }
+                });
+            }
+
+            return {
+                beginPopulate() { suspended = true; if (timer) { clearTimeout(timer); timer = null; } dirty = false; queued = false; touched = false; reloadOnDrain = false; const m = document.getElementById('modal-password-msg'); if (m) m.classList.add('hidden'); install(); },
+                endPopulate() { suspended = false; inflight = false; setStatus('idle'); },
+            };
+        })();
 
         // editConstellation, loadTourConfigIntoModal, updateTourFieldVisibility
         // are loaded from js/galaxy-edit-modal.js (shared with /edit/index.php).
@@ -5099,6 +5219,7 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
             </div>
             <form method="POST" action="" class="mt-4">
                 <input type="hidden" name="action" value="update_user">
+                <?= $csrfField ?>
                 <input type="hidden" id="modal-user-id" name="id">
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -5137,7 +5258,11 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
 
                 <div class="mb-4">
                     <label for="modal-password" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_password_optional', 'Password (leave blank to keep current)')) ?></label>
-                    <input type="password" id="modal-password" name="password" minlength="8" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                    <div class="flex gap-2">
+                        <input type="password" id="modal-password" name="password" minlength="8" autocomplete="new-password" class="flex-1 p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <button type="button" id="modal-password-btn" class="btn btn-neutral btn-sm whitespace-nowrap self-start mt-0.5"><?= htmlspecialchars(t('admin_user_pw_btn', 'Update password')) ?></button>
+                    </div>
+                    <span id="modal-password-msg" class="text-xs mt-1 block hidden"></span>
                 </div>
 
                 <div class="mb-4">
@@ -5172,9 +5297,15 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                     </div>
                 </div>
                 
-                <div class="modal-action">
-                    <button type="submit" class="btn btn-neutral"><?= htmlspecialchars(t('admin_modal_btn_update_user', 'Update User')) ?></button>
-                    <button type="button" class="btn" onclick="document.getElementById('user_modal').close()"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
+                <div class="modal-action items-center justify-between">
+                    <div id="user-autosave-status" class="flex items-center gap-2" aria-live="polite"
+                         data-saving="<?= htmlspecialchars(t('editor_autosave_saving', 'Saving…')) ?>"
+                         data-saved="<?= htmlspecialchars(t('editor_autosave_saved', 'All changes saved')) ?>"
+                         data-failed="<?= htmlspecialchars(t('editor_autosave_failed', 'Save failed; keep editing to retry')) ?>">
+                        <span class="loading loading-spinner loading-xs text-gray-400 hidden" data-autosave-spinner></span>
+                        <span data-autosave-text class="text-xs font-medium text-gray-400"></span>
+                    </div>
+                    <button type="button" class="btn btn-neutral" onclick="document.getElementById('user_modal').close()"><?= htmlspecialchars(t('editor_btn_close', 'Close')) ?></button>
                 </div>
             </form>
         </div>
