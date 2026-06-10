@@ -1811,6 +1811,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 document.getElementById('edit-target-constellation-modal').value = node.target_constellation_id || '';
             }
 
+            setWormholeMode('edit');
             document.getElementById('edit_modal').showModal();
 
             // Resume autosave now that the form reflects the node.
@@ -2172,13 +2173,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             editAutosave.saveNow();
         }
 
+        // Submit a NEW wormhole (one-shot POST) from the unified modal in create mode.
+        // Editing an existing wormhole autosaves instead (editAutosave), so this path is
+        // create-only and targets the unified modal's create-mode submit + progress.
         function handleNodeSubmit(formData, context, method = 'POST') {
-            const submitBtn = document.getElementById(`${context}-submit-btn`);
-            const loader = document.getElementById(`${context}-submit-loader`);
-            const progressWrap = document.getElementById(`${context}-progress-wrap`);
-            const progressBar = document.getElementById(`${context}-progress-bar`);
-            const progressText = document.getElementById(`${context}-progress-text`);
-            const modalId = context === 'edit' ? 'edit_modal' : 'create_node_modal';
+            const submitBtn = document.getElementById('edit-submit-btn');
+            const loader = document.getElementById('edit-submit-loader');
+            const progressWrap = document.getElementById('edit-progress-wrap');
+            const progressBar = document.getElementById('edit-progress-bar');
+            const progressText = document.getElementById('edit-progress-text');
+            const modalId = 'edit_modal';
 
             submitBtn.disabled = true;
             loader.classList.remove('hidden');
@@ -2321,95 +2325,145 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             });
         }
 
-        // Open Create Node Modal
-        function openCreateNodeModal() {
-            const form = document.getElementById('create-node-form');
-            form.reset();
-            
-            // Set initial constellation for Add form based on current selection
-            const currentConstellation = document.getElementById('current-constellation');
-            const nodeConstellation = document.getElementById('node-constellation');
-            if (currentConstellation && nodeConstellation) {
-                const val = currentConstellation.value;
-                nodeConstellation.value = val === 'all' ? '0' : val;
-            }
+        // The create and edit wormhole windows are ONE modal (#edit_modal). This mode
+        // flag decides its chrome: 'create' shows an explicit Add button (a new wormhole
+        // has no id to autosave against yet); 'edit' shows the live autosave chip.
+        let wormholeModalMode = 'edit';
 
-            keywordState['create'] = [];
-            updateKeywordTags('create');
-            toggleTargetConstellation('object', 'create');
-
-            document.getElementById('create_node_modal').showModal();
+        function setWormholeMode(mode) {
+            wormholeModalMode = mode;
+            const isCreate = mode === 'create';
+            const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
+            show('wm-heading-create', isCreate);
+            show('wm-heading-edit', !isCreate);
+            show('edit-submit-btn', isCreate);          // create: explicit Add button
+            show('edit-autosave-status', !isCreate);    // edit: live autosave chip
+            show('edit-hotglue-create-note', isCreate); // hotglue tab: "save first" note (create)
+            show('edit-hotglue-edit-wrap', !isCreate);  // vs the live "Edit hotglue content" button (edit)
         }
 
-        // Save new node from modal
+        // The unified form's submit handler. Create mode: Add a new wormhole. Edit mode:
+        // the modal autosaves, so a stray Enter just flushes any pending change.
+        function onWormholeFormSubmit(event) {
+            if (wormholeModalMode === 'create') { saveNewNode(event); }
+            else { saveNodeEdit(event); }
+        }
+
+        // Open the unified modal in CREATE mode: blank the fields and keep autosave
+        // suspended (beginPopulate installs the listeners but does not engage; we never
+        // call endPopulate here, so nothing autosaves until the wormhole exists).
+        function openCreateNodeModal() {
+            editingNodeId = null;
+            editAutosave.beginPopulate();
+
+            const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+            const setChk = (id, v) => { const el = document.getElementById(id); if (el) el.checked = v; };
+
+            setVal('edit-id', '');
+            const badge = document.getElementById('edit-node-constellation-badge');
+            if (badge) badge.textContent = '';
+            ['edit-name', 'edit-description', 'edit-url', 'edit-embed-code', 'edit-image-url',
+             'edit-video-url', 'edit-pdf-url', 'edit-audio-url', 'edit-icon-url',
+             'edit-image-attribution'].forEach(id => setVal(id, ''));
+            // Create defaults (match the former Add form).
+            setChk('edit-accentuated', false);
+            setChk('edit-show-keywords', false);
+            setChk('edit-use-image-as-node', false);
+            setChk('edit-audio-autoplay', true);
+            setChk('edit-audio-loop', false);
+            setChk('edit-video-autoplay', true);
+
+            // No existing files on a new node: clear inputs, show pickers, hide the
+            // "existing file + Delete" rows.
+            ['image', 'video', 'pdf', 'audio', 'icon'].forEach(t => {
+                const fi = document.getElementById(`edit-${t}-file`); if (fi) fi.value = '';
+                const wrap = document.getElementById(`edit-${t}-file-wrap`); if (wrap) wrap.classList.remove('hidden');
+                const existing = document.getElementById(`edit-${t}-existing`); if (existing) existing.classList.add('hidden');
+            });
+
+            // Default the galaxy to the currently-selected one.
+            const current = document.getElementById('current-constellation');
+            if (current) { const v = current.value; setVal('edit-constellation', v === 'all' ? '0' : v); }
+
+            setVal('edit-node-type', 'object');
+            keywordState['modal'] = [];
+            updateKeywordTags('modal');
+            toggleTargetConstellation('object', 'modal');
+
+            switchVisualTab('image', 'edit');
+            setVal('edit-hotglue-page', '');
+            switchMediaMode('classic', 'edit');
+
+            setWormholeMode('create');
+            document.getElementById('edit_modal').showModal();
+        }
+
+        // Save a NEW wormhole from the unified modal (create mode). Reads the same
+        // edit-* fields the edit flow uses; the API POST creates the row.
         async function saveNewNode(event) {
             event.preventDefault();
-            
-            const nodeName = document.getElementById('node-name').value.trim();
+
+            const nodeName = document.getElementById('edit-name').value.trim();
             if (!nodeName) {
                 showMessage(TELARIS_EDIT.errorNameRequired, 'error');
                 return;
             }
-
             if (!API_KEY) {
                 showMessage(TELARIS_EDIT.errorApiKeyMissing, 'error');
                 return;
             }
 
-            const submitBtn = document.getElementById('create-submit-btn');
-            const loader = document.getElementById('create-submit-loader');
-            submitBtn.disabled = true;
-            loader.classList.remove('hidden');
-
             const animation = generateRandomAnimation();
-            const constellationId = parseInt(document.getElementById('node-constellation').value);
-            const nodeType = document.getElementById('node-type').value;
-            
+            const constellationId = parseInt(document.getElementById('edit-constellation').value);
+            const nodeType = document.getElementById('edit-node-type').value;
+
             const formData = new FormData();
             formData.append('name', nodeName);
-            formData.append('description', document.getElementById('node-description').value.trim());
-            formData.append('url', document.getElementById('node-url').value.trim());
-            formData.append('embed_code', document.getElementById('node-embed-code').value.trim());
-            formData.append('is_accentuated', document.getElementById('node-accentuated').checked ? 1 : 0);
-            formData.append('show_keywords', document.getElementById('node-show-keywords').checked ? 1 : 0);
+            formData.append('description', document.getElementById('edit-description').value.trim());
+            formData.append('url', document.getElementById('edit-url').value.trim());
+            formData.append('embed_code', document.getElementById('edit-embed-code').value.trim());
+            formData.append('is_accentuated', document.getElementById('edit-accentuated').checked ? 1 : 0);
+            formData.append('show_keywords', document.getElementById('edit-show-keywords').checked ? 1 : 0);
             formData.append('constellation_id', isNaN(constellationId) ? 0 : constellationId);
             formData.append('node_type', nodeType);
 
             if (nodeType === 'portal') {
-                formData.append('target_constellation_id', document.getElementById('node-target-constellation').value);
+                formData.append('target_constellation_id', document.getElementById('edit-target-constellation-modal').value);
             }
             formData.append('animation', JSON.stringify(animation));
-            formData.append('keywords', (keywordState['create'] || []).join(','));
+            formData.append('keywords', (keywordState['modal'] || []).join(','));
+            // Persist the media mode chosen on the tabs (Hotglue is composed after creation).
+            formData.append('media_mode', document.getElementById('edit-media-mode')?.value || 'classic');
 
             // Icon (independent of the visual mutex).
-            formData.append('icon_url', document.getElementById('node-icon-url').value.trim());
-            const iconFile = document.getElementById('node-icon-file').files[0];
+            formData.append('icon_url', document.getElementById('edit-icon-url').value.trim());
+            const iconFile = document.getElementById('edit-icon-file').files[0];
             if (iconFile) formData.append('icon_file', iconFile);
 
-            // Credit/attribution is shared across all visual types now (not just image).
-            formData.append('image_attribution', document.getElementById('node-image-attribution').value.trim());
+            // Credit/attribution is shared across all visual types.
+            formData.append('image_attribution', document.getElementById('edit-image-attribution').value.trim());
 
             // Primary visual: send only the active tab's URL/file; clear the other two.
-            const visualType = document.getElementById('create-visual-type')?.value || 'image';
+            const visualType = document.getElementById('edit-visual-type')?.value || 'image';
             if (visualType === 'image') {
-                formData.append('image_url', document.getElementById('node-image-url').value.trim());
-                const newUseImage = document.getElementById('node-use-image-as-node');
-                formData.append('use_image_as_node', (newUseImage && newUseImage.checked) ? 1 : 0);
-                const imageFile = document.getElementById('node-image-file').files[0];
+                formData.append('image_url', document.getElementById('edit-image-url').value.trim());
+                const useImg = document.getElementById('edit-use-image-as-node');
+                formData.append('use_image_as_node', (useImg && useImg.checked) ? 1 : 0);
+                const imageFile = document.getElementById('edit-image-file').files[0];
                 if (imageFile) formData.append('image_file', imageFile);
                 formData.append('video_url', '');
                 formData.append('pdf_url', '');
             } else if (visualType === 'video') {
-                formData.append('video_url', document.getElementById('node-video-url').value.trim());
-                formData.append('video_autoplay', document.getElementById('node-video-autoplay').checked ? 1 : 0);
-                const videoFile = document.getElementById('node-video-file').files[0];
+                formData.append('video_url', document.getElementById('edit-video-url').value.trim());
+                formData.append('video_autoplay', document.getElementById('edit-video-autoplay').checked ? 1 : 0);
+                const videoFile = document.getElementById('edit-video-file').files[0];
                 if (videoFile) formData.append('video_file', videoFile);
                 formData.append('image_url', '');
                 formData.append('use_image_as_node', 0);
                 formData.append('pdf_url', '');
             } else {
-                formData.append('pdf_url', document.getElementById('node-pdf-url').value.trim());
-                const pdfFile = document.getElementById('node-pdf-file').files[0];
+                formData.append('pdf_url', document.getElementById('edit-pdf-url').value.trim());
+                const pdfFile = document.getElementById('edit-pdf-file').files[0];
                 if (pdfFile) formData.append('pdf_file', pdfFile);
                 formData.append('image_url', '');
                 formData.append('use_image_as_node', 0);
@@ -2417,10 +2471,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
 
             // Audio (independent of the visual mutex).
-            formData.append('audio_url', document.getElementById('node-audio-url').value.trim());
-            formData.append('audio_autoplay', document.getElementById('node-audio-autoplay').checked ? 1 : 0);
-            formData.append('audio_loop', document.getElementById('node-audio-loop').checked ? 1 : 0);
-            const audioFile = document.getElementById('node-audio-file').files[0];
+            formData.append('audio_url', document.getElementById('edit-audio-url').value.trim());
+            formData.append('audio_autoplay', document.getElementById('edit-audio-autoplay').checked ? 1 : 0);
+            formData.append('audio_loop', document.getElementById('edit-audio-loop').checked ? 1 : 0);
+            const audioFile = document.getElementById('edit-audio-file').files[0];
             if (audioFile) formData.append('audio_file', audioFile);
 
             handleNodeSubmit(formData, 'create', 'POST');
@@ -2759,194 +2813,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             setupLiveValidation();
         });
     </script>
-    <!-- Create Node Modal -->
-    <dialog id="create_node_modal" class="modal">
-        <div class="modal-box max-w-4xl bg-white !pt-0">
-            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl"><?= t_attr('editor_modal_heading_add_wormhole', 'Add New Wormhole') ?></h3>
-            </div>
-            <form id="create-node-form" class="space-y-4 mt-4" onsubmit="saveNewNode(event)">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="node-name" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_name_required', 'Name *') ?></label>
-                        <input type="text" id="node-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span id="node-name-error" class="text-xs text-red-600 mt-1 hidden"><?= t_attr('editor_error_name_exists', 'This wormhole name already exists in this galaxy.') ?></span>
-                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_name', 'Primary title of the wormhole shown in the network.') ?></span>
-                    </div>
-                    <div>
-                        <label for="node-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_galaxy', 'Galaxy') ?></label>
-                        <select id="node-constellation" name="constellation_id" class="select select-bordered select-sm w-full bg-white">
-                            <?php foreach ($constellations as $c): ?>
-                                <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_constellation', 'Which galaxy this wormhole belongs to.') ?></span>
-                    </div>
-                    <div>
-                        <label for="node-type" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_wormhole_type', 'Wormhole type') ?></label>
-                        <select id="node-type" name="node_type" onchange="toggleTargetConstellation(this.value, 'create')" class="select select-bordered select-sm w-full bg-white">
-                            <option value="object"><?= t_attr('editor_label_node_type_object', 'Object') ?></option>
-                            <option value="portal"><?= t_attr('editor_label_node_type_portal', 'Portal') ?></option>
-                        </select>
-                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_node_type', 'Object is a standard item; Portal links to another galaxy.') ?></span>
-                    </div>
-                    <div>
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_keywords', 'Keywords') ?></label>
-                        <div id="keywords-container-create" class="relative flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors">
-                            <input type="text" id="node-keywords-input" placeholder="<?= t_attr('editor_placeholder_add_keyword', 'Add keyword...') ?>"
-                                   onkeydown="handleKeywordInput(event, 'create')"
-                                   oninput="if(this.value.includes(',')) { addKeywords(this.value, 'create'); this.value = ''; } else { updateKeywordSuggestions('create'); }"
-                                   onfocus="updateKeywordSuggestions('create')"
-                                   autocomplete="off"
-                                   class="flex-1 min-w-[120px] outline-none text-sm py-1 px-1">
-                            <div id="keyword-suggestions-create" class="hidden absolute left-0 right-0 top-full mt-1 z-[100] max-h-56 overflow-y-auto overscroll-contain rounded border border-gray-300 bg-white shadow-lg text-sm"></div>
-                        </div>
-                        <input type="hidden" id="node-keywords" name="keywords">
-                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_keywords_add', 'Type and press Enter or comma to add keywords. Suggestions surface keywords already used in this galaxy and in sibling galaxies sharing your `[XX]` prefix.') ?></span>
-                    </div>
-                    <div class="flex flex-col justify-center">
-                        <label class="label cursor-pointer justify-start gap-4">
-                            <input type="checkbox" id="node-accentuated" name="is_accentuated" class="toggle toggle-neutral">
-                            <span class="label-text font-medium text-gray-800"><?= t_attr('editor_label_accentuate_wormhole', 'Accentuate Wormhole') ?></span>
-                        </label>
-                        <span class="text-xs text-gray-500 block ml-1"><?= t_attr('editor_help_accentuate', 'Make this wormhole larger and more prominent in the network.') ?></span>
-                    </div>
-                    <div class="flex flex-col justify-center">
-                        <label class="label cursor-pointer justify-start gap-4">
-                            <input type="checkbox" id="node-show-keywords" name="show_keywords" class="toggle toggle-neutral">
-                            <span class="label-text font-medium text-gray-800"><?= t_attr('editor_label_show_keywords', 'Show Keywords') ?></span>
-                        </label>
-                        <span class="text-xs text-gray-500 block ml-1"><?= t_attr('editor_help_show_keywords', "Display this wormhole's keywords in its info window.") ?></span>
-                    </div>
-                </div>
-                <div id="create-target-constellation-wrap" class="hidden">
-                    <div class="flex flex-wrap items-end gap-2 mb-2">
-                        <div class="min-w-[200px] flex-1">
-                            <label for="node-target-constellation" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_target_galaxy', 'Target Galaxy') ?></label>
-                            <select id="node-target-constellation" name="target_constellation_id" class="select select-bordered select-sm w-full bg-white">
-                                <?php foreach ($constellations as $c): ?>
-                                    <option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_target_galaxy', 'The destination galaxy this portal leads to.') ?></span>
-                        </div>
-                        <button type="button" onclick="createNewConstellation('create')" class="py-2.5 px-4 rounded text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 cursor-pointer whitespace-nowrap"><?= t_attr('editor_btn_create_new_galaxy', 'Create New Galaxy') ?></button>
-                    </div>
-                </div>
-                <div>
-                    <label for="node-description" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_description', 'Description') ?></label>
-                    <textarea id="node-description" name="description" rows="3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
-                    <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_description', 'Detailed text displayed when the wormhole is selected.') ?></span>
-                </div>
-                <div>
-                    <label for="node-url" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_url', 'URL') ?></label>
-                    <input type="url" id="node-url" name="url" placeholder="<?= t_attr('editor_placeholder_url', 'https://example.com') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_url', 'URL to open when the wormhole is clicked (optional).') ?></span>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Left column: Primary visual (Image / Video / PDF, mutually exclusive). -->
-                    <div class="flex flex-col">
-                        <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_primary_visual', 'Primary visual') ?></label>
-                        <div class="tabs tabs-bordered mb-2">
-                            <button type="button" id="create-image-tab" onclick="switchVisualTab('image', 'create')" class="tab tab-sm tab-active"><?= t_attr('editor_tab_image', 'Image') ?></button>
-                            <button type="button" id="create-video-tab" onclick="switchVisualTab('video', 'create')" class="tab tab-sm"><?= t_attr('editor_tab_video', 'Video (MP4)') ?></button>
-                            <button type="button" id="create-pdf-tab" onclick="switchVisualTab('pdf', 'create')" class="tab tab-sm"><?= t_attr('editor_tab_pdf', 'PDF') ?></button>
-                        </div>
-                        <input type="hidden" id="create-visual-type" value="image">
-                        <span class="text-xs text-gray-500 mt-0 mb-2 block"><?= t_attr('editor_help_visual_mutex', 'Pick one. Switching tabs and saving clears the others.') ?></span>
-
-                        <!-- Image content (default visible) -->
-                        <div id="create-image-content">
-                            <div class="flex items-center justify-between mb-1.5 gap-2">
-                                <label for="node-image-url" class="text-gray-800 font-medium text-xs"><?= t_attr('editor_label_image_url_file', 'Image URL / File') ?></label>
-                                <label class="label cursor-pointer justify-end gap-2 py-0">
-                                    <span class="label-text text-xs text-gray-700"><?= t_attr('editor_label_use_as_icon', 'Use as wormhole icon') ?></span>
-                                    <input type="checkbox" id="node-use-image-as-node" name="use_image_as_node" class="toggle toggle-neutral toggle-sm">
-                                </label>
-                            </div>
-                            <input type="text" id="node-image-url" name="image_url" placeholder="<?= t_attr('editor_placeholder_image_url', 'https://example.com/image.jpg') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="node-image-file" name="image_file" accept="image/*,video/*" class="text-xs">
-                        </div>
-
-                        <!-- Video content -->
-                        <div id="create-video-content" class="hidden">
-                            <input type="text" id="node-video-url" name="video_url" placeholder="<?= t_attr('editor_placeholder_video_url', 'https://example.com/video.mp4') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="node-video-file" name="video_file" accept="video/mp4" class="text-xs">
-                            <label class="flex items-center gap-2 mt-2 text-xs text-gray-700">
-                                <input type="checkbox" id="node-video-autoplay" name="video_autoplay" checked>
-                                <?= t_attr('editor_label_autoplay_video', 'Autoplay video') ?>
-                            </label>
-                        </div>
-
-                        <!-- PDF content -->
-                        <div id="create-pdf-content" class="hidden">
-                            <input type="text" id="node-pdf-url" name="pdf_url" placeholder="<?= t_attr('editor_placeholder_pdf_url', 'https://example.com/document.pdf') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="node-pdf-file" name="pdf_file" accept="application/pdf,.pdf" class="text-xs">
-                            <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_pdf', 'Upload a PDF or provide a link.') ?></span>
-                        </div>
-
-                        <!-- Credit (applies to whichever visual is active). Stored on nodes.image_attribution. -->
-                        <input type="text" id="node-image-attribution" name="image_attribution" placeholder="<?= t_attr('editor_placeholder_credit', 'Credit / attribution...') ?>" class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-500 mt-3" maxlength="255">
-                        <span class="text-xs text-gray-500 mt-0.5 block"><?= t_attr('editor_help_credit', 'Optional credit shown on the visual in the info box (image, video, or PDF).') ?></span>
-                    </div>
-
-                    <!-- Right column: Icon (top), Audio (bottom, independent of the visual mutex). -->
-                    <div class="flex flex-col gap-4">
-                        <div>
-                            <label for="node-icon-url" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_icon_url_file', 'Icon URL / File') ?></label>
-                            <input type="text" id="node-icon-url" name="icon_url" placeholder="<?= t_attr('editor_placeholder_icon_url', 'https://example.com/icon.png') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="node-icon-file" name="icon_file" accept="image/*" class="text-xs">
-                            <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_icon', 'Custom icon displayed in the 3D scene (overrides theme icon).') ?></span>
-                        </div>
-                        <div>
-                            <label for="node-audio-url" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_audio_url_file', 'Audio URL / File') ?></label>
-                            <input type="text" id="node-audio-url" name="audio_url" placeholder="<?= t_attr('editor_placeholder_audio_url', 'https://example.com/audio.mp3') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500 mb-2">
-                            <input type="file" id="node-audio-file" name="audio_file" accept="audio/*" class="text-xs">
-                            <div class="flex items-center gap-4 mt-2">
-                                <label class="flex items-center gap-2 text-xs text-gray-700">
-                                    <input type="checkbox" id="node-audio-autoplay" name="audio_autoplay" checked>
-                                    <?= t_attr('editor_label_autoplay', 'Autoplay') ?>
-                                </label>
-                                <label class="flex items-center gap-2 text-xs text-gray-700">
-                                    <input type="checkbox" id="node-audio-loop" name="audio_loop">
-                                    <?= t_attr('editor_label_loop', 'Loop') ?>
-                                </label>
-                            </div>
-                            <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_audio', 'Independent of the primary visual: audio can pair with image, video, or PDF.') ?></span>
-                        </div>
-                    </div>
-                </div>
-                <!-- Embed code field is hidden from the editor for now (unused in practice).
-                     The textarea stays in the DOM so existing embed_code values round-trip on save. -->
-                <div class="hidden">
-                    <textarea id="node-embed-code" name="embed_code"></textarea>
-                </div>
-                <div id="create-progress-wrap" class="hidden space-y-2">
-                    <div class="flex justify-between text-xs font-medium">
-                        <span><?= t_attr('editor_text_uploading', 'Uploading...') ?></span>
-                        <span id="create-progress-text">0%</span>
-                    </div>
-                    <progress id="create-progress-bar" class="progress progress-neutral w-full" value="0" max="100"></progress>
-                </div>
-                <div class="modal-action">
-                    <button type="submit" id="create-submit-btn" class="btn btn-neutral">
-                        <span class="loading loading-spinner hidden" id="create-submit-loader"></span>
-                        <?= t_attr('editor_btn_add_wormhole', 'Add Wormhole') ?>
-                    </button>
-                    <button type="button" class="btn" onclick="document.getElementById('create_node_modal').close()"><?= t_attr('editor_btn_cancel', 'Cancel') ?></button>
-                </div>
-            </form>
-        </div>
-        <form method="dialog" class="modal-backdrop"><button>close</button></form>
-    </dialog>
-
     <dialog id="edit_modal" class="modal">
         <div class="modal-box max-w-4xl bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-                <h3 class="font-bold text-xl"><?= t_attr('editor_modal_heading_edit_wormhole', 'Edit Wormhole') ?></h3>
+                <h3 class="font-bold text-xl">
+                    <span id="wm-heading-edit"><?= t_attr('editor_modal_heading_edit_wormhole', 'Edit Wormhole') ?></span>
+                    <span id="wm-heading-create" class="hidden"><?= t_attr('editor_modal_heading_add_wormhole', 'Add New Wormhole') ?></span>
+                </h3>
                 <span id="edit-node-constellation-badge" class="text-xs opacity-70 font-mono"></span>
             </div>
-            <form id="edit-node-form" class="space-y-4 mt-4" onsubmit="saveNodeEdit(event)">
+            <form id="edit-node-form" class="space-y-4 mt-4" onsubmit="onWormholeFormSubmit(event)">
                 <input type="hidden" id="edit-id" name="id">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -3139,12 +3015,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div><!-- /edit-media-classic-content -->
                 <div id="edit-media-hotglue-content" class="hidden">
                     <p class="text-xs text-gray-500 mb-4 text-center"><?= t_attr('editor_help_hotglue', 'Compose this wormhole\'s media as a freeform hotglue page. Whichever tab is selected when you save is what visitors see.') ?></p>
-                    <div class="flex justify-center py-2">
+                    <!-- Edit mode: open the live hotglue editor for this node's page. -->
+                    <div id="edit-hotglue-edit-wrap" class="flex justify-center py-2">
                         <button type="button" onclick="openHotglueEditor()" class="btn btn-primary btn-wide gap-2 shadow-lg">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                             <?= t_attr('editor_btn_edit_hotglue', 'Edit hotglue content') ?>
                         </button>
                     </div>
+                    <!-- Create mode: the page is node-<id>, created from the saved wormhole, so it can't be composed until the wormhole exists. -->
+                    <p id="edit-hotglue-create-note" class="hidden text-xs text-gray-500 text-center py-2 px-4"><?= t_attr('editor_hotglue_create_note', 'Save the wormhole first, then reopen it to compose the hotglue page. Add it with this tab selected to start in Hotglue mode.') ?></p>
                 </div>
                 <div id="edit-progress-wrap" class="hidden space-y-2">
                     <div class="flex justify-between text-xs font-medium">
@@ -3154,11 +3033,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <progress id="edit-progress-bar" class="progress progress-neutral w-full" value="0" max="100"></progress>
                 </div>
                 <div class="modal-action items-center justify-between">
+                    <!-- Edit mode: live autosave status. Create mode: hidden (an explicit Add button is used). -->
                     <div id="edit-autosave-status" class="flex items-center gap-2" aria-live="polite">
                         <span class="loading loading-spinner loading-xs text-gray-400 hidden" data-autosave-spinner></span>
                         <span data-autosave-text class="text-xs font-medium text-gray-400"></span>
                     </div>
-                    <button type="button" class="btn btn-neutral" onclick="document.getElementById('edit_modal').close()"><?= t_attr('editor_btn_close', 'Close') ?></button>
+                    <div class="flex items-center gap-2">
+                        <!-- Create mode only: a brand-new wormhole is created with one explicit submit (no id to autosave against yet). -->
+                        <button type="submit" id="edit-submit-btn" class="btn btn-neutral hidden">
+                            <span class="loading loading-spinner hidden" id="edit-submit-loader"></span>
+                            <?= t_attr('editor_btn_add_wormhole', 'Add Wormhole') ?>
+                        </button>
+                        <button type="button" class="btn btn-neutral" onclick="document.getElementById('edit_modal').close()"><?= t_attr('editor_btn_close', 'Close') ?></button>
+                    </div>
                 </div>
             </form>
         </div>
