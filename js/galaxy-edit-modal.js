@@ -57,8 +57,48 @@
             : String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
 
+    // The create and edit galaxy windows are ONE modal (#constellation_modal). Create
+    // mode shows only the basics (name/tagline/slug/theme) and an explicit Create button
+    // doing a native POST; edit mode shows the full config + the live autosave chip.
+    let galaxyMode = 'edit';  // 'create' lets the form POST natively; 'edit' autosaves
+    function setGalaxyMode(mode) {
+        galaxyMode = mode;
+        const isCreate = mode === 'create';
+        const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
+        show('gem-heading-create', isCreate);
+        show('gem-heading-edit', !isCreate);
+        show('gem-edit-only', !isCreate);   // tags/discovery/spotlight/tours/bulk need an existing galaxy
+        show('gem-submit-btn', isCreate);
+        show('gem-autosave-status', !isCreate);
+        const actionEl = document.querySelector('#constellation_modal input[name="action"]');
+        if (actionEl) actionEl.value = isCreate ? 'create_constellation' : 'update_constellation';
+    }
+
+    // Open the shared modal in CREATE mode (admin "New Galaxy"). Blank the basics, keep
+    // autosave suspended (a new galaxy has no id), and let the Create button POST natively.
+    function openCreateConstellation() {
+        gemAutosave.beginPopulate(); // installs listeners, stays suspended
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+        set('modal-constellation-id', '');
+        set('modal-constellation-name', '');
+        set('modal-constellation-slug', '');
+        set('modal-constellation-tagline', '');
+        set('modal-constellation-theme', 'cosmic');
+        set('modal-galaxy-tags-hidden', '');
+        const badge = document.getElementById('modal-constellation-id-badge');
+        if (badge) badge.textContent = '';
+        const nameErr = document.getElementById('modal-constellation-name-error');
+        if (nameErr) nameErr.classList.add('hidden');
+        const slugErr = document.getElementById('modal-constellation-slug-error');
+        if (slugErr) slugErr.classList.add('hidden');
+        setGalaxyMode('create');
+        document.getElementById('constellation_modal').showModal();
+        // No endPopulate(): autosave stays suspended; the explicit Create button POSTs.
+    }
+
     async function editConstellation(c) {
         gemAutosave.beginPopulate(); // suspend autosave + install listeners while we fill fields
+        setGalaxyMode('edit');
         document.getElementById('modal-constellation-id').value = c.id;
         document.getElementById('modal-constellation-name').value = c.name || '';
         const slugEl = document.getElementById('modal-constellation-slug');
@@ -531,7 +571,11 @@
             const form = mainForm();
             if (!form) return;
             installed = true;
-            form.addEventListener('submit', (e) => { e.preventDefault(); saveNow(); }); // Enter key
+            form.addEventListener('submit', (e) => {
+                // Create mode submits natively (POST action=create_constellation -> reload).
+                if (galaxyMode === 'create') return;
+                e.preventDefault(); saveNow(); // edit mode: Enter key just flushes/autosaves
+            });
             form.addEventListener('input', (e) => {
                 const t = e.target;
                 if (!t || t.disabled) return;
@@ -569,6 +613,7 @@
 
     // Expose so inline onclick handlers and the row builders can call them.
     window.editConstellation = editConstellation;
+    window.openCreateConstellation = openCreateConstellation;
     window.loadTourConfigIntoModal = loadTourConfigIntoModal;
     window.updateTourFieldVisibility = updateTourFieldVisibility;
 })();

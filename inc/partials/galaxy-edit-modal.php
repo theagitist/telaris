@@ -14,7 +14,10 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
 <dialog id="constellation_modal" class="modal">
     <div class="modal-box bg-white !pt-0 max-w-3xl">
         <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-            <h3 class="font-bold text-xl"><?= t_attr('gem_heading', 'Edit Galaxy') ?></h3>
+            <h3 class="font-bold text-xl">
+                <span id="gem-heading-edit"><?= t_attr('gem_heading', 'Edit Galaxy') ?></span>
+                <span id="gem-heading-create" class="hidden"><?= t_attr('admin_modal_heading_create_galaxy', 'Create New Galaxy') ?></span>
+            </h3>
             <span id="modal-constellation-id-badge" class="text-xs opacity-70 font-mono"></span>
         </div>
         <form method="POST" action="" class="mt-4">
@@ -56,6 +59,12 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
                     <?php // light-rainbow theme intentionally hidden from the picker pending rework; still defined in js/themes.js, the validation allowlists, and i18n (gem_theme_light_rainbow). Restore an option element with value light-rainbow to expose it again. ?>
                 </select>
             </div>
+
+            <?php // Everything below configures an EXISTING galaxy (tags, discovery, idle
+                  // spotlight, tours, bulk actions), so it is hidden in create mode. The
+                  // unified modal shows only name/tagline/slug/theme when creating; the rest
+                  // is configured once the galaxy exists (open it for edit). ?>
+            <div id="gem-edit-only">
 
             <div class="mb-4">
                 <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('gem_tags_label', 'Tags') ?></label>
@@ -218,7 +227,10 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
                 </div>
             </div>
 
+            </div><!-- /gem-edit-only -->
+
             <div class="modal-action items-center justify-between">
+                <!-- Edit mode: live autosave chip. Create mode: hidden (explicit Create button). -->
                 <div id="gem-autosave-status" class="flex items-center gap-2" aria-live="polite"
                      data-saving="<?= t_attr('editor_autosave_saving', 'Saving…') ?>"
                      data-saved="<?= t_attr('editor_autosave_saved', 'All changes saved') ?>"
@@ -226,7 +238,11 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
                     <span class="loading loading-spinner loading-xs text-gray-400 hidden" data-autosave-spinner></span>
                     <span data-autosave-text class="text-xs font-medium text-gray-400"></span>
                 </div>
-                <button type="button" class="btn btn-neutral" onclick="document.getElementById('constellation_modal').close()"><?= t_attr('editor_btn_close', 'Close') ?></button>
+                <div class="flex items-center gap-2">
+                    <!-- Create mode only: one explicit submit creates the galaxy (native POST). -->
+                    <button type="submit" id="gem-submit-btn" class="btn btn-neutral hidden"><?= t_attr('admin_modal_btn_create_galaxy', 'Create Galaxy') ?></button>
+                    <button type="button" class="btn btn-neutral" onclick="document.getElementById('constellation_modal').close()"><?= t_attr('editor_btn_close', 'Close') ?></button>
+                </div>
             </div>
         </form>
     </div>

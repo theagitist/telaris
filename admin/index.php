@@ -1221,7 +1221,7 @@ foreach ($importantExtensions as $ext => $name) {
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
                             <h2 class="text-gray-800 text-base font-semibold"><?= t_attr('admin_heading_galaxies', 'Galaxies') ?> (<span id="constellations-count">...</span>)</h2>
-                            <button type="button" onclick="document.getElementById('create_constellation_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_galaxy', 'New Galaxy') ?></button>
+                            <button type="button" onclick="openCreateConstellation()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_galaxy', 'New Galaxy') ?></button>
                             <?php bridges_admin_render('button'); ?>
                         </div>
 
@@ -4949,57 +4949,6 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
     </dialog>
 
     <?php bridges_admin_render("modal"); ?>
-
-    <!-- Create Constellation Modal -->
-    <dialog id="create_constellation_modal" class="modal">
-        <div class="modal-box bg-white !pt-0">
-            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl"><?= htmlspecialchars(t('admin_modal_heading_create_galaxy', 'Create New Galaxy')) ?></h3>
-            </div>
-            <form method="POST" action="" class="mt-4">
-                <input type="hidden" name="action" value="create_constellation">
-
-                <div class="mb-4">
-                    <label for="create-constellation-name" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_galaxy_name', 'Name *')) ?></label>
-                    <input type="text" id="create-constellation-name" name="name" required placeholder="<?= t_attr('admin_modal_placeholder_galaxy_name', 'e.g. Main network, Archive') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span id="create-constellation-name-error" class="text-xs text-red-600 mt-1 hidden"><?= htmlspecialchars(t('admin_modal_err_name_in_use', 'This name is already in use.')) ?></span>
-                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_galaxy_name', 'Unique name for the new wormhole network.')) ?></span>
-                </div>
-
-                <div class="mb-4">
-                    <label for="create-constellation-slug" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_url_slug', 'URL Slug')) ?></label>
-                    <input type="text" id="create-constellation-slug" name="slug" placeholder="<?= t_attr('admin_modal_placeholder_url_slug', 'e.g. archive') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span id="create-constellation-slug-error" class="text-xs text-red-600 mt-1 hidden"><?= htmlspecialchars(t('admin_modal_err_slug_in_use', 'This slug is already in use.')) ?></span>
-                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_url_slug', 'Custom URL path. If left blank, one will be generated from the name. Letters, numbers, and hyphens only.')) ?></span>
-                </div>
-
-                <div class="mb-4">
-                    <label for="create-constellation-tagline" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_tagline', 'Tagline')) ?></label>
-                    <input type="text" id="create-constellation-tagline" name="tagline" placeholder="<?= t_attr('admin_modal_placeholder_tagline', 'e.g. Weaving memory') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_tagline', 'Shown in the main view when this galaxy is open.')) ?></span>
-                </div>
-
-                <div class="mb-4">
-                    <label for="create-constellation-theme" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_visual_theme', 'Visual Theme')) ?></label>
-                    <select id="create-constellation-theme" name="theme" class="select select-bordered select-sm w-full bg-white">
-                        <option value="cosmic"><?= htmlspecialchars(t('admin_modal_opt_theme_cosmic', 'Cosmic (Stars, Planets, Rockets)')) ?></option>
-                        <option value="simple"><?= htmlspecialchars(t('admin_modal_opt_theme_simple', 'Simple (Colored Spheres)')) ?></option>
-                        <option value="abstract"><?= htmlspecialchars(t('admin_modal_opt_theme_abstract', 'Abstract (Geometric GIF Icons)')) ?></option>
-                        <option value="rectangles"><?= htmlspecialchars(t('admin_modal_opt_theme_rectangles', 'Rectangles (Custom Rectangle Icons)')) ?></option>
-                        <option value="stripes"><?= htmlspecialchars(t('admin_modal_opt_theme_stripes', 'Stripes (Custom Stripe Icons)')) ?></option>
-                        <option value="tech"><?= htmlspecialchars(t('admin_modal_opt_theme_tech', 'Tech (Circuit Board Icons)')) ?></option>
-                    </select>
-                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_visual_theme', 'Determines the background, icons and animations.')) ?></span>
-                </div>
-
-                <div class="modal-action">
-                    <button type="submit" class="btn btn-neutral"><?= htmlspecialchars(t('admin_modal_btn_create_galaxy', 'Create Galaxy')) ?></button>
-                    <button type="button" class="btn" onclick="document.getElementById('create_constellation_modal').close()"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
-                </div>
-            </form>
-        </div>
-        <form method="dialog" class="modal-backdrop"><button>close</button></form>
-    </dialog>
 
     <!-- Cluster create/edit modal (Idea 2) -->
     <dialog id="cluster_modal" class="modal">
