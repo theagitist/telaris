@@ -948,7 +948,7 @@ foreach ($importantExtensions as $ext => $name) {
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-3">
                             <h2 class="text-gray-800 text-base font-semibold"><?= t_attr('admin_heading_users', 'Users') ?> (<?php echo count($users); ?>)</h2>
-                            <button type="button" onclick="document.getElementById('create_user_modal').showModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_user', 'New User') ?></button>
+                            <button type="button" onclick="openCreateUser()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_user', 'New User') ?></button>
                             <button type="button" onclick="openBulkUsersModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_bulk_import', 'Bulk import') ?></button>
                         </div>
 
@@ -2593,18 +2593,14 @@ foreach ($importantExtensions as $ext => $name) {
             const isEditor = typeSelect.value === '1';
             section.classList.toggle('hidden', !isEditor);
         }
-        function toggleCreateNewConstellationName() {
-            const cb = document.getElementById('create_constellation_cb');
-            const wrap = document.getElementById('create-new-constellation-name-wrap');
-            if (cb && wrap) wrap.classList.toggle('hidden', !cb.checked);
-        }
         function initCreateUserForm() {
-            const emailEl = document.getElementById('create-email');
-            const nameEl = document.getElementById('create_new_constellation_name');
-            const createCb = document.getElementById('create_constellation_cb');
-            if (createCb) createCb.addEventListener('change', toggleCreateNewConstellationName);
+            // Auto-fill the new-galaxy name from the email while creating a user,
+            // until the operator edits the name field themselves.
+            const emailEl = document.getElementById('modal-email');
+            const nameEl = document.getElementById('um_new_constellation_name');
             if (emailEl && nameEl) {
                 emailEl.addEventListener('input', function() {
+                    if (userMode !== 'create') return;
                     if (nameEl.value === '' || nameEl.getAttribute('data-auto') === '1') {
                         nameEl.value = emailEl.value;
                         nameEl.setAttribute('data-auto', '1');
@@ -2683,12 +2679,9 @@ foreach ($importantExtensions as $ext => $name) {
                 }
             };
 
-            // Create User
-            const createEmail = document.getElementById('create-email');
-            const createEmailErr = document.getElementById('create-email-error');
-            if (createEmail) createEmail.addEventListener('input', debounce(() => validateUser(createEmail, createEmailErr), 500));
-
-            // Edit User
+            // User modal (create + edit share one email field). In create mode the
+            // id field is empty, so exclude_id is null and the email-in-use check
+            // covers the whole table.
             const modalEmail = document.getElementById('modal-email');
             const modalEmailErr = document.getElementById('modal-email-error');
             const modalUserId = document.getElementById('modal-user-id');
@@ -2726,7 +2719,6 @@ foreach ($importantExtensions as $ext => $name) {
         document.addEventListener('DOMContentLoaded', function() {
             const typeSelect = document.getElementById('type');
             if (typeSelect) typeSelect.addEventListener('change', toggleUserConstellationsSection);
-            toggleCreateNewConstellationName();
             initCreateUserForm();
             setupLiveValidation();
         });
@@ -2864,7 +2856,76 @@ foreach ($importantExtensions as $ext => $name) {
             section.classList.toggle('hidden', typeSelect.value !== '1');
         }
 
+        // One mode-driven User modal (create | edit). Create mode = an explicit
+        // "Create User" submit (a new row has no id to autosave against) with a
+        // required password; edit mode = the live autosave chip + the explicit
+        // "Update password" button. setUserMode toggles every mode-specific
+        // affordance; openCreateUser opens the shared modal blank in create mode.
+        let userMode = 'edit';
+        function setUserMode(mode) {
+            userMode = mode;
+            const create = mode === 'create';
+            const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
+            show('um-heading-create', create);
+            show('um-heading-edit', !create);
+            show('um-pw-label-create', create);
+            show('um-pw-label-edit', !create);
+            show('um-pw-help-create', create);
+            show('um-create-only', create);
+            show('um-submit-btn', create);
+            show('user-autosave-status', !create);
+            show('modal-password-btn', !create);   // "Update password" is edit-only
+            show('um-btn-cancel-text', create);
+            show('um-btn-close-text', !create);
+            const action = document.getElementById('modal-user-action');
+            if (action) action.value = create ? 'create_user' : 'update_user';
+            const badge = document.getElementById('modal-user-id-badge');
+            if (badge) badge.classList.toggle('hidden', create);
+            const pw = document.getElementById('modal-password');
+            if (pw) { pw.required = create; }
+            // Keep the edit-mode autosave payload clean: disable the create-only
+            // "new galaxy" inputs in edit so FormData never carries them.
+            ['um_create_constellation_cb', 'um_new_constellation_name'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = !create;
+            });
+        }
+
+        function openCreateUser() {
+            userAutosave.beginPopulate(); // install listeners, stay suspended (no autosave in create mode)
+            document.getElementById('modal-user-id').value = '';
+            document.getElementById('modal-firstname').value = '';
+            document.getElementById('modal-lastname').value = '';
+            document.getElementById('modal-email').value = '';
+            document.getElementById('modal-password').value = '';
+            document.getElementById('modal-type').value = '1';
+            document.querySelectorAll('.modal-pronoun-common').forEach(cb => { cb.checked = false; });
+            document.getElementById('modal-pronouns-custom').value = '';
+            document.querySelectorAll('.modal-user-constellation-checkbox').forEach(cb => { cb.checked = false; });
+            const ccb = document.getElementById('um_create_constellation_cb');
+            if (ccb) ccb.checked = true;
+            const ncn = document.getElementById('um_new_constellation_name');
+            if (ncn) { ncn.value = ''; ncn.setAttribute('data-auto', '1'); }
+            const badge = document.getElementById('modal-user-id-badge');
+            if (badge) badge.textContent = '';
+            const msg = document.getElementById('modal-password-msg');
+            if (msg) msg.classList.add('hidden');
+            setUserMode('create');
+            toggleModalUserConstellations();
+            toggleUmNewConstellationName();
+            document.getElementById('user_modal').showModal();
+            // NOTE: no endPopulate() — autosave stays suspended in create mode.
+        }
+        window.openCreateUser = openCreateUser;
+
+        function toggleUmNewConstellationName() {
+            const cb = document.getElementById('um_create_constellation_cb');
+            const wrap = document.getElementById('um-create-new-constellation-name-wrap');
+            if (cb && wrap) wrap.classList.toggle('hidden', !cb.checked);
+        }
+
         function editUser(user) {
+            setUserMode('edit');
             userAutosave.beginPopulate(); // suspend autosave + install listeners while filling fields
             document.getElementById('modal-user-id').value = user.id;
             document.getElementById('modal-firstname').value = user.firstname;
@@ -2984,7 +3045,9 @@ foreach ($importantExtensions as $ext => $name) {
                 const f = userForm();
                 if (!f) return;
                 installed = true;
-                f.addEventListener('submit', (e) => { e.preventDefault(); saveNow(); }); // Enter key
+                f.addEventListener('submit', (e) => { if (userMode === 'create') return; e.preventDefault(); saveNow(); }); // Enter key (edit only; create submits natively)
+                const newGalaxyCb = document.getElementById('um_create_constellation_cb');
+                if (newGalaxyCb) newGalaxyCb.addEventListener('change', toggleUmNewConstellationName);
                 f.addEventListener('input', (e) => {
                     const t = e.target;
                     if (!t || t.disabled) return;
@@ -3259,33 +3322,6 @@ foreach ($importantExtensions as $ext => $name) {
             deleteBtn.disabled = (input.value !== expected);
         }
 
-        function toggleCreateUserConstellations() {
-            const typeSelect = document.getElementById('create-type');
-            const section = document.getElementById('create-user-constellations-section');
-            if (!typeSelect || !section) return;
-            section.classList.toggle('hidden', typeSelect.value !== '1');
-        }
-
-        function toggleCreateNewConstellationName() {
-            const cb = document.getElementById('create_constellation_cb');
-            const wrap = document.getElementById('create-new-constellation-name-wrap');
-            if (cb && wrap) wrap.classList.toggle('hidden', !cb.checked);
-        }
-
-        function initCreateUserModalLogic() {
-            const emailEl = document.getElementById('create-email');
-            const nameEl = document.getElementById('create_new_constellation_name');
-            if (emailEl && nameEl) {
-                emailEl.addEventListener('input', function() {
-                    if (nameEl.value === '' || nameEl.getAttribute('data-auto') === '1') {
-                        nameEl.value = emailEl.value;
-                        nameEl.setAttribute('data-auto', '1');
-                    }
-                });
-                nameEl.addEventListener('input', function() { nameEl.removeAttribute('data-auto'); });
-            }
-        }
-
         // Tab functionality
         function showTab(tabName) {
             // Hide all tabs
@@ -3362,9 +3398,6 @@ foreach ($importantExtensions as $ext => $name) {
             const tab = new URLSearchParams(window.location.search).get('tab') || 'constellations';
             showTab(tab);
             formatLocalDatetimes();
-            initCreateUserModalLogic();
-            toggleCreateUserConstellations();
-            toggleCreateNewConstellationName();
 
             // Toastify any PHP-rendered messages
             document.querySelectorAll('#php-messages > div').forEach(msg => {
@@ -4837,117 +4870,6 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
 
     <?php // Locale-specific common pronoun options, shared by the create + edit user modals.
           $commonPronouns = db_user_pronoun_common_options(); ?>
-    <!-- Create User Modal -->
-    <dialog id="create_user_modal" class="modal">
-        <div class="modal-box max-w-2xl bg-white !pt-0">
-            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl"><?= htmlspecialchars(t('admin_modal_heading_create_user', 'Create New User')) ?></h3>
-            </div>
-            <form method="POST" action="" class="mt-4">
-                <input type="hidden" name="action" value="create_user">
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label for="create-firstname" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_first_name', 'First Name *')) ?></label>
-                        <input type="text" id="create-firstname" name="firstname" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_first_name', "The user's given name.")) ?></span>
-                    </div>
-                    <div>
-                        <label for="create-lastname" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_last_name', 'Last Name')) ?></label>
-                        <input type="text" id="create-lastname" name="lastname" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_last_name', "The user's family name. Optional.")) ?></span>
-                    </div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_pronouns', 'Pronouns')) ?></label>
-                    <p class="text-xs text-gray-500 mb-2"><?= htmlspecialchars(t('admin_modal_help_pronouns', 'Optional. Choose up to 3, or add your own. Leave empty if you prefer.')) ?></p>
-                    <?php if ($commonPronouns !== []): ?>
-                    <div class="flex flex-wrap gap-x-4 gap-y-2 mb-2">
-                        <?php foreach ($commonPronouns as $cp): ?>
-                            <label class="flex items-center gap-1.5 text-sm cursor-pointer">
-                                <input type="checkbox" class="create-pronoun-common rounded border-gray-300" name="pronouns[]" value="<?php echo htmlspecialchars($cp, ENT_QUOTES, 'UTF-8'); ?>">
-                                <span class="text-gray-800"><?php echo htmlspecialchars($cp); ?></span>
-                            </label>
-                        <?php endforeach; ?>
-                    </div>
-                    <?php endif; ?>
-                    <label for="create-pronouns-custom" class="block mb-1 text-gray-700 text-sm"><?= htmlspecialchars(t('admin_modal_label_pronouns_custom', 'Add your own')) ?></label>
-                    <input type="text" id="create-pronouns-custom" name="pronouns_custom" maxlength="120" placeholder="<?= t_attr('admin_modal_placeholder_pronouns_custom', 'comma-separated, e.g. they/them') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                </div>
-
-                <div class="mb-4">
-                    <label for="create-email" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_email', 'Email *')) ?></label>
-                    <input type="email" id="create-email" name="email" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span id="create-email-error" class="text-xs text-red-600 mt-1 hidden"><?= htmlspecialchars(t('admin_modal_err_email_in_use', 'This email is already in use.')) ?></span>
-                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_email', 'Login identifier and contact address.')) ?></span>
-                </div>
-
-                <div class="mb-4">
-                    <label for="create-password" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_password', 'Password *')) ?></label>
-                    <input type="password" id="create-password" name="password" required minlength="8" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_password_min', 'Minimum 8 characters.')) ?></span>
-                </div>
-
-                <div class="mb-4">
-                    <label for="create-type" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_user_type', 'User Type *')) ?></label>
-                    <select id="create-type" name="type" required onchange="toggleCreateUserConstellations()" class="select select-bordered select-sm w-full bg-white">
-                        <option value="1"><?= htmlspecialchars(t('admin_modal_opt_user_type_editor', 'Editor')) ?></option>
-                        <option value="2"><?= htmlspecialchars(t('admin_modal_opt_user_type_admin', 'Admin')) ?></option>
-                    </select>
-                    <span class="text-xs text-gray-500 mt-1 block">
-                        <?= htmlspecialchars(t('admin_modal_help_user_type', 'Editor: Can edit wormholes in assigned galaxies only | Admin: Full access to all galaxies.')) ?>
-                    </span>
-                </div>
-
-                <div class="mb-4 p-3 border border-gray-200 rounded bg-white">
-                    <label class="flex items-center gap-2 cursor-pointer mb-2">
-                        <input type="checkbox" id="create_constellation_cb" name="create_constellation" value="1" class="rounded border-gray-300" checked onchange="toggleCreateNewConstellationName()">
-                        <span class="text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_create_galaxy_for_user', 'Create a new galaxy for this user')) ?></span>
-                    </label>
-                    <p class="text-xs text-gray-500 mb-2"><?= htmlspecialchars(t('admin_modal_help_create_galaxy_for_user', 'A new galaxy is created with the name below and the user is granted access to it (Editors only).')) ?></p>
-                    <div id="create-new-constellation-name-wrap">
-                        <label for="create_new_constellation_name" class="block mb-1 text-gray-700 text-sm"><?= htmlspecialchars(t('admin_modal_label_new_galaxy_name', 'Galaxy name *')) ?></label>
-                        <input type="text" id="create_new_constellation_name" name="new_constellation_name" placeholder="<?= t_attr('admin_modal_placeholder_new_galaxy_name', 'Defaults to email above') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
-                        <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_new_galaxy_name', 'Name for the automatically created galaxy.')) ?></span>
-                    </div>
-                </div>
-
-                <div id="create-user-constellations-section" class="mb-4">
-                    <label class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_galaxy_access_editors', 'Galaxy access (Editors only)')) ?></label>
-                    <div class="border border-gray-200 rounded p-3 bg-white max-h-48 overflow-y-auto">
-                        <?php
-                        $prevGroup = false;
-                        foreach ($constellations as $c):
-                            $g = extractConstellationGroup($c['name']);
-                            $bgColor = $g !== null ? ($constellationGroupColors[$g] ?? '') : '';
-                            if ($g !== $prevGroup) {
-                                if ($prevGroup !== false && $prevGroup !== null) echo '</div>';
-                                if ($g !== null) echo '<div class="rounded mb-1 mt-1 px-1" style="background-color: ' . htmlspecialchars($constellationGroupColors[$g] ?? '') . '">';
-                                $prevGroup = $g;
-                            }
-                        ?>
-                            <label class="flex items-center gap-2 py-1 text-sm cursor-pointer hover:opacity-80 rounded px-2">
-                                <input type="checkbox" name="constellation_ids[]" value="<?php echo (int)$c['id']; ?>" class="rounded border-gray-300">
-                                <span class="font-mono text-gray-600"><?php echo (int)$c['id']; ?></span>
-                                <span class="text-gray-800"><?php echo htmlspecialchars($c['name']); ?></span>
-                            </label>
-                        <?php endforeach;
-                        if ($prevGroup !== false && $prevGroup !== null) echo '</div>';
-                        ?>
-                    </div>
-                    <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_galaxy_access_editors', 'Editors can only see and edit wormholes in the galaxies checked above. Admins see all galaxies.')) ?></span>
-                </div>
-
-                <div class="modal-action">
-                    <button type="submit" class="btn btn-neutral"><?= htmlspecialchars(t('admin_modal_btn_create_user', 'Create User')) ?></button>
-                    <button type="button" class="btn" onclick="document.getElementById('create_user_modal').close()"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
-                </div>
-            </form>
-        </div>
-        <form method="dialog" class="modal-backdrop"><button>close</button></form>
-    </dialog>
-
     <?php bridges_admin_render("modal"); ?>
 
     <!-- Cluster create/edit modal (Idea 2) -->
@@ -5163,11 +5085,14 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
     <dialog id="user_modal" class="modal">
         <div class="modal-box max-w-2xl bg-white !pt-0">
             <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-                <h3 class="font-bold text-xl"><?= htmlspecialchars(t('admin_modal_heading_edit_user', 'Edit User')) ?></h3>
+                <h3 class="font-bold text-xl">
+                    <span id="um-heading-edit"><?= htmlspecialchars(t('admin_modal_heading_edit_user', 'Edit User')) ?></span>
+                    <span id="um-heading-create" class="hidden"><?= htmlspecialchars(t('admin_modal_heading_create_user', 'Create New User')) ?></span>
+                </h3>
                 <span id="modal-user-id-badge" class="text-xs opacity-70 font-mono"></span>
             </div>
             <form method="POST" action="" class="mt-4">
-                <input type="hidden" name="action" value="update_user">
+                <input type="hidden" id="modal-user-action" name="action" value="update_user">
                 <?= $csrfField ?>
                 <input type="hidden" id="modal-user-id" name="id">
 
@@ -5206,11 +5131,15 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                 </div>
 
                 <div class="mb-4">
-                    <label for="modal-password" class="block mb-1.5 text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_password_optional', 'Password (leave blank to keep current)')) ?></label>
+                    <label for="modal-password" class="block mb-1.5 text-gray-800 font-medium">
+                        <span id="um-pw-label-edit"><?= htmlspecialchars(t('admin_modal_label_password_optional', 'Password (leave blank to keep current)')) ?></span>
+                        <span id="um-pw-label-create" class="hidden"><?= htmlspecialchars(t('admin_modal_label_password', 'Password *')) ?></span>
+                    </label>
                     <div class="flex gap-2">
                         <input type="password" id="modal-password" name="password" minlength="8" autocomplete="new-password" class="flex-1 p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         <button type="button" id="modal-password-btn" class="btn btn-neutral btn-sm whitespace-nowrap self-start mt-0.5"><?= htmlspecialchars(t('admin_user_pw_btn', 'Update password')) ?></button>
                     </div>
+                    <span id="um-pw-help-create" class="text-xs text-gray-500 mt-1 hidden"><?= htmlspecialchars(t('admin_modal_help_password_min', 'Minimum 8 characters.')) ?></span>
                     <span id="modal-password-msg" class="text-xs mt-1 block hidden"></span>
                 </div>
 
@@ -5220,6 +5149,19 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                         <option value="1"><?= htmlspecialchars(t('admin_modal_opt_user_type_editor', 'Editor')) ?></option>
                         <option value="2"><?= htmlspecialchars(t('admin_modal_opt_user_type_admin', 'Admin')) ?></option>
                     </select>
+                </div>
+
+                <div id="um-create-only" class="mb-4 p-3 border border-gray-200 rounded bg-white hidden">
+                    <label class="flex items-center gap-2 cursor-pointer mb-2">
+                        <input type="checkbox" id="um_create_constellation_cb" name="create_constellation" value="1" class="rounded border-gray-300" checked>
+                        <span class="text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_create_galaxy_for_user', 'Create a new galaxy for this user')) ?></span>
+                    </label>
+                    <p class="text-xs text-gray-500 mb-2"><?= htmlspecialchars(t('admin_modal_help_create_galaxy_for_user', 'A new galaxy is created with the name below and the user is granted access to it (Editors only).')) ?></p>
+                    <div id="um-create-new-constellation-name-wrap">
+                        <label for="um_new_constellation_name" class="block mb-1 text-gray-700 text-sm"><?= htmlspecialchars(t('admin_modal_label_new_galaxy_name', 'Galaxy name *')) ?></label>
+                        <input type="text" id="um_new_constellation_name" name="new_constellation_name" placeholder="<?= t_attr('admin_modal_placeholder_new_galaxy_name', 'Defaults to email above') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        <span class="text-xs text-gray-500 mt-1 block"><?= htmlspecialchars(t('admin_modal_help_new_galaxy_name', 'Name for the automatically created galaxy.')) ?></span>
+                    </div>
                 </div>
 
                 <div id="modal-user-constellations-section" class="mb-4 hidden">
@@ -5254,7 +5196,13 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                         <span class="loading loading-spinner loading-xs text-gray-400 hidden" data-autosave-spinner></span>
                         <span data-autosave-text class="text-xs font-medium text-gray-400"></span>
                     </div>
-                    <button type="button" class="btn btn-neutral" onclick="document.getElementById('user_modal').close()"><?= htmlspecialchars(t('editor_btn_close', 'Close')) ?></button>
+                    <div class="flex items-center gap-2">
+                        <button type="submit" id="um-submit-btn" class="btn btn-neutral hidden"><?= htmlspecialchars(t('admin_modal_btn_create_user', 'Create User')) ?></button>
+                        <button type="button" class="btn" onclick="document.getElementById('user_modal').close()">
+                            <span id="um-btn-close-text"><?= htmlspecialchars(t('editor_btn_close', 'Close')) ?></span>
+                            <span id="um-btn-cancel-text" class="hidden"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></span>
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
