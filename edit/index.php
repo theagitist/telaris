@@ -1543,9 +1543,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         function openHotglueEditor() {
             const id = document.getElementById('edit-id').value;
             if (!id) return;
-            const stored = (document.getElementById('edit-hotglue-page').value || '').trim();
-            const page = stored !== '' ? stored : ('node-' + id);
-            if (typeof window.hgOpenForWormhole === 'function') window.hgOpenForWormhole(page);
+            if (typeof window.hgOpenForWormhole === 'function') window.hgOpenForWormhole(parseInt(id, 10));
         }
 
         function closeHotglueEditor() {
@@ -1566,6 +1564,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (iMin) iMin.classList.toggle('hidden', !on);
             const btn = document.getElementById('vnm-maximize-btn');
             if (btn) { const l = on ? btn.getAttribute('data-label-min') : btn.getAttribute('data-label-max'); if (l) { btn.title = l; btn.setAttribute('aria-label', l); } }
+            const link = document.getElementById('vnm-hotglue-max-link');
+            if (link) { const ll = on ? link.getAttribute('data-label-min') : link.getAttribute('data-label-max'); if (ll) link.textContent = ll; }
             const hg = document.getElementById('preview-hotglue');
             const img = document.getElementById('preview-image');
             const vid = document.getElementById('preview-video');
@@ -1589,6 +1589,18 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const m = document.getElementById('view_node_modal');
             if (m) m.addEventListener('close', function () { _vnmApply(false); });
         });
+
+        // Preview a wormhole that the Hotglue list knows is hotglue (just possibly
+        // stale in allNodes if it was assigned this session): reconcile the cached
+        // node's media_mode/page, then open the normal preview. Lives here for
+        // allNodes scope access.
+        window.hgPreviewWormhole = function (nodeId, slug) {
+            try {
+                const n = allNodes.find(x => x.id === nodeId);
+                if (n) { n.media_mode = 'hotglue'; if (slug) n.hotglue_page = slug; }
+            } catch (e) { /* ignore */ }
+            viewNode(nodeId);
+        };
 
         // View node - preview modal
         async function viewNode(id) {
@@ -3277,18 +3289,20 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                            class="input input-sm input-bordered text-gray-800 bg-white w-64"
                            title="<?= t_attr('editor_hg_title_hint', 'Rename this page') ?>">
                 </div>
-                <div id="hg-assign-group" class="flex items-center gap-2 ml-auto">
-                    <label for="hg-assign-search" class="text-xs opacity-80"><?= t_attr('editor_hg_assign_label', 'Assigned wormhole:') ?></label>
-                    <div class="relative" id="hg-assign-combo">
-                        <input type="text" id="hg-assign-search" autocomplete="off"
-                               placeholder="<?= t_attr('editor_hg_assign_none', 'Not assigned') ?>"
-                               class="input input-sm input-bordered text-gray-800 bg-white min-w-[240px]"
-                               onfocus="hgComboOpen()" oninput="hgComboFilter()">
-                        <ul id="hg-assign-list" class="hidden absolute left-0 z-[60] mt-1 max-h-72 w-full overflow-y-auto bg-white text-gray-800 border border-gray-300 rounded shadow-lg text-sm"></ul>
+                <div class="flex items-center gap-3 ml-auto">
+                    <div id="hg-assign-group" class="flex items-center gap-2">
+                        <label for="hg-assign-search" class="text-xs opacity-80"><?= t_attr('editor_hg_assign_label', 'Assigned wormhole:') ?></label>
+                        <div class="relative" id="hg-assign-combo">
+                            <input type="text" id="hg-assign-search" autocomplete="off"
+                                   placeholder="<?= t_attr('editor_hg_assign_none', 'Not assigned') ?>"
+                                   class="input input-sm input-bordered text-gray-800 bg-white min-w-[240px]"
+                                   onfocus="hgComboOpen()" oninput="hgComboFilter()">
+                            <ul id="hg-assign-list" class="hidden absolute left-0 z-[60] mt-1 max-h-72 w-full overflow-y-auto bg-white text-gray-800 border border-gray-300 rounded shadow-lg text-sm"></ul>
+                        </div>
                     </div>
                     <span id="hg-edit-status" class="text-xs opacity-80" aria-live="polite"></span>
+                    <button type="button" class="btn btn-sm" onclick="hgCloseEditor()"><?= t_attr('editor_btn_close', 'Close') ?></button>
                 </div>
-                <button type="button" class="btn btn-sm" onclick="hgCloseEditor()"><?= t_attr('editor_btn_close', 'Close') ?></button>
             </div>
             <iframe id="hg-editor-iframe" src="about:blank" class="grow w-full border-0" title="<?= t_attr('editor_hg_heading', 'Hotglue content') ?>"></iframe>
         </div>
@@ -3415,6 +3429,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <!-- Hotglue page (media_mode=hotglue), sandboxed without allow-same-origin -->
                     <div id="preview-hotglue-wrap" class="hidden">
                         <iframe id="preview-hotglue" src="about:blank" sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer" class="w-full rounded-md border border-white/20 bg-white" style="height: 65vh;"></iframe>
+                        <div class="text-center mt-2">
+                            <button type="button" id="vnm-hotglue-max-link" onclick="toggleViewNodeMaximize()"
+                                    class="text-[#00ffcc] hover:opacity-80 transition-opacity text-xs uppercase tracking-[0.18em] bg-transparent border-none cursor-pointer"
+                                    data-label-max="<?= t_attr('viewer_maximize_text', 'Maximize') ?>"
+                                    data-label-min="<?= t_attr('viewer_restore_text', 'Restore') ?>"><?= t_attr('viewer_maximize_text', 'Maximize') ?></button>
+                        </div>
                     </div>
 
                     <!-- Image -->
@@ -3993,46 +4013,53 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const p = hgPages.find(x => x.id === id);
             if (p) hgOpenEditor({ id: p.id, slug: p.slug, title: p.title, node_id: p.node_id });
         };
-        // Toggle the toolbar controls for the overlay mode. In 'wormhole' mode
-        // (opened from the Edit Wormhole modal) the Page Name + Assigned wormhole
-        // controls are hidden: the page is inherently that node's.
+        // Toggle the toolbar controls for the overlay mode. Both modes show the
+        // same chrome (Page Name on the left, status + Close on the right); the
+        // ONLY difference is 'wormhole' mode hides the Assigned-wormhole control
+        // (the page is inherently that node's, assigned via the wormhole itself).
         function hgSetOverlayChrome(mode) {
             hgOverlayMode = mode;
-            const wormhole = (mode === 'wormhole');
-            const tg = document.getElementById('hg-title-group');
             const ag = document.getElementById('hg-assign-group');
-            if (tg) tg.classList.toggle('hidden', wormhole);
-            if (ag) ag.classList.toggle('hidden', wormhole);
+            if (ag) ag.classList.toggle('hidden', mode === 'wormhole');
         }
-        async function hgOpenEditor(page) {
-            hgSetOverlayChrome('page');
+        async function hgOpenEditor(page, mode) {
+            mode = mode || 'page';
+            hgSetOverlayChrome(mode);
             hgCurrent = page;
             const titleEl = document.getElementById('hg-edit-title');
             if (titleEl) titleEl.value = page.title || '';
             hgStatus('');
-            await hgLoadWormholes();
-            hgSetAssignLabel();
+            if (mode !== 'wormhole') { await hgLoadWormholes(); hgSetAssignLabel(); }
             const iframe = document.getElementById('hg-editor-iframe');
             iframe.src = '../hg/?' + encodeURIComponent(page.slug) + '/edit';
             document.getElementById('hg_editor_overlay').showModal();
         }
-        // Entry point for the per-wormhole "Edit hotglue content" flow (reuses
-        // the one overlay). No registry row is involved, so rename/assign are off.
-        window.hgOpenForWormhole = function (slug) {
-            hgCurrent = null;
-            hgSetOverlayChrome('wormhole');
+        // Entry point for the per-wormhole "Edit hotglue content" flow. Reuses the
+        // one overlay, and resolves (creating if needed) the node's hotglue_pages
+        // row so the Page Name field works exactly as in the list flow. Only the
+        // Assigned-wormhole control is hidden.
+        window.hgOpenForWormhole = async function (nodeId) {
             hgComboClose();
-            hgStatus('');
-            const iframe = document.getElementById('hg-editor-iframe');
-            iframe.src = '../hg/?' + encodeURIComponent(slug) + '/edit';
-            document.getElementById('hg_editor_overlay').showModal();
+            const data = await hgPost('resolve_for_node', { node_id: nodeId });
+            if (data && data.ok && data.page) {
+                hgOpenEditor({ id: data.page.id, slug: data.page.slug, title: data.page.title, node_id: data.page.node_id }, 'wormhole');
+            } else {
+                // Fallback: open the canvas without registry-backed rename.
+                hgCurrent = null;
+                hgSetOverlayChrome('wormhole');
+                hgStatus('');
+                const iframe = document.getElementById('hg-editor-iframe');
+                iframe.src = '../hg/?node-' + encodeURIComponent(nodeId) + '/edit';
+                document.getElementById('hg_editor_overlay').showModal();
+            }
         };
         // "View in wormhole": open the wormhole's preview modal here on the editor
         // page (the same preview used by the Wormholes list), without navigating.
         window.hgViewInWormhole = function (pageId) {
             const p = hgPages.find(x => x.id === pageId);
             if (!p || !p.node_id) return;
-            if (typeof viewNode === 'function') viewNode(p.node_id);
+            if (typeof window.hgPreviewWormhole === 'function') window.hgPreviewWormhole(p.node_id, p.slug);
+            else if (typeof viewNode === 'function') viewNode(p.node_id);
         };
         // "View in galaxy": open the live galaxy viewer in a new window at the node
         // permalink (/<galaxy>/<node-id>), the full 3D rich-media experience.

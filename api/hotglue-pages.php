@@ -224,6 +224,31 @@ try {
             hgp_out(['ok' => true]);
         }
 
+        case 'resolve_for_node': {
+            $nodeId = (int)($_POST['node_id'] ?? 0);
+            if ($nodeId <= 0) {
+                hgp_out(['ok' => false, 'error' => 'invalid'], 400);
+            }
+            $cid = db_get_node_constellation_id($nodeId);
+            if ($cid === null) {
+                hgp_out(['ok' => false, 'error' => 'node_not_found'], 404);
+            }
+            // The actor must control the wormhole's galaxy (or be admin).
+            if (checkEditorConstellationAccess($cid) !== null) {
+                hgp_out(['ok' => false, 'error' => 'not_authorized'], 403);
+            }
+            $page = db_hotglue_page_get_or_create_for_node($nodeId, $userId);
+            if (!$page) {
+                hgp_out(['ok' => false, 'error' => 'server_error'], 500);
+            }
+            hgp_out(['ok' => true, 'page' => [
+                'id'      => (int)$page['id'],
+                'slug'    => (string)$page['slug'],
+                'title'   => (string)$page['title'],
+                'node_id' => $page['node_id'] !== null ? (int)$page['node_id'] : null,
+            ]]);
+        }
+
         case 'duplicate': {
             $src = hgp_require_page();
             if (!db_hotglue_page_user_can_edit($src, $userId, $isAdmin)) {

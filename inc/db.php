@@ -11751,6 +11751,39 @@ function db_hotglue_page_create(string $title, ?string $ownerUserId): array {
     return db_hotglue_page_get_by_id($id) ?? ['id' => $id, 'slug' => $slug, 'title' => $title, 'owner_user_id' => $owner, 'node_id' => null];
 }
 
+/**
+ * The hotglue_pages row for a wormhole's page, creating it if absent so the
+ * per-wormhole hotglue editor is registry-backed (Page Name works) exactly like
+ * the standalone flow. Matches by node_id first, then by the node's effective
+ * page slug (node-<id> or a custom hotglue_page); when creating, it keeps that
+ * existing slug since the on-disk content already lives there.
+ */
+function db_hotglue_page_get_or_create_for_node(int $nodeId, ?string $ownerUserId): ?array {
+    db_ensure_hotglue_pages_table();
+    db_ensure_nodes_hotglue_columns();
+    $pdo = getDB();
+    $st = $pdo->prepare("SELECT * FROM hotglue_pages WHERE node_id = :n LIMIT 1");
+    $st->execute([':n' => $nodeId]);
+    $row = $st->fetch();
+    if ($row) {
+        return $row;
+    }
+    $slug = db_node_hotglue_page($nodeId); // node-<id> or a stored custom page name
+    $existing = db_hotglue_page_get_by_slug($slug);
+    if ($existing) {
+        if ((int)($existing['node_id'] ?? 0) !== $nodeId) {
+            $pdo->prepare("UPDATE hotglue_pages SET node_id = :n WHERE id = :id")->execute([':n' => $nodeId, ':id' => (int)$existing['id']]);
+        }
+        return db_hotglue_page_get_by_id((int)$existing['id']);
+    }
+    $node = db_get_node_by_id($nodeId);
+    $title = ($node && trim((string)($node['name'] ?? '')) !== '') ? (string)$node['name'] : $slug;
+    $owner = ($ownerUserId !== null && $ownerUserId !== '') ? $ownerUserId : null;
+    $pdo->prepare("INSERT INTO hotglue_pages (slug, title, owner_user_id, node_id) VALUES (:s, :t, :o, :n)")
+        ->execute([':s' => $slug, ':t' => $title, ':o' => $owner, ':n' => $nodeId]);
+    return db_hotglue_page_get_by_id((int)$pdo->lastInsertId());
+}
+
 function db_hotglue_page_rename(int $id, string $title): void {
     db_ensure_hotglue_pages_table();
     $pdo = getDB();
