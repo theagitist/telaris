@@ -388,6 +388,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             'copySuffix'     => t('editor_hg_copy_suffix', '(copy)'),
             'dupNotice'      => t('editor_hg_dup_notice', 'The copy was created without a wormhole assignment (a wormhole can show only one page). Do you want to assign it to a wormhole now? Choose Cancel to leave it unassigned.'),
             'actionViewInWormhole' => t('editor_hg_action_view_in_wormhole', 'View in wormhole'),
+            'actionViewInGalaxy' => t('editor_hg_action_view_in_galaxy', 'View in galaxy'),
             'actionDuplicate' => t('editor_action_duplicate', 'Duplicate'),
             'unassigned'     => t('editor_hg_unassigned', 'Not assigned'),
             'btnEdit'        => t('editor_action_edit', 'Edit'),
@@ -3857,6 +3858,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     const checked = hgSelected.has(p.id) ? ' checked' : '';
                     const viewItem = p.node_id
                         ? '<li><a onclick="event.stopPropagation(); hgViewInWormhole(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionViewInWormhole || 'View in wormhole') + '</a></li>'
+                        + '<li><a onclick="event.stopPropagation(); hgViewInGalaxy(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionViewInGalaxy || 'View in galaxy') + '</a></li>'
                         : '';
                     html += '<div class="grid grid-cols-12 gap-3 items-center py-2 border-b border-gray-100 hover:bg-gray-50">'
                         + '<div class="col-span-1 px-2"><input type="checkbox" class="hg-checkbox checkbox checkbox-xs" data-id="' + p.id + '"' + checked + ' onclick="hgToggleSelect(' + p.id + ')"></div>'
@@ -3977,15 +3979,21 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             iframe.src = '../hg/?' + encodeURIComponent(slug) + '/edit';
             document.getElementById('hg_editor_overlay').showModal();
         };
-        // "View in wormhole" opens the live galaxy viewer at the node permalink
-        // (/<galaxy>/<node-id>), which is the SAME rich-media window visitors get
-        // (maximize/restore and all). No separate editor preview modal.
+        // "View in wormhole": open the wormhole's preview modal here on the editor
+        // page (the same preview used by the Wormholes list), without navigating.
         window.hgViewInWormhole = function (pageId) {
+            const p = hgPages.find(x => x.id === pageId);
+            if (!p || !p.node_id) return;
+            if (typeof viewNode === 'function') viewNode(p.node_id);
+        };
+        // "View in galaxy": open the live galaxy viewer in a new window at the node
+        // permalink (/<galaxy>/<node-id>), the full 3D rich-media experience.
+        window.hgViewInGalaxy = function (pageId) {
             const p = hgPages.find(x => x.id === pageId);
             if (!p || !p.node_id) return;
             const galaxy = p.galaxy_slug || (p.galaxy_id != null ? String(p.galaxy_id) : '');
             if (!galaxy) return;
-            window.open('/' + encodeURIComponent(galaxy) + '/' + p.node_id, '_blank');
+            window.open('/' + encodeURIComponent(galaxy) + '/' + p.node_id, '_blank', 'noopener');
         };
         window.hgDuplicate = async function (id) {
             const p = hgPages.find(x => x.id === id);
