@@ -1557,7 +1557,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         function _vnmApply(on) {
             const box = document.getElementById('view-node-box');
             if (!box) return;
-            box.classList.toggle('vnm-maximized', on);
+            box.classList.toggle('vnm-maximized', on);   // all sizing/layout is in the <style> block
             const iMax = document.getElementById('vnm-icon-max');
             const iMin = document.getElementById('vnm-icon-min');
             if (iMax) iMax.classList.toggle('hidden', on);
@@ -1566,20 +1566,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (btn) { const l = on ? btn.getAttribute('data-label-min') : btn.getAttribute('data-label-max'); if (l) { btn.title = l; btn.setAttribute('aria-label', l); } }
             const link = document.getElementById('vnm-hotglue-max-link');
             if (link) { const ll = on ? link.getAttribute('data-label-min') : link.getAttribute('data-label-max'); if (ll) link.textContent = ll; }
-            const hg = document.getElementById('preview-hotglue');
-            const img = document.getElementById('preview-image');
-            const vid = document.getElementById('preview-video');
-            if (on) {
-                box.style.maxWidth = '96vw'; box.style.width = '96vw'; box.style.maxHeight = '95vh';
-                if (hg) hg.style.height = '82vh';
-                if (img) img.style.maxHeight = '80vh';
-                if (vid) vid.style.maxHeight = '80vh';
-            } else {
-                box.style.maxWidth = ''; box.style.width = ''; box.style.maxHeight = '';
-                if (hg) hg.style.height = '65vh';
-                if (img) img.style.maxHeight = '';
-                if (vid) vid.style.maxHeight = '';
-            }
         }
         function toggleViewNodeMaximize() {
             const box = document.getElementById('view-node-box');
@@ -1641,6 +1627,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const hgWrap = document.getElementById('preview-hotglue-wrap');
             const hgEl = document.getElementById('preview-hotglue');
             const previewIsHotglue = (node.media_mode === 'hotglue');
+            const vnmBox = document.getElementById('view-node-box');
+            if (vnmBox) vnmBox.classList.toggle('vnm-hotglue-mode', previewIsHotglue);
             if (previewIsHotglue && hgWrap && hgEl) {
                 const hgPage = node.hotglue_page || ('node-' + node.id);
                 hgEl.src = '/hg/?' + encodeURIComponent(hgPage);
@@ -3401,6 +3389,25 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     </dialog>
 
     <!-- View Node Preview Modal -->
+    <style>
+    /* Maximize/restore for the View Node preview, mirroring the 3D rich-media window. */
+    #view-node-box.vnm-maximized { max-width: 96vw !important; width: 96vw !important; max-height: 95vh !important; }
+    #view-node-box.vnm-maximized #preview-image,
+    #view-node-box.vnm-maximized #preview-video { max-height: 82vh; width: auto; margin-left: auto; margin-right: auto; }
+    /* Maximized hotglue: a full-height window showing ONLY the hotglue page; the
+       iframe flex-fills and the Restore/Close links stay below it (never cropped). */
+    #view-node-box.vnm-hotglue-mode.vnm-maximized { height: 95vh !important; display: flex; flex-direction: column; overflow: hidden; }
+    #view-node-box.vnm-hotglue-mode.vnm-maximized #vnm-content > :not(#vnm-media) { display: none; }
+    #view-node-box.vnm-hotglue-mode.vnm-maximized #vnm-media > :not(#preview-hotglue-wrap) { display: none; }
+    #view-node-box.vnm-hotglue-mode.vnm-maximized #vnm-content,
+    #view-node-box.vnm-hotglue-mode.vnm-maximized #vnm-media,
+    #view-node-box.vnm-hotglue-mode.vnm-maximized #preview-hotglue-wrap { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+    #view-node-box.vnm-hotglue-mode.vnm-maximized #vnm-content { padding: 0.5rem; }
+    #view-node-box.vnm-hotglue-mode.vnm-maximized #preview-hotglue { flex: 1 1 auto; height: auto !important; min-height: 0; }
+    /* The Close link (beside Restore, under the iframe) appears only when maximized. */
+    #vnm-hotglue-close-link { display: none; }
+    #view-node-box.vnm-maximized #vnm-hotglue-close-link { display: inline-block; }
+    </style>
     <dialog id="view_node_modal" class="modal">
         <div id="view-node-box" class="modal-box max-w-2xl p-0 bg-[#0a0a0c]/90 border border-white/20 text-white flex flex-col" style="box-shadow: 0 0 50px -10px rgba(0, 255, 204, 0.3);">
             <!-- Maximize / Restore (generic across media; mirrors the 3D viewer) -->
@@ -3423,17 +3430,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </form>
 
             <!-- Content -->
-            <div class="p-6 md:p-8">
+            <div id="vnm-content" class="p-6 md:p-8">
                 <h3 id="preview-title" class="text-2xl font-bold mb-4 tracking-tight uppercase border-b-2 border-white/20 pb-2"></h3>
-                <div class="space-y-6">
+                <div id="vnm-media" class="space-y-6">
                     <!-- Hotglue page (media_mode=hotglue), sandboxed without allow-same-origin -->
                     <div id="preview-hotglue-wrap" class="hidden">
                         <iframe id="preview-hotglue" src="about:blank" sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer" class="w-full rounded-md border border-white/20 bg-white" style="height: 65vh;"></iframe>
-                        <div class="text-center mt-2">
+                        <div class="text-right mt-1">
                             <button type="button" id="vnm-hotglue-max-link" onclick="toggleViewNodeMaximize()"
-                                    class="text-[#00ffcc] hover:opacity-80 transition-opacity text-xs uppercase tracking-[0.18em] bg-transparent border-none cursor-pointer"
+                                    class="text-xs uppercase tracking-[0.18em] text-white/55 hover:text-white underline underline-offset-2 transition-colors bg-transparent border-none cursor-pointer"
                                     data-label-max="<?= t_attr('viewer_maximize_text', 'Maximize') ?>"
                                     data-label-min="<?= t_attr('viewer_restore_text', 'Restore') ?>"><?= t_attr('viewer_maximize_text', 'Maximize') ?></button>
+                            <button type="button" id="vnm-hotglue-close-link" onclick="document.getElementById('view_node_modal').close()"
+                                    class="ml-4 text-xs uppercase tracking-[0.18em] text-white/55 hover:text-white underline underline-offset-2 transition-colors bg-transparent border-none cursor-pointer"><?= t_attr('viewer_close_text', 'Close') ?></button>
                         </div>
                     </div>
 
