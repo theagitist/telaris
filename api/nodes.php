@@ -510,6 +510,13 @@ try {
                 return;
             }
 
+            // Honor an explicit media_mode on create, so a wormhole created directly in
+            // Hotglue mode (the editor creates the node the moment the Hotglue tab is
+            // picked) starts in hotglue mode. Absent/unknown defaults to classic.
+            if (($data['media_mode'] ?? 'classic') === 'hotglue') {
+                db_set_node_media_mode($nodeId, 'hotglue', true);
+            }
+
             $uploadDir = UPLOAD_DIR;
             $nodeRelDir = "uploads/{$constellationId}/{$nodeId}";
             $nodeFullDir = "{$uploadDir}/{$constellationId}/{$nodeId}";

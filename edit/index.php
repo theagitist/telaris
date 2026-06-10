@@ -1812,7 +1812,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
 
             setWormholeMode('edit');
-            document.getElementById('edit_modal').showModal();
+            // showModal() throws if the dialog is already open (the create-on-Hotglue path
+            // calls editNode() to flip the open modal into edit mode in place).
+            const wmModal = document.getElementById('edit_modal');
+            if (!wmModal.open) wmModal.showModal();
 
             // Resume autosave now that the form reflects the node.
             editAutosave.endPopulate();
@@ -2329,6 +2332,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // flag decides its chrome: 'create' shows an explicit Add button (a new wormhole
         // has no id to autosave against yet); 'edit' shows the live autosave chip.
         let wormholeModalMode = 'edit';
+        let pendingHotglueCreate = false;  // create mode: Hotglue picked but the name was still empty
+        let creatingHotglueNode = false;   // guard against a double create
 
         function setWormholeMode(mode) {
             wormholeModalMode = mode;
@@ -2338,8 +2343,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             show('wm-heading-edit', !isCreate);
             show('edit-submit-btn', isCreate);          // create: explicit Add button
             show('edit-autosave-status', !isCreate);    // edit: live autosave chip
-            show('edit-hotglue-create-note', isCreate); // hotglue tab: "save first" note (create)
-            show('edit-hotglue-edit-wrap', !isCreate);  // vs the live "Edit hotglue content" button (edit)
+            // Hotglue tab body: in create mode show a short name prompt (a new wormhole is
+            // created the instant a name exists, so the live editor never appears here);
+            // in edit mode show the help line + the live "Edit hotglue content" button.
+            show('edit-hotglue-help', !isCreate);
+            show('edit-hotglue-create-note', isCreate);
+            show('edit-hotglue-edit-wrap', !isCreate);
         }
 
         // The unified form's submit handler. Create mode: Add a new wormhole. Edit mode:
@@ -2347,6 +2356,59 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         function onWormholeFormSubmit(event) {
             if (wormholeModalMode === 'create') { saveNewNode(event); }
             else { saveNodeEdit(event); }
+        }
+
+        // Media tab clicks. In edit mode they just switch the visible block. In create
+        // mode, picking Hotglue CREATES the wormhole immediately (so its node-<id> page can
+        // be composed at once) instead of asking the editor to save first.
+        function onClassicTabClick() {
+            pendingHotglueCreate = false;
+            switchMediaMode('classic', 'edit');
+        }
+        function onHotglueTabClick() {
+            if (wormholeModalMode !== 'create') { switchMediaMode('hotglue', 'edit'); return; }
+            // Create mode: show the Hotglue body, then create as soon as we have a name.
+            switchMediaMode('hotglue', 'edit');
+            const name = document.getElementById('edit-name').value.trim();
+            if (name) { createNodeForHotglue(); }
+            else { pendingHotglueCreate = true; document.getElementById('edit-name').focus(); }
+        }
+
+        // Create the wormhole NOW (create mode, Hotglue chosen), persist media_mode=hotglue,
+        // then flip the same modal into edit mode for the new node so the live "Edit hotglue
+        // content" button is available and everything autosaves from here.
+        async function createNodeForHotglue() {
+            if (creatingHotglueNode) return;
+            const name = document.getElementById('edit-name').value.trim();
+            if (!name) { pendingHotglueCreate = true; document.getElementById('edit-name').focus(); return; }
+            if (!API_KEY) { showMessage(TELARIS_EDIT.errorApiKeyMissing, 'error'); return; }
+            creatingHotglueNode = true;
+            pendingHotglueCreate = false;
+            const submitBtn = document.getElementById('edit-submit-btn');
+            if (submitBtn) submitBtn.disabled = true;
+            try {
+                const fd = buildCreateFormData('hotglue');
+                const r = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN },
+                    body: fd,
+                });
+                if (!r.ok) {
+                    let msg = TELARIS_EDIT.errorFailedCreate;
+                    try { const e = await r.json(); msg = e.error || msg; } catch (e) {}
+                    throw new Error(`${msg} (${r.status})`);
+                }
+                const resp = await r.json();
+                const newId = resp.id || (resp.data && resp.data.id);
+                showMessage(TELARIS_EDIT.toastCreatedSuccess);
+                await loadNodes();              // bring the new node into allNodes
+                if (newId) { editNode(newId); } // flip this modal into edit mode for it
+            } catch (err) {
+                showMessage('Error: ' + err.message, 'error');
+                if (submitBtn) submitBtn.disabled = false;
+            } finally {
+                creatingHotglueNode = false;
+            }
         }
 
         // Open the unified modal in CREATE mode: blank the fields and keep autosave
@@ -2398,27 +2460,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             document.getElementById('edit_modal').showModal();
         }
 
-        // Save a NEW wormhole from the unified modal (create mode). Reads the same
-        // edit-* fields the edit flow uses; the API POST creates the row.
-        async function saveNewNode(event) {
-            event.preventDefault();
-
-            const nodeName = document.getElementById('edit-name').value.trim();
-            if (!nodeName) {
-                showMessage(TELARIS_EDIT.errorNameRequired, 'error');
-                return;
-            }
-            if (!API_KEY) {
-                showMessage(TELARIS_EDIT.errorApiKeyMissing, 'error');
-                return;
-            }
-
-            const animation = generateRandomAnimation();
+        // Assemble the create FormData from the unified modal's edit-* fields. Shared by
+        // the explicit Add button (saveNewNode) and the create-on-Hotglue path. An optional
+        // mediaModeOverride forces the media mode (the Hotglue path passes 'hotglue').
+        function buildCreateFormData(mediaModeOverride) {
             const constellationId = parseInt(document.getElementById('edit-constellation').value);
             const nodeType = document.getElementById('edit-node-type').value;
 
             const formData = new FormData();
-            formData.append('name', nodeName);
+            formData.append('name', document.getElementById('edit-name').value.trim());
             formData.append('description', document.getElementById('edit-description').value.trim());
             formData.append('url', document.getElementById('edit-url').value.trim());
             formData.append('embed_code', document.getElementById('edit-embed-code').value.trim());
@@ -2426,21 +2476,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             formData.append('show_keywords', document.getElementById('edit-show-keywords').checked ? 1 : 0);
             formData.append('constellation_id', isNaN(constellationId) ? 0 : constellationId);
             formData.append('node_type', nodeType);
-
             if (nodeType === 'portal') {
                 formData.append('target_constellation_id', document.getElementById('edit-target-constellation-modal').value);
             }
-            formData.append('animation', JSON.stringify(animation));
+            formData.append('animation', JSON.stringify(generateRandomAnimation()));
             formData.append('keywords', (keywordState['modal'] || []).join(','));
-            // Persist the media mode chosen on the tabs (Hotglue is composed after creation).
-            formData.append('media_mode', document.getElementById('edit-media-mode')?.value || 'classic');
+            formData.append('media_mode', mediaModeOverride || document.getElementById('edit-media-mode')?.value || 'classic');
 
-            // Icon (independent of the visual mutex).
             formData.append('icon_url', document.getElementById('edit-icon-url').value.trim());
             const iconFile = document.getElementById('edit-icon-file').files[0];
             if (iconFile) formData.append('icon_file', iconFile);
 
-            // Credit/attribution is shared across all visual types.
             formData.append('image_attribution', document.getElementById('edit-image-attribution').value.trim());
 
             // Primary visual: send only the active tab's URL/file; clear the other two.
@@ -2470,14 +2516,27 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 formData.append('video_url', '');
             }
 
-            // Audio (independent of the visual mutex).
             formData.append('audio_url', document.getElementById('edit-audio-url').value.trim());
             formData.append('audio_autoplay', document.getElementById('edit-audio-autoplay').checked ? 1 : 0);
             formData.append('audio_loop', document.getElementById('edit-audio-loop').checked ? 1 : 0);
             const audioFile = document.getElementById('edit-audio-file').files[0];
             if (audioFile) formData.append('audio_file', audioFile);
 
-            handleNodeSubmit(formData, 'create', 'POST');
+            return formData;
+        }
+
+        // Save a NEW wormhole via the explicit Add button (create mode, Classic).
+        async function saveNewNode(event) {
+            event.preventDefault();
+            if (!document.getElementById('edit-name').value.trim()) {
+                showMessage(TELARIS_EDIT.errorNameRequired, 'error');
+                return;
+            }
+            if (!API_KEY) {
+                showMessage(TELARIS_EDIT.errorApiKeyMissing, 'error');
+                return;
+            }
+            handleNodeSubmit(buildCreateFormData(), 'create', 'POST');
         }
 
         // Wait for DOM to be ready
@@ -2800,6 +2859,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const validateEdit = debounce(() => validateNode(editName, editCid, editErr, editId), 500);
                 editName.addEventListener('input', validateEdit);
                 editCid.addEventListener('change', validateEdit);
+                // Create-on-Hotglue, deferred case: the editor picked Hotglue before naming
+                // the wormhole, so create the moment a name is committed (on blur).
+                editName.addEventListener('change', () => {
+                    if (wormholeModalMode === 'create' && pendingHotglueCreate && editName.value.trim()) {
+                        createNodeForHotglue();
+                    }
+                });
             }
         }
 
@@ -2910,8 +2976,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 <!-- Media is either the Classic block (image/video/pdf/audio/embed) or a Hotglue page.
                      Whichever tab is active on save is persisted to nodes.media_mode (phase 5). -->
                 <div class="tabs tabs-bordered mb-2">
-                    <button type="button" id="edit-media-classic-tab" onclick="switchMediaMode('classic', 'edit')" class="tab tab-sm tab-active"><?= t_attr('editor_tab_classic', 'Classic') ?></button>
-                    <button type="button" id="edit-media-hotglue-tab" onclick="switchMediaMode('hotglue', 'edit')" class="tab tab-sm"><?= t_attr('editor_tab_hotglue', 'Hotglue') ?></button>
+                    <button type="button" id="edit-media-classic-tab" onclick="onClassicTabClick()" class="tab tab-sm tab-active"><?= t_attr('editor_tab_classic', 'Classic') ?></button>
+                    <button type="button" id="edit-media-hotglue-tab" onclick="onHotglueTabClick()" class="tab tab-sm"><?= t_attr('editor_tab_hotglue', 'Hotglue') ?></button>
                 </div>
                 <input type="hidden" id="edit-media-mode" name="media_mode" value="classic">
                 <input type="hidden" id="edit-hotglue-page" value="">
@@ -3014,7 +3080,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div>
                 </div><!-- /edit-media-classic-content -->
                 <div id="edit-media-hotglue-content" class="hidden">
-                    <p class="text-xs text-gray-500 mb-4 text-center"><?= t_attr('editor_help_hotglue', 'Compose this wormhole\'s media as a freeform hotglue page. Whichever tab is selected when you save is what visitors see.') ?></p>
+                    <p id="edit-hotglue-help" class="text-xs text-gray-500 mb-4 text-center"><?= t_attr('editor_help_hotglue', 'Compose this wormhole\'s media as a freeform hotglue page. Whichever tab is selected when you save is what visitors see.') ?></p>
                     <!-- Edit mode: open the live hotglue editor for this node's page. -->
                     <div id="edit-hotglue-edit-wrap" class="flex justify-center py-2">
                         <button type="button" onclick="openHotglueEditor()" class="btn btn-primary btn-wide gap-2 shadow-lg">
