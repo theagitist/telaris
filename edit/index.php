@@ -347,6 +347,22 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div>
             </div>
         </div><!-- /#editor-tab-hotglue -->
+        <script>
+        // Pre-paint tab restore: if the URL hash asks for the Hotglue tab, set the
+        // visible panel synchronously here (runs during parse, before first paint)
+        // so there is no flash of the Wormholes tab before the module restores it.
+        (function () {
+            if (location.hash !== '#hotglue') return;
+            var wp = document.getElementById('editor-tab-wormholes'),
+                hp = document.getElementById('editor-tab-hotglue'),
+                wt = document.getElementById('etab-wormholes'),
+                ht = document.getElementById('etab-hotglue');
+            if (wp) wp.classList.add('hidden');
+            if (hp) hp.classList.remove('hidden');
+            if (wt) wt.classList.remove('tab-active');
+            if (ht) ht.classList.add('tab-active');
+        })();
+        </script>
     </div>
 
     <script>
@@ -365,8 +381,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         window.TELARIS_HG = <?= json_encode([
             'untitled'       => t('editor_hg_untitled', 'Untitled page'),
             'loading'        => t('editor_hg_loading', 'Loading pages...'),
-            'empty'          => t('editor_hg_empty', 'No hotglue pages yet. Use New page to create one.'),
+            'empty'          => t('editor_hg_empty', 'There are no Hotglue pages yet. You can %s.'),
+            'galaxyEmpty'    => t('editor_hg_galaxy_empty', 'There are no Hotglue pages assigned to any wormholes in the selected Galaxy. You can %s, or select another Galaxy.'),
+            'createLink'     => t('editor_hg_create_link', 'Create a new page'),
             'noMatch'        => t('editor_hg_no_match', 'No pages match your search.'),
+            'copySuffix'     => t('editor_hg_copy_suffix', '(copy)'),
+            'dupNotice'      => t('editor_hg_dup_notice', 'The copy was created without a wormhole assignment (a wormhole can show only one page). Do you want to assign it to a wormhole now? Choose Cancel to leave it unassigned.'),
+            'actionViewInWormhole' => t('editor_hg_action_view_in_wormhole', 'View in wormhole'),
+            'actionDuplicate' => t('editor_action_duplicate', 'Duplicate'),
             'unassigned'     => t('editor_hg_unassigned', 'Not assigned'),
             'btnEdit'        => t('editor_action_edit', 'Edit'),
             'btnDelete'      => t('editor_btn_delete', 'Delete'),
@@ -397,6 +419,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             'headingErrorLoading' => t('editor_heading_error_loading', 'Error loading wormholes'),
             'headingNoWormholes' => t('editor_heading_no_wormholes', 'No wormholes found.'),
             'textEmptyStateHelp' => t('editor_text_empty_state_help', 'Try adjusting your search or add a new wormhole to get started.'),
+            'linkCreateWormhole' => t('editor_text_create_wormhole_link', 'Create a new wormhole'),
             'errorFatalLoading' => t('editor_error_fatal_loading', 'Fatal error loading wormholes: %s'),
             'errorCouldNotLoad' => t('editor_error_could_not_load', 'Error: Could not load wormholes. %s'),
             // Row template
@@ -1184,6 +1207,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <svg class="w-12 h-12 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
                         <p class="text-lg font-medium">${escapeHtml(TELARIS_EDIT.headingNoWormholes)}</p>
                         <p class="text-sm">${escapeHtml(TELARIS_EDIT.textEmptyStateHelp)}</p>
+                        <button type="button" class="node-edit-action mt-3 text-blue-600 hover:text-blue-800 underline text-sm" onclick="openCreateNodeModal()">${escapeHtml(TELARIS_EDIT.linkCreateWormhole)}</button>
                     </div>
                 `;
                 return;
@@ -1512,21 +1536,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Open the per-node hotglue editor in the full-screen overlay. Same-origin,
         // so the editor's Telaris session + CSRF ride into the iframe; the phase-3
         // auth bridge enforces the seat + read-only checks on every write.
+        // Reuse the ONE hotglue editor overlay (#hg_editor_overlay) for the
+        // per-wormhole flow too. In wormhole mode the Page Name + Assigned
+        // wormhole controls are hidden (the page is inherently this node's).
         function openHotglueEditor() {
             const id = document.getElementById('edit-id').value;
             if (!id) return;
             const stored = (document.getElementById('edit-hotglue-page').value || '').trim();
             const page = stored !== '' ? stored : ('node-' + id);
-            const iframe = document.getElementById('hotglue-iframe');
-            iframe.src = '../hg/?' + encodeURIComponent(page) + '/edit';
-            document.getElementById('hotglue_modal').showModal();
+            if (typeof window.hgOpenForWormhole === 'function') window.hgOpenForWormhole(page);
         }
 
         function closeHotglueEditor() {
-            const iframe = document.getElementById('hotglue-iframe');
-            // Blank the iframe so its session/editor state is torn down on close.
-            iframe.src = 'about:blank';
-            document.getElementById('hotglue_modal').close();
+            if (typeof window.hgCloseEditor === 'function') window.hgCloseEditor();
         }
 
         // View node - preview modal
@@ -3202,19 +3224,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         </form>
     </dialog>
 
-    <!-- Hotglue content editor: near-full-screen overlay that embeds the per-node
-         hotglue page same-origin (so the editor's Telaris session + CSRF ride).
-         openHotglueEditor() sets the iframe src from the node being edited. -->
-    <dialog id="hotglue_modal" class="modal">
-        <div class="modal-box max-w-none w-[96vw] h-[94vh] p-0 bg-white flex flex-col overflow-hidden">
-            <div class="px-4 py-2 bg-neutral text-neutral-content flex items-center justify-between shrink-0">
-                <h3 class="font-bold text-sm"><?= t_attr('editor_hotglue_modal_heading', 'Edit hotglue content') ?></h3>
-                <button type="button" class="btn btn-sm" onclick="closeHotglueEditor()"><?= t_attr('editor_btn_hotglue_done', 'Done') ?></button>
-            </div>
-            <iframe id="hotglue-iframe" src="about:blank" class="grow w-full border-0" title="<?= t_attr('editor_hotglue_modal_heading', 'Edit hotglue content') ?>"></iframe>
-        </div>
-    </dialog>
-
     <!-- Standalone hotglue page editor (Hotglue content tab): near-full-window
          overlay. The thin toolbar carries Close, an editable page Title (renames
          on change), and the wormhole-assignment dropdown (Not assigned + the
@@ -3222,12 +3231,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="hg_editor_overlay" class="modal">
         <div class="modal-box max-w-none w-[98vw] h-[96vh] p-0 bg-white flex flex-col overflow-hidden">
             <div class="px-3 py-2 bg-neutral text-neutral-content flex items-center gap-3 shrink-0">
-                <label for="hg-edit-title" class="text-xs opacity-80"><?= t_attr('editor_hg_name_label', 'Name') ?></label>
-                <input type="text" id="hg-edit-title" maxlength="255"
-                       placeholder="<?= t_attr('editor_hg_title_placeholder', 'Page title') ?>"
-                       class="input input-sm input-bordered text-gray-800 bg-white w-64"
-                       title="<?= t_attr('editor_hg_title_hint', 'Rename this page') ?>">
-                <div class="flex items-center gap-2 ml-auto">
+                <div id="hg-title-group" class="flex items-center gap-2">
+                    <label for="hg-edit-title" class="text-xs opacity-80"><?= t_attr('editor_hg_name_label', 'Page Name') ?></label>
+                    <input type="text" id="hg-edit-title" maxlength="255"
+                           placeholder="<?= t_attr('editor_hg_title_placeholder', 'Page title') ?>"
+                           class="input input-sm input-bordered text-gray-800 bg-white w-64"
+                           title="<?= t_attr('editor_hg_title_hint', 'Rename this page') ?>">
+                </div>
+                <div id="hg-assign-group" class="flex items-center gap-2 ml-auto">
                     <label for="hg-assign-search" class="text-xs opacity-80"><?= t_attr('editor_hg_assign_label', 'Assigned wormhole:') ?></label>
                     <div class="relative" id="hg-assign-combo">
                         <input type="text" id="hg-assign-search" autocomplete="off"
@@ -3749,6 +3760,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         let hgCurrent = null;         // the page open in the overlay
         let hgListDirty = false;
         let hgLoadedOnce = false;
+        let hgOverlayMode = 'page';   // 'page' (Hotglue content tab) | 'wormhole' (Edit Wormhole modal)
         const hgSelected = new Set(); // selected page ids (multiselect)
 
         function esc(s) {
@@ -3822,7 +3834,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (countEl) countEl.textContent = String(rows.length);
             let html = '';
             if (rows.length === 0) {
-                html = '<p class="text-gray-500 p-4">' + esc(hgPages.length === 0 ? (HG.empty || '') : (HG.noMatch || '')) + '</p>';
+                // Friendly, actionable, centred empty states: a live search miss,
+                // an empty galaxy filter, or no pages at all.
+                const link = '<button type="button" class="text-blue-600 hover:text-blue-800 underline" onclick="hgCreatePage()">' + esc(HG.createLink || 'Create a new page') + '</button>';
+                const withLink = (tmpl) => { const parts = String(tmpl || '').split('%s'); return esc(parts[0] || '') + link + esc(parts[1] || ''); };
+                let msg;
+                if (q) { msg = esc(HG.noMatch || ''); }
+                else if (galaxy !== 'all') { msg = withLink(HG.galaxyEmpty); }
+                else { msg = withLink(HG.empty); }
+                html = '<div class="text-center text-gray-500 py-10 px-4">' + msg + '</div>';
             } else {
                 for (const p of rows) {
                     const title = esc(p.title || HG.untitled || '');
@@ -3835,15 +3855,23 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     }
                     const updated = esc(String(p.updated_at || '').slice(0, 16));
                     const checked = hgSelected.has(p.id) ? ' checked' : '';
+                    const viewItem = p.node_id
+                        ? '<li><a onclick="event.stopPropagation(); hgViewInWormhole(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionViewInWormhole || 'View in wormhole') + '</a></li>'
+                        : '';
                     html += '<div class="grid grid-cols-12 gap-3 items-center py-2 border-b border-gray-100 hover:bg-gray-50">'
                         + '<div class="col-span-1 px-2"><input type="checkbox" class="hg-checkbox checkbox checkbox-xs" data-id="' + p.id + '"' + checked + ' onclick="hgToggleSelect(' + p.id + ')"></div>'
                         + '<div class="col-span-4 px-2"><button type="button" class="text-blue-600 hover:text-blue-800 font-medium text-left" onclick="hgOpenEditorById(' + p.id + ')">' + title + '</button></div>'
                         + '<div class="col-span-4 px-2 text-sm text-gray-700">' + assigned + '</div>'
                         + '<div class="col-span-2 px-2 text-xs text-gray-500">' + updated + '</div>'
-                        + '<div class="col-span-1 px-2 text-right whitespace-nowrap">'
-                        + '<button type="button" class="text-blue-600 hover:text-blue-800 text-sm mr-2" onclick="hgOpenEditorById(' + p.id + ')">' + esc(HG.btnEdit || 'Edit') + '</button>'
-                        + '<button type="button" class="text-red-600 hover:text-red-800 text-sm" onclick="hgDeletePage(' + p.id + ')">' + esc(HG.btnDelete || 'Delete') + '</button>'
-                        + '</div></div>';
+                        + '<div class="col-span-1 px-2 flex justify-end">'
+                        + '<div class="dropdown dropdown-end">'
+                        + '<label tabindex="0" onclick="event.stopPropagation(); if(typeof closeAllDropdowns===\'function\')closeAllDropdowns(this)" class="btn btn-ghost btn-xs px-1.5"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg></label>'
+                        + '<ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-48">'
+                        + viewItem
+                        + '<li><a onclick="event.stopPropagation(); hgOpenEditorById(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.btnEdit || 'Edit') + '</a></li>'
+                        + '<li><a onclick="event.stopPropagation(); hgDuplicate(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionDuplicate || 'Duplicate') + '</a></li>'
+                        + '<li class="border-t border-gray-100 mt-1 pt-1"><a onclick="event.stopPropagation(); hgDeletePage(' + p.id + ')" class="text-red-600 text-xs">' + esc(HG.btnDelete || 'Delete') + '</a></li>'
+                        + '</ul></div></div></div>';
                 }
             }
             list.innerHTML = '';
@@ -3915,7 +3943,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const p = hgPages.find(x => x.id === id);
             if (p) hgOpenEditor({ id: p.id, slug: p.slug, title: p.title, node_id: p.node_id });
         };
+        // Toggle the toolbar controls for the overlay mode. In 'wormhole' mode
+        // (opened from the Edit Wormhole modal) the Page Name + Assigned wormhole
+        // controls are hidden: the page is inherently that node's.
+        function hgSetOverlayChrome(mode) {
+            hgOverlayMode = mode;
+            const wormhole = (mode === 'wormhole');
+            const tg = document.getElementById('hg-title-group');
+            const ag = document.getElementById('hg-assign-group');
+            if (tg) tg.classList.toggle('hidden', wormhole);
+            if (ag) ag.classList.toggle('hidden', wormhole);
+        }
         async function hgOpenEditor(page) {
+            hgSetOverlayChrome('page');
             hgCurrent = page;
             const titleEl = document.getElementById('hg-edit-title');
             if (titleEl) titleEl.value = page.title || '';
@@ -3926,6 +3966,43 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             iframe.src = '../hg/?' + encodeURIComponent(page.slug) + '/edit';
             document.getElementById('hg_editor_overlay').showModal();
         }
+        // Entry point for the per-wormhole "Edit hotglue content" flow (reuses
+        // the one overlay). No registry row is involved, so rename/assign are off.
+        window.hgOpenForWormhole = function (slug) {
+            hgCurrent = null;
+            hgSetOverlayChrome('wormhole');
+            hgComboClose();
+            hgStatus('');
+            const iframe = document.getElementById('hg-editor-iframe');
+            iframe.src = '../hg/?' + encodeURIComponent(slug) + '/edit';
+            document.getElementById('hg_editor_overlay').showModal();
+        };
+        // "View in wormhole" opens the live galaxy viewer at the node permalink
+        // (/<galaxy>/<node-id>), which is the SAME rich-media window visitors get
+        // (maximize/restore and all). No separate editor preview modal.
+        window.hgViewInWormhole = function (pageId) {
+            const p = hgPages.find(x => x.id === pageId);
+            if (!p || !p.node_id) return;
+            const galaxy = p.galaxy_slug || (p.galaxy_id != null ? String(p.galaxy_id) : '');
+            if (!galaxy) return;
+            window.open('/' + encodeURIComponent(galaxy) + '/' + p.node_id, '_blank');
+        };
+        window.hgDuplicate = async function (id) {
+            const p = hgPages.find(x => x.id === id);
+            const title = (p ? p.title : '') + ' ' + (HG.copySuffix || '(copy)');
+            const data = await hgPost('duplicate', { id: id, title: title });
+            if (!data || !data.ok || !data.page) { alert(errLabel(data && data.error)); return; }
+            hgListDirty = true;
+            const newPage = { id: data.page.id, slug: data.page.slug, title: data.page.title, node_id: null };
+            if (data.src_was_assigned) {
+                // The copy is unassigned (a wormhole shows one page); tell the user
+                // and offer to assign it now (Cancel leaves it unassigned).
+                if (confirm(HG.dupNotice || '')) hgOpenEditor(newPage);
+                else hgLoadPages();
+            } else {
+                hgOpenEditor(newPage);
+            }
+        };
         window.hgCloseEditor = function () {
             hgComboClose();
             const iframe = document.getElementById('hg-editor-iframe');
@@ -4012,6 +4089,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const combo = document.getElementById('hg-assign-combo');
                 if (combo && !combo.contains(e.target)) hgComboClose();
             });
+            // Also close on blur (covers clicking the hotglue iframe, whose clicks
+            // do not bubble to this document) and on Escape. The blur is delayed so
+            // a list item's mousedown-pick still registers first.
+            const searchInp = document.getElementById('hg-assign-search');
+            if (searchInp) {
+                searchInp.addEventListener('blur', function () { setTimeout(hgComboClose, 150); });
+                searchInp.addEventListener('keydown', function (e) { if (e.key === 'Escape') hgComboClose(); });
+            }
             // Restore the active tab from the URL hash (survives Refresh + a
             // galaxy switch, which reloads the page but keeps the hash).
             if (window.location.hash === '#hotglue') {

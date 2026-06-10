@@ -31,6 +31,30 @@ function hgp_out(array $payload, int $status = 200): void {
     exit;
 }
 
+/** Recursively copy a hotglue page's on-disk content directory. */
+function hgp_copytree(string $src, string $dst): void {
+    if (!is_dir($src)) {
+        return;
+    }
+    @mkdir($dst, 0775, true);
+    $items = scandir($src);
+    if ($items === false) {
+        return;
+    }
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+        $s = $src . '/' . $item;
+        $d = $dst . '/' . $item;
+        if (is_dir($s) && !is_link($s)) {
+            hgp_copytree($s, $d);
+        } else {
+            @copy($s, $d);
+        }
+    }
+}
+
 /** Recursively remove a hotglue page's on-disk content directory. */
 function hgp_rmtree(string $dir): void {
     if (!is_dir($dir)) {
@@ -198,6 +222,33 @@ try {
                 hgp_out(['ok' => false, 'error' => 'invalid'], 400);
             }
             hgp_out(['ok' => true]);
+        }
+
+        case 'duplicate': {
+            $src = hgp_require_page();
+            if (!db_hotglue_page_user_can_edit($src, $userId, $isAdmin)) {
+                hgp_out(['ok' => false, 'error' => 'not_authorized'], 403);
+            }
+            $title = trim((string)($_POST['title'] ?? ''));
+            if ($title === '') {
+                $title = (string)$src['title'];
+            }
+            if (mb_strlen($title) > 255) {
+                $title = mb_substr($title, 0, 255);
+            }
+            // The copy is always created UNASSIGNED and owned by the current user
+            // (a wormhole shows only one page; the caller decides whether to assign it).
+            $new = db_hotglue_page_create($title, $userId);
+            $srcSlug = (string)$src['slug'];
+            $newSlug = (string)$new['slug'];
+            if (preg_match('/^(?:page|node)-[0-9]+$/', $srcSlug) === 1 && preg_match('/^page-[0-9]+$/', $newSlug) === 1) {
+                hgp_copytree(__DIR__ . '/../hg/content/' . $srcSlug, __DIR__ . '/../hg/content/' . $newSlug);
+            }
+            hgp_out(['ok' => true, 'page' => [
+                'id'    => (int)$new['id'],
+                'slug'  => $newSlug,
+                'title' => (string)$new['title'],
+            ], 'src_was_assigned' => $src['node_id'] !== null]);
         }
 
         case 'delete': {

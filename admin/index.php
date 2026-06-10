@@ -2409,6 +2409,11 @@ foreach ($importantExtensions as $ext => $name) {
         window.TELARIS_ADMIN = <?= json_encode([
             // Galaxy table chrome
             'msgNoGalaxies' => t('admin_msg_no_galaxies', 'No galaxies found.'),
+            'msgNoGalaxiesSearch' => t('admin_msg_no_galaxies_search', 'No galaxies match your search.'),
+            'msgGalaxiesEmpty' => t('admin_msg_galaxies_empty', 'There are no galaxies yet. You can %s.'),
+            'linkCreateGalaxy' => t('admin_link_create_galaxy', 'create a new galaxy'),
+            'msgClustersEmpty' => t('admin_msg_clusters_empty', 'There are no clusters yet. You can %s.'),
+            'linkCreateCluster' => t('admin_link_create_cluster', 'create a new cluster'),
             'colId' => t('admin_col_id', 'ID'),
             'colGalaxyName' => t('admin_col_galaxy_name', 'Name'),
             'colSlug' => t('admin_col_slug', 'Slug'),
@@ -3707,7 +3712,15 @@ foreach ($importantExtensions as $ext => $name) {
                 if (countEl) countEl.textContent = total;
 
                 if (constellations.length === 0) {
-                    container.innerHTML = '<p class="text-gray-600 py-4">' + escapeHtmlAdmin(ADM.msgNoGalaxies || 'No galaxies found.') + '</p>';
+                    let msg;
+                    if (constFilter) {
+                        msg = escapeHtmlAdmin(ADM.msgNoGalaxiesSearch || ADM.msgNoGalaxies || 'No galaxies match your search.');
+                    } else {
+                        const link = '<button type="button" class="text-blue-600 hover:text-blue-800 underline" onclick="openCreateConstellation()">' + escapeHtmlAdmin(ADM.linkCreateGalaxy || 'create a new galaxy') + '</button>';
+                        const parts = String(ADM.msgGalaxiesEmpty || 'There are no galaxies yet. You can %s.').split('%s');
+                        msg = escapeHtmlAdmin(parts[0] || '') + link + escapeHtmlAdmin(parts[1] || '');
+                    }
+                    container.innerHTML = '<div class="text-center text-gray-500 py-10 px-4">' + msg + '</div>';
                     updateConstPagination();
                     return;
                 }
@@ -3926,9 +3939,15 @@ foreach ($importantExtensions as $ext => $name) {
                 if (countEl) countEl.textContent = total;
 
                 if (clusters.length === 0) {
-                    container.innerHTML = clusterFilter
-                        ? '<p class="text-gray-600 py-4">' + escapeHtmlAdmin(ADM.msgNoClustersSearch || 'No clusters match this search.') + '</p>'
-                        : '<p class="text-sm text-gray-500 italic py-4">' + escapeHtmlAdmin(ADM.msgNoClusters || 'No clusters yet.') + '</p>';
+                    let msg;
+                    if (clusterFilter) {
+                        msg = escapeHtmlAdmin(ADM.msgNoClustersSearch || 'No clusters match this search.');
+                    } else {
+                        const link = '<button type="button" class="text-blue-600 hover:text-blue-800 underline" onclick="openClusterCreate()">' + escapeHtmlAdmin(ADM.linkCreateCluster || 'create a new cluster') + '</button>';
+                        const parts = String(ADM.msgClustersEmpty || 'There are no clusters yet. You can %s.').split('%s');
+                        msg = escapeHtmlAdmin(parts[0] || '') + link + escapeHtmlAdmin(parts[1] || '');
+                    }
+                    container.innerHTML = '<div class="text-center text-gray-500 py-10 px-4">' + msg + '</div>';
                     updateClusterPagination();
                     return;
                 }
