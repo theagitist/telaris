@@ -3138,8 +3138,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div>
                 </div><!-- /edit-media-classic-content -->
                 <div id="edit-media-hotglue-content" class="hidden">
-                    <p class="text-xs text-gray-500 mb-3"><?= t_attr('editor_help_hotglue', 'Compose this wormhole\'s media as a freeform hotglue page. Whichever tab is selected when you save is what visitors see.') ?></p>
-                    <button type="button" onclick="openHotglueEditor()" class="btn btn-neutral btn-sm"><?= t_attr('editor_btn_edit_hotglue', 'Edit hotglue content') ?></button>
+                    <p class="text-xs text-gray-500 mb-4 text-center"><?= t_attr('editor_help_hotglue', 'Compose this wormhole\'s media as a freeform hotglue page. Whichever tab is selected when you save is what visitors see.') ?></p>
+                    <div class="flex justify-center py-2">
+                        <button type="button" onclick="openHotglueEditor()" class="btn btn-primary btn-wide gap-2 shadow-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            <?= t_attr('editor_btn_edit_hotglue', 'Edit hotglue content') ?>
+                        </button>
+                    </div>
                 </div>
                 <div id="edit-progress-wrap" class="hidden space-y-2">
                     <div class="flex justify-between text-xs font-medium">
