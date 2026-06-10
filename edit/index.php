@@ -304,6 +304,20 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <!-- Hotglue content tab: standalone hotglue pages, owned by the editor,
              optionally assigned to a wormhole. -->
         <div id="editor-tab-hotglue" class="editor-view-panel hidden">
+
+            <!-- Bulk actions bar (multiselect) -->
+            <div id="hg-bulk-bar" class="hidden sticky top-4 z-[30] bg-neutral text-neutral-content p-4 rounded-lg shadow-xl mb-4 flex items-center justify-between transition-all">
+                <div class="flex items-center gap-4">
+                    <span class="font-bold"><span id="hg-selected-count">0</span> <?= t_attr('editor_hg_selected_suffix', 'pages selected') ?></span>
+                    <div class="h-6 w-px bg-neutral-content/30"></div>
+                    <button onclick="hgClearSelection()" class="btn btn-sm btn-ghost normal-case font-normal hover:bg-white/10"><?= t_attr('editor_btn_clear_selection', 'Clear Selection') ?></button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="hgBulkUnassign()" class="btn btn-sm btn-outline text-white border-white/30 hover:bg-white/10 hover:border-white"><?= t_attr('editor_hg_bulk_unassign', 'Unassign Selected') ?></button>
+                    <button onclick="hgBulkDelete()" class="btn btn-sm btn-error text-white"><?= t_attr('editor_hg_bulk_delete', 'Delete Selected') ?></button>
+                </div>
+            </div>
+
             <div class="bg-white rounded-lg shadow-md mb-6">
                 <div class="p-6 border-b border-gray-200">
                     <div class="flex items-center justify-between">
@@ -320,8 +334,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 <div class="p-6">
                     <div id="hg-pages-list" class="space-y-0">
                         <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1">
-                            <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
-                                <div class="col-span-5 px-2 py-1"><?= t_attr('editor_hg_col_title', 'Title') ?></div>
+                            <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700 items-center">
+                                <div class="col-span-1 px-2 py-1"><input type="checkbox" id="hg-select-all" onclick="hgToggleSelectAll(this)" class="checkbox checkbox-xs border-gray-400"></div>
+                                <div class="col-span-4 px-2 py-1"><?= t_attr('editor_hg_col_title', 'Title') ?></div>
                                 <div class="col-span-4 px-2 py-1"><?= t_attr('editor_hg_col_assigned', 'Assigned wormhole') ?></div>
                                 <div class="col-span-2 px-2 py-1"><?= t_attr('editor_col_updated', 'Updated') ?></div>
                                 <div class="col-span-1 text-right px-2 py-1"><?= t_attr('editor_col_actions', 'Actions') ?></div>
@@ -361,6 +376,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             'failed'         => t('editor_hg_save_failed', 'Save failed'),
             'confirmReplace' => t('editor_hg_confirm_replace', 'This wormhole already shows a hotglue page. Replace it? The page it shows now will become unassigned (it is not deleted).'),
             'confirmDelete'  => t('editor_hg_confirm_delete', 'Delete this hotglue page? This permanently removes its content. If it is assigned to a wormhole, that wormhole returns to classic media.'),
+            'confirmBulkDelete' => t('editor_hg_confirm_bulk_delete', 'Delete the selected hotglue pages? This permanently removes their content. Any assigned wormholes return to classic media.'),
             'errNotAuth'     => t('editor_hg_err_not_authorized', 'You do not have access to do that.'),
             'errReadOnly'    => t('editor_hg_err_read_only', 'That galaxy is read-only.'),
             'errGeneric'     => t('editor_hg_err_generic', 'Something went wrong. Please try again.'),
@@ -3206,18 +3222,23 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     <dialog id="hg_editor_overlay" class="modal">
         <div class="modal-box max-w-none w-[98vw] h-[96vh] p-0 bg-white flex flex-col overflow-hidden">
             <div class="px-3 py-2 bg-neutral text-neutral-content flex items-center gap-3 shrink-0">
-                <button type="button" class="btn btn-sm" onclick="hgCloseEditor()"><?= t_attr('editor_btn_close', 'Close') ?></button>
+                <label for="hg-edit-title" class="text-xs opacity-80"><?= t_attr('editor_hg_name_label', 'Name') ?></label>
                 <input type="text" id="hg-edit-title" maxlength="255"
                        placeholder="<?= t_attr('editor_hg_title_placeholder', 'Page title') ?>"
                        class="input input-sm input-bordered text-gray-800 bg-white w-64"
                        title="<?= t_attr('editor_hg_title_hint', 'Rename this page') ?>">
                 <div class="flex items-center gap-2 ml-auto">
-                    <label for="hg-edit-assign" class="text-xs opacity-80"><?= t_attr('editor_hg_assign_label', 'Assigned wormhole:') ?></label>
-                    <select id="hg-edit-assign" onchange="hgAssignChange(this.value)" class="select select-sm select-bordered text-gray-800 bg-white min-w-[220px]">
-                        <option value=""><?= t_attr('editor_hg_assign_none', 'Not assigned') ?></option>
-                    </select>
+                    <label for="hg-assign-search" class="text-xs opacity-80"><?= t_attr('editor_hg_assign_label', 'Assigned wormhole:') ?></label>
+                    <div class="relative" id="hg-assign-combo">
+                        <input type="text" id="hg-assign-search" autocomplete="off"
+                               placeholder="<?= t_attr('editor_hg_assign_none', 'Not assigned') ?>"
+                               class="input input-sm input-bordered text-gray-800 bg-white min-w-[240px]"
+                               onfocus="hgComboOpen()" oninput="hgComboFilter()">
+                        <ul id="hg-assign-list" class="hidden absolute left-0 z-[60] mt-1 max-h-72 w-full overflow-y-auto bg-white text-gray-800 border border-gray-300 rounded shadow-lg text-sm"></ul>
+                    </div>
                     <span id="hg-edit-status" class="text-xs opacity-80" aria-live="polite"></span>
                 </div>
+                <button type="button" class="btn btn-sm" onclick="hgCloseEditor()"><?= t_attr('editor_btn_close', 'Close') ?></button>
             </div>
             <iframe id="hg-editor-iframe" src="about:blank" class="grow w-full border-0" title="<?= t_attr('editor_hg_heading', 'Hotglue content') ?>"></iframe>
         </div>
@@ -3724,10 +3745,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         const HG_API = '../api/hotglue-pages.php';
         const HG = window.TELARIS_HG || {};
         let hgPages = [];
-        let hgWormholes = {};   // id -> {name, galaxy_name, media_mode}
-        let hgCurrent = null;   // the page open in the overlay
+        let hgWormholes = {};         // id -> {name, galaxy_name, media_mode}
+        let hgCurrent = null;         // the page open in the overlay
         let hgListDirty = false;
         let hgLoadedOnce = false;
+        const hgSelected = new Set(); // selected page ids (multiselect)
 
         function esc(s) {
             return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -3750,9 +3772,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             try { data = await r.json(); } catch (e) { /* non-JSON */ }
             return data;
         }
+        // The galaxy selected in the header ('all' or a numeric id string).
+        function hgSelectedGalaxy() {
+            return document.getElementById('current-constellation')?.value || 'all';
+        }
 
-        // ---- Tab switching ------------------------------------------------
-        window.switchEditorTab = function (tab) {
+        // ---- Tab switching (persisted in the URL hash so a Refresh or a
+        //      galaxy switch keeps you on the same tab) -----------------------
+        window.switchEditorTab = function (tab, fromHash) {
             const isHg = (tab === 'hotglue');
             const wp = document.getElementById('editor-tab-wormholes');
             const hp = document.getElementById('editor-tab-hotglue');
@@ -3762,29 +3789,37 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const ht = document.getElementById('etab-hotglue');
             if (wt) wt.classList.toggle('tab-active', !isHg);
             if (ht) ht.classList.toggle('tab-active', isHg);
+            if (!fromHash) {
+                try { history.replaceState(null, '', isHg ? '#hotglue' : '#wormholes'); } catch (e) {}
+            }
             if (isHg && !hgLoadedOnce) { hgLoadedOnce = true; hgLoadPages(); }
         };
 
         // ---- Pages list ---------------------------------------------------
         async function hgLoadPages() {
             const data = await hgPost('list', {});
-            if (data && data.ok) { hgPages = data.pages || []; }
-            else { hgPages = []; }
+            hgPages = (data && data.ok) ? (data.pages || []) : [];
             hgRenderList();
         }
         window.hgRenderList = function () {
             const list = document.getElementById('hg-pages-list');
             if (!list) return;
-            // keep the header row (first child), replace the rest
             const header = list.querySelector('.border-b-2');
             const q = (document.getElementById('hg-search')?.value || '').trim().toLowerCase();
+            const galaxy = hgSelectedGalaxy();
+            const filtered = galaxy === 'all';   // when a galaxy is chosen, drop the "in galaxy" suffix
             const rows = hgPages.filter(p => {
+                if (galaxy !== 'all' && String(p.galaxy_id || '') !== String(galaxy)) return false;
                 if (!q) return true;
                 const hay = (p.title + ' ' + (p.node_name || '') + ' ' + (p.galaxy_name || '')).toLowerCase();
                 return hay.indexOf(q) !== -1;
             });
+            // Keep the selection to what is currently visible.
+            const visibleIds = new Set(rows.map(p => p.id));
+            for (const id of Array.from(hgSelected)) { if (!visibleIds.has(id)) hgSelected.delete(id); }
+
             const countEl = document.getElementById('hg-list-count');
-            if (countEl) countEl.textContent = String(hgPages.length);
+            if (countEl) countEl.textContent = String(rows.length);
             let html = '';
             if (rows.length === 0) {
                 html = '<p class="text-gray-500 p-4">' + esc(hgPages.length === 0 ? (HG.empty || '') : (HG.noMatch || '')) + '</p>';
@@ -3793,14 +3828,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     const title = esc(p.title || HG.untitled || '');
                     let assigned;
                     if (p.node_id) {
-                        const inGal = p.galaxy_name ? ' <span class="text-gray-400">' + esc((HG.inGalaxy || 'in %s').replace('%s', p.galaxy_name)) + '</span>' : '';
+                        const inGal = (filtered && p.galaxy_name) ? ' <span class="text-gray-400">' + esc((HG.inGalaxy || 'in %s').replace('%s', p.galaxy_name)) + '</span>' : '';
                         assigned = esc(p.node_name || ('#' + p.node_id)) + inGal;
                     } else {
                         assigned = '<span class="text-gray-400 italic">' + esc(HG.unassigned || '') + '</span>';
                     }
                     const updated = esc(String(p.updated_at || '').slice(0, 16));
+                    const checked = hgSelected.has(p.id) ? ' checked' : '';
                     html += '<div class="grid grid-cols-12 gap-3 items-center py-2 border-b border-gray-100 hover:bg-gray-50">'
-                        + '<div class="col-span-5 px-2"><button type="button" class="text-blue-600 hover:text-blue-800 font-medium text-left" onclick="hgOpenEditorById(' + p.id + ')">' + title + '</button></div>'
+                        + '<div class="col-span-1 px-2"><input type="checkbox" class="hg-checkbox checkbox checkbox-xs" data-id="' + p.id + '"' + checked + ' onclick="hgToggleSelect(' + p.id + ')"></div>'
+                        + '<div class="col-span-4 px-2"><button type="button" class="text-blue-600 hover:text-blue-800 font-medium text-left" onclick="hgOpenEditorById(' + p.id + ')">' + title + '</button></div>'
                         + '<div class="col-span-4 px-2 text-sm text-gray-700">' + assigned + '</div>'
                         + '<div class="col-span-2 px-2 text-xs text-gray-500">' + updated + '</div>'
                         + '<div class="col-span-1 px-2 text-right whitespace-nowrap">'
@@ -3809,12 +3846,60 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         + '</div></div>';
                 }
             }
-            // rebuild: header + content
             list.innerHTML = '';
             if (header) list.appendChild(header);
             const wrap = document.createElement('div');
             wrap.innerHTML = html;
             while (wrap.firstChild) list.appendChild(wrap.firstChild);
+            hgUpdateBulkBar();
+        };
+
+        // ---- Multiselect --------------------------------------------------
+        window.hgToggleSelect = function (id) {
+            if (hgSelected.has(id)) hgSelected.delete(id); else hgSelected.add(id);
+            hgUpdateBulkBar();
+        };
+        window.hgToggleSelectAll = function (cb) {
+            document.querySelectorAll('#hg-pages-list .hg-checkbox').forEach(el => {
+                const id = parseInt(el.getAttribute('data-id'), 10);
+                el.checked = cb.checked;
+                if (cb.checked) hgSelected.add(id); else hgSelected.delete(id);
+            });
+            hgUpdateBulkBar();
+        };
+        window.hgClearSelection = function () {
+            hgSelected.clear();
+            document.querySelectorAll('#hg-pages-list .hg-checkbox').forEach(el => { el.checked = false; });
+            const all = document.getElementById('hg-select-all'); if (all) all.checked = false;
+            hgUpdateBulkBar();
+        };
+        function hgUpdateBulkBar() {
+            const bar = document.getElementById('hg-bulk-bar');
+            const count = document.getElementById('hg-selected-count');
+            if (count) count.textContent = String(hgSelected.size);
+            if (bar) bar.classList.toggle('hidden', hgSelected.size === 0);
+            const all = document.getElementById('hg-select-all');
+            const boxes = document.querySelectorAll('#hg-pages-list .hg-checkbox');
+            if (all) all.checked = boxes.length > 0 && hgSelected.size >= boxes.length;
+        }
+        window.hgBulkDelete = async function () {
+            if (hgSelected.size === 0) return;
+            if (!confirm(HG.confirmBulkDelete || HG.confirmDelete || '')) return;
+            for (const id of Array.from(hgSelected)) {
+                const data = await hgPost('delete', { id: id });
+                if (data && data.ok) hgPages = hgPages.filter(p => p.id !== id);
+            }
+            hgSelected.clear();
+            hgLoadPages();
+        };
+        window.hgBulkUnassign = async function () {
+            if (hgSelected.size === 0) return;
+            for (const id of Array.from(hgSelected)) {
+                const p = hgPages.find(x => x.id === id);
+                if (p && p.node_id) await hgPost('unassign', { id: id });
+            }
+            hgSelected.clear();
+            hgLoadPages();
         };
 
         // ---- Create -------------------------------------------------------
@@ -3835,12 +3920,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const titleEl = document.getElementById('hg-edit-title');
             if (titleEl) titleEl.value = page.title || '';
             hgStatus('');
-            await hgLoadWormholes(page.node_id);
+            await hgLoadWormholes();
+            hgSetAssignLabel();
             const iframe = document.getElementById('hg-editor-iframe');
             iframe.src = '../hg/?' + encodeURIComponent(page.slug) + '/edit';
             document.getElementById('hg_editor_overlay').showModal();
         }
         window.hgCloseEditor = function () {
+            hgComboClose();
             const iframe = document.getElementById('hg-editor-iframe');
             iframe.src = 'about:blank';
             document.getElementById('hg_editor_overlay').close();
@@ -3848,31 +3935,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (hgListDirty) { hgListDirty = false; hgLoadPages(); }
         };
 
-        async function hgLoadWormholes(currentNodeId) {
-            const sel = document.getElementById('hg-edit-assign');
-            if (!sel) return;
-            sel.innerHTML = '<option value="">' + esc(HG.assignNone || 'Not assigned') + '</option>';
+        async function hgLoadWormholes() {
             const data = await hgPost('wormholes', {});
             hgWormholes = {};
             if (data && data.ok && Array.isArray(data.wormholes)) {
-                const byGalaxy = {};
-                for (const w of data.wormholes) {
-                    hgWormholes[w.id] = w;
-                    (byGalaxy[w.galaxy_name || ''] = byGalaxy[w.galaxy_name || ''] || []).push(w);
-                }
-                for (const gname of Object.keys(byGalaxy)) {
-                    const og = document.createElement('optgroup');
-                    og.label = gname;
-                    for (const w of byGalaxy[gname]) {
-                        const o = document.createElement('option');
-                        o.value = String(w.id);
-                        o.textContent = w.name;
-                        og.appendChild(o);
-                    }
-                    sel.appendChild(og);
-                }
+                for (const w of data.wormholes) hgWormholes[w.id] = w;
             }
-            sel.value = currentNodeId ? String(currentNodeId) : '';
         }
 
         function hgStatus(state) {
@@ -3882,7 +3950,51 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             el.className = 'text-xs ' + (state === 'failed' ? 'text-red-300' : 'opacity-80');
         }
 
-        // ---- Rename (title field) ----------------------------------------
+        // ---- Searchable assignment combobox ------------------------------
+        function hgComboOptions() {
+            const opts = [{ value: '', label: HG.assignNone || 'Not assigned' }];
+            const ws = Object.values(hgWormholes).sort((a, b) =>
+                ((a.galaxy_name || '') + a.name).localeCompare((b.galaxy_name || '') + b.name));
+            for (const w of ws) {
+                opts.push({ value: String(w.id), label: w.name + (w.galaxy_name ? ' — ' + w.galaxy_name : '') });
+            }
+            return opts;
+        }
+        function hgComboRender(filter) {
+            const ul = document.getElementById('hg-assign-list');
+            if (!ul) return;
+            const f = (filter || '').trim().toLowerCase();
+            const cur = hgCurrent && hgCurrent.node_id ? String(hgCurrent.node_id) : '';
+            ul.innerHTML = '';
+            for (const o of hgComboOptions()) {
+                if (f && o.label.toLowerCase().indexOf(f) === -1) continue;
+                const li = document.createElement('li');
+                li.textContent = o.label;
+                li.className = 'px-3 py-1.5 cursor-pointer hover:bg-blue-50' + (o.value === cur ? ' bg-blue-100 font-medium' : '');
+                li.addEventListener('mousedown', (e) => { e.preventDefault(); hgComboPick(o.value, o.label); });
+                ul.appendChild(li);
+            }
+            ul.classList.remove('hidden');
+        }
+        window.hgComboOpen = function () { hgComboRender(''); };
+        window.hgComboFilter = function () { hgComboRender(document.getElementById('hg-assign-search')?.value || ''); };
+        function hgComboClose() { const ul = document.getElementById('hg-assign-list'); if (ul) ul.classList.add('hidden'); }
+        function hgComboPick(value, label) {
+            const inp = document.getElementById('hg-assign-search');
+            if (inp) inp.value = (value === '') ? '' : label;   // empty shows the "Not assigned" placeholder
+            hgComboClose();
+            hgAssignChange(value);
+        }
+        // Reflect the current assignment in the search input.
+        function hgSetAssignLabel() {
+            const inp = document.getElementById('hg-assign-search');
+            if (!inp) return;
+            const nid = hgCurrent && hgCurrent.node_id ? hgCurrent.node_id : null;
+            const w = nid ? hgWormholes[nid] : null;
+            inp.value = w ? (w.name + (w.galaxy_name ? ' — ' + w.galaxy_name : '')) : '';
+        }
+
+        // ---- Rename (title field) + DOM wiring ---------------------------
         document.addEventListener('DOMContentLoaded', function () {
             const titleEl = document.getElementById('hg-edit-title');
             if (titleEl) {
@@ -3895,19 +4007,29 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     else { hgStatus('failed'); }
                 });
             }
+            // Close the combobox when clicking outside it.
+            document.addEventListener('click', function (e) {
+                const combo = document.getElementById('hg-assign-combo');
+                if (combo && !combo.contains(e.target)) hgComboClose();
+            });
+            // Restore the active tab from the URL hash (survives Refresh + a
+            // galaxy switch, which reloads the page but keeps the hash).
+            if (window.location.hash === '#hotglue') {
+                switchEditorTab('hotglue', true);
+                hgLoadedOnce = true; hgLoadPages();
+            }
         });
 
         // ---- Assign / unassign -------------------------------------------
         window.hgAssignChange = async function (value) {
             if (!hgCurrent) return;
-            const sel = document.getElementById('hg-edit-assign');
-            const prev = hgCurrent.node_id ? String(hgCurrent.node_id) : '';
             if (value === '') {
-                if (!hgCurrent.node_id) { return; }
+                if (!hgCurrent.node_id) { hgSetAssignLabel(); return; }
                 hgStatus('saving');
                 const data = await hgPost('unassign', { id: hgCurrent.id });
                 if (data && data.ok) { hgCurrent.node_id = null; hgListDirty = true; hgStatus('saved'); }
-                else { if (sel) sel.value = prev; hgStatus('failed'); alert(errLabel(data && data.error)); }
+                else { hgStatus('failed'); alert(errLabel(data && data.error)); }
+                hgSetAssignLabel();
                 return;
             }
             const nodeId = parseInt(value, 10);
@@ -3915,7 +4037,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             // Quick confirm when the target wormhole already shows a hotglue page
             // (and it is not already this page's node).
             if (w && w.media_mode === 'hotglue' && nodeId !== hgCurrent.node_id) {
-                if (!confirm(HG.confirmReplace || '')) { if (sel) sel.value = prev; return; }
+                if (!confirm(HG.confirmReplace || '')) { hgSetAssignLabel(); return; }
             }
             hgStatus('saving');
             const data = await hgPost('assign', { id: hgCurrent.id, node_id: nodeId });
@@ -3925,17 +4047,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 hgListDirty = true;
                 hgStatus('saved');
             } else {
-                if (sel) sel.value = prev;
                 hgStatus('failed');
                 alert(errLabel(data && data.error));
             }
+            hgSetAssignLabel();
         };
 
         // ---- Delete -------------------------------------------------------
         window.hgDeletePage = async function (id) {
             if (!confirm(HG.confirmDelete || '')) return;
             const data = await hgPost('delete', { id: id });
-            if (data && data.ok) { hgPages = hgPages.filter(p => p.id !== id); hgRenderList(); }
+            if (data && data.ok) { hgSelected.delete(id); hgPages = hgPages.filter(p => p.id !== id); hgRenderList(); }
             else { alert(errLabel(data && data.error)); }
         };
     })();

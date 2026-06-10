@@ -97,6 +97,7 @@ try {
                     'title'        => (string)$p['title'],
                     'node_id'      => $p['node_id'] !== null ? (int)$p['node_id'] : null,
                     'node_name'    => $p['node_name'] !== null ? (string)$p['node_name'] : null,
+                    'galaxy_id'    => $p['node_constellation_id'] !== null ? (int)$p['node_constellation_id'] : null,
                     'galaxy_name'  => $p['galaxy_name'] !== null ? (string)$p['galaxy_name'] : null,
                     'galaxy_slug'  => $p['galaxy_slug'] !== null ? (string)$p['galaxy_slug'] : null,
                     'is_owner'     => $userId !== null && (string)($p['owner_user_id'] ?? '') === (string)$userId,

@@ -892,50 +892,50 @@ foreach ($importantExtensions as $ext => $name) {
 
         <!-- Tabs -->
         <div class="mb-6">
-            <div class="tabs tabs-lifted">
+            <div class="tabs tabs-boxed bg-white shadow-md p-2 inline-flex flex-wrap gap-1">
                 <button onclick="showTab('constellations')"
                         id="tab-constellations"
-                        class="tab tab-lg <?php echo $activeTab === 'constellations' ? 'tab-active' : ''; ?>">
+                        class="tab font-medium <?php echo $activeTab === 'constellations' ? 'tab-active' : ''; ?>">
                     <?= t_attr('admin_tab_galaxies', 'Galaxies') ?>
                 </button>
                 <button onclick="showTab('clusters')"
                         id="tab-clusters"
-                        class="tab tab-lg <?php echo $activeTab === 'clusters' ? 'tab-active' : ''; ?>">
+                        class="tab font-medium <?php echo $activeTab === 'clusters' ? 'tab-active' : ''; ?>">
                     <?= t_attr('admin_tab_clusters', 'Clusters') ?>
                 </button>
                 <button onclick="showTab('users')"
                         id="tab-users"
-                        class="tab tab-lg <?php echo $activeTab === 'users' ? 'tab-active' : ''; ?>">
+                        class="tab font-medium <?php echo $activeTab === 'users' ? 'tab-active' : ''; ?>">
                     <?= t_attr('admin_tab_users', 'Users') ?>
                 </button>
                 <button onclick="showTab('backup')"
                         id="tab-backup"
-                        class="tab tab-lg <?php echo $activeTab === 'backup' ? 'tab-active' : ''; ?>">
+                        class="tab font-medium <?php echo $activeTab === 'backup' ? 'tab-active' : ''; ?>">
                     <?= t_attr('admin_tab_backup', 'Backup') ?>
                 </button>
                 <button onclick="showTab('snapshots')"
                         id="tab-snapshots"
-                        class="tab tab-lg <?php echo $activeTab === 'snapshots' ? 'tab-active' : ''; ?>">
+                        class="tab font-medium <?php echo $activeTab === 'snapshots' ? 'tab-active' : ''; ?>">
                     <?= t_attr('admin_tab_snapshots', 'Snapshots') ?>
                 </button>
                 <button onclick="showTab('settings')"
                         id="tab-settings"
-                        class="tab tab-lg <?php echo $activeTab === 'settings' ? 'tab-active' : ''; ?>">
+                        class="tab font-medium <?php echo $activeTab === 'settings' ? 'tab-active' : ''; ?>">
                     <?= t_attr('admin_tab_settings', 'Global Settings') ?>
                 </button>
                 <button onclick="showTab('pluriverse')"
                         id="tab-pluriverse"
-                        class="tab tab-lg <?php echo $activeTab === 'pluriverse' ? 'tab-active' : ''; ?>">
+                        class="tab font-medium <?php echo $activeTab === 'pluriverse' ? 'tab-active' : ''; ?>">
                     <?= t_attr('admin_tab_pluriverse', 'Pluriverse') ?>
                 </button>
                 <button onclick="showTab('api-keys')"
                         id="tab-api-keys"
-                        class="tab tab-lg <?php echo $activeTab === 'api-keys' ? 'tab-active' : ''; ?>">
+                        class="tab font-medium <?php echo $activeTab === 'api-keys' ? 'tab-active' : ''; ?>">
                     <?= t_attr('admin_tab_api_keys', 'API Keys') ?>
                 </button>
                 <button onclick="showTab('php-info')"
                         id="tab-php-info"
-                        class="tab tab-lg <?php echo $activeTab === 'php-info' ? 'tab-active' : ''; ?>">
+                        class="tab font-medium <?php echo $activeTab === 'php-info' ? 'tab-active' : ''; ?>">
                     <?= t_attr('admin_tab_php_info', 'PHP Information') ?>
                 </button>
             </div>
