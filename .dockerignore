@@ -20,6 +20,12 @@ telaris-snapshots/
 *.dump
 certs/
 
+# Hotglue runtime data: the per-instance secret config and the flat-file page
+# store. The vendored hg/ code itself IS shipped; these two are generated at
+# container start (entrypoint renders user-config; content/ is a volume).
+hg/user-config.inc.php
+hg/content/
+
 # VCS + history (could carry local-only commits/config; also bloat):
 .git/
 .gitignore

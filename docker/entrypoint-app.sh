@@ -14,8 +14,37 @@ cd /var/www/html
 /usr/local/bin/render-config.sh
 
 # Named-volume mounts start root-owned; the app runs as www-data.
-mkdir -p uploads logs telaris-snapshots var secrets
-chown www-data:www-data uploads logs telaris-snapshots var secrets
+# hg/content is the hotglue flat-file page store (one page per wormhole),
+# written by the app at runtime; keep it on its own volume so pages persist.
+mkdir -p uploads logs telaris-snapshots var secrets hg/content
+chown www-data:www-data uploads logs telaris-snapshots var secrets hg/content
+
+# Render the per-instance hotglue config (hg/user-config.inc.php). hotglue
+# returns BASE_URL verbatim in asset links, so it must be the public https URL
+# with a trailing slash. The Telaris auth bridge is the real authorization on
+# the edit/json paths; AUTH_METHOD stays 'basic' with a fresh random password
+# (never used, never shared) so hotglue's is_auth() is false for anonymous and
+# unknown pages 404 instead of showing a create-page UI. USE_MIN_FILES=false
+# serves the readable js/glue.js + js/edit.js that carry the CSRF-header patch.
+# No secret in the image: this file is generated at container start.
+HG_USER_CONFIG=/var/www/html/hg/user-config.inc.php
+HG_PW="$(php -r 'echo bin2hex(random_bytes(24));')"
+cat > "$HG_USER_CONFIG" <<PHP
+<?php
+@define('AUTH_METHOD', 'basic');
+@define('AUTH_USER', 'telaris');
+@define('AUTH_PASSWORD', '${HG_PW}');
+@define('BASE_URL', 'https://${TELARIS_HOSTNAME}/hg/');
+@define('CONTENT_DIR', '/var/www/html/hg/content');
+@define('LOG_FILE', '/var/www/html/hg/content/log.txt');
+@define('SHORT_URLS', false);
+@define('SHOW_FRONTEND_ERRORS', false);
+@define('USE_MIN_FILES', false);
+error_reporting(0);
+ini_set('display_errors', '0');
+PHP
+chown www-data:www-data "$HG_USER_CONFIG"
+chmod 640 "$HG_USER_CONFIG"
 
 # Wait for the database (bundled or external) before first-run setup.
 echo "[entrypoint] waiting for database ${DB_HOST:-db}:${DB_PORT:-3306} ..."
