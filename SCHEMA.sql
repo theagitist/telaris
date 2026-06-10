@@ -140,6 +140,22 @@ CREATE TABLE IF NOT EXISTS nodes (
     FULLTEXT INDEX idx_name_desc (name, description)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Standalone hotglue pages: freeform hotglue canvases with their own identity,
+-- optionally assigned to a wormhole. slug is the hg/content/<slug> dir name
+-- ("page-<id>" for editor-created, "node-<id>" for legacy per-wormhole pages).
+CREATE TABLE IF NOT EXISTS hotglue_pages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    slug VARCHAR(255) NOT NULL UNIQUE,
+    title VARCHAR(255) NOT NULL DEFAULT '',
+    owner_user_id VARCHAR(255) NULL DEFAULT NULL,
+    node_id INT NULL DEFAULT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_hotglue_pages_owner (owner_user_id),
+    INDEX idx_hotglue_pages_node (node_id),
+    CONSTRAINT fk_hotglue_pages_node FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Table for keywords
 CREATE TABLE IF NOT EXISTS keywords (
     id INT AUTO_INCREMENT PRIMARY KEY,

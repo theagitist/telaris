@@ -77,51 +77,112 @@ function telaris_hg_first_token(string $nameOrPage): string
 
 
 /**
- *	resolve every node id a json service's arguments target
+ *	resolve every page-name token a json service's arguments target
  *
  *	Different services name their target under different keys. We scan all the
  *	keys that can carry a page or object name, the names[] array, and the `html`
  *	element used by save_state (whose root id attribute IS the object name, i.e.
- *	node-<id>.rev.obj, exactly what save_state derives its target from, so this
- *	is the authoritative target and is safe to authorize against). Every node id
- *	found must be authorized; a mutating service that resolves to no node id is
- *	denied (fail-closed).
+ *	<page>.rev.obj, exactly what save_state derives its target from, so this is
+ *	the authoritative target and is safe to authorize against). We keep only
+ *	tokens that look like an editable Telaris surface (node-<id> per-wormhole
+ *	pages or page-<id> standalone pages); every one found must be authorized,
+ *	and a mutating service that resolves to no such token is denied (fail-closed).
  *
  *	@param array $args decoded json arguments
- *	@return list<int> distinct node ids referenced by the arguments
+ *	@return list<string> distinct page-name tokens referenced by the arguments
  */
-function telaris_hg_node_ids_from_args(array $args): array
+function telaris_hg_target_tokens_from_args(array $args): array
 {
-	$ids = array();
+	$tokens = array();
 	// scalar target keys across the mutating services (page/name/obj/to/from
 	// for objects and pages, old/new for rename+copy, pagename for uploads)
 	foreach (array('page', 'name', 'obj', 'to', 'from', 'old', 'new', 'pagename') as $k) {
 		if (!empty($args[$k]) && is_string($args[$k])) {
-			$id = telaris_hg_node_id(telaris_hg_first_token($args[$k]));
-			if ($id !== null) {
-				$ids[$id] = true;
-			}
+			$tokens[telaris_hg_first_token($args[$k])] = true;
 		}
 	}
 	// services that take an array of object names
 	if (!empty($args['names']) && is_array($args['names'])) {
 		foreach ($args['names'] as $n) {
 			if (is_string($n)) {
-				$id = telaris_hg_node_id(telaris_hg_first_token($n));
-				if ($id !== null) {
-					$ids[$id] = true;
-				}
+				$tokens[telaris_hg_first_token($n)] = true;
 			}
 		}
 	}
 	// save_state sends the object as a serialized html element; its root id
-	// attribute is the object name. Match the first id="node-<id>...".
+	// attribute is the object name. Match the first id="node-<id>..."/"page-<id>...".
 	if (!empty($args['html']) && is_string($args['html'])) {
-		if (preg_match('/id=["\']?node-([0-9]+)/', $args['html'], $m) === 1) {
-			$ids[(int)$m[1]] = true;
+		if (preg_match('/id=["\']?((?:node|page)-[0-9]+)/', $args['html'], $m) === 1) {
+			$tokens[$m[1]] = true;
 		}
 	}
-	return array_map('intval', array_keys($ids));
+	$out = array();
+	foreach (array_keys($tokens) as $t) {
+		if (preg_match('/^(?:node|page)-[0-9]+$/', $t) === 1) {
+			$out[] = $t;
+		}
+	}
+	return $out;
+}
+
+
+/**
+ *	authorize edit access to a standalone hotglue page (page-<id>)
+ *
+ *	resolves the slug through the hotglue_pages registry and enforces Telaris'
+ *	ownership rule fail-closed: an unknown slug is denied; the owner and any
+ *	admin pass; otherwise access is granted only when the page is assigned to a
+ *	wormhole whose galaxy the editor holds a seat on and which is not read-only.
+ *
+ *	@param string $slug a page-<id> slug
+ *	@param callable $deny function(int $status, string $code): void
+ */
+function telaris_hg_authorize_page_slug(string $slug, callable $deny): void
+{
+	$page = db_hotglue_page_get_by_slug($slug);
+	if ($page === null) {
+		// not a known editable page (blocks arbitrary / probed page names)
+		$deny(403, '403.030');
+	}
+	if (isAdminLoggedIn()) {
+		return;
+	}
+	$sessionUserId = $_SESSION['admin_user_id'] ?? null;
+	if ($sessionUserId !== null && (string)($page['owner_user_id'] ?? '') === (string)$sessionUserId) {
+		return;
+	}
+	// not owner, not admin: reachable only when assigned to a node whose galaxy
+	// the editor has a seat on (and which is not read-only).
+	if ($page['node_id'] !== null) {
+		telaris_hg_enforce_node_access((int)$page['node_id'], $deny);
+		return;
+	}
+	$deny(403, '403.002');
+}
+
+
+/**
+ *	authorize a single hotglue page-name token, stopping on denial
+ *
+ *	node-<id> tokens resolve through the wormhole's galaxy seat; page-<id> tokens
+ *	through the hotglue_pages registry. Anything else is not an editable Telaris
+ *	surface and is denied.
+ *
+ *	@param string $token the page-name token (no dots)
+ *	@param callable $deny function(int $status, string $code): void
+ */
+function telaris_hg_authorize_token(string $token, callable $deny): void
+{
+	$nodeId = telaris_hg_node_id($token);
+	if ($nodeId !== null) {
+		telaris_hg_enforce_node_access($nodeId, $deny);
+		return;
+	}
+	if (preg_match('/^page-[0-9]+$/', $token) === 1) {
+		telaris_hg_authorize_page_slug($token, $deny);
+		return;
+	}
+	$deny(403, '403.030');
 }
 
 
@@ -207,10 +268,12 @@ function telaris_hg_enforce_node_access(int $nodeId, callable $deny): void
 /**
  *	gate the GET page/edit and page/create_page controllers
  *
- *	requires an editor/admin session, a node-<id> page, a seat on the node's
- *	galaxy, and that the galaxy is not read-only. No CSRF check on GET: the
- *	SameSite=Strict session cookie plus hotglue's referer check cover it, and a
- *	navigation/iframe load cannot carry a token header.
+ *	requires an editor/admin session and edit access to the requested page: a
+ *	node-<id> per-wormhole page (seat on the node's galaxy, not read-only) or a
+ *	page-<id> standalone page (owner/admin/assigned-galaxy seat). Anything else
+ *	(the page browser, the login controller, arbitrary page names) is denied. No
+ *	CSRF check on GET: the SameSite=Strict session cookie plus hotglue's referer
+ *	check cover it, and a navigation/iframe load cannot carry a token header.
  *
  *	@param string $page the requested page (args[0][0])
  */
@@ -221,13 +284,7 @@ function telaris_hg_authorize_get(string $page): void
 		header('Location: /utils/login.php?redirect=edit');
 		exit;
 	}
-	$nodeId = telaris_hg_node_id(telaris_hg_first_token($page));
-	if ($nodeId === null) {
-		// only node-<id> pages are editable in the embed (blocks the page
-		// browser, the login controller, arbitrary page names, etc.)
-		telaris_hg_deny_get(403, '403.030');
-	}
-	telaris_hg_enforce_node_access($nodeId, 'telaris_hg_deny_get');
+	telaris_hg_authorize_token(telaris_hg_first_token($page), 'telaris_hg_deny_get');
 }
 
 
@@ -236,10 +293,11 @@ function telaris_hg_authorize_get(string $page): void
  *
  *	every service requires an editor/admin session and a valid CSRF token.
  *	Mutating (auth-flagged) services additionally require the request to resolve
- *	to a node-<id> page the editor has a seat on and that is not read-only;
- *	mutating services with no resolvable node page are denied (fail-closed).
+ *	to an editable page token (node-<id> the editor has a seat on and not
+ *	read-only, or a page-<id> the editor owns / is admin / is galaxy-seated for);
+ *	mutating services with no resolvable editable token are denied (fail-closed).
  *	Non-mutating helper services (render/list reads) need only the session and
- *	token, since node pages are otherwise publicly viewable in show mode.
+ *	token, since pages are otherwise publicly viewable in show mode.
  *
  *	@param string $method the json method (for logging)
  *	@param bool $isMutating whether the service is auth-flagged (a write)
@@ -256,13 +314,13 @@ function telaris_hg_authorize_json(string $method, bool $isMutating, array $args
 	if (!$isMutating) {
 		return;
 	}
-	$nodeIds = telaris_hg_node_ids_from_args($args);
-	if (count($nodeIds) === 0) {
-		// a write we cannot scope to an authorized node: refuse
+	$tokens = telaris_hg_target_tokens_from_args($args);
+	if (count($tokens) === 0) {
+		// a write we cannot scope to an authorized page: refuse
 		telaris_hg_deny_json(403, '403.030');
 	}
-	// every node the request touches must be writable by this editor
-	foreach ($nodeIds as $nodeId) {
-		telaris_hg_enforce_node_access($nodeId, 'telaris_hg_deny_json');
+	// every page the request touches must be writable by this editor
+	foreach ($tokens as $token) {
+		telaris_hg_authorize_token($token, 'telaris_hg_deny_json');
 	}
 }

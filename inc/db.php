@@ -107,6 +107,7 @@ const PROJECT_INFO_KEYS = [
     'editor_modal_heading_add_wormhole', 'editor_modal_heading_edit_wormhole', 'editor_label_name_required', 'editor_error_name_exists', 'editor_help_name', 'editor_label_galaxy', 'editor_help_constellation', 'editor_label_wormhole_type', 'editor_help_node_type', 'editor_label_keywords', 'editor_placeholder_add_keyword', 'editor_help_keywords_add', 'editor_label_accentuate_wormhole', 'editor_help_accentuate', 'editor_label_show_keywords', 'editor_help_show_keywords', 'editor_label_target_galaxy', 'editor_help_target_galaxy', 'editor_btn_create_new_galaxy', 'editor_label_description', 'editor_help_description', 'editor_label_url', 'editor_placeholder_url', 'editor_help_url', 'editor_label_primary_visual', 'editor_tab_image', 'editor_tab_video', 'editor_tab_pdf', 'editor_help_visual_mutex', 'editor_label_image_url_file', 'editor_label_use_as_icon', 'editor_placeholder_image_url', 'editor_placeholder_video_url', 'editor_label_autoplay_video', 'editor_placeholder_pdf_url', 'editor_help_pdf', 'editor_placeholder_credit', 'editor_help_credit', 'editor_label_icon_url_file', 'editor_placeholder_icon_url', 'editor_help_icon', 'editor_label_audio_url_file', 'editor_placeholder_audio_url', 'editor_label_autoplay', 'editor_label_loop', 'editor_help_audio',
     'editor_text_uploading', 'editor_btn_add_wormhole', 'editor_btn_cancel', 'editor_divider_media', 'editor_btn_delete_file', 'editor_btn_update_wormhole',
     'editor_tab_classic', 'editor_tab_hotglue', 'editor_btn_edit_hotglue', 'editor_help_hotglue', 'editor_hotglue_create_note', 'editor_hotglue_modal_heading', 'editor_btn_hotglue_done',
+    'editor_viewtab_wormholes', 'editor_viewtab_hotglue', 'editor_hg_heading', 'editor_hg_btn_new', 'editor_hg_search_placeholder', 'editor_hg_col_title', 'editor_hg_col_assigned', 'editor_hg_loading', 'editor_hg_title_placeholder', 'editor_hg_title_hint', 'editor_hg_assign_label', 'editor_hg_assign_none', 'editor_hg_untitled', 'editor_hg_empty', 'editor_hg_no_match', 'editor_hg_unassigned', 'editor_hg_save_failed', 'editor_hg_confirm_replace', 'editor_hg_confirm_delete', 'editor_hg_err_not_authorized', 'editor_hg_err_read_only', 'editor_hg_err_generic', 'editor_hg_in_galaxy',
     'editor_modal_heading_confirm_delete', 'editor_btn_delete',
     'editor_modal_heading_move_wormholes', 'editor_text_move_count_wormholes', 'editor_label_destination_galaxy', 'editor_btn_move_wormholes',
     'editor_modal_heading_duplicate_wormhole', 'editor_text_duplicate_to', 'editor_btn_duplicate',
@@ -1024,6 +1025,29 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_hotglue_create_note' => 'Enter a name above to create the wormhole, then compose its hotglue page here.',
             'editor_hotglue_modal_heading' => 'Edit hotglue content',
             'editor_btn_hotglue_done' => 'Done',
+            'editor_viewtab_wormholes' => 'Wormholes',
+            'editor_viewtab_hotglue' => 'Hotglue content',
+            'editor_hg_heading' => 'Hotglue content',
+            'editor_hg_btn_new' => 'New page',
+            'editor_hg_search_placeholder' => 'Search pages...',
+            'editor_hg_col_title' => 'Title',
+            'editor_hg_col_assigned' => 'Assigned wormhole',
+            'editor_hg_loading' => 'Loading pages...',
+            'editor_hg_title_placeholder' => 'Page title',
+            'editor_hg_title_hint' => 'Rename this page',
+            'editor_hg_assign_label' => 'Assigned wormhole:',
+            'editor_hg_assign_none' => 'Not assigned',
+            'editor_hg_untitled' => 'Untitled page',
+            'editor_hg_empty' => 'No hotglue pages yet. Use New page to create one.',
+            'editor_hg_no_match' => 'No pages match your search.',
+            'editor_hg_unassigned' => 'Not assigned',
+            'editor_hg_save_failed' => 'Save failed',
+            'editor_hg_confirm_replace' => 'This wormhole already shows a hotglue page. Replace it? The page it shows now will become unassigned (it is not deleted).',
+            'editor_hg_confirm_delete' => 'Delete this hotglue page? This permanently removes its content. If it is assigned to a wormhole, that wormhole returns to classic media.',
+            'editor_hg_err_not_authorized' => 'You do not have access to do that.',
+            'editor_hg_err_read_only' => 'That galaxy is read-only.',
+            'editor_hg_err_generic' => 'Something went wrong. Please try again.',
+            'editor_hg_in_galaxy' => 'in %s',
             'editor_modal_heading_confirm_delete' => 'Confirm Deletion',
             'editor_btn_delete' => 'Delete',
             'editor_modal_heading_move_wormholes' => 'Move Wormholes',
@@ -2460,6 +2484,29 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_hotglue_create_note' => 'Escribe un nombre arriba para crear el agujero de gusano, luego compón aquí su página hotglue.',
             'editor_hotglue_modal_heading' => 'Editar contenido hotglue',
             'editor_btn_hotglue_done' => 'Listo',
+            'editor_viewtab_wormholes' => 'Agujeros de gusano',
+            'editor_viewtab_hotglue' => 'Contenido hotglue',
+            'editor_hg_heading' => 'Contenido hotglue',
+            'editor_hg_btn_new' => 'Nueva página',
+            'editor_hg_search_placeholder' => 'Buscar páginas...',
+            'editor_hg_col_title' => 'Título',
+            'editor_hg_col_assigned' => 'Agujero de gusano asignado',
+            'editor_hg_loading' => 'Cargando páginas...',
+            'editor_hg_title_placeholder' => 'Título de la página',
+            'editor_hg_title_hint' => 'Renombrar esta página',
+            'editor_hg_assign_label' => 'Agujero de gusano asignado:',
+            'editor_hg_assign_none' => 'Sin asignar',
+            'editor_hg_untitled' => 'Página sin título',
+            'editor_hg_empty' => 'Aún no hay páginas hotglue. Usa Nueva página para crear una.',
+            'editor_hg_no_match' => 'Ninguna página coincide con tu búsqueda.',
+            'editor_hg_unassigned' => 'Sin asignar',
+            'editor_hg_save_failed' => 'No se pudo guardar',
+            'editor_hg_confirm_replace' => '¿Reemplazar? Este agujero de gusano ya muestra una página hotglue. La página que muestra ahora quedará sin asignar (no se elimina).',
+            'editor_hg_confirm_delete' => '¿Eliminar esta página hotglue? Se borrará su contenido de forma permanente. Si está asignada a un agujero de gusano, ese agujero vuelve a los medios clásicos.',
+            'editor_hg_err_not_authorized' => 'No tienes acceso para hacer eso.',
+            'editor_hg_err_read_only' => 'Esa galaxia es de solo lectura.',
+            'editor_hg_err_generic' => 'Algo salió mal. Inténtalo de nuevo.',
+            'editor_hg_in_galaxy' => 'en %s',
             'editor_modal_heading_confirm_delete' => 'Confirmar eliminación',
             'editor_btn_delete' => 'Eliminar',
             'editor_modal_heading_move_wormholes' => 'Mover agujeros de gusano',
@@ -3892,6 +3939,29 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_hotglue_create_note' => 'Digite um nome acima para criar o buraco de minhoca, depois componha aqui sua página hotglue.',
             'editor_hotglue_modal_heading' => 'Editar conteúdo hotglue',
             'editor_btn_hotglue_done' => 'Concluído',
+            'editor_viewtab_wormholes' => 'Buracos de minhoca',
+            'editor_viewtab_hotglue' => 'Conteúdo hotglue',
+            'editor_hg_heading' => 'Conteúdo hotglue',
+            'editor_hg_btn_new' => 'Nova página',
+            'editor_hg_search_placeholder' => 'Buscar páginas...',
+            'editor_hg_col_title' => 'Título',
+            'editor_hg_col_assigned' => 'Buraco de minhoca atribuído',
+            'editor_hg_loading' => 'Carregando páginas...',
+            'editor_hg_title_placeholder' => 'Título da página',
+            'editor_hg_title_hint' => 'Renomear esta página',
+            'editor_hg_assign_label' => 'Buraco de minhoca atribuído:',
+            'editor_hg_assign_none' => 'Sem atribuição',
+            'editor_hg_untitled' => 'Página sem título',
+            'editor_hg_empty' => 'Ainda não há páginas hotglue. Use Nova página para criar uma.',
+            'editor_hg_no_match' => 'Nenhuma página corresponde à sua busca.',
+            'editor_hg_unassigned' => 'Sem atribuição',
+            'editor_hg_save_failed' => 'Falha ao salvar',
+            'editor_hg_confirm_replace' => 'Substituir? Este buraco de minhoca já mostra uma página hotglue. A página que ele mostra agora ficará sem atribuição (não é excluída).',
+            'editor_hg_confirm_delete' => 'Excluir esta página hotglue? Isso remove o conteúdo permanentemente. Se estiver atribuída a um buraco de minhoca, esse buraco volta para a mídia clássica.',
+            'editor_hg_err_not_authorized' => 'Você não tem acesso para fazer isso.',
+            'editor_hg_err_read_only' => 'Essa galáxia é somente leitura.',
+            'editor_hg_err_generic' => 'Algo deu errado. Tente novamente.',
+            'editor_hg_in_galaxy' => 'em %s',
             'editor_modal_heading_confirm_delete' => 'Confirmar exclusão',
             'editor_btn_delete' => 'Excluir',
             'editor_modal_heading_move_wormholes' => 'Mover buracos de minhoca',
@@ -5324,6 +5394,29 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_hotglue_create_note' => 'Saisis un nom ci-dessus pour créer le trou de ver, puis compose ici sa page hotglue.',
             'editor_hotglue_modal_heading' => 'Modifier le contenu hotglue',
             'editor_btn_hotglue_done' => 'Terminé',
+            'editor_viewtab_wormholes' => 'Trous de ver',
+            'editor_viewtab_hotglue' => 'Contenu hotglue',
+            'editor_hg_heading' => 'Contenu hotglue',
+            'editor_hg_btn_new' => 'Nouvelle page',
+            'editor_hg_search_placeholder' => 'Rechercher des pages...',
+            'editor_hg_col_title' => 'Titre',
+            'editor_hg_col_assigned' => 'Trou de ver attribué',
+            'editor_hg_loading' => 'Chargement des pages...',
+            'editor_hg_title_placeholder' => 'Titre de la page',
+            'editor_hg_title_hint' => 'Renommer cette page',
+            'editor_hg_assign_label' => 'Trou de ver attribué :',
+            'editor_hg_assign_none' => 'Aucune attribution',
+            'editor_hg_untitled' => 'Page sans titre',
+            'editor_hg_empty' => 'Aucune page hotglue pour le moment. Utilise Nouvelle page pour en créer une.',
+            'editor_hg_no_match' => 'Aucune page ne correspond à ta recherche.',
+            'editor_hg_unassigned' => 'Aucune attribution',
+            'editor_hg_save_failed' => 'Échec de l\'enregistrement',
+            'editor_hg_confirm_replace' => 'Remplacer ? Ce trou de ver affiche déjà une page hotglue. La page qu\'il affiche maintenant ne sera plus attribuée (elle n\'est pas supprimée).',
+            'editor_hg_confirm_delete' => 'Supprimer cette page hotglue ? Cela retire son contenu définitivement. Si elle est attribuée à un trou de ver, ce trou revient aux médias classiques.',
+            'editor_hg_err_not_authorized' => 'Tu n\'as pas accès pour faire cela.',
+            'editor_hg_err_read_only' => 'Cette galaxie est en lecture seule.',
+            'editor_hg_err_generic' => 'Une erreur est survenue. Réessaie.',
+            'editor_hg_in_galaxy' => 'dans %s',
             'editor_modal_heading_confirm_delete' => 'Confirmer la suppression',
             'editor_btn_delete' => 'Supprimer',
             'editor_modal_heading_move_wormholes' => 'Déplacer les trous de ver',
@@ -6620,6 +6713,41 @@ function db_ensure_nodes_hotglue_columns(): void {
         }
     } catch (PDOException $e) {
         error_log('db_ensure_nodes_hotglue_columns: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Ensure the hotglue_pages registry table exists. A hotglue page is a freeform
+ * hotglue canvas with its own identity, independent of any wormhole. slug is the
+ * on-disk content-dir name under hg/content/ ("page-<id>" for editor-created
+ * pages, "node-<id>" for the legacy per-wormhole pages backfilled by the
+ * migration). owner_user_id is the editor who created it (NULL for migrated
+ * rows). node_id links the page to a wormhole when assigned (NULL = unassigned,
+ * the page still exists). Deleting a wormhole sets node_id back to NULL so the
+ * page survives unassigned.
+ */
+function db_ensure_hotglue_pages_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS hotglue_pages (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                slug VARCHAR(255) NOT NULL UNIQUE,
+                title VARCHAR(255) NOT NULL DEFAULT '',
+                owner_user_id VARCHAR(255) NULL DEFAULT NULL,
+                node_id INT NULL DEFAULT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_hotglue_pages_owner (owner_user_id),
+                INDEX idx_hotglue_pages_node (node_id),
+                CONSTRAINT fk_hotglue_pages_node FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_hotglue_pages_table: ' . $e->getMessage());
     }
 }
 
@@ -11502,6 +11630,246 @@ function db_set_node_media_mode(int $nodeId, string $mode, bool $allowReadOnly =
     $pdo = getDB();
     $stmt = $pdo->prepare("UPDATE nodes SET media_mode = :m WHERE id = :id");
     $stmt->execute([':m' => $mode, ':id' => $nodeId]);
+}
+
+// ---------------------------------------------------------------------------
+// Standalone hotglue pages (hotglue_pages registry).
+//
+// These pages have their own identity and can exist with no wormhole. Edit
+// access: the owner, any admin, or (when assigned) an editor with a seat on the
+// assigned wormhole's galaxy. db_hotglue_page_user_can_edit is the single source
+// of truth, shared by the API layer and the hotglue auth bridge.
+// ---------------------------------------------------------------------------
+
+function db_hotglue_page_get_by_id(int $id): ?array {
+    db_ensure_hotglue_pages_table();
+    $pdo = getDB();
+    $st = $pdo->prepare("SELECT * FROM hotglue_pages WHERE id = :id LIMIT 1");
+    $st->execute([':id' => $id]);
+    $r = $st->fetch();
+    return $r ?: null;
+}
+
+function db_hotglue_page_get_by_slug(string $slug): ?array {
+    db_ensure_hotglue_pages_table();
+    $pdo = getDB();
+    $st = $pdo->prepare("SELECT * FROM hotglue_pages WHERE slug = :s LIMIT 1");
+    $st->execute([':s' => $slug]);
+    $r = $st->fetch();
+    return $r ?: null;
+}
+
+/**
+ * Create a standalone hotglue page. The slug is derived from the auto-increment
+ * id ("page-<id>") so it is stable and collision-free; the content dir is
+ * materialized lazily by hotglue's controller_edit the first time the owner
+ * opens /hg/?page-<id>/edit. Returns the created row.
+ */
+function db_hotglue_page_create(string $title, ?string $ownerUserId): array {
+    db_ensure_hotglue_pages_table();
+    $pdo = getDB();
+    $title = trim($title);
+    if ($title === '') {
+        $title = 'Untitled';
+    }
+    $owner = ($ownerUserId !== null && $ownerUserId !== '') ? $ownerUserId : null;
+    // Insert with a temporary unique slug, then rewrite it from the new id.
+    $tmp = 'pending-' . bin2hex(random_bytes(8));
+    $pdo->prepare("INSERT INTO hotglue_pages (slug, title, owner_user_id) VALUES (:slug, :title, :owner)")
+        ->execute([':slug' => $tmp, ':title' => $title, ':owner' => $owner]);
+    $id = (int)$pdo->lastInsertId();
+    $slug = 'page-' . $id;
+    $pdo->prepare("UPDATE hotglue_pages SET slug = :slug WHERE id = :id")->execute([':slug' => $slug, ':id' => $id]);
+    return db_hotglue_page_get_by_id($id) ?? ['id' => $id, 'slug' => $slug, 'title' => $title, 'owner_user_id' => $owner, 'node_id' => null];
+}
+
+function db_hotglue_page_rename(int $id, string $title): void {
+    db_ensure_hotglue_pages_table();
+    $pdo = getDB();
+    $pdo->prepare("UPDATE hotglue_pages SET title = :t WHERE id = :id")->execute([':t' => trim($title), ':id' => $id]);
+}
+
+/**
+ * Assign a hotglue page to a wormhole. Transactional: displaces any page already
+ * on that node (clears its node_id, the page survives unassigned), clears the
+ * pointer on this page's previous node (back to classic), points this page at
+ * the node, and flips the node to media_mode='hotglue' + hotglue_page=<slug>.
+ * Honours the target galaxy read-only guard. Returns the slug of the displaced
+ * page (or null). Throws on a missing page/node or a read-only target.
+ */
+function db_hotglue_page_assign(int $pageId, int $nodeId, bool $allowReadOnly = false): ?string {
+    db_ensure_hotglue_pages_table();
+    db_ensure_nodes_hotglue_columns();
+    $page = db_hotglue_page_get_by_id($pageId);
+    if ($page === null) {
+        throw new RuntimeException('hotglue_page_not_found');
+    }
+    $cid = db_get_node_constellation_id($nodeId);
+    if ($cid === null) {
+        throw new RuntimeException('node_not_found');
+    }
+    db_assert_constellation_writable($cid, $allowReadOnly);
+    $pdo = getDB();
+    $owned = !$pdo->inTransaction();
+    if ($owned) $pdo->beginTransaction();
+    try {
+        $displaced = null;
+        // A different page already on this node is bumped to unassigned.
+        $st = $pdo->prepare("SELECT id, slug FROM hotglue_pages WHERE node_id = :n AND id <> :pid LIMIT 1");
+        $st->execute([':n' => $nodeId, ':pid' => $pageId]);
+        $other = $st->fetch();
+        if ($other) {
+            $displaced = (string)$other['slug'];
+            $pdo->prepare("UPDATE hotglue_pages SET node_id = NULL WHERE id = :id")->execute([':id' => (int)$other['id']]);
+        }
+        // If this page was on a different node, that node reverts to classic.
+        if ($page['node_id'] !== null && (int)$page['node_id'] !== $nodeId) {
+            $pdo->prepare("UPDATE nodes SET media_mode='classic', hotglue_page=NULL WHERE id = :id")->execute([':id' => (int)$page['node_id']]);
+        }
+        $pdo->prepare("UPDATE hotglue_pages SET node_id = :n WHERE id = :id")->execute([':n' => $nodeId, ':id' => $pageId]);
+        $pdo->prepare("UPDATE nodes SET media_mode='hotglue', hotglue_page = :slug WHERE id = :id")->execute([':slug' => $page['slug'], ':id' => $nodeId]);
+        if ($owned) $pdo->commit();
+        return $displaced;
+    } catch (Throwable $e) {
+        if ($owned && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/**
+ * Unassign a hotglue page from its wormhole. The wormhole reverts to classic
+ * media (its prior classic settings are preserved on the node row); the page
+ * survives unassigned. Honours the galaxy read-only guard.
+ */
+function db_hotglue_page_unassign(int $pageId, bool $allowReadOnly = false): void {
+    db_ensure_hotglue_pages_table();
+    $page = db_hotglue_page_get_by_id($pageId);
+    if ($page === null || $page['node_id'] === null) {
+        if ($page !== null) {
+            getDB()->prepare("UPDATE hotglue_pages SET node_id = NULL WHERE id = :id")->execute([':id' => $pageId]);
+        }
+        return;
+    }
+    $nodeId = (int)$page['node_id'];
+    // Validate (and trigger any first-call db_ensure_* DDL) BEFORE opening the
+    // transaction: DDL implicitly commits in MySQL and would orphan the commit.
+    $cid = db_get_node_constellation_id($nodeId);
+    if ($cid !== null) {
+        db_assert_constellation_writable($cid, $allowReadOnly);
+    }
+    $pdo = getDB();
+    $owned = !$pdo->inTransaction();
+    if ($owned) $pdo->beginTransaction();
+    try {
+        $pdo->prepare("UPDATE nodes SET media_mode='classic', hotglue_page=NULL WHERE id = :id")->execute([':id' => $nodeId]);
+        $pdo->prepare("UPDATE hotglue_pages SET node_id = NULL WHERE id = :id")->execute([':id' => $pageId]);
+        if ($owned) $pdo->commit();
+    } catch (Throwable $e) {
+        if ($owned && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/**
+ * Delete a hotglue page row (unassigning it first so its wormhole reverts to
+ * classic). The caller is responsible for removing the hg/content/<slug> tree
+ * on disk.
+ */
+function db_hotglue_page_delete(int $pageId, bool $allowReadOnly = false): void {
+    db_ensure_hotglue_pages_table();
+    db_hotglue_page_unassign($pageId, $allowReadOnly);
+    getDB()->prepare("DELETE FROM hotglue_pages WHERE id = :id")->execute([':id' => $pageId]);
+}
+
+/**
+ * Pages visible to a user: an admin sees all; an editor sees pages they own
+ * plus pages assigned to a wormhole in a galaxy they have a seat on. Rows are
+ * hydrated with the assigned wormhole + galaxy for display.
+ */
+function db_hotglue_pages_list_for_user(?string $userId, bool $isAdmin): array {
+    db_ensure_hotglue_pages_table();
+    $pdo = getDB();
+    $base = "
+        SELECT hp.id, hp.slug, hp.title, hp.owner_user_id, hp.node_id, hp.created_at, hp.updated_at,
+               n.name AS node_name, n.constellation_id AS node_constellation_id,
+               c.name AS galaxy_name, c.slug AS galaxy_slug
+        FROM hotglue_pages hp
+        LEFT JOIN nodes n ON n.id = hp.node_id
+        LEFT JOIN constellations c ON c.id = n.constellation_id
+    ";
+    if ($isAdmin) {
+        return $pdo->query($base . " ORDER BY hp.updated_at DESC")->fetchAll() ?: [];
+    }
+    $st = $pdo->prepare($base . " WHERE hp.owner_user_id = :uid ORDER BY hp.updated_at DESC");
+    $st->execute([':uid' => $userId]);
+    $own = $st->fetchAll() ?: [];
+    $allowed = array_column(db_get_constellations_for_user($userId, false), 'id');
+    if (empty($allowed)) {
+        return $own;
+    }
+    $in = implode(',', array_map('intval', $allowed));
+    $assigned = $pdo->query($base . " WHERE n.constellation_id IN ($in) ORDER BY hp.updated_at DESC")->fetchAll() ?: [];
+    $byId = [];
+    foreach ($own as $r) { $byId[(int)$r['id']] = $r; }
+    foreach ($assigned as $r) { $byId[(int)$r['id']] = $r; }
+    return array_values($byId);
+}
+
+/**
+ * Wormholes an editor may assign a hotglue page to: object nodes in galaxies the
+ * user can write to (admins: all non-read-only galaxies). Returns [{id, name,
+ * galaxy_id, galaxy_name}] ordered by galaxy then node, for the assignment
+ * dropdown. Read-only (imported / mirrored) galaxies are excluded.
+ */
+function db_hotglue_assignable_wormholes(?string $userId, bool $isAdmin): array {
+    $galaxies = db_get_constellations_for_user($userId, $isAdmin);
+    $ids = [];
+    foreach ($galaxies as $g) {
+        $gid = (int)$g['id'];
+        if ($gid > 0 && !db_constellation_is_readonly($gid)) {
+            $ids[] = $gid;
+        }
+    }
+    if (empty($ids)) {
+        return [];
+    }
+    $pdo = getDB();
+    $in = implode(',', array_map('intval', $ids));
+    db_ensure_nodes_hotglue_columns();
+    $rows = $pdo->query("
+        SELECT n.id, n.name, n.constellation_id AS galaxy_id, c.name AS galaxy_name, n.media_mode
+        FROM nodes n
+        LEFT JOIN constellations c ON c.id = n.constellation_id
+        WHERE n.constellation_id IN ($in) AND n.node_type = 'object'
+        ORDER BY c.name, n.name, n.id
+    ")->fetchAll();
+    return $rows ?: [];
+}
+
+/**
+ * Single source of truth for "may this user edit this page": admins always;
+ * the owner always; otherwise only if the page is assigned to a wormhole in a
+ * galaxy the editor holds a seat on. Read-only galaxy enforcement is layered on
+ * top by the write paths (assign/bridge), not here.
+ */
+function db_hotglue_page_user_can_edit(array $page, ?string $userId, bool $isAdmin): bool {
+    if ($isAdmin) {
+        return true;
+    }
+    if ($userId !== null && $userId !== '' && (string)($page['owner_user_id'] ?? '') === (string)$userId) {
+        return true;
+    }
+    $nodeId = (isset($page['node_id']) && $page['node_id'] !== null) ? (int)$page['node_id'] : 0;
+    if ($nodeId > 0) {
+        $cid = db_get_node_constellation_id($nodeId);
+        if ($cid !== null) {
+            $allowed = array_column(db_get_constellations_for_user($userId, false), 'id');
+            if (in_array($cid, $allowed, true)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /**
