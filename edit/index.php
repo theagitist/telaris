@@ -1552,6 +1552,44 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (typeof window.hgCloseEditor === 'function') window.hgCloseEditor();
         }
 
+        // Maximize / restore for the View Node preview modal, the same generic
+        // toggle the 3D viewer's rich-media window uses (we cannot reuse that
+        // window itself: it lives only in the visitor view and is populated by
+        // the 3D engine). Inline-style toggling keeps it CSP-safe.
+        function _vnmApply(on) {
+            const box = document.getElementById('view-node-box');
+            if (!box) return;
+            box.classList.toggle('vnm-maximized', on);
+            const iMax = document.getElementById('vnm-icon-max');
+            const iMin = document.getElementById('vnm-icon-min');
+            if (iMax) iMax.classList.toggle('hidden', on);
+            if (iMin) iMin.classList.toggle('hidden', !on);
+            const btn = document.getElementById('vnm-maximize-btn');
+            if (btn) { const l = on ? btn.getAttribute('data-label-min') : btn.getAttribute('data-label-max'); if (l) { btn.title = l; btn.setAttribute('aria-label', l); } }
+            const hg = document.getElementById('preview-hotglue');
+            const img = document.getElementById('preview-image');
+            const vid = document.getElementById('preview-video');
+            if (on) {
+                box.style.maxWidth = '96vw'; box.style.width = '96vw'; box.style.maxHeight = '95vh';
+                if (hg) hg.style.height = '82vh';
+                if (img) img.style.maxHeight = '80vh';
+                if (vid) vid.style.maxHeight = '80vh';
+            } else {
+                box.style.maxWidth = ''; box.style.width = ''; box.style.maxHeight = '';
+                if (hg) hg.style.height = '65vh';
+                if (img) img.style.maxHeight = '';
+                if (vid) vid.style.maxHeight = '';
+            }
+        }
+        function toggleViewNodeMaximize() {
+            const box = document.getElementById('view-node-box');
+            if (box) _vnmApply(!box.classList.contains('vnm-maximized'));
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+            const m = document.getElementById('view_node_modal');
+            if (m) m.addEventListener('close', function () { _vnmApply(false); });
+        });
+
         // View node - preview modal
         async function viewNode(id) {
             let node = allNodes.find(n => n.id === id);
@@ -3350,7 +3388,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
     <!-- View Node Preview Modal -->
     <dialog id="view_node_modal" class="modal">
-        <div class="modal-box max-w-2xl p-0 bg-[#0a0a0c]/90 border border-white/20 text-white" style="box-shadow: 0 0 50px -10px rgba(0, 255, 204, 0.3);">
+        <div id="view-node-box" class="modal-box max-w-2xl p-0 bg-[#0a0a0c]/90 border border-white/20 text-white flex flex-col" style="box-shadow: 0 0 50px -10px rgba(0, 255, 204, 0.3);">
+            <!-- Maximize / Restore (generic across media; mirrors the 3D viewer) -->
+            <button type="button" id="vnm-maximize-btn" onclick="toggleViewNodeMaximize()"
+                    class="absolute top-4 right-12 text-white/50 hover:text-white transition-colors z-10 bg-transparent border-none p-0 cursor-pointer"
+                    data-label-max="<?= t_attr('viewer_maximize_text', 'Maximize') ?>"
+                    data-label-min="<?= t_attr('viewer_restore_text', 'Restore') ?>"
+                    title="<?= t_attr('viewer_maximize_text', 'Maximize') ?>"
+                    aria-label="<?= t_attr('viewer_maximize_text', 'Maximize') ?>">
+                <svg id="vnm-icon-max" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3m13-5v3a2 2 0 01-2 2h-3"/></svg>
+                <svg id="vnm-icon-min" class="hidden" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v3a2 2 0 01-2 2H4m16 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M4 16h3a2 2 0 012 2v3"/></svg>
+            </button>
             <!-- Close Button -->
             <form method="dialog">
                 <button class="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-10 bg-transparent border-none p-0 cursor-pointer">
