@@ -389,6 +389,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             'dupNotice'      => t('editor_hg_dup_notice', 'The copy was created without a wormhole assignment (a wormhole can show only one page). Do you want to assign it to a wormhole now? Choose Cancel to leave it unassigned.'),
             'actionViewInWormhole' => t('editor_hg_action_view_in_wormhole', 'View in wormhole'),
             'actionViewInGalaxy' => t('editor_hg_action_view_in_galaxy', 'View in galaxy'),
+            'actionViewDirectly' => t('editor_hg_action_view_directly', 'View in browser'),
+            'toastUrlCopied' => t('editor_toast_url_copied', 'URL copied to clipboard'),
             'actionDuplicate' => t('editor_action_duplicate', 'Duplicate'),
             'unassigned'     => t('editor_hg_unassigned', 'Not assigned'),
             'btnEdit'        => t('editor_action_edit', 'Edit'),
@@ -3933,10 +3935,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     }
                     const updated = esc(String(p.updated_at || '').slice(0, 16));
                     const checked = hgSelected.has(p.id) ? ' checked' : '';
-                    const viewItem = p.node_id
+                    // "View in browser" opens the bare hotglue page in a new tab (no
+                    // wormhole/galaxy wrapper, no iframe) and copies its URL; works
+                    // for every page, assigned or not.
+                    const viewDirectItem = '<li><a onclick="event.stopPropagation(); hgViewDirectly(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionViewDirectly || 'View in browser') + '</a></li>';
+                    const viewItem = viewDirectItem + (p.node_id
                         ? '<li><a onclick="event.stopPropagation(); hgViewInWormhole(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionViewInWormhole || 'View in wormhole') + '</a></li>'
                         + '<li><a onclick="event.stopPropagation(); hgViewInGalaxy(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionViewInGalaxy || 'View in galaxy') + '</a></li>'
-                        : '';
+                        : '');
                     html += '<div class="grid grid-cols-12 gap-3 items-center py-2 border-b border-gray-100 hover:bg-gray-50">'
                         + '<div class="col-span-1 px-2"><input type="checkbox" class="hg-checkbox checkbox checkbox-xs" data-id="' + p.id + '"' + checked + ' onclick="hgToggleSelect(' + p.id + ')"></div>'
                         + '<div class="col-span-4 px-2"><button type="button" class="text-blue-600 hover:text-blue-800 font-medium text-left" onclick="hgOpenEditorById(' + p.id + ')">' + title + '</button></div>'
@@ -4078,6 +4084,21 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const galaxy = p.galaxy_slug || (p.galaxy_id != null ? String(p.galaxy_id) : '');
             if (!galaxy) return;
             window.open('/' + encodeURIComponent(galaxy) + '/' + p.node_id, '_blank', 'noopener');
+        };
+        // "View in browser": open the bare hotglue page (show mode) in a new tab,
+        // with no wormhole or galaxy wrapper and no iframe, and copy its absolute
+        // URL to the clipboard so it can be pasted elsewhere.
+        window.hgViewDirectly = function (pageId) {
+            const p = hgPages.find(x => x.id === pageId);
+            if (!p || !p.slug) return;
+            const relativeUrl = '../hg/?' + encodeURIComponent(p.slug);
+            const absoluteUrl = new URL(relativeUrl, window.location.origin + window.location.pathname).href;
+            window.open(absoluteUrl, '_blank', 'noopener');
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(absoluteUrl).then(() => {
+                    if (typeof showMessage === 'function') showMessage(HG.toastUrlCopied || 'URL copied to clipboard');
+                }).catch(() => {});
+            }
         };
         window.hgDuplicate = async function (id) {
             const p = hgPages.find(x => x.id === id);
