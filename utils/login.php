@@ -37,6 +37,10 @@ $error = null;
 // native <details> toggle) so no JavaScript is needed under the strict CSP.
 $prefillEmail = '';
 
+// Whether self-enrolment is currently open (enabled and under any cap). Mirrors
+// the main-view hamburger link so the login screen offers the same entry point.
+$enrollOpen = db_auto_enroll_is_open();
+
 // Magic-link sign-in: consume a one-time token and establish the session.
 // Available to every editor/admin (NOT gated on vetted); it is the only way an
 // unvetted, password-less self-enrolled editor signs in. finalize_user_login
@@ -168,6 +172,15 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST'
                 </div>
             </details>
         </form>
+
+        <?php if ($enrollOpen): ?>
+            <!-- Self-enrolment entry point, shown only when auto-enroll is open
+                 (enabled and under any cap), below the "I have a password"
+                 disclosure. Mirrors the main-view hamburger link. -->
+            <div class="mt-4 text-center">
+                <a href="enroll.php" class="text-gray-400 hover:text-white transition-colors text-sm"><?php echo t_attr('enroll_menu_link', 'Enrol as Editor'); ?></a>
+            </div>
+        <?php endif; ?>
 
         <div class="mt-8 text-center pt-6 border-t border-gray-800">
             <a href="../index.php" class="text-gray-400 hover:text-white transition-colors text-sm"><?php echo t_attr('auth_login_back_link', '← Back to Constellation'); ?></a>
