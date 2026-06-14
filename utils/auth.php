@@ -17,7 +17,15 @@ if (php_sapi_name() !== 'cli' && session_status() === PHP_SESSION_NONE) {
         'path' => '/',
         'secure' => $secure,
         'httponly' => true,
-        'samesite' => 'Strict',
+        // Lax, not Strict: a sign-in link clicked inside an email is a
+        // cross-site top-level navigation. With Strict the browser withholds
+        // the freshly-set session cookie on the post-login redirect (the whole
+        // redirect chain inherits the cross-site initiator), so the magic-link
+        // and enrol-confirm flows land back on the login screen. Lax sends the
+        // cookie on top-level GET navigations while still blocking cross-site
+        // subresources and cross-site POSTs; CSRF is enforced separately by the
+        // per-request csrf_token, so protection does not depend on Strict.
+        'samesite' => 'Lax',
     ]);
     session_start();
 }
@@ -250,7 +258,8 @@ function logoutAdmin(): void {
             'path' => '/',
             'secure' => $secure,
             'httponly' => true,
-            'samesite' => 'Strict',
+            // Match the session cookie's attributes (see session_set_cookie_params above).
+            'samesite' => 'Lax',
         ]);
     }
     session_destroy();
