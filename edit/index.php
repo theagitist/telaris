@@ -587,6 +587,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             return !!(c && c.access_level === 'read_only');
         }
 
+        /**
+         * True when a single node's galaxy is read-only for this editor, whether
+         * because it is imported/mirrored or because their seat on it is read_only.
+         * Used per-row so the "All galaxies" view hides edit affordances on the
+         * read-only rows it mixes in (the server enforces this regardless; this
+         * keeps the UI honest instead of offering buttons that 403).
+         */
+        function isNodeReadOnly(node) {
+            return !!node && (isImportedConstellation(node.constellation_id) || isSeatReadOnly(node.constellation_id));
+        }
+
         function updateReadOnlyState() {
             const constellationEl = document.getElementById('current-constellation');
             const cid = constellationEl ? parseInt(constellationEl.value, 10) : NaN;
@@ -641,6 +652,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 if (event.target.closest('button') || event.target.closest('a')) {
                     return;
                 }
+            }
+
+            // Read-only rows are not selectable: bulk actions on them would 403
+            // server-side, so never queue them (matches the hidden checkbox).
+            const _selNode = (typeof allNodes !== 'undefined') ? allNodes.find(n => n.id === id) : null;
+            if (_selNode && isNodeReadOnly(_selNode)) {
+                return;
             }
 
             if (selectedNodeIds.has(id)) {
@@ -1284,6 +1302,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     }
                     
                     const isSelected = selectedNodeIds.has(node.id);
+                    // Per-row read-only: in the "All galaxies" view the list mixes
+                    // writable and read-only rows, so edit affordances are decided
+                    // per row, not by the header galaxy.
+                    const rowReadOnly = isNodeReadOnly(node);
                     // Show normal display - compact spreadsheet-like layout
                     const dateObj = node.created_at ? new Date(node.created_at) : null;
                     const createdDate = dateObj 
@@ -1311,9 +1333,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 <div class="border-b border-gray-300 hover:bg-gray-50 py-2 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50/50' : ''}" onclick="toggleNodeSelection(${node.id}, event)">
                     <div class="grid grid-cols-12 gap-3 items-center text-sm">
                         <div class="col-span-1 flex justify-center" onclick="event.stopPropagation()">
-                            <input type="checkbox" class="node-checkbox checkbox checkbox-xs" data-id="${node.id}" ${isSelected ? 'checked' : ''} onclick="toggleNodeSelection(${node.id}, event)">
+                            ${rowReadOnly ? '' : `<input type="checkbox" class="node-checkbox checkbox checkbox-xs" data-id="${node.id}" ${isSelected ? 'checked' : ''} onclick="toggleNodeSelection(${node.id}, event)">`}
                         </div>
-                        <div class="col-span-2 min-w-0" onclick="editNode(${node.id}); event.stopPropagation();">
+                        <div class="col-span-2 min-w-0" onclick="${rowReadOnly ? `viewNode(${node.id})` : `editNode(${node.id})`}; event.stopPropagation();">
                             <div class="font-semibold text-gray-800 truncate" title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</div>
                             <div class="flex flex-wrap gap-1 mt-1">
                                 ${node.is_accentuated ? `<span class="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded border border-yellow-200 font-bold" title="${escapeHtml(TELARIS_EDIT.badgeAccTitle)}">${escapeHtml(TELARIS_EDIT.badgeAcc)}</span>` : ''}
@@ -1349,9 +1371,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 <ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-44">
                                     <li><a onclick="event.stopPropagation(); viewNode(${node.id})" class="text-gray-700 text-xs">${escapeHtml(TELARIS_EDIT.actionViewWormhole)}</a></li>
                                     <li><a onclick="event.stopPropagation(); viewConstellation(${node.constellation_id})" class="text-gray-700 text-xs">${escapeHtml(TELARIS_EDIT.actionViewGalaxy)}</a></li>
+                                    ${rowReadOnly ? '' : `
                                     <li class="border-t border-gray-100 mt-1 pt-1"><a onclick="event.stopPropagation(); editNode(${node.id})" class="text-gray-700 text-xs">${escapeHtml(TELARIS_EDIT.actionEdit)}</a></li>
                                     <li><a onclick="event.stopPropagation(); openDuplicateModal(${node.id})" class="text-gray-700 text-xs">${escapeHtml(TELARIS_EDIT.actionDuplicate)}</a></li>
-                                    <li class="node-edit-action"><a onclick="event.stopPropagation(); deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="text-red-600 text-xs">${escapeHtml(TELARIS_EDIT.actionDelete)}</a></li>
+                                    <li class="node-edit-action"><a onclick="event.stopPropagation(); deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="text-red-600 text-xs">${escapeHtml(TELARIS_EDIT.actionDelete)}</a></li>`}
                                 </ul>
                             </div>
                         </div>
@@ -1848,6 +1871,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Edit node - show modal
         async function editNode(id) {
             let node = allNodes.find(n => n.id === id);
+            // Read-only galaxy (imported/mirrored or a read_only seat): the editor
+            // can view but not edit, so fall through to the read-only viewer. The
+            // server enforces this too; this keeps the UI from offering a 403.
+            if (node && isNodeReadOnly(node)) {
+                viewNode(id);
+                return;
+            }
             if (!node) {
                 // Node not on current page — fetch from API
                 try {

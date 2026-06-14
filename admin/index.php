@@ -205,32 +205,52 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $currentRow = db_get_user_by_id($id);
                 $wasVetted = (int)($currentRow['vetted'] ?? 1) === 1;
                 $hashedPassword = !empty($password) ? hashPassword($password) : null;
-                db_update_user($id, $email, $firstname, $lastname, $type, $hashedPassword, $pronouns);
-
-                // Vetted flag. A self-enrolled (unvetted) editor becoming vetted
-                // gets a one-time set-password link by email plus an in-app banner;
-                // vetting never changes their seats and never gates editing.
                 $nowVetted = !empty($_POST['vetted']);
-                db_set_user_vetted($id, $nowVetted);
-                if (!$wasVetted && $nowVetted) {
-                    $vetLocale = locale_init_strings()['__locale'] ?? 'en';
-                    $vetToken = db_create_login_token($id, 'vetting', 7 * 86400); // 7 days
-                    @send_vetting_email($email, $vetToken, $vetLocale);
-                    db_set_vetted_banner_pending($id);
+                $constellationIds = array_map('intval', array_filter((array)($_POST['constellation_ids'] ?? [])));
+                $becameVetted = (!$wasVetted && $nowVetted);
+                $vetToken = null;
+                $vetLocale = locale_init_strings()['__locale'] ?? 'en';
+
+                // All the user-state writes (profile, vetted flag, vetting token +
+                // banner, seat rewrite) commit together or not at all, so a partial
+                // failure can't leave the account half-updated. The vetting email is
+                // sent AFTER commit so we never notify about a change that rolled back.
+                $pdo = getDB();
+                $pdo->beginTransaction();
+                try {
+                    db_update_user($id, $email, $firstname, $lastname, $type, $hashedPassword, $pronouns);
+
+                    // Vetted flag. A self-enrolled (unvetted) editor becoming vetted
+                    // gets a one-time set-password link by email plus an in-app banner;
+                    // vetting never changes their seats and never gates editing.
+                    db_set_user_vetted($id, $nowVetted);
+                    if ($becameVetted) {
+                        $vetToken = db_create_login_token($id, 'vetting', 7 * 86400); // 7 days
+                        db_set_vetted_banner_pending($id);
+                    }
+
+                    // Seats: rewrite the SET but preserve each kept seat's access level
+                    // (read_only/read_write); new seats default to read_write. A whole-set
+                    // replace would silently flatten read_only seats to read_write.
+                    if ($type === USER_TYPE_EDITOR) {
+                        $existingAccess = db_get_user_constellation_access($id);
+                        db_set_user_constellations($id, []); // clear
+                        foreach ($constellationIds as $cid) {
+                            db_add_user_constellation($id, (int)$cid, $existingAccess[(int)$cid] ?? 'read_write');
+                        }
+                    } else {
+                        db_set_user_constellations($id, []);
+                    }
+                    $pdo->commit();
+                } catch (Throwable $e) {
+                    if ($pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    throw $e;
                 }
 
-                // Seats: rewrite the SET but preserve each kept seat's access level
-                // (read_only/read_write); new seats default to read_write. A whole-set
-                // replace would silently flatten read_only seats to read_write.
-                $constellationIds = array_map('intval', array_filter((array)($_POST['constellation_ids'] ?? [])));
-                if ($type === USER_TYPE_EDITOR) {
-                    $existingAccess = db_get_user_constellation_access($id);
-                    db_set_user_constellations($id, []); // clear
-                    foreach ($constellationIds as $cid) {
-                        db_add_user_constellation($id, (int)$cid, $existingAccess[(int)$cid] ?? 'read_write');
-                    }
-                } else {
-                    db_set_user_constellations($id, []);
+                if ($vetToken !== null) {
+                    @send_vetting_email($email, $vetToken, $vetLocale);
                 }
                 db_audit_log(
                     action: 'user.update',
@@ -3543,9 +3563,12 @@ foreach ($importantExtensions as $ext => $name) {
             });
         }
 
-        // Initialize tab on page load
+        // Initialize tab on page load. Prefer an explicit ?tab= in the URL; else
+        // fall back to the server-chosen active tab (so a POST handler that sets
+        // $activeTab — e.g. saving Auto-enroll settings — keeps you on that tab
+        // instead of snapping back to Galaxies).
         document.addEventListener('DOMContentLoaded', function() {
-            const tab = new URLSearchParams(window.location.search).get('tab') || 'constellations';
+            const tab = new URLSearchParams(window.location.search).get('tab') || <?= json_encode($activeTab, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
             showTab(tab);
             formatLocalDatetimes();
 
