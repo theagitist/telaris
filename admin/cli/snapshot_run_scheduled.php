@@ -37,10 +37,12 @@ if ($newId !== null) {
 // Self-enrolment maintenance: reclaim expired/used login tokens and abandoned
 // never-confirmed enrolments. Both are cheap indexed deletes that normally
 // touch zero rows, so running each tick is fine; a failure here must not fail
-// the snapshot run, so it is isolated in its own try.
+// the snapshot run, so it is isolated in its own try. When it does reclaim
+// something, it prints an extra status line beyond the snapshot line above.
+const STALE_ENROLLMENT_DAYS = 30; // retention threshold for never-confirmed enrolments
 try {
     $tokens = db_gc_login_tokens();
-    $stale  = db_gc_unconfirmed_enrollments(30);
+    $stale  = db_gc_unconfirmed_enrollments(STALE_ENROLLMENT_DAYS);
     if ($tokens > 0 || $stale > 0) {
         echo $stamp . " gc: {$tokens} login token(s), {$stale} abandoned enrolment(s)\n";
     }

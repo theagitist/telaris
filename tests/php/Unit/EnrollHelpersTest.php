@@ -75,6 +75,14 @@ final class EnrollHelpersTest extends TestCase
         $this->assertSame('Galaxia de Andrew', enroll_personal_galaxy_name('first_name', 'a@b.com', 'Andrew', 'Galaxia de %s'));
     }
 
+    public function testPersonalGalaxyNameFullName(): void
+    {
+        // The full name as entered becomes the galaxy name; db_slugify turns it
+        // into the kebab-case slug ("Alex Rose" -> "alex-rose") at create time.
+        $this->assertSame('Alex Rose', enroll_personal_galaxy_name('full_name', 'a@b.com', 'Alex Rose'));
+        $this->assertNull(enroll_personal_galaxy_name('full_name', 'a@b.com', '   '));
+    }
+
     public function testPersonalGalaxyNameUserChoiceIsDeferred(): void
     {
         $this->assertNull(enroll_personal_galaxy_name('user_choice', 'andrew@example.com', 'Andrew'));

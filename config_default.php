@@ -11,6 +11,15 @@ define('UPLOAD_DIR', __DIR__ . '/uploads'); // In production, use an absolute pa
 define('LOG_DIR', __DIR__ . '/logs');
 define('SNAPSHOTS_DIR', __DIR__ . '/telaris-snapshots'); // Where local system snapshots are stored. In production, use an absolute path outside the app directory and prefix with the site name (e.g. /var/backups/starmaps-snapshots) so it is not mistaken for another app's backups.
 
+// Canonical public hostname for this instance (no scheme, no trailing slash),
+// e.g. 'starmaps.polivoxia.ca'. Used to build absolute links in outgoing email
+// (so they point at the right action, not the request Host header, which is
+// attacker-controllable and is empty when mail is sent from the CLI/cron) and
+// as the federation identity host. setup.php auto-fills this from the hostname
+// you install under; leave blank only if you cannot set it (the code then falls
+// back to the cached request host, then the OS hostname).
+define('TELARIS_HOSTNAME', '');
+
 // Outgoing mail (Mailgun or any SMTP relay). Required for password-reset emails and
 // bulk-user-creation account invitations. Leave blank to disable mail features.
 // Use STARTTLS on port 25 or 587 (recommended); 465 uses implicit SSL.

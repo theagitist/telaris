@@ -435,15 +435,15 @@ function testConnection(string $host, string $port, string $dbname, string $user
 }
 
 // Function to generate config.php content from config_default.php template
-function generateConfigContent(string $dbHost, string $dbPort, string $dbName, string $dbUser, string $dbPass): string {
+function generateConfigContent(string $dbHost, string $dbPort, string $dbName, string $dbUser, string $dbPass, string $hostname = ''): string {
     // Read the template file (config_default.php is in parent directory)
     $templatePath = dirname(__DIR__) . '/config_default.php';
     if (!file_exists($templatePath)) {
         throw new Exception('config_default.php template file not found');
     }
-    
+
     $template = file_get_contents($templatePath);
-    
+
     // Replace the database configuration values
     $template = str_replace(
         [
@@ -462,8 +462,33 @@ function generateConfigContent(string $dbHost, string $dbPort, string $dbName, s
         ],
         $template
     );
-    
+
+    // Canonical hostname: auto-fill from the host the operator is installing
+    // under, so email links and federation identity are correct without a manual
+    // config edit. Left blank if it could not be determined (the code then falls
+    // back to the cached request host / OS hostname).
+    if ($hostname !== '') {
+        $template = str_replace(
+            "define('TELARIS_HOSTNAME', '');",
+            "define('TELARIS_HOSTNAME', '" . addslashes($hostname) . "');",
+            $template
+        );
+    }
+
     return $template;
+}
+
+// Best-effort canonical hostname from the current request (operator is browsing
+// setup.php at the instance's real domain). Port stripped, lowercased.
+function detectInstallHostname(): string {
+    $h = (string)($_SERVER['HTTP_HOST'] ?? '');
+    if ($h === '') {
+        return '';
+    }
+    if (str_contains($h, ':')) {
+        $h = (string)strstr($h, ':', true);
+    }
+    return strtolower(trim($h));
 }
 
 // Function to execute database schema
@@ -702,7 +727,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     
     if ($connectionError === null) {
         // Connection successful, generate and save config
-        $configContent = generateConfigContent($dbHost, $dbPort, $dbName, $dbUser, $dbPass);
+        $configContent = generateConfigContent($dbHost, $dbPort, $dbName, $dbUser, $dbPass, detectInstallHostname());
         
         // Write config.php (in parent directory)
         $configPath = dirname(__DIR__) . '/config.php';

@@ -15,7 +15,7 @@ declare(strict_types=1);
  */
 
 /** Valid personal-galaxy naming conventions. user_choice = defer to first login. */
-const ENROLL_NAMING_CONVENTIONS = ['full_email', 'email_username', 'first_name', 'user_choice'];
+const ENROLL_NAMING_CONVENTIONS = ['full_email', 'email_username', 'first_name', 'full_name', 'user_choice'];
 // Default to the first name: galaxy names are public (3D view + URL slug), so the
 // email-based conventions would expose the editor's address. Admins can still pick
 // them explicitly with the privacy warning shown in the Auto-enroll modal.
@@ -190,6 +190,12 @@ function enroll_personal_galaxy_name(string $convention, string $email, string $
         case 'first_name':
             $f = trim($firstname);
             return $f !== '' ? sprintf($possessiveTemplate, $f) : null;
+        case 'full_name':
+            // The enrolment form's single name field holds the editor's full name,
+            // so the galaxy is named after it as entered (e.g. "Alex Rose"); the
+            // slug then derives to "alex-rose" via db_slugify at create time.
+            $n = trim($firstname);
+            return $n !== '' ? $n : null;
         case 'user_choice':
         default:
             return null;

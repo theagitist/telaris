@@ -44,9 +44,17 @@ function enroll_apply_config(string $userId, string $email, string $firstname, a
     $level = in_array($cfg['access_level'] ?? '', ENROLL_ACCESS_LEVELS, true) ? (string)$cfg['access_level'] : ENROLL_ACCESS_DEFAULT;
     foreach ((array)($cfg['galaxy_ids'] ?? []) as $cid) {
         $cid = (int)$cid;
-        if ($cid > 0) {
+        if ($cid <= 0) {
+            continue;
+        }
+        // A configured galaxy may have been deleted after the config was saved;
+        // skip it (the seat FK insert would throw) and keep granting the rest,
+        // mirroring the try-catch around personal-galaxy creation above.
+        try {
             db_add_user_constellation($userId, $cid, $level);
             $result['granted'][] = $cid;
+        } catch (Throwable $e) {
+            error_log('enroll_apply_config: skipped granting galaxy ' . $cid . ': ' . $e->getMessage());
         }
     }
 

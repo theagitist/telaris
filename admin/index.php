@@ -2989,8 +2989,13 @@ foreach ($importantExtensions as $ext => $name) {
             document.getElementById('modal-email').value = '';
             document.getElementById('modal-password').value = '';
             document.getElementById('modal-type').value = '1';
-            // Manually created users are vetted by default.
-            (function(){ const v = document.getElementById('modal-vetted'); if (v) v.checked = true; })();
+            // Manually created users are always vetted (they have a password), so
+            // the vetted control is hidden in create mode; it is only meaningful
+            // when vetting an existing self-enrolled editor.
+            (function(){
+                const v = document.getElementById('modal-vetted'); if (v) v.checked = true;
+                const sec = document.getElementById('modal-vetted-section'); if (sec) sec.classList.add('hidden');
+            })();
             document.querySelectorAll('.modal-pronoun-common').forEach(cb => { cb.checked = false; });
             document.getElementById('modal-pronouns-custom').value = '';
             document.querySelectorAll('.modal-user-constellation-checkbox').forEach(cb => { cb.checked = false; });
@@ -3025,7 +3030,10 @@ foreach ($importantExtensions as $ext => $name) {
             document.getElementById('modal-email').value = user.email;
             document.getElementById('modal-type').value = user.type;
             document.getElementById('modal-password').value = '';
-            (function(){ const v = document.getElementById('modal-vetted'); if (v) v.checked = (parseInt(user.vetted, 10) === 1); })();
+            (function(){
+                const v = document.getElementById('modal-vetted'); if (v) v.checked = (parseInt(user.vetted, 10) === 1);
+                const sec = document.getElementById('modal-vetted-section'); if (sec) sec.classList.remove('hidden');
+            })();
 
             // Pronouns: check the common-option boxes that match the stored set;
             // anything not in the common set goes into the free-text field.
@@ -5396,9 +5404,10 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                     <select name="naming_convention" class="select select-bordered select-sm w-full bg-white">
                         <?php foreach ([
                             'first_name' => t('admin_auto_enroll_naming_first_name', "First name's galaxy"),
+                            'full_name' => t('admin_auto_enroll_naming_full_name', 'Full name (alex-rose)'),
                             'user_choice' => t('admin_auto_enroll_naming_user_choice', 'Let the user choose at first sign-in'),
-                            'email_username' => t('admin_auto_enroll_naming_email_username', 'Email username only (andrew)'),
-                            'full_email' => t('admin_auto_enroll_naming_full_email', 'Full email (andrew@example.com)'),
+                            'email_username' => t('admin_auto_enroll_naming_email_username', 'Email username only (alex)'),
+                            'full_email' => t('admin_auto_enroll_naming_full_email', 'Full email (alex@example.com)'),
                         ] as $val => $label): ?>
                             <option value="<?= htmlspecialchars($val) ?>" <?= $aeConfig['naming_convention'] === $val ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
                         <?php endforeach; ?>
