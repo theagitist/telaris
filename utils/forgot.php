@@ -8,6 +8,7 @@ header("X-Content-Type-Options: nosniff");
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../inc/mail.php';
+require_once __DIR__ . '/../inc/email-template.php';
 require_once __DIR__ . '/../inc/db.php';
 
 $authLocale = locale_init_strings()['__locale'] ?? 'en';
@@ -67,23 +68,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
                 $appName = defined('MAIL_FROM_NAME') && MAIL_FROM_NAME !== '' ? (string)MAIL_FROM_NAME : 'Telaris';
                 $name = trim(((string)($user['firstname'] ?? '')) . ' ' . ((string)($user['lastname'] ?? '')));
+                // Raw (unescaped) greeting: the email shell escapes paragraph text.
                 $greeting = $name !== ''
-                    ? sprintf(t('auth_email_greeting_named', 'Hi %s,'), htmlspecialchars($name))
+                    ? sprintf(t('auth_email_greeting_named', 'Hi %s,'), $name)
                     : t('auth_email_greeting_anon', 'Hi,');
 
                 $subject = sprintf(t('auth_email_subject', 'Reset your %s password'), $appName);
-                $html = '<p>' . $greeting . '</p>'
-                      . '<p>' . t('auth_email_intro', 'We received a request to reset your password. Click the link below to set a new one:') . '</p>'
-                      . '<p><a href="' . htmlspecialchars($resetUrl) . '">' . htmlspecialchars($resetUrl) . '</a></p>'
-                      . '<p>' . t('auth_email_expiry', 'This link expires in 24 hours and can only be used once. If you did not request a reset, you can safely ignore this email; your password will not change.') . '</p>'
-                      . '<p>' . htmlspecialchars($appName) . '</p>';
-                $text = t('auth_email_text_intro', "We received a request to reset your password.\n\nReset link (24h, single-use):\n")
-                      . $resetUrl
-                      . t('auth_email_text_outro', "\n\nIf you did not request a reset, ignore this email.");
+                // On-brand shell (same format as the enrolment emails): the reset
+                // link is the CTA button (and the plain-text fallback URL), so
+                // recipients act on it instead of an auto-linkified bare hostname.
+                $rendered = telaris_email_render([
+                    'heading'    => $subject,
+                    'paragraphs' => [
+                        $greeting,
+                        t('auth_email_intro', 'We received a request to reset your password. Click the link below to set a new one:'),
+                    ],
+                    'cta'        => ['label' => t('auth_email_cta', 'Reset password'), 'url' => $resetUrl],
+                    'note'       => t('auth_email_expiry', 'This link expires in 24 hours and can only be used once. If you did not request a reset, you can safely ignore this email; your password will not change.'),
+                    'locale'     => $authLocale,
+                ]);
 
                 // Send. Failures are logged but don't change the user-facing notice
                 // (we don't want to leak whether the email exists or whether mail is broken).
-                @mail_send($email, $subject, $html, $text, $name !== '' ? $name : null);
+                @mail_send($email, $subject, $rendered['html'], $rendered['text'], $name !== '' ? $name : null);
             }
             db_record_auth_attempt('forgot', $email, $ip, $user !== null);
             // Show the generic notice whether or not the user existed / mail succeeded.

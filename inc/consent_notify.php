@@ -32,6 +32,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/consent.php';
 require_once __DIR__ . '/mail.php';
+require_once __DIR__ . '/email-template.php';
 
 /**
  * Documents whose currently-enforced version the operator has NOT yet resolved
@@ -160,8 +161,8 @@ function consent_notify_send(?string $adminId, ?array $pending = null, ?array $e
     foreach ($recipients as $ed) {
         $needed = consent_notify_needed_for_editor((string)$ed['id'], $pending);
         if ($needed === []) continue;
-        [$subject, $html] = consent_notify_build_email($ed, $needed);
-        $ok = mail_send((string)$ed['email'], $subject, $html, null, trim((string)($ed['firstname'] ?? '')));
+        [$subject, $html, $text] = consent_notify_build_email($ed, $needed);
+        $ok = mail_send((string)$ed['email'], $subject, $html, $text, trim((string)($ed['firstname'] ?? '')));
         if ($ok) {
             $result['sent']++;
             foreach ($needed as $docType => $version) {
@@ -245,7 +246,7 @@ function consent_notify_phrase_matches(string $typed): bool {
  *
  * @param array<string,mixed> $ed
  * @param array<string,string> $needed documentType => version
- * @return array{0:string,1:string} [subject, html]
+ * @return array{0:string,1:string,2:string} [subject, html, text]
  */
 function consent_notify_build_email(array $ed, array $needed): array {
     $loc = consent_notify_normalize_editor_locale(isset($ed['locale']) ? (string)$ed['locale'] : null);
@@ -256,37 +257,33 @@ function consent_notify_build_email(array $ed, array $needed): array {
     $subjectLoc = $loc ?? $supported[0];
     $subject = consent_notify_t('email_subject', $subjectLoc);
 
-    $sections = [];
+    // On-brand shell (same format as the other system emails). When the editor
+    // has no chosen locale, stack each locale's paragraphs AND its document
+    // links (localized labels) so the body is never English-only. There is no
+    // CTA: the action is "review on next sign-in".
+    $paragraphs = [];
+    $links = [];
     foreach ($locales as $l) {
-        $greeting = $firstname !== ''
-            ? sprintf(consent_notify_t('email_greeting_named', $l), htmlspecialchars($firstname, ENT_QUOTES, 'UTF-8'))
+        $paragraphs[] = $firstname !== ''
+            ? sprintf(consent_notify_t('email_greeting_named', $l), $firstname)
             : consent_notify_t('email_greeting', $l);
-
-        $items = '';
+        $paragraphs[] = consent_notify_t('email_intro', $l);
+        $paragraphs[] = consent_notify_t('email_next_login', $l);
+        $paragraphs[] = consent_notify_t('email_read', $l);
         foreach ($needed as $docType => $version) {
-            $label = consent_document_label($docType, $l);
-            $items .= '<li>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8')
-                . ' &middot; ' . htmlspecialchars(consent_notify_t('email_version_word', $l), ENT_QUOTES, 'UTF-8')
-                . ' ' . htmlspecialchars($version, ENT_QUOTES, 'UTF-8') . '</li>';
+            $label = consent_document_label($docType, $l)
+                . ' · ' . consent_notify_t('email_version_word', $l) . ' ' . $version;
+            $links[] = ['label' => $label, 'url' => consent_document_url($docType)];
         }
-        $links = '';
-        foreach ($needed as $docType => $version) {
-            $url = consent_document_url($docType);
-            $label = consent_document_label($docType, $l);
-            $links .= '<li><a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '">'
-                . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</a></li>';
-        }
-
-        $sections[] = '<p>' . $greeting . '</p>'
-            . '<p>' . htmlspecialchars(consent_notify_t('email_intro', $l), ENT_QUOTES, 'UTF-8') . '</p>'
-            . '<ul>' . $items . '</ul>'
-            . '<p>' . htmlspecialchars(consent_notify_t('email_next_login', $l), ENT_QUOTES, 'UTF-8') . '</p>'
-            . '<p>' . htmlspecialchars(consent_notify_t('email_read', $l), ENT_QUOTES, 'UTF-8') . '</p>'
-            . '<ul>' . $links . '</ul>';
     }
 
-    $html = implode("\n<hr>\n", $sections);
-    return [$subject, $html];
+    $rendered = telaris_email_render([
+        'heading'    => $subject,
+        'paragraphs' => $paragraphs,
+        'links'      => $links,
+        'locale'     => $subjectLoc,
+    ]);
+    return [$subject, $rendered['html'], $rendered['text']];
 }
 
 // --- Strings -------------------------------------------------------------

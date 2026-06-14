@@ -191,6 +191,7 @@ function send_magic_login_email(string $to, string $token, string $locale = 'en'
         'heading'    => (string)enroll_mail_t($locale, 'magic_heading'),
         'paragraphs' => enroll_mail_fill(enroll_mail_t($locale, 'magic_paras'), $instance),
         'cta'        => ['label' => (string)enroll_mail_t($locale, 'magic_cta'), 'url' => $url],
+        'body_links' => [$instance => $url],
         'note'       => (string)enroll_mail_t($locale, 'magic_note'),
         'locale'     => $locale,
     ]);
@@ -204,6 +205,7 @@ function send_welcome_email(string $to, string $locale = 'en'): bool {
         'heading'    => (string)enroll_mail_t($locale, 'welcome_heading'),
         'paragraphs' => enroll_mail_fill(enroll_mail_t($locale, 'welcome_paras'), $instance),
         'cta'        => ['label' => (string)enroll_mail_t($locale, 'welcome_cta'), 'url' => $url],
+        'body_links' => [$instance => $url],
         'note'       => (string)enroll_mail_t($locale, 'welcome_note'),
         'locale'     => $locale,
     ]);
@@ -217,6 +219,7 @@ function send_enroll_confirm_email(string $to, string $token, string $locale = '
         'heading'    => (string)enroll_mail_t($locale, 'confirm_heading'),
         'paragraphs' => enroll_mail_fill(enroll_mail_t($locale, 'confirm_paras'), $instance),
         'cta'        => ['label' => (string)enroll_mail_t($locale, 'confirm_cta'), 'url' => $url],
+        'body_links' => [$instance => $url],
         'note'       => (string)enroll_mail_t($locale, 'confirm_note'),
         'locale'     => $locale,
     ]);
@@ -230,6 +233,7 @@ function send_vetting_email(string $to, string $token, string $locale = 'en'): b
         'heading'    => (string)enroll_mail_t($locale, 'vetting_heading'),
         'paragraphs' => enroll_mail_fill(enroll_mail_t($locale, 'vetting_paras'), $instance),
         'cta'        => ['label' => (string)enroll_mail_t($locale, 'vetting_cta'), 'url' => $url],
+        'body_links' => [$instance => $url],
         'note'       => (string)enroll_mail_t($locale, 'vetting_note'),
         'locale'     => $locale,
     ]);

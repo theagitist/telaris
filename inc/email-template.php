@@ -24,17 +24,31 @@ declare(strict_types=1);
  * @param array{
  *   heading: string,
  *   paragraphs: list<string>,
+ *   bullets?: list<string>,
  *   cta?: array{label:string,url:string}|null,
+ *   links?: list<array{label:string,url:string}>,
+ *   body_links?: array<string,string>,
  *   note?: string|null,
  *   locale?: string
  * } $opts
+ *
+ * body_links turns a plain substring inside the paragraphs (typically the
+ * instance hostname) into a real link to the given URL. Without it, mail clients
+ * auto-linkify a bare hostname to the site root (the 3D view), so recipients who
+ * click it miss the action; body_links points that text at the action instead.
+ * links renders secondary actions under the primary CTA (e.g. a galaxy link and a
+ * sign-in link in a welcome email). bullets renders a list after the paragraphs.
+ *
  * @return array{html:string,text:string}
  */
 function telaris_email_render(array $opts): array
 {
     $heading    = (string)($opts['heading'] ?? '');
     $paragraphs = array_values(array_filter((array)($opts['paragraphs'] ?? []), 'is_string'));
+    $bullets    = array_values(array_filter((array)($opts['bullets'] ?? []), 'is_string'));
     $cta        = $opts['cta'] ?? null;
+    $links      = is_array($opts['links'] ?? null) ? $opts['links'] : [];
+    $bodyLinks  = is_array($opts['body_links'] ?? null) ? $opts['body_links'] : [];
     $note       = isset($opts['note']) ? (string)$opts['note'] : null;
     $locale     = isset($opts['locale']) && is_string($opts['locale']) ? $opts['locale'] : 'en';
     $tagline    = 'weaving memory';
@@ -62,9 +76,37 @@ function telaris_email_render(array $opts): array
 
     $esc = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 
+    // Turn configured substrings (e.g. the instance hostname) into real links to
+    // the action, applied to the already-escaped paragraph so the match is on the
+    // escaped form. Longest needles first so a hostname is not half-matched.
+    $linkNeedles = [];
+    foreach ($bodyLinks as $needle => $url) {
+        if (is_string($needle) && $needle !== '' && is_string($url) && $url !== '') {
+            $linkNeedles[$needle] = $url;
+        }
+    }
+    uksort($linkNeedles, static fn($a, $b) => strlen((string)$b) <=> strlen((string)$a));
+    $applyBodyLinks = static function (string $escaped) use ($linkNeedles, $esc, $mint): string {
+        foreach ($linkNeedles as $needle => $url) {
+            $needleEsc = $esc((string)$needle);
+            $anchor = '<a href="' . $esc((string)$url) . '" style="color:' . $mint . ';text-decoration:underline;">' . $needleEsc . '</a>';
+            $escaped = str_replace($needleEsc, $anchor, $escaped);
+        }
+        return $escaped;
+    };
+
     $paraHtml = '';
     foreach ($paragraphs as $p) {
-        $paraHtml .= '<p style="margin:0 0 18px;color:' . $aurora . ';font-size:16px;line-height:1.7;">' . $esc($p) . '</p>';
+        $paraHtml .= '<p style="margin:0 0 18px;color:' . $aurora . ';font-size:16px;line-height:1.7;">' . $applyBodyLinks($esc($p)) . '</p>';
+    }
+
+    $bulletsHtml = '';
+    if ($bullets !== []) {
+        $items = '';
+        foreach ($bullets as $b) {
+            $items .= '<li style="margin:0 0 8px;color:' . $aurora . ';font-size:16px;line-height:1.6;">' . $applyBodyLinks($esc($b)) . '</li>';
+        }
+        $bulletsHtml = '<ul style="margin:0 0 18px;padding-left:20px;">' . $items . '</ul>';
     }
 
     $ctaHtml = '';
@@ -77,6 +119,23 @@ function telaris_email_render(array $opts): array
             . 'letter-spacing:0.04em;color:' . $mint . ';text-decoration:none;">'
             . $esc((string)$cta['label']) . '</a>'
             . '</td></tr></table>';
+    }
+
+    // Secondary links under the primary CTA (e.g. a galaxy link + a sign-in link).
+    $linksHtml = '';
+    if ($links !== []) {
+        $items = '';
+        foreach ($links as $lnk) {
+            if (!is_array($lnk) || empty($lnk['url']) || empty($lnk['label'])) {
+                continue;
+            }
+            $items .= '<p style="margin:0 0 10px;font-family:' . $mono . ';font-size:14px;line-height:1.6;">'
+                . '<a href="' . $esc((string)$lnk['url']) . '" style="color:' . $mint . ';text-decoration:underline;">'
+                . $esc((string)$lnk['label']) . '</a></p>';
+        }
+        if ($items !== '') {
+            $linksHtml = '<div style="margin:0 0 18px;">' . $items . '</div>';
+        }
     }
 
     $noteHtml = '';
@@ -109,7 +168,7 @@ function telaris_email_render(array $opts): array
         . '</td></tr>'
         . '<tr><td style="padding:0 28px;">'
         . '<h1 style="margin:0 0 18px;font-family:' . $mono . ';font-size:21px;font-weight:600;line-height:1.4;color:' . $aurora . ';">' . $esc($heading) . '</h1>'
-        . '<div style="font-family:' . $mono . ';">' . $paraHtml . $ctaHtml . $linkFallbackHtml . $noteHtml . '</div>'
+        . '<div style="font-family:' . $mono . ';">' . $paraHtml . $bulletsHtml . $ctaHtml . $linkFallbackHtml . $linksHtml . $noteHtml . '</div>'
         . '</td></tr>'
         . '<tr><td style="padding:18px 28px 28px;">'
         . '<div style="height:1px;background:' . $border . ';margin:0 0 16px;"></div>'
@@ -125,8 +184,22 @@ function telaris_email_render(array $opts): array
         $textLines[] = $p;
         $textLines[] = '';
     }
+    foreach ($bullets as $b) {
+        $textLines[] = '- ' . $b;
+    }
+    if ($bullets !== []) {
+        $textLines[] = '';
+    }
     if (is_array($cta) && !empty($cta['url']) && !empty($cta['label'])) {
         $textLines[] = strtoupper((string)$cta['label']) . ': ' . (string)$cta['url'];
+        $textLines[] = '';
+    }
+    foreach ($links as $lnk) {
+        if (is_array($lnk) && !empty($lnk['url']) && !empty($lnk['label'])) {
+            $textLines[] = (string)$lnk['label'] . ': ' . (string)$lnk['url'];
+        }
+    }
+    if ($links !== []) {
         $textLines[] = '';
     }
     if ($note !== null && $note !== '') {

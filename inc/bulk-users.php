@@ -170,6 +170,7 @@ function bulk_users_apply(array $rows, string $baseUrl): array {
     $outRows = [];
 
     require_once __DIR__ . '/mail.php';
+    require_once __DIR__ . '/email-template.php';
 
     $claimedSlugs = [];
     // Resolved once for every audit row in the loop below.
@@ -259,47 +260,34 @@ function bulk_users_apply(array $rows, string $baseUrl): array {
                 : null;
 
             $displayName = trim($row['firstname'] . ' ' . $row['lastname']);
-            $greetingHtml = $displayName !== '' ? htmlspecialchars($displayName) : 'there';
             $greetingText = $displayName !== '' ? $displayName : 'there';
             $subject = 'Welcome to ' . $appName;
 
-            $htmlParts = [];
-            $htmlParts[] = '<p>Hi ' . $greetingHtml . ',</p>';
-            $htmlParts[] = '<p>An account has been created for you on ' . htmlspecialchars($appName) . '.</p>';
-            $htmlParts[] = '<p><strong>Your username</strong> is your email address: <code>' . htmlspecialchars($row['email']) . '</code></p>';
-            $htmlParts[] = '<p><strong>Set your password</strong> (link valid 7 days, single-use):<br>'
-                         . '<a href="' . htmlspecialchars($resetUrl) . '">' . htmlspecialchars($resetUrl) . '</a></p>';
+            // On-brand shell, same format as the enrolment emails. Set-password is
+            // the primary CTA (and the plain-text fallback URL); galaxy and sign-in
+            // are secondary links so the recipient never has to click a bare host.
+            // Bulk import carries no per-recipient locale, so this copy is English;
+            // localizing it would need a locale column in the CSV (follow-up).
+            $links = [];
             if ($galaxyUrl !== null) {
-                $htmlParts[] = '<p><strong>Your galaxy:</strong><br>'
-                             . '<a href="' . htmlspecialchars($galaxyUrl) . '">' . htmlspecialchars($galaxyUrl) . '</a></p>';
+                $links[] = ['label' => 'Your galaxy', 'url' => $galaxyUrl];
             }
-            $htmlParts[] = '<p><strong>Log in</strong> to start adding wormholes:<br>'
-                         . '<a href="' . htmlspecialchars($loginUrl) . '">' . htmlspecialchars($loginUrl) . '</a></p>';
-            $htmlParts[] = '<p>— ' . htmlspecialchars($appName) . '</p>';
-            $html = implode("\n", $htmlParts);
+            $links[] = ['label' => 'Log in to start adding wormholes', 'url' => $loginUrl];
 
-            $textParts = [];
-            $textParts[] = "Hi $greetingText,";
-            $textParts[] = '';
-            $textParts[] = "An account has been created for you on $appName.";
-            $textParts[] = '';
-            $textParts[] = "Your username is your email address: {$row['email']}";
-            $textParts[] = '';
-            $textParts[] = 'Set your password (valid 7 days, single-use):';
-            $textParts[] = $resetUrl;
-            if ($galaxyUrl !== null) {
-                $textParts[] = '';
-                $textParts[] = 'Your galaxy:';
-                $textParts[] = $galaxyUrl;
-            }
-            $textParts[] = '';
-            $textParts[] = 'Log in to start adding wormholes:';
-            $textParts[] = $loginUrl;
-            $textParts[] = '';
-            $textParts[] = "— $appName";
-            $text = implode("\n", $textParts);
+            $rendered = telaris_email_render([
+                'heading'    => $subject,
+                'paragraphs' => [
+                    "Hi $greetingText,",
+                    "An account has been created for you on $appName.",
+                    "Your username is your email address: {$row['email']}",
+                ],
+                'cta'        => ['label' => 'Set your password', 'url' => $resetUrl],
+                'links'      => $links,
+                'note'       => 'The password link is valid for 7 days and can only be used once.',
+                'locale'     => 'en',
+            ]);
 
-            $sent = mail_send($row['email'], $subject, $html, $text, $displayName !== '' ? $displayName : null);
+            $sent = mail_send($row['email'], $subject, $rendered['html'], $rendered['text'], $displayName !== '' ? $displayName : null);
 
             $created++;
             if (!$sent) $mailFailed++;

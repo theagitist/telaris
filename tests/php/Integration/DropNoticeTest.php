@@ -11,7 +11,8 @@ use PHPUnit\Framework\TestCase;
  * the real MAIL_SMTP_* relay constants), so the public
  * federation_notify_operator_mirror_dropped is exercised only for its guard
  * behaviour; the per-locale composition is tested directly through
- * _federation_drop_render_locale (a real DB read against project_info).
+ * _federation_drop_locale_content (a real DB read against project_info),
+ * which returns the shell content pieces {subject, paragraphs, bullets}.
  *
  * Spec: Stage 6 trust revocation design (6f).
  */
@@ -42,28 +43,29 @@ final class DropNoticeTest extends TestCase
 
     public function testRenderEnglishCarriesSlugsOriginReasonAndGreeting(): void
     {
-        $r = _federation_drop_render_locale('en', $this->sampleDropped(), 'pluriverse-revoked', 'Adri');
+        $r = _federation_drop_locale_content('en', $this->sampleDropped(), 'pluriverse-revoked', 'Adri');
         $this->assertSame('Federated galaxies removed', $r['subject']);
+        $paras = implode("\n", $r['paragraphs']);
+        $bullets = implode("\n", $r['bullets']);
         // Greeting uses the named form.
-        $this->assertStringContainsString('Hi Adri,', $r['text']);
-        // Both galaxies + origin appear.
-        $this->assertStringContainsString('coastal-plants (mirrored from starmaps.polivoxia.ca)', $r['text']);
-        $this->assertStringContainsString('tide-pools (mirrored from starmaps.polivoxia.ca)', $r['text']);
+        $this->assertStringContainsString('Hi Adri,', $paras);
+        // Both galaxies + origin appear as bullet items.
+        $this->assertStringContainsString('coastal-plants (mirrored from starmaps.polivoxia.ca)', $bullets);
+        $this->assertStringContainsString('tide-pools (mirrored from starmaps.polivoxia.ca)', $bullets);
         // Reason line present for a known reason token.
-        $this->assertStringContainsString("the origin instance's federation membership was revoked", $r['text']);
-        // HTML body escapes and lists items.
-        $this->assertStringContainsString('<li>coastal-plants (mirrored from starmaps.polivoxia.ca)</li>', $r['html']);
+        $this->assertStringContainsString("the origin instance's federation membership was revoked", $paras);
     }
 
     public function testRenderSpanishIsLocalizedNotEnglish(): void
     {
-        $r = _federation_drop_render_locale('es', $this->sampleDropped(), 'pluriverse-blacklist', '');
+        $r = _federation_drop_locale_content('es', $this->sampleDropped(), 'pluriverse-blacklist', '');
         $this->assertSame('Galaxias federadas eliminadas', $r['subject']);
+        $paras = implode("\n", $r['paragraphs']);
         // Anonymous greeting (no name) in Spanish.
-        $this->assertStringContainsString('Hola,', $r['text']);
+        $this->assertStringContainsString('Hola,', $paras);
         // Decolonial: the Spanish body must not fall back to the English reason.
-        $this->assertStringContainsString('la instancia de origen fue bloqueada en el Pluriverse', $r['text']);
-        $this->assertStringNotContainsString('the origin instance was blocked', $r['text']);
+        $this->assertStringContainsString('la instancia de origen fue bloqueada en el Pluriverse', $paras);
+        $this->assertStringNotContainsString('the origin instance was blocked', $paras);
     }
 
     public function testUnknownReasonOmitsReasonLine(): void
@@ -71,9 +73,9 @@ final class DropNoticeTest extends TestCase
         // 'origin_withdrawal' is a fossilize reason, never a drop; if it ever
         // reaches the notifier it should simply produce no reason line rather
         // than an untranslated token.
-        $r = _federation_drop_render_locale('en', $this->sampleDropped(), 'origin_withdrawal', '');
-        $this->assertStringNotContainsString('Reason:', $r['text']);
-        $this->assertStringContainsString('coastal-plants', $r['text']);
+        $r = _federation_drop_locale_content('en', $this->sampleDropped(), 'origin_withdrawal', '');
+        $this->assertStringNotContainsString('Reason:', implode("\n", $r['paragraphs']));
+        $this->assertStringContainsString('coastal-plants', implode("\n", $r['bullets']));
     }
 
     public function testNotifyIsNoOpForEmptyDropList(): void

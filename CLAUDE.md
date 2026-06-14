@@ -415,6 +415,20 @@ A wormhole can swap its classic media block (image/audio/PDF/embed) for an embed
 
 `MAIL_*` config constants in `config.php` (placeholders in `config_default.php`). Outgoing mail through Mailgun via PHPMailer 7 (vendored via composer; needs `composer install` on each instance). Helper at `inc/mail.php` exposes `mail_send($to, $subject, $html, $textFallback?, $toName?)` and `mail_is_configured()`; failures are logged but never thrown.
 
+### Transactional email format (canonical: `inc/email-template.php`)
+
+**Every system email is rendered through `telaris_email_render(array $opts): array{html,text}`.** Do not hand-build email HTML; that is how fonts and styling drift. The shell applies the brand (Void ground, Aurora text, Wormhole-mint signal for links/CTA, monospace, wordmark + "weaving memory" footer) and a localized automated-address footer, and returns both an HTML body and a plain-text alternative for `mail_send`.
+
+`$opts`: `heading` (H1), `paragraphs` (list, escaped), `bullets` (list, rendered as `<ul>`), `cta` (`{label,url}` primary button), `links` (list of `{label,url}` secondary links under the CTA), `body_links` (map of `substring => url`), `note` (muted fine print), `locale` (`en|es|pt|fr`, drives the footer). Pass RAW strings; the shell escapes.
+
+**Principle 1 — the body hostname must link to the action.** Mail clients auto-linkify a bare hostname (e.g. `starmaps.polivoxia.ca`) to the site root (the 3D view), so recipients click it and miss the action. Whenever the body mentions the instance host, pass `body_links => [$instance => $actionUrl]` so that text becomes a real link to the confirm / set-password / sign-in URL. The CTA button and the plain-text fallback already carry the full action URL.
+
+**Principle 2 — resolve the host from trusted config, never the request Host header.** Use `SITE_BASE_URL` (explicit override) → `https://TELARIS_HOSTNAME` (core per-instance config) → Host header (logged last resort). See `enroll_mail_base_url()`; the password-reset and bulk-welcome paths follow the same order.
+
+**Principle 3 — localize.** All copy is `en/es/pt/fr` via `t()`/feature copy maps with no English render-time fallback (the email shell footer carries its own four-locale copy). Exception: bulk-import welcome is English because the CSV carries no per-recipient locale (follow-up: a locale column).
+
+Senders on the shell: `inc/enroll-mail.php` (magic-login, welcome, enrol-confirm, vetting), `utils/forgot.php` (password reset), `inc/bulk-users.php` (bulk welcome), `inc/consent_notify.php` (documents-changed), `inc/federation/drop_notice.php` (mirror dropped). When adding a new email, render it through the shell and follow the three principles above.
+
 ### Password reset flow
 
 `/utils/forgot.php` accepts an email and emits a one-time reset link (no email enumeration — same generic message regardless of whether the email exists or whether mail succeeds). `/utils/reset.php?token=…` validates the token (single-use, 24h TTL, SHA-256 hashed in `password_reset_tokens`) and lets the user set a new password via `password_hash(..., PASSWORD_DEFAULT)`. `db_create_password_reset_token` invalidates any prior unconsumed tokens for the same user when a fresh request comes in. "Forgot your password?" link added to `/utils/login.php`.
@@ -427,7 +441,7 @@ A wormhole can swap its classic media block (image/audio/PDF/embed) for an embed
 
 Supported locales: `en`, `es`, `pt`. Detected from `?lang=` query param or `Accept-Language` header. A language switcher in the HUD allows users to switch. All visitor-facing UI strings come from the `project_info` table (~42 localized keys; keys after v6.9 cover multigalaxy taglines and PDF viewer chrome). New columns are auto-migrated via `db_ensure_project_info_columns()`.
 
-**Editor and admin pages remain English by convention.** Mail templates also default to English. Visitor-facing only is the bar.
+**Editor and admin pages remain English by convention.** Transactional emails ARE localized (en/es/pt/fr) via the shell, except the bulk-import welcome (no per-recipient locale in the CSV). Visitor-facing localization is the bar.
 
 ### URL Routing
 
