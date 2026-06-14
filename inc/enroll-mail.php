@@ -45,6 +45,16 @@ function enroll_mail_instance_name(): string {
 }
 
 /**
+ * URL of a documentation PDF in the recipient's locale. The docs are centrally
+ * hosted on the Pluriverse website (www.telaris.ca/docs), not the instance.
+ * Filenames are <slug>.pdf for English and <slug>-{es,pt,fr}.pdf otherwise.
+ */
+function enroll_mail_doc_url(string $slug, string $locale): string {
+    $suffix = in_array($locale, ['es', 'pt', 'fr'], true) ? '-' . $locale : '';
+    return 'https://www.telaris.ca/docs/' . $slug . $suffix . '.pdf';
+}
+
+/**
  * Localized email copy. %s placeholders are filled with the instance name.
  * Each email: subject, heading, paragraphs[], cta_label, note.
  *
@@ -67,7 +77,9 @@ function enroll_mail_copy(): array {
                 'The Editor Manual walks through galaxies, wormholes, keywords, portals, and tours.',
             ],
             'welcome_cta'     => 'Open the editor',
-            'welcome_note'    => 'Documentation lives at www.telaris.ca. You can sign in any time with an emailed link, or with a password once you have set one.',
+            'welcome_doc_quickstart' => 'Editor Quick Start (PDF)',
+            'welcome_doc_manual'     => 'Editor Manual (PDF)',
+            'welcome_note'    => 'You can sign in any time with an emailed link, or with a password once you have set one.',
 
             'confirm_subject' => 'Confirm your Telaris editor account',
             'confirm_heading' => 'Confirm your email to finish enrolling',
@@ -96,7 +108,9 @@ function enroll_mail_copy(): array {
                 'El Manual de edición recorre galaxias, agujeros de gusano, palabras clave, portales y recorridos.',
             ],
             'welcome_cta'     => 'Abrir el editor',
-            'welcome_note'    => 'La documentación está en www.telaris.ca. Puedes iniciar sesión en cualquier momento con un enlace enviado por correo, o con una contraseña una vez que la hayas configurado.',
+            'welcome_doc_quickstart' => 'Inicio rápido para editoras (PDF)',
+            'welcome_doc_manual'     => 'Manual del editor (PDF)',
+            'welcome_note'    => 'Puedes iniciar sesión en cualquier momento con un enlace enviado por correo, o con una contraseña una vez que la hayas configurado.',
 
             'confirm_subject' => 'Confirma tu cuenta de edición de Telaris',
             'confirm_heading' => 'Confirma tu correo para terminar de inscribirte',
@@ -125,7 +139,9 @@ function enroll_mail_copy(): array {
                 'O Manual de edição percorre galáxias, buracos de minhoca, palavras-chave, portais e percursos.',
             ],
             'welcome_cta'     => 'Abrir o editor',
-            'welcome_note'    => 'A documentação fica em www.telaris.ca. Você pode entrar a qualquer momento com um link enviado por e-mail, ou com uma senha depois de defini-la.',
+            'welcome_doc_quickstart' => 'Início rápido para editoras (PDF)',
+            'welcome_doc_manual'     => 'Manual do editor (PDF)',
+            'welcome_note'    => 'Você pode entrar a qualquer momento com um link enviado por e-mail, ou com uma senha depois de defini-la.',
 
             'confirm_subject' => 'Confirme sua conta de edição do Telaris',
             'confirm_heading' => 'Confirme seu e-mail para concluir a inscrição',
@@ -154,7 +170,9 @@ function enroll_mail_copy(): array {
                 "Le Manuel d'édition parcourt les galaxies, les trous de ver, les mots-clés, les portails et les visites.",
             ],
             'welcome_cta'     => "Ouvrir l'éditeur",
-            'welcome_note'    => 'La documentation se trouve sur www.telaris.ca. Tu peux te connecter à tout moment avec un lien envoyé par courriel, ou avec un mot de passe une fois que tu en as défini un.',
+            'welcome_doc_quickstart' => "Démarrage rapide d'édition (PDF)",
+            'welcome_doc_manual'     => "Manuel d'édition (PDF)",
+            'welcome_note'    => 'Tu peux te connecter à tout moment avec un lien envoyé par courriel, ou avec un mot de passe une fois que tu en as défini un.',
 
             'confirm_subject' => "Confirme ton compte d'édition Telaris",
             'confirm_heading' => "Confirme ton courriel pour terminer l'inscription",
@@ -201,10 +219,16 @@ function send_magic_login_email(string $to, string $token, string $locale = 'en'
 function send_welcome_email(string $to, string $locale = 'en'): bool {
     $instance = enroll_mail_instance_name();
     $url = enroll_mail_base_url() . '/edit/';
+    // Editor-facing documentation PDFs, in the recipient's locale.
+    $docLinks = [
+        ['label' => (string)enroll_mail_t($locale, 'welcome_doc_quickstart'), 'url' => enroll_mail_doc_url('editor-quick-start', $locale)],
+        ['label' => (string)enroll_mail_t($locale, 'welcome_doc_manual'),     'url' => enroll_mail_doc_url('editor-manual', $locale)],
+    ];
     $rendered = telaris_email_render([
         'heading'    => (string)enroll_mail_t($locale, 'welcome_heading'),
         'paragraphs' => enroll_mail_fill(enroll_mail_t($locale, 'welcome_paras'), $instance),
         'cta'        => ['label' => (string)enroll_mail_t($locale, 'welcome_cta'), 'url' => $url],
+        'links'      => $docLinks,
         'body_links' => [$instance => $url],
         'note'       => (string)enroll_mail_t($locale, 'welcome_note'),
         'locale'     => $locale,
