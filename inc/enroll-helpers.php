@@ -16,7 +16,10 @@ declare(strict_types=1);
 
 /** Valid personal-galaxy naming conventions. user_choice = defer to first login. */
 const ENROLL_NAMING_CONVENTIONS = ['full_email', 'email_username', 'first_name', 'user_choice'];
-const ENROLL_NAMING_DEFAULT = 'email_username';
+// Default to the first name: galaxy names are public (3D view + URL slug), so the
+// email-based conventions would expose the editor's address. Admins can still pick
+// them explicitly with the privacy warning shown in the Auto-enroll modal.
+const ENROLL_NAMING_DEFAULT = 'first_name';
 
 /** Per-seat access levels. Mirrors user_constellations.access_level. */
 const ENROLL_ACCESS_LEVELS = ['read_write', 'read_only'];

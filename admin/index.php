@@ -321,7 +321,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 db_set_auto_enroll_config([
                     'enabled' => !empty($_POST['enabled']),
                     'create_personal_galaxy' => !empty($_POST['create_personal_galaxy']),
-                    'naming_convention' => (string)($_POST['naming_convention'] ?? 'email_username'),
+                    'naming_convention' => (string)($_POST['naming_convention'] ?? 'first_name'),
                     'domains' => (string)($_POST['domains'] ?? ''),
                     'galaxy_ids' => array_map('intval', array_filter((array)($_POST['galaxy_ids'] ?? []))),
                     'access_level' => (string)($_POST['access_level'] ?? 'read_write'),
@@ -773,6 +773,10 @@ foreach ($users as $u) {
     }
 }
 
+// Owned-galaxy count per user in one grouped query (avoids a per-row COUNT in the
+// user list, which the owned_galaxies badge and the delete prompt both need).
+$ownedGalaxyCounts = db_count_galaxies_by_creator();
+
 // Editor self-enrollment config + current unvetted-editor count for the Auto-enroll modal.
 $aeConfig = db_get_auto_enroll_config();
 $aeUnvettedCount = db_count_unvetted_editors();
@@ -1105,7 +1109,7 @@ foreach ($importantExtensions as $ext => $name) {
                                                 'email' => $user['email'],
                                                 'type' => $user['type'],
                                                 'vetted' => (int)($user['vetted'] ?? 1),
-                                                'owned_galaxies' => count(db_get_constellation_ids_created_by((string)$user['id'])),
+                                                'owned_galaxies' => $ownedGalaxyCounts[(string)$user['id']] ?? 0,
                                             ];
                                             $userJson = htmlspecialchars(json_encode($userData), ENT_QUOTES, 'UTF-8');
                                             $clickEdit = "editUser($userJson)";
@@ -1143,7 +1147,7 @@ foreach ($importantExtensions as $ext => $name) {
                                                                 $delMsg = sprintf(t('admin_confirm_delete_user', 'Are you sure you want to delete the user "%s"? This action cannot be undone.'), $fullName);
                                                                 $delMsgJs = htmlspecialchars(json_encode($delMsg), ENT_QUOTES, 'UTF-8');
                                                                 $delConfirmJs = htmlspecialchars(json_encode((string)($user['email'] ?? '')), ENT_QUOTES, 'UTF-8');
-                                                                $ownedGalaxyCount = count(db_get_constellation_ids_created_by((string)$user['id']));
+                                                                $ownedGalaxyCount = $ownedGalaxyCounts[(string)$user['id']] ?? 0;
                                                                 ?>
                                                                 <li><a onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, <?php echo $delConfirmJs; ?>, <?php echo (int)$ownedGalaxyCount; ?>)" class="text-red-600 text-xs"><?= t_attr('admin_action_delete', 'Delete') ?></a></li>
                                                             <?php endif; ?>
@@ -5388,14 +5392,15 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                     <label class="block mb-1 text-xs text-gray-600"><?= htmlspecialchars(t('admin_auto_enroll_naming_label', 'New galaxy naming convention')) ?></label>
                     <select name="naming_convention" class="select select-bordered select-sm w-full bg-white">
                         <?php foreach ([
-                            'email_username' => t('admin_auto_enroll_naming_email_username', 'Email username only (andrew)'),
-                            'full_email' => t('admin_auto_enroll_naming_full_email', 'Full email (andrew@example.com)'),
                             'first_name' => t('admin_auto_enroll_naming_first_name', "First name's galaxy"),
                             'user_choice' => t('admin_auto_enroll_naming_user_choice', 'Let the user choose at first sign-in'),
+                            'email_username' => t('admin_auto_enroll_naming_email_username', 'Email username only (andrew)'),
+                            'full_email' => t('admin_auto_enroll_naming_full_email', 'Full email (andrew@example.com)'),
                         ] as $val => $label): ?>
                             <option value="<?= htmlspecialchars($val) ?>" <?= $aeConfig['naming_convention'] === $val ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
                         <?php endforeach; ?>
                     </select>
+                    <p class="mt-1 text-xs text-amber-600"><?= htmlspecialchars(t('admin_auto_enroll_naming_privacy_note', 'Galaxy names are shown publicly in the 3D view and the page URL. The email options put the editor\'s address on display; prefer the first name or letting the user choose.')) ?></p>
                 </div>
 
                 <div class="mb-4">

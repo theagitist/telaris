@@ -118,6 +118,39 @@ final class EnrollmentFlowTest extends TestCase
         $this->assertFalse(enroll_email_domain_allowed('a@elsewhere.com', ['aitest.local']));
     }
 
+    public function testPersonalGalaxyIsAlwaysReadWriteEvenWhenConfiguredReadOnly(): void
+    {
+        // Invariant: you own your personal galaxy, so its seat is read_write
+        // regardless of the configured access_level for *granted* galaxies. A
+        // future refactor that threaded the config level into the personal seat
+        // would silently demote owners; this pins it.
+        $u = $this->makeEnrollee();
+        $granted = db_create_constellation('aitest-enr-grant-' . bin2hex(random_bytes(3)), '', null, 'cosmic');
+        $this->tempGalaxyIds[] = $granted;
+        $cfg = auto_enroll_normalize_config([
+            'enabled' => true, 'create_personal_galaxy' => true, 'naming_convention' => 'email_username',
+            'galaxy_ids' => [$granted], 'access_level' => 'read_only',
+        ]);
+        $res = enroll_apply_config((string)$u['id'], (string)$u['email'], (string)$u['firstname'], $cfg);
+        $this->tempGalaxyIds[] = $res['personal_galaxy_id'];
+
+        $access = db_get_user_constellation_access((string)$u['id']);
+        $this->assertSame('read_write', $access[(int)$res['personal_galaxy_id']] ?? null, 'owner keeps read_write on their own galaxy');
+        $this->assertSame('read_only', $access[$granted] ?? null, 'granted galaxy honours the configured level');
+    }
+
+    public function testNoPersonalGalaxyWhenDisabled(): void
+    {
+        $u = $this->makeEnrollee();
+        $cfg = auto_enroll_normalize_config([
+            'enabled' => true, 'create_personal_galaxy' => false, 'galaxy_ids' => [],
+        ]);
+        $res = enroll_apply_config((string)$u['id'], (string)$u['email'], (string)$u['firstname'], $cfg);
+        $this->assertNull($res['personal_galaxy_id'], 'no galaxy created when disabled');
+        $this->assertFalse($res['deferred'], 'not deferred when creation is disabled');
+        $this->assertSame([], db_get_user_constellation_access((string)$u['id']), 'no seats granted');
+    }
+
     private function cleanup(): void
     {
         $this->pdo->exec("DELETE FROM users WHERE id LIKE 'aitest-enr-%' OR email LIKE 'aitest-enr-%@aitest.local'");

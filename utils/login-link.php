@@ -46,7 +46,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 } else {
                     $user = db_get_user_by_email($email);
                     // Only editors and admins can sign in; only they get a link.
-                    if ($user && in_array((int)($user['type'] ?? -1), [USER_TYPE_EDITOR, USER_TYPE_ADMIN], true)) {
+                    // A self-enrolled editor who has never confirmed (vetted=0,
+                    // no password, never signed in) must use the enrol-confirm
+                    // link for first entry so enroll_apply_config (personal
+                    // galaxy + seats) runs and email ownership is verified
+                    // through that path; issuing a magic link here would let
+                    // them skip confirmation. The notice stays generic either
+                    // way (anti-enumeration).
+                    $isUnconfirmedSelfEnrolled = $user
+                        && (int)($user['type'] ?? -1) === USER_TYPE_EDITOR
+                        && (int)($user['vetted'] ?? 1) === 0
+                        && empty($user['password'])
+                        && empty($user['date_last_login']);
+                    if ($user
+                        && in_array((int)($user['type'] ?? -1), [USER_TYPE_EDITOR, USER_TYPE_ADMIN], true)
+                        && !$isUnconfirmedSelfEnrolled) {
                         $token = db_create_login_token((string)$user['id'], 'magic_login', 900); // 15 min
                         @send_magic_login_email($email, $token, $authLocale);
                     }

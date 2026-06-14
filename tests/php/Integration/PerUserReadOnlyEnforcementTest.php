@@ -109,6 +109,27 @@ final class PerUserReadOnlyEnforcementTest extends TestCase
         $this->assertSame('read_only', $map[$this->roGalaxyId] ?? null);
     }
 
+    public function testNonexistentConstellationFailsClosed(): void
+    {
+        // A constellation id that does not exist (and that the user holds no seat
+        // for) must be non-writable. Fail-closed at the choke-point.
+        $this->assertFalse(db_user_can_write_constellation($this->editorUserId, 999000111));
+    }
+
+    public function testInvalidAccessLevelCoercesToReadWriteDefault(): void
+    {
+        // The write-enforcement floor: an out-of-range access level must never be
+        // persisted as-is (a CHECK-less engine like SQLite would otherwise accept
+        // it and db_user_can_write_constellation would treat the unknown value as
+        // non-writable, silently locking the seat). The helpers coerce to the
+        // ENROLL_ACCESS_DEFAULT (read_write).
+        db_set_user_constellations($this->editorUserId, [$this->rwGalaxyId], 'sudo');
+        $this->assertSame('read_write', db_get_user_constellation_access($this->editorUserId)[$this->rwGalaxyId] ?? null);
+
+        db_add_user_constellation($this->editorUserId, $this->roGalaxyId, '');
+        $this->assertSame('read_write', db_get_user_constellation_access($this->editorUserId)[$this->roGalaxyId] ?? null);
+    }
+
     private function cleanup(): void
     {
         $this->pdo->exec("DELETE FROM users WHERE id LIKE 'aitest-puro-editor-%' OR email LIKE 'aitest-puro-editor-%@aitest.local'");

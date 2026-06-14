@@ -36,7 +36,19 @@ function telaris_email_render(array $opts): array
     $paragraphs = array_values(array_filter((array)($opts['paragraphs'] ?? []), 'is_string'));
     $cta        = $opts['cta'] ?? null;
     $note       = isset($opts['note']) ? (string)$opts['note'] : null;
+    $locale     = isset($opts['locale']) && is_string($opts['locale']) ? $opts['locale'] : 'en';
     $tagline    = 'weaving memory';
+
+    // Localized automated-address footer (the shell is standalone, so it carries
+    // its own four-locale copy rather than going through t()). Falls back to
+    // English only if an unknown locale is passed.
+    $autoFooters = [
+        'en' => 'This message was sent by an automated address. Replies are not monitored.',
+        'es' => 'Este mensaje se envió desde una dirección automática. No se leen las respuestas.',
+        'pt' => 'Esta mensagem foi enviada de um endereço automático. As respostas não são lidas.',
+        'fr' => "Ce message a été envoyé depuis une adresse automatique. Les réponses ne sont pas lues.",
+    ];
+    $autoFooter = $autoFooters[$locale] ?? $autoFooters['en'];
 
     $void      = '#000000';
     $panel     = '#0a0a0c';
@@ -103,7 +115,7 @@ function telaris_email_render(array $opts): array
         . '<div style="height:1px;background:' . $border . ';margin:0 0 16px;"></div>'
         . '<div style="font-family:' . $mono . ';font-size:12px;letter-spacing:0.18em;color:' . $aurora28 . ';text-transform:lowercase;">' . $esc($tagline) . '</div>'
         . '<p style="margin:10px 0 0;font-family:' . $mono . ';font-size:12px;line-height:1.6;color:' . $aurora28 . ';">'
-        . 'This message was sent by an automated address. Replies are not monitored.</p>'
+        . $esc($autoFooter) . '</p>'
         . '</td></tr>'
         . '</table></td></tr></table></body></html>';
 
@@ -123,7 +135,7 @@ function telaris_email_render(array $opts): array
     }
     $textLines[] = '--';
     $textLines[] = 'Telaris · ' . $tagline;
-    $textLines[] = 'This message was sent by an automated address. Replies are not monitored.';
+    $textLines[] = $autoFooter;
     $text = implode("\n", $textLines);
 
     return ['html' => $html, 'text' => $text];

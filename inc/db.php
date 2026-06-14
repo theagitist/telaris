@@ -400,6 +400,7 @@ const PROJECT_INFO_KEYS = [
     'admin_auto_enroll_enable_warning', 'admin_auto_enroll_create_galaxy', 'admin_auto_enroll_naming_label',
     'admin_auto_enroll_naming_email_username', 'admin_auto_enroll_naming_full_email',
     'admin_auto_enroll_naming_first_name', 'admin_auto_enroll_naming_user_choice',
+    'admin_auto_enroll_naming_privacy_note',
     'admin_auto_enroll_galaxies_label', 'admin_auto_enroll_select_all', 'admin_auto_enroll_select_none',
     'admin_auto_enroll_group_hint', 'admin_auto_enroll_access_rw', 'admin_auto_enroll_access_ro',
     'admin_auto_enroll_domains_label', 'admin_auto_enroll_domains_ph', 'admin_auto_enroll_cap_label',
@@ -1971,6 +1972,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_auto_enroll_naming_full_email' => 'Full email (andrew@example.com)',
             'admin_auto_enroll_naming_first_name' => "First name's galaxy",
             'admin_auto_enroll_naming_user_choice' => 'Let the user choose at first sign-in',
+            'admin_auto_enroll_naming_privacy_note' => "Galaxy names are shown publicly in the 3D view and the page URL. The email options put the editor's address on display; prefer the first name or letting the user choose.",
             'admin_auto_enroll_galaxies_label' => 'Grant access to these galaxies',
             'admin_auto_enroll_select_all' => 'All',
             'admin_auto_enroll_select_none' => 'None',
@@ -3502,6 +3504,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_auto_enroll_naming_full_email' => 'Correo completo (andrew@example.com)',
             'admin_auto_enroll_naming_first_name' => 'La galaxia de su nombre',
             'admin_auto_enroll_naming_user_choice' => 'Que elija al iniciar sesión por primera vez',
+            'admin_auto_enroll_naming_privacy_note' => 'Los nombres de las galaxias se muestran públicamente en la vista 3D y en la URL de la página. Las opciones de correo dejan a la vista la dirección de quien edita; es preferible usar el nombre de pila o dejar que la persona elija.',
             'admin_auto_enroll_galaxies_label' => 'Conceder acceso a estas galaxias',
             'admin_auto_enroll_select_all' => 'Todas',
             'admin_auto_enroll_select_none' => 'Ninguna',
@@ -5029,6 +5032,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_auto_enroll_naming_full_email' => 'E-mail completo (andrew@example.com)',
             'admin_auto_enroll_naming_first_name' => 'A galáxia do nome dele',
             'admin_auto_enroll_naming_user_choice' => 'Deixar escolher no primeiro acesso',
+            'admin_auto_enroll_naming_privacy_note' => 'Os nomes das galáxias aparecem publicamente na visão 3D e na URL da página. As opções de e-mail deixam à mostra o endereço de quem edita; prefira o primeiro nome ou deixar a pessoa escolher.',
             'admin_auto_enroll_galaxies_label' => 'Conceder acesso a estas galáxias',
             'admin_auto_enroll_select_all' => 'Todas',
             'admin_auto_enroll_select_none' => 'Nenhuma',
@@ -6556,6 +6560,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_auto_enroll_naming_full_email' => 'Courriel complet (andrew@example.com)',
             'admin_auto_enroll_naming_first_name' => 'La galaxie de son prénom',
             'admin_auto_enroll_naming_user_choice' => "Laisser choisir à la première connexion",
+            'admin_auto_enroll_naming_privacy_note' => "Les noms de galaxie sont affichés publiquement dans la vue 3D et dans l'URL de la page. Les options de courriel exposent l'adresse de la personne qui édite; privilégie le prénom ou le choix par la personne.",
             'admin_auto_enroll_galaxies_label' => 'Accorder l\'accès à ces galaxies',
             'admin_auto_enroll_select_all' => 'Toutes',
             'admin_auto_enroll_select_none' => 'Aucune',
@@ -8888,8 +8893,9 @@ function generateDefaultApiKey(PDO $pdo): ?string {
  */
 function db_get_user_by_email(string $email): ?array {
     try {
+        db_ensure_users_vetted_column();
         $pdo = getDB();
-        $stmt = $pdo->prepare("SELECT id, email, password, firstname, lastname, type FROM users WHERE email = :email");
+        $stmt = $pdo->prepare("SELECT id, email, password, firstname, lastname, type, vetted, date_last_login FROM users WHERE email = :email");
         $stmt->execute([':email' => $email]);
         $row = $stmt->fetch();
         return $row ?: null;
@@ -9602,6 +9608,29 @@ function db_get_constellation_ids_created_by(string $userId): array {
         return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     } catch (PDOException $e) {
         error_log('db_get_constellation_ids_created_by: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Owned-galaxy counts for every creator in one grouped query, so the admin user
+ * list does not run a per-row COUNT (it used to call the helper above twice per
+ * user). Returns [user_id => count]; users with no owned galaxy are absent (treat
+ * as 0). Mirrors the type='galaxy' filter above.
+ *
+ * @return array<string,int>
+ */
+function db_count_galaxies_by_creator(): array {
+    $pdo = getDB();
+    try {
+        $stmt = $pdo->query("SELECT created_by, COUNT(*) AS n FROM constellations WHERE created_by IS NOT NULL AND `type` = 'galaxy' GROUP BY created_by");
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $out[(string)$row['created_by']] = (int)$row['n'];
+        }
+        return $out;
+    } catch (PDOException $e) {
+        error_log('db_count_galaxies_by_creator: ' . $e->getMessage());
         return [];
     }
 }
