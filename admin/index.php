@@ -582,13 +582,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $input = (string)($_POST['bulk_users_input'] ?? '');
                 $defaultCreateGalaxy = !empty($_POST['default_create_galaxy']);
                 $rows = bulk_users_parse($input, $defaultCreateGalaxy);
-                // SITE_BASE_URL pins the host so a poisoned Host header on the
-                // request cannot embed an attacker domain into bulk-welcome emails.
-                // Same shape as utils/forgot.php; mirror them together.
+                // Pin the host from trusted config so a poisoned Host header
+                // cannot embed an attacker domain into bulk-welcome emails.
+                // SITE_BASE_URL override -> TELARIS_HOSTNAME (core per-instance
+                // config) -> logged Host-header last resort. Mirror utils/forgot.php.
                 if (defined('SITE_BASE_URL') && is_string(SITE_BASE_URL) && preg_match('#^https?://#', SITE_BASE_URL)) {
                     $baseUrl = rtrim(SITE_BASE_URL, '/');
+                } elseif (defined('TELARIS_HOSTNAME') && is_string(TELARIS_HOSTNAME) && TELARIS_HOSTNAME !== '') {
+                    $baseUrl = 'https://' . rtrim(TELARIS_HOSTNAME, '/');
                 } else {
-                    error_log('admin/index.php bulk_users_commit: SITE_BASE_URL is not defined in config.php; falling back to Host header (Host-injection risk).');
+                    error_log('admin/index.php bulk_users_commit: neither SITE_BASE_URL nor TELARIS_HOSTNAME is set; falling back to Host header (Host-injection risk).');
                     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
                     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
                     $baseUrl = $scheme . '://' . $host;

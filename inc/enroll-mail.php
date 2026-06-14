@@ -19,12 +19,21 @@ declare(strict_types=1);
 require_once __DIR__ . '/email-template.php';
 require_once __DIR__ . '/mail.php';
 
-/** Pinned site base URL (prevents Host-header injection); Host fallback is logged. */
+/**
+ * Pinned site base URL for email links. Resolved from trusted config, never the
+ * request Host header (which is attacker-controllable and is also empty/localhost
+ * when mail is sent from the CLI). Order: SITE_BASE_URL (explicit override) ->
+ * https://TELARIS_HOSTNAME (core per-instance config, present on every instance)
+ * -> Host header (logged last-resort only).
+ */
 function enroll_mail_base_url(): string {
     if (defined('SITE_BASE_URL') && is_string(SITE_BASE_URL) && preg_match('#^https?://#', SITE_BASE_URL)) {
         return rtrim(SITE_BASE_URL, '/');
     }
-    error_log('inc/enroll-mail.php: SITE_BASE_URL is not defined; falling back to Host header (Host-injection risk).');
+    if (defined('TELARIS_HOSTNAME') && is_string(TELARIS_HOSTNAME) && TELARIS_HOSTNAME !== '') {
+        return 'https://' . rtrim(TELARIS_HOSTNAME, '/');
+    }
+    error_log('inc/enroll-mail.php: neither SITE_BASE_URL nor TELARIS_HOSTNAME is set; falling back to Host header (Host-injection risk).');
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     return $scheme . '://' . $host;

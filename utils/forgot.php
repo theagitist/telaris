@@ -48,14 +48,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                     $user = db_get_user_by_email($email);
             if ($user) {
                 $token = db_create_password_reset_token((string)$user['id'], 86400); // 24h
-                // SITE_BASE_URL is defined in config.php (preferred) — pinning the
-                // host prevents Host-header injection attacks on the reset email.
-                // Fallback to the request's host only when SITE_BASE_URL is unset,
-                // and log a warning so the operator knows to set it.
+                // Pin the host from trusted config (never the request Host
+                // header, which is attacker-controllable). SITE_BASE_URL is the
+                // explicit override; TELARIS_HOSTNAME is core per-instance config
+                // present on every instance; the Host header is a logged last
+                // resort only.
                 if (defined('SITE_BASE_URL') && is_string(SITE_BASE_URL) && preg_match('#^https?://#', SITE_BASE_URL)) {
                     $base = rtrim(SITE_BASE_URL, '/');
+                } elseif (defined('TELARIS_HOSTNAME') && is_string(TELARIS_HOSTNAME) && TELARIS_HOSTNAME !== '') {
+                    $base = 'https://' . rtrim(TELARIS_HOSTNAME, '/');
                 } else {
-                    error_log('utils/forgot.php: SITE_BASE_URL is not defined in config.php; falling back to Host header (Host-injection risk).');
+                    error_log('utils/forgot.php: neither SITE_BASE_URL nor TELARIS_HOSTNAME is set; falling back to Host header (Host-injection risk).');
                     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
                     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
                     $base = $scheme . '://' . $host;
