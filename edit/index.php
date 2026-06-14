@@ -172,6 +172,20 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 }
                             } elseif (isset($_GET['constellation_id']) && is_numeric($_GET['constellation_id'])) {
                                 $currentConstellationParam = trim((string)$_GET['constellation_id']);
+                            } elseif (!$isAdmin && $currentUserId !== null && $currentUserId !== '') {
+                                // No galaxy in the URL: a non-admin editor with a personal
+                                // galaxy (one they created, e.g. the auto-created
+                                // self-enrolment galaxy) lands in it by default instead of
+                                // "All my galaxies". Pick the first owned galaxy that is
+                                // actually in their accessible list. Admins keep "All
+                                // galaxies" as their default for administration.
+                                $accessibleIds = array_map(static fn($c) => (int)$c['id'], $constellations);
+                                foreach (db_get_constellation_ids_created_by((string)$currentUserId) as $ownedId) {
+                                    if (in_array((int)$ownedId, $accessibleIds, true)) {
+                                        $currentConstellationParam = (string)(int)$ownedId;
+                                        break;
+                                    }
+                                }
                             }
                             ?>
                             <option value="all"<?php echo $currentConstellationParam === 'all' ? ' selected' : ''; ?>><?= $isAdmin ? t('editor_option_all_galaxies_admin', 'All galaxies') : t('editor_option_all_galaxies_editor', 'All my galaxies') ?></option>
