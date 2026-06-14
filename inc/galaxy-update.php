@@ -29,6 +29,10 @@ function handle_galaxy_update_post(array $post, ?string $userId, bool $isAdmin):
         if (!in_array($id, $allowed, true)) {
             return ['ok' => false, 'message' => t('galaxy_update_no_access', 'You do not have access to this galaxy.')];
         }
+        // A read_only seat may view the galaxy but not change its properties.
+        if (!db_user_can_write_constellation($userId, $id)) {
+            return ['ok' => false, 'message' => t('galaxy_update_read_only', 'You have read-only access to this galaxy. You can view it but cannot change it.')];
+        }
     }
 
     $name = trim((string)($post['name'] ?? ''));

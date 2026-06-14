@@ -78,6 +78,21 @@ $currentUserId = $_SESSION['admin_user_id'] ?? null;
 $isAdmin = isAdminLoggedIn();
 $constellations = db_get_constellations_for_user($currentUserId, $isAdmin);
 
+// Per-user seat access levels, so the editor UI can render read-only seats
+// without edit affordances. Admins always have full write access; the server
+// (api_require_writable_constellation -> api_require_user_writable_constellation)
+// remains the authoritative gate regardless of what the UI shows.
+$userAccessMap = ($isAdmin || $currentUserId === null) ? [] : db_get_user_constellation_access((string)$currentUserId);
+
+// One-time "create your first galaxy" prompt for a self-enrolled editor whose
+// personal-galaxy creation was deferred (naming_convention = user_choice). Read
+// clears the flag, so it shows once.
+$pendingGalaxyBanner = ($currentUserId !== null) ? db_take_pending_personal_galaxy((string)$currentUserId) : false;
+
+// One-time "you were vetted, you can set a password now" notice, set when an
+// admin vets a self-enrolled editor (paired with the vetting email).
+$vettedBanner = ($currentUserId !== null) ? db_take_vetted_banner_pending((string)$currentUserId) : false;
+
 // Group constellations by [Tag] prefix for visual grouping
 function extractConstellationGroup(string $name): ?string {
     if (preg_match('/^\[([^\]]+)\]/', $name, $m)) {
@@ -240,6 +255,18 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             </div>
         </div>
 
+        <?php if ($vettedBanner): ?>
+        <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 mb-4 text-sky-800 text-sm">
+            <?= htmlspecialchars(t('editor_vetted_banner', 'An administrator has vetted your account. You can set a password from the link we emailed you, for faster sign-in. The emailed link keeps working either way.')) ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($pendingGalaxyBanner): ?>
+        <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-4 text-emerald-800 text-sm">
+            <?= htmlspecialchars(t('enroll_pending_galaxy_banner', 'Welcome. When you are ready, create your first galaxy to start adding wormholes.')) ?>
+        </div>
+        <?php endif; ?>
+
         <!-- Nodes List -->
         <div id="read-only-banner" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 text-yellow-800 text-sm" style="display: none;">
             <span id="read-only-banner-text"><?= t_attr('editor_banner_imported_read_only', 'This galaxy was imported from an external source and is read-only. Use the Refresh action in the admin galaxy list to sync changes.') ?></span>
@@ -371,8 +398,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         window.TELARIS_CSRF_TOKEN = CSRF_TOKEN;
         const API_BASE = '../api/nodes.php';
         const CONSTELLATIONS_API = '../api/constellations.php';
-        const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'slug' => $c['slug'], 'import_source' => $c['import_source'] ?? null], $constellations), JSON_THROW_ON_ERROR); ?>;
+        const CONSTELLATIONS = <?php echo json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'slug' => $c['slug'], 'import_source' => $c['import_source'] ?? null, 'access_level' => $userAccessMap[(int)$c['id']] ?? 'read_write'], $constellations), JSON_THROW_ON_ERROR); ?>;
         const READ_ONLY_BANNER_GENERIC = <?php echo json_encode((string)t('editor_banner_imported_read_only', 'This galaxy was imported from an external source and is read-only. Use the Refresh action in the admin galaxy list to sync changes.'), JSON_THROW_ON_ERROR); ?>;
+        const READ_ONLY_BANNER_SEAT = <?php echo json_encode((string)t('editor_banner_seat_read_only', 'You have read-only access to this galaxy. You can view its wormholes, keywords, and pages, but cannot make changes.'), JSON_THROW_ON_ERROR); ?>;
         const READ_ONLY_BANNER_MIRROR_FEDERATION = <?php echo json_encode((string)t('editor_banner_mirror_federation', 'This galaxy is mirrored from %s and is read-only. Updates flow via the galaxy-pull cron, or use Refresh galaxies now in the admin Pluriverse tab.'), JSON_THROW_ON_ERROR); ?>;
 
         // Hotglue content tab: API endpoint + localized strings (self-contained
@@ -553,28 +581,43 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             return c && c.import_source != null && c.import_source !== '';
         }
 
+        /** Check if the current editor's seat on a galaxy is read-only. */
+        function isSeatReadOnly(constellationId) {
+            const c = CONSTELLATIONS.find(x => x.id === constellationId);
+            return !!(c && c.access_level === 'read_only');
+        }
+
         function updateReadOnlyState() {
             const constellationEl = document.getElementById('current-constellation');
             const cid = constellationEl ? parseInt(constellationEl.value, 10) : NaN;
             const c = isNaN(cid) ? null : CONSTELLATIONS.find(x => x.id === cid);
             const isImported = c && c.import_source != null && c.import_source !== '';
+            const isSeatRO = c && c.access_level === 'read_only';
+            // A galaxy is read-only for this editor if it is imported/mirrored OR
+            // their personal seat on it is read_only. Both hide the same affordances.
+            const readOnly = isImported || isSeatRO;
             const readOnlyBanner = document.getElementById('read-only-banner');
             const readOnlyBannerText = document.getElementById('read-only-banner-text');
             const createNodeSection = document.getElementById('create-node-section');
-            if (readOnlyBanner) readOnlyBanner.style.display = isImported ? 'block' : 'none';
-            if (isImported && readOnlyBannerText) {
-                // Federation mirrors get an origin-aware message; other imports
-                // (Mocambos bridge) fall back to the generic copy.
-                const src = parseImportSource(c);
-                if (src && src.kind === 'federation' && src.origin_host) {
-                    readOnlyBannerText.textContent = READ_ONLY_BANNER_MIRROR_FEDERATION.replace('%s', src.origin_host);
+            if (readOnlyBanner) readOnlyBanner.style.display = readOnly ? 'block' : 'none';
+            if (readOnly && readOnlyBannerText) {
+                if (isImported) {
+                    // Federation mirrors get an origin-aware message; other imports
+                    // (Mocambos bridge) fall back to the generic copy.
+                    const src = parseImportSource(c);
+                    if (src && src.kind === 'federation' && src.origin_host) {
+                        readOnlyBannerText.textContent = READ_ONLY_BANNER_MIRROR_FEDERATION.replace('%s', src.origin_host);
+                    } else {
+                        readOnlyBannerText.textContent = READ_ONLY_BANNER_GENERIC;
+                    }
                 } else {
-                    readOnlyBannerText.textContent = READ_ONLY_BANNER_GENERIC;
+                    // Read-only because of the editor's own seat, not an import.
+                    readOnlyBannerText.textContent = READ_ONLY_BANNER_SEAT;
                 }
             }
-            if (createNodeSection) createNodeSection.style.display = isImported ? 'none' : '';
-            document.querySelectorAll('.node-edit-action').forEach(el => el.style.display = isImported ? 'none' : '');
-            document.querySelectorAll('.node-checkbox').forEach(el => el.style.display = isImported ? 'none' : '');
+            if (createNodeSection) createNodeSection.style.display = readOnly ? 'none' : '';
+            document.querySelectorAll('.node-edit-action').forEach(el => el.style.display = readOnly ? 'none' : '');
+            document.querySelectorAll('.node-checkbox').forEach(el => el.style.display = readOnly ? 'none' : '');
         }
 
         /** Constellations from API (all), populated at load for target dropdown when Portal is selected. */

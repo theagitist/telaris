@@ -9,26 +9,9 @@ header("X-Content-Type-Options: nosniff");
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../inc/session-login.php';
 
 $authLocale = locale_init_strings()['__locale'] ?? 'en';
-
-/**
- * Helper to redirect user based on their type and requested target
- */
-function redirectUser(int $type, ?string $requestedTarget = null): void {
-    if ($type === USER_TYPE_ADMIN) {
-        // Admins can go to either admin or edit
-        if ($requestedTarget === 'edit') {
-            header('Location: ../edit/index.php');
-        } else {
-            header('Location: ../admin/index.php');
-        }
-    } else {
-        // Everyone else (Editors) goes to edit
-        header('Location: ../edit/index.php');
-    }
-    exit();
-}
 
 // Get requested redirect from URL
 $requestedTarget = $_GET['redirect'] ?? $_POST['redirect'] ?? null;
@@ -44,6 +27,19 @@ if (empty($_SESSION['csrf_token'])) {
 }
 
 $error = null;
+
+// Magic-link sign-in: consume a one-time token and establish the session.
+// Available to every editor/admin (NOT gated on vetted); it is the only way an
+// unvetted, password-less self-enrolled editor signs in. finalize_user_login
+// redirects and exits on success.
+$magicToken = (string)($_GET['token'] ?? '');
+if ($magicToken !== '' && ($_GET['purpose'] ?? '') === 'magic_login') {
+    $magicUser = db_consume_login_token($magicToken, 'magic_login');
+    if ($magicUser !== null && in_array((int)$magicUser['type'], [USER_TYPE_EDITOR, USER_TYPE_ADMIN], true)) {
+        finalize_user_login($magicUser, $requestedTarget, $authLocale);
+    }
+    $error = t('loginlink_expired_error', 'That sign-in link is invalid or has expired. Request a new one below.');
+}
 
 // Handle login form submission
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -76,18 +72,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
                         // can be slow on some setups and there's no reason to hold the gate.
                         db_auth_throttle_lock_release($lock);
                         $lock = ['acquired' => false];
-                        // Regenerate session ID to prevent session fixation
-                        session_regenerate_id(true);
-                        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-
-                        // Set session variables
-                        $_SESSION['admin_user_id'] = $user['id'];
-                        $_SESSION['admin_user_email'] = $user['email'];
-                        $_SESSION['admin_user_name'] = trim(((string)($user['firstname'] ?? '')) . ' ' . ((string)($user['lastname'] ?? '')));
-                        $_SESSION['admin_user_type'] = $user['type'];
-
-                        // Redirect based on user type
-                        redirectUser((int)$user['type'], $requestedTarget);
+                        // Establish session + first-login welcome, then redirect (shared
+                        // with the magic-link path). authenticateUser already touched
+                        // last_login, but the returned row carries its pre-update value,
+                        // so first-login detection inside the helper is correct.
+                        finalize_user_login($user, $requestedTarget, $authLocale);
                     } else {
                         db_record_auth_attempt('login', $email, $ip, false);
                         $error = t('auth_login_error_invalid', 'Invalid email or password. Only editor and admin users can login here.');
@@ -151,8 +140,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
             </button>
         </form>
 
-        <div class="mt-4 text-center">
-            <a href="forgot.php" class="text-gray-400 hover:text-white transition-colors text-sm"><?php echo t_attr('auth_login_forgot_link', 'Forgot your password?'); ?></a>
+        <div class="mt-4 text-center space-y-2">
+            <a href="forgot.php" class="block text-gray-400 hover:text-white transition-colors text-sm"><?php echo t_attr('auth_login_forgot_link', 'Forgot your password?'); ?></a>
+            <a href="login-link.php" class="block text-gray-400 hover:text-white transition-colors text-sm"><?php echo t_attr('loginlink_link_label', 'No password? Email me a sign-in link'); ?></a>
         </div>
 
         <div class="mt-8 text-center pt-6 border-t border-gray-800">

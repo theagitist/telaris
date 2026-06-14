@@ -26,13 +26,13 @@ if ($name === '') {
 try {
     $tagline = isset($data['tagline']) ? trim((string)$data['tagline']) : '';
     $id = db_create_constellation($name, $tagline);
-    // So editors see the new constellation, assign it to the current user if not admin
+    // So editors see the new constellation, assign it to the current user if not admin.
+    // Single-seat add preserves the user's other seats and their per-seat access
+    // levels (read_only/read_write); a whole-set replace would flatten them.
     if (!isAdminLoggedIn()) {
         $userId = (string)($_SESSION['admin_user_id'] ?? '');
         if ($userId !== '') {
-            $currentIds = db_get_user_constellation_ids($userId);
-            $currentIds[] = $id;
-            db_set_user_constellations($userId, $currentIds);
+            db_add_user_constellation($userId, $id, 'read_write');
         }
     }
     echo json_encode(['id' => $id, 'name' => $name, 'tagline' => $tagline], JSON_THROW_ON_ERROR);

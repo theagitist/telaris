@@ -16,7 +16,18 @@ if (empty($_SESSION['csrf_token'])) {
 }
 
 $token = trim((string)($_POST['token'] ?? $_GET['token'] ?? ''));
-$tokenUser = $token !== '' ? db_get_user_for_password_reset_token($token) : null;
+// This page sets a password for two flows: the classic password reset
+// (password_reset_tokens) and the editor-self-enrollment "vetting" link
+// (login_tokens, purpose=vetting), which lets a freshly vetted editor set their
+// first password. The purpose param selects which token store to use.
+$purpose = trim((string)($_POST['purpose'] ?? $_GET['purpose'] ?? ''));
+$isVetting = ($purpose === 'vetting');
+$tokenUser = null;
+if ($token !== '') {
+    $tokenUser = $isVetting
+        ? db_get_user_for_login_token($token, 'vetting')
+        : db_get_user_for_password_reset_token($token);
+}
 
 $error = null;
 $success = false;
@@ -49,7 +60,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 $error = t('auth_reset_error_password_mismatch', 'Passwords do not match.');
             } else {
                 $hash = password_hash($pw1, PASSWORD_DEFAULT);
-                $ok = db_consume_password_reset_token($token, $hash);
+                if ($isVetting) {
+                    // Consume the vetting login-token, then set the password on
+                    // the returned user. Single-use is enforced by the consume.
+                    $consumed = db_consume_login_token($token, 'vetting');
+                    if ($consumed !== null) {
+                        db_update_user_password((string)$consumed['id'], $hash);
+                        $ok = true;
+                    } else {
+                        $ok = false;
+                    }
+                } else {
+                    $ok = db_consume_password_reset_token($token, $hash);
+                }
                 if (!$ok) {
                     db_record_auth_attempt('reset', $emailForRecord, $ip, false);
                     $error = t('auth_reset_invalid_token_message', 'This reset link is invalid or has expired. Please request a new one.');
@@ -102,7 +125,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             <a href="login.php" class="btn btn-neutral w-full"><?php echo t_attr('auth_reset_btn_go_to_login', 'Go to login'); ?></a>
         <?php elseif (!$tokenUser): ?>
             <p class="text-red-300 my-6 text-center text-sm"><?php echo t_attr('auth_reset_invalid_token_message', 'This reset link is invalid or has expired. Please request a new one.'); ?></p>
-            <a href="forgot.php" class="btn btn-neutral w-full"><?php echo t_attr('auth_reset_btn_request_new_link', 'Request a new link'); ?></a>
+            <a href="<?php echo $isVetting ? 'login.php' : 'forgot.php'; ?>" class="btn btn-neutral w-full"><?php echo $isVetting ? t_attr('auth_forgot_back_link', '← Back to login') : t_attr('auth_reset_btn_request_new_link', 'Request a new link'); ?></a>
         <?php else: ?>
             <p class="text-gray-400 mb-6 text-center text-sm"><?php echo sprintf(t('auth_reset_intro_html', 'Setting a new password for <strong>%s</strong>.'), '<strong class="text-white">' . htmlspecialchars((string)$tokenUser['email']) . '</strong>'); ?></p>
 
@@ -115,6 +138,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             <form method="POST" action="">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
+                <?php if ($purpose !== ''): ?><input type="hidden" name="purpose" value="<?php echo htmlspecialchars($purpose); ?>"><?php endif; ?>
                 <div class="mb-5">
                     <label for="password" class="block mb-1.5 text-gray-300 font-medium"><?php echo t_attr('auth_reset_new_password_label', 'New password'); ?></label>
                     <input type="password" id="password" name="password" required minlength="8" autofocus autocomplete="new-password"

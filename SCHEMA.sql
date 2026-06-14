@@ -5,11 +5,12 @@
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(255) PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
-    password VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NULL DEFAULT NULL, -- NULL = no password yet (unvetted self-enrolled editor, magic-link login only)
     firstname VARCHAR(100) NOT NULL,
     lastname VARCHAR(100) NULL DEFAULT NULL,
     pronouns VARCHAR(255) NULL DEFAULT NULL, -- JSON array of up to 3 strings, e.g. ["they/them","elle"]; NULL = not provided
     type INT NOT NULL DEFAULT 0,
+    vetted TINYINT(1) NOT NULL DEFAULT 1, -- 0 = self-enrolled, not yet vetted by an admin; trust+convenience gate, not an edit gate
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     date_last_login TIMESTAMP NULL DEFAULT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -218,11 +219,28 @@ CREATE TABLE IF NOT EXISTS project_info (
 CREATE TABLE IF NOT EXISTS user_constellations (
     user_id VARCHAR(255) NOT NULL,
     constellation_id INT NOT NULL,
+    access_level VARCHAR(16) NOT NULL DEFAULT 'read_write' CHECK (access_level IN ('read_write','read_only')), -- read_only = editor may list/open but not mutate this galaxy's components
     PRIMARY KEY (user_id, constellation_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE,
     INDEX idx_user_id (user_id),
     INDEX idx_constellation_id (constellation_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Single-use, emailed-link login tokens (editor self-enrollment). One table for
+-- several purposes (magic_login, enroll_confirm, vetting); 64-hex token stored
+-- SHA-256-hashed; expires_at computed in PHP (UTC). Created lazily by
+-- db_ensure_login_tokens_table(); mirrored here for fresh installs.
+CREATE TABLE IF NOT EXISTS login_tokens (
+    token_hash CHAR(64) NOT NULL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    purpose VARCHAR(24) NOT NULL,          -- 'magic_login' | 'enroll_confirm' | 'vetting'
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_login_tokens_user_purpose (user_id, purpose),
+    INDEX idx_login_tokens_expires_at (expires_at),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table for API keys

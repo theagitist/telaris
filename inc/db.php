@@ -6,6 +6,11 @@ declare(strict_types=1);
  * Expects DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS to be defined (e.g. by config.php).
  */
 
+// Pure, database-free decision helpers for editor self-enrollment
+// (auto_enroll_compute_open, auto_enroll_normalize_config, enroll_email_domain_allowed,
+// enroll_personal_galaxy_name). Required here so the DB wrappers below can reuse them.
+require_once __DIR__ . '/enroll-helpers.php';
+
 // ---------------------------------------------------------------------------
 // Connection
 // ---------------------------------------------------------------------------
@@ -94,7 +99,7 @@ const PROJECT_INFO_KEYS = [
     // Editor chunk C1 (edit/index.php)
     'editor_page_title', 'editor_user_role_admin', 'editor_user_role_editor', 'editor_label_current_galaxy', 'editor_option_all_galaxies_admin', 'editor_option_all_galaxies_editor', 'editor_btn_view', 'editor_btn_galaxy_settings_title', 'editor_btn_settings', 'editor_btn_keyword_canvas_title', 'editor_btn_canvas', 'editor_btn_copy_url_title', 'editor_btn_admin_console', 'editor_btn_logout', 'editor_error_no_api_key',
     'editor_bulk_selected_suffix', 'editor_btn_clear_selection', 'editor_btn_bulk_move', 'editor_btn_bulk_duplicate', 'editor_btn_bulk_delete',
-    'editor_banner_imported_read_only', 'editor_heading_wormholes', 'editor_btn_new_wormhole', 'editor_btn_touched_today_title', 'editor_btn_touched_today', 'editor_btn_bulk_keyword_title', 'editor_btn_bulk_by_keyword', 'editor_btn_shortcuts_title', 'editor_label_search', 'editor_placeholder_search_wormholes',
+    'editor_banner_imported_read_only', 'editor_banner_seat_read_only', 'editor_heading_wormholes', 'editor_btn_new_wormhole', 'editor_btn_touched_today_title', 'editor_btn_touched_today', 'editor_btn_bulk_keyword_title', 'editor_btn_bulk_by_keyword', 'editor_btn_shortcuts_title', 'editor_label_search', 'editor_placeholder_search_wormholes',
     'editor_col_name', 'editor_col_type', 'editor_col_galaxy', 'editor_col_url', 'editor_col_keywords', 'editor_col_created', 'editor_col_updated', 'editor_col_actions', 'editor_col_acc', 'editor_col_acc_title',
     'editor_msg_loading_wormholes', 'editor_msg_retrieving_wormholes',
     'editor_heading_no_wormholes', 'editor_text_empty_state_help', 'editor_text_create_wormhole_link', 'editor_heading_error_loading',
@@ -382,6 +387,24 @@ const PROJECT_INFO_KEYS = [
     'auth_forgot_page_title', 'auth_forgot_heading', 'auth_forgot_subtitle',
     'auth_forgot_generic_notice', 'auth_forgot_error_invalid_email',
     'auth_forgot_submit', 'auth_forgot_back_link',
+    'loginlink_link_label', 'loginlink_expired_error', 'loginlink_page_title',
+    'loginlink_heading', 'loginlink_subtitle', 'loginlink_generic_notice', 'loginlink_submit',
+    'enroll_menu_link', 'enroll_page_title', 'enroll_heading', 'enroll_intro',
+    'enroll_name_label', 'enroll_email_label', 'enroll_submit', 'enroll_check_email_notice',
+    'enroll_domain_rejected', 'enroll_disabled_notice', 'enroll_full_notice',
+    'enroll_confirm_invalid', 'enroll_galaxy_name_possessive', 'enroll_pending_galaxy_banner',
+    'enroll_name_required',
+    'admin_btn_auto_enroll', 'admin_badge_unvetted', 'admin_unvetted_title',
+    'admin_modal_label_vetted', 'admin_modal_help_vetted', 'auto_enroll_saved',
+    'admin_auto_enroll_heading', 'admin_auto_enroll_intro', 'admin_auto_enroll_enable',
+    'admin_auto_enroll_enable_warning', 'admin_auto_enroll_create_galaxy', 'admin_auto_enroll_naming_label',
+    'admin_auto_enroll_naming_email_username', 'admin_auto_enroll_naming_full_email',
+    'admin_auto_enroll_naming_first_name', 'admin_auto_enroll_naming_user_choice',
+    'admin_auto_enroll_galaxies_label', 'admin_auto_enroll_select_all', 'admin_auto_enroll_select_none',
+    'admin_auto_enroll_group_hint', 'admin_auto_enroll_access_rw', 'admin_auto_enroll_access_ro',
+    'admin_auto_enroll_domains_label', 'admin_auto_enroll_domains_ph', 'admin_auto_enroll_cap_label',
+    'admin_auto_enroll_cap_count', 'admin_auto_enroll_save',
+    'editor_vetted_banner', 'admin_delete_personal_galaxy',
     'auth_email_subject', 'auth_email_greeting_named', 'auth_email_greeting_anon',
     'auth_email_intro', 'auth_email_expiry',
     'auth_email_text_intro', 'auth_email_text_outro',
@@ -451,7 +474,7 @@ const PROJECT_INFO_KEYS = [
     'api_error_401_001', 'api_error_401_002',
     'api_error_403_001', 'api_error_403_002', 'api_error_403_003', 'api_error_403_004',
     'api_error_403_005', 'api_error_403_006', 'api_error_403_007', 'api_error_403_008',
-    'api_error_403_009',
+    'api_error_403_009', 'api_error_403_010',
     'api_error_404_001', 'api_error_404_002', 'api_error_404_003', 'api_error_404_004',
     'api_error_404_005', 'api_error_404_006', 'api_error_404_007', 'api_error_404_008',
     'api_error_404_009', 'api_error_404_010', 'api_error_404_011', 'api_error_404_012',
@@ -466,6 +489,7 @@ const PROJECT_INFO_KEYS = [
 
     // C7c: inc/galaxy-update.php result messages (rendered as editor/admin toasts).
     'galaxy_update_missing_id', 'galaxy_update_not_authorized', 'galaxy_update_no_access',
+    'galaxy_update_read_only',
     'galaxy_update_name_required',
     'galaxy_update_duplicate_name', 'galaxy_update_duplicate_slug', 'galaxy_update_duplicate_both',
     'galaxy_update_success',
@@ -896,6 +920,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_bulk_duplicate' => 'Duplicate Selected',
             'editor_btn_bulk_delete' => 'Delete Selected',
             'editor_banner_imported_read_only' => 'This galaxy was imported from an external source and is read-only. Use the Refresh action in the admin galaxy list to sync changes.',
+            'editor_banner_seat_read_only' => 'You have read-only access to this galaxy. You can view its wormholes, keywords, and pages, but cannot make changes.',
             'editor_heading_wormholes' => 'Wormholes',
             'editor_btn_new_wormhole' => 'New Wormhole',
             'editor_btn_touched_today_title' => 'Show only wormholes touched today',
@@ -1908,6 +1933,57 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'auth_forgot_error_invalid_email' => 'Please enter a valid email address.',
             'auth_forgot_submit' => 'Send reset link',
             'auth_forgot_back_link' => '← Back to login',
+            'loginlink_link_label' => 'No password? Email me a sign-in link',
+            'loginlink_expired_error' => 'That sign-in link is invalid or has expired. Request a new one below.',
+            'loginlink_page_title' => 'Email a sign-in link - Telaris',
+            'loginlink_heading' => 'Email me a sign-in link',
+            'loginlink_subtitle' => 'We will email you a one-time link to sign in without a password.',
+            'loginlink_generic_notice' => 'If an account exists for that email, a sign-in link has been sent.',
+            'loginlink_submit' => 'Send sign-in link',
+            'enroll_menu_link' => 'Enrol as Editor',
+            'enroll_page_title' => 'Enrol as an editor - Telaris',
+            'enroll_heading' => 'Enrol as an editor',
+            'enroll_intro' => 'Join this Telaris instance as an editor. Enter your name and email, agree to the Terms of Use and the Privacy Policy, and we will email you a link to confirm.',
+            'enroll_name_label' => 'Your name',
+            'enroll_email_label' => 'Email',
+            'enroll_submit' => 'Request access',
+            'enroll_check_email_notice' => 'Check your email. If your address can enrol, a confirmation link is on its way. The link expires in 24 hours.',
+            'enroll_domain_rejected' => 'Enrolment on this instance is limited to certain email domains, and that address is not one of them.',
+            'enroll_disabled_notice' => 'Editor enrolment is not open on this instance right now.',
+            'enroll_full_notice' => 'Editor enrolment is full on this instance right now. Please try again later.',
+            'enroll_confirm_invalid' => 'That confirmation link is invalid or has expired. You can request enrolment again.',
+            'enroll_galaxy_name_possessive' => "%s's galaxy",
+            'enroll_pending_galaxy_banner' => 'Welcome. When you are ready, create your first galaxy to start adding wormholes.',
+            'enroll_name_required' => 'Please enter your name.',
+            'admin_btn_auto_enroll' => 'Auto enroll',
+            'admin_badge_unvetted' => 'Unvetted',
+            'admin_unvetted_title' => 'Self-enrolled; not yet vetted by an admin',
+            'admin_modal_label_vetted' => 'Vetted',
+            'admin_modal_help_vetted' => 'Vetting a self-enrolled editor emails them a link to set a password and shows them an in-app notice. It does not change what they can edit. Unvetted editors sign in with an emailed link each time.',
+            'auto_enroll_saved' => 'Auto-enroll settings saved.',
+            'admin_auto_enroll_heading' => 'Editor self-enrolment',
+            'admin_auto_enroll_intro' => 'Let people join this instance as editors on their own. Off by default. You stay in control: self-enrolled editors are flagged Unvetted until you vet them, and they only edit galaxies you grant.',
+            'admin_auto_enroll_enable' => 'Enable self-enrolment on this installation',
+            'admin_auto_enroll_enable_warning' => 'With this on, anyone with a valid email (subject to any domain limit and cap below) can join as an Editor. They still only edit the galaxies you grant them, and stay Unvetted until you vet them. Enable self-enrolment?',
+            'admin_auto_enroll_create_galaxy' => 'Create a personal galaxy for each new editor',
+            'admin_auto_enroll_naming_label' => 'New galaxy naming convention',
+            'admin_auto_enroll_naming_email_username' => 'Email username only (andrew)',
+            'admin_auto_enroll_naming_full_email' => 'Full email (andrew@example.com)',
+            'admin_auto_enroll_naming_first_name' => "First name's galaxy",
+            'admin_auto_enroll_naming_user_choice' => 'Let the user choose at first sign-in',
+            'admin_auto_enroll_galaxies_label' => 'Grant access to these galaxies',
+            'admin_auto_enroll_select_all' => 'All',
+            'admin_auto_enroll_select_none' => 'None',
+            'admin_auto_enroll_group_hint' => 'Tip: click a [PREFIX] to toggle that group.',
+            'admin_auto_enroll_access_rw' => 'Read and write',
+            'admin_auto_enroll_access_ro' => 'Read only',
+            'admin_auto_enroll_domains_label' => 'Limit to email domains (optional)',
+            'admin_auto_enroll_domains_ph' => 'e.g. ubc.ca, gmail.com (blank = any)',
+            'admin_auto_enroll_cap_label' => 'Cap the number of self-enrolled editors',
+            'admin_auto_enroll_cap_count' => 'Currently %d self-enrolled editor(s).',
+            'admin_auto_enroll_save' => 'Save settings',
+            'editor_vetted_banner' => 'An administrator has vetted your account. You can set a password from the link we emailed you, for faster sign-in. The emailed link keeps working either way.',
+            'admin_delete_personal_galaxy' => "Also delete this user's %d personal galaxy/galaxies (created by them) and their wormholes. Shared galaxies are not affected.",
             'auth_email_subject' => 'Reset your %s password',
             'auth_email_greeting_named' => 'Hi %s,',
             'auth_email_greeting_anon' => 'Hi,',
@@ -2066,6 +2142,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_007' => 'Only the author or an admin can delete this relation.',
             'api_error_403_008' => 'User existence checks are restricted to administrative sessions.',
             'api_error_403_009' => 'This galaxy is read-only: it is imported or mirrored from another instance and cannot be edited here.',
+            'api_error_403_010' => 'You have read-only access to this galaxy. You can view its contents but cannot change them.',
 
             'api_error_404_001' => 'Node not found.',
             'api_error_404_002' => 'Galaxy not found.',
@@ -2108,6 +2185,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'galaxy_update_missing_id' => 'Missing galaxy id.',
             'galaxy_update_not_authorized' => 'Not authorized.',
             'galaxy_update_no_access' => 'You do not have access to this galaxy.',
+            'galaxy_update_read_only' => 'You have read-only access to this galaxy. You can view it but cannot change it.',
             'galaxy_update_name_required' => 'Galaxy name is required.',
             'galaxy_update_duplicate_name' => 'A galaxy with the name "%s" already exists.',
             'galaxy_update_duplicate_slug' => 'A galaxy with the slug "%s" already exists.',
@@ -2373,6 +2451,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_bulk_duplicate' => 'Duplicar seleccionados',
             'editor_btn_bulk_delete' => 'Eliminar seleccionados',
             'editor_banner_imported_read_only' => 'Esta galaxia se importó desde una fuente externa y es de solo lectura. Usa la acción Actualizar en la lista de galaxias del panel de administración para sincronizar cambios.',
+            'editor_banner_seat_read_only' => 'Tienes acceso de solo lectura a esta galaxia. Puedes ver sus agujeros de gusano, palabras clave y páginas, pero no puedes hacer cambios.',
             'editor_heading_wormholes' => 'Agujeros de gusano',
             'editor_btn_new_wormhole' => 'Nuevo agujero de gusano',
             'editor_btn_touched_today_title' => 'Mostrar solo agujeros de gusano modificados hoy',
@@ -3385,6 +3464,57 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'auth_forgot_error_invalid_email' => 'Introduce una dirección de correo válida.',
             'auth_forgot_submit' => 'Enviar enlace de restablecimiento',
             'auth_forgot_back_link' => '← Volver al inicio de sesión',
+            'loginlink_link_label' => '¿Sin contraseña? Envíame un enlace de acceso',
+            'loginlink_expired_error' => 'Ese enlace de acceso no es válido o ha caducado. Solicita uno nuevo abajo.',
+            'loginlink_page_title' => 'Enviar un enlace de acceso - Telaris',
+            'loginlink_heading' => 'Envíame un enlace de acceso',
+            'loginlink_subtitle' => 'Te enviaremos por correo un enlace de un solo uso para entrar sin contraseña.',
+            'loginlink_generic_notice' => 'Si existe una cuenta con ese correo, se ha enviado un enlace de acceso.',
+            'loginlink_submit' => 'Enviar enlace de acceso',
+            'enroll_menu_link' => 'Unirme como editor',
+            'enroll_page_title' => 'Unirse como editor - Telaris',
+            'enroll_heading' => 'Únete como editor',
+            'enroll_intro' => 'Únete a esta instancia de Telaris como editor. Escribe tu nombre y correo, acepta las Condiciones de Uso y la Política de Privacidad, y te enviaremos un enlace para confirmar.',
+            'enroll_name_label' => 'Tu nombre',
+            'enroll_email_label' => 'Correo',
+            'enroll_submit' => 'Solicitar acceso',
+            'enroll_check_email_notice' => 'Revisa tu correo. Si tu dirección puede unirse, el enlace de confirmación está en camino. El enlace caduca en 24 horas.',
+            'enroll_domain_rejected' => 'En esta instancia, unirse como editor está limitado a ciertos dominios de correo, y esa dirección no es uno de ellos.',
+            'enroll_disabled_notice' => 'En este momento no está abierta la incorporación de editores en esta instancia.',
+            'enroll_full_notice' => 'En este momento la incorporación de editores está completa en esta instancia. Inténtalo más tarde.',
+            'enroll_confirm_invalid' => 'Ese enlace de confirmación no es válido o ha caducado. Puedes solicitar unirte de nuevo.',
+            'enroll_galaxy_name_possessive' => 'Galaxia de %s',
+            'enroll_pending_galaxy_banner' => 'Te damos la bienvenida. Cuando quieras, crea tu primera galaxia para empezar a añadir agujeros de gusano.',
+            'enroll_name_required' => 'Escribe tu nombre.',
+            'admin_btn_auto_enroll' => 'Auto-registro',
+            'admin_badge_unvetted' => 'Sin verificar',
+            'admin_unvetted_title' => 'Se unió por su cuenta; aún sin verificar por un administrador',
+            'admin_modal_label_vetted' => 'Verificado',
+            'admin_modal_help_vetted' => 'Verificar a un editor que se unió por su cuenta le envía un enlace para crear una contraseña y le muestra un aviso en la aplicación. No cambia lo que puede editar. Sin verificar, entra con un enlace por correo cada vez.',
+            'auto_enroll_saved' => 'Ajustes de auto-registro guardados.',
+            'admin_auto_enroll_heading' => 'Auto-registro de editores',
+            'admin_auto_enroll_intro' => 'Permite que las personas se unan a esta instancia como editores por su cuenta. Desactivado por defecto. Tú mantienes el control: quienes se unen así quedan marcados como Sin verificar hasta que los verifiques, y solo editan las galaxias que concedas.',
+            'admin_auto_enroll_enable' => 'Activar el auto-registro en esta instalación',
+            'admin_auto_enroll_enable_warning' => 'Con esto activado, cualquier persona con un correo válido (según el límite de dominios y el cupo de abajo) puede unirse como editor. Solo edita las galaxias que concedas, y queda Sin verificar hasta que la verifiques. ¿Activar el auto-registro?',
+            'admin_auto_enroll_create_galaxy' => 'Crear una galaxia personal para cada nuevo editor',
+            'admin_auto_enroll_naming_label' => 'Convención de nombre de la nueva galaxia',
+            'admin_auto_enroll_naming_email_username' => 'Solo el usuario del correo (andrew)',
+            'admin_auto_enroll_naming_full_email' => 'Correo completo (andrew@example.com)',
+            'admin_auto_enroll_naming_first_name' => 'La galaxia de su nombre',
+            'admin_auto_enroll_naming_user_choice' => 'Que elija al iniciar sesión por primera vez',
+            'admin_auto_enroll_galaxies_label' => 'Conceder acceso a estas galaxias',
+            'admin_auto_enroll_select_all' => 'Todas',
+            'admin_auto_enroll_select_none' => 'Ninguna',
+            'admin_auto_enroll_group_hint' => 'Consejo: haz clic en un [PREFIJO] para alternar ese grupo.',
+            'admin_auto_enroll_access_rw' => 'Lectura y escritura',
+            'admin_auto_enroll_access_ro' => 'Solo lectura',
+            'admin_auto_enroll_domains_label' => 'Limitar a dominios de correo (opcional)',
+            'admin_auto_enroll_domains_ph' => 'p. ej. ubc.ca, gmail.com (vacío = cualquiera)',
+            'admin_auto_enroll_cap_label' => 'Limitar el número de editores auto-registrados',
+            'admin_auto_enroll_cap_count' => 'Actualmente %d editor(es) auto-registrado(s).',
+            'admin_auto_enroll_save' => 'Guardar ajustes',
+            'editor_vetted_banner' => 'Un administrador ha verificado tu cuenta. Puedes crear una contraseña desde el enlace que te enviamos por correo, para entrar más rápido. El enlace por correo sigue funcionando igual.',
+            'admin_delete_personal_galaxy' => 'Eliminar también las %d galaxia(s) personal(es) de esta persona (creadas por ella) y sus agujeros de gusano. Las galaxias compartidas no se ven afectadas.',
             'auth_email_subject' => 'Restablece tu contraseña de %s',
             'auth_email_greeting_named' => 'Hola %s,',
             'auth_email_greeting_anon' => 'Hola,',
@@ -3543,6 +3673,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_007' => 'Solo quien creó la relación o una cuenta de administración pueden eliminarla.',
             'api_error_403_008' => 'La verificación de la existencia de una cuenta se restringe a sesiones de administración.',
             'api_error_403_009' => 'Esta galaxia es de solo lectura: se importó o se refleja desde otra instancia y no se puede editar aquí.',
+            'api_error_403_010' => 'Tienes acceso de solo lectura a esta galaxia. Puedes ver su contenido, pero no modificarlo.',
 
             'api_error_404_001' => 'Nodo no encontrado.',
             'api_error_404_002' => 'Galaxia no encontrada.',
@@ -3585,6 +3716,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'galaxy_update_missing_id' => 'Falta el id de la galaxia.',
             'galaxy_update_not_authorized' => 'Sin autorización.',
             'galaxy_update_no_access' => 'Sin acceso a esta galaxia.',
+            'galaxy_update_read_only' => 'Tienes acceso de solo lectura a esta galaxia. Puedes verla, pero no modificarla.',
             'galaxy_update_name_required' => 'El nombre de la galaxia es obligatorio.',
             'galaxy_update_duplicate_name' => 'Ya existe una galaxia con el nombre "%s".',
             'galaxy_update_duplicate_slug' => 'Ya existe una galaxia con la ruta "%s".',
@@ -3846,6 +3978,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_bulk_duplicate' => 'Duplicar selecionados',
             'editor_btn_bulk_delete' => 'Excluir selecionados',
             'editor_banner_imported_read_only' => 'Esta galáxia foi importada de uma fonte externa e é apenas leitura. Use a ação Atualizar na lista de galáxias do painel de administração para sincronizar mudanças.',
+            'editor_banner_seat_read_only' => 'Você tem acesso somente leitura a esta galáxia. Pode ver seus buracos de minhoca, palavras-chave e páginas, mas não pode fazer alterações.',
             'editor_heading_wormholes' => 'Buracos de minhoca',
             'editor_btn_new_wormhole' => 'Novo buraco de minhoca',
             'editor_btn_touched_today_title' => 'Mostrar apenas buracos de minhoca modificados hoje',
@@ -4858,6 +4991,57 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'auth_forgot_error_invalid_email' => 'Informe um endereço de e-mail válido.',
             'auth_forgot_submit' => 'Enviar link de redefinição',
             'auth_forgot_back_link' => '← Voltar ao login',
+            'loginlink_link_label' => 'Sem senha? Envie-me um link de acesso',
+            'loginlink_expired_error' => 'Esse link de acesso é inválido ou expirou. Solicite um novo abaixo.',
+            'loginlink_page_title' => 'Enviar um link de acesso - Telaris',
+            'loginlink_heading' => 'Envie-me um link de acesso',
+            'loginlink_subtitle' => 'Enviaremos por e-mail um link de uso único para entrar sem senha.',
+            'loginlink_generic_notice' => 'Se existir uma conta com esse e-mail, um link de acesso foi enviado.',
+            'loginlink_submit' => 'Enviar link de acesso',
+            'enroll_menu_link' => 'Entrar como editor',
+            'enroll_page_title' => 'Entrar como editor - Telaris',
+            'enroll_heading' => 'Entre como editor',
+            'enroll_intro' => 'Junte-se a esta instância do Telaris como editor. Informe o seu nome e e-mail, aceite os Termos de Uso e a Política de Privacidade, e enviaremos um link para confirmar.',
+            'enroll_name_label' => 'O seu nome',
+            'enroll_email_label' => 'E-mail',
+            'enroll_submit' => 'Solicitar acesso',
+            'enroll_check_email_notice' => 'Verifique o seu e-mail. Se o seu endereço puder entrar, o link de confirmação está a caminho. O link expira em 24 horas.',
+            'enroll_domain_rejected' => 'Nesta instância, entrar como editor é limitado a certos domínios de e-mail, e esse endereço não é um deles.',
+            'enroll_disabled_notice' => 'A entrada de editores não está aberta nesta instância no momento.',
+            'enroll_full_notice' => 'A entrada de editores está completa nesta instância no momento. Tente novamente mais tarde.',
+            'enroll_confirm_invalid' => 'Esse link de confirmação é inválido ou expirou. Você pode solicitar a entrada novamente.',
+            'enroll_galaxy_name_possessive' => 'Galáxia de %s',
+            'enroll_pending_galaxy_banner' => 'Boas-vindas. Quando quiser, crie a sua primeira galáxia para começar a adicionar buracos de minhoca.',
+            'enroll_name_required' => 'Informe o seu nome.',
+            'admin_btn_auto_enroll' => 'Auto-inscrição',
+            'admin_badge_unvetted' => 'Não verificado',
+            'admin_unvetted_title' => 'Entrou por conta própria; ainda não verificado por um administrador',
+            'admin_modal_label_vetted' => 'Verificado',
+            'admin_modal_help_vetted' => 'Verificar um editor que entrou por conta própria envia a ele um link para criar uma senha e mostra um aviso no aplicativo. Não muda o que ele pode editar. Sem verificação, ele entra com um link por e-mail a cada vez.',
+            'auto_enroll_saved' => 'Configurações de auto-inscrição salvas.',
+            'admin_auto_enroll_heading' => 'Auto-inscrição de editores',
+            'admin_auto_enroll_intro' => 'Permita que as pessoas entrem nesta instância como editores por conta própria. Desativado por padrão. Você mantém o controle: quem entra assim fica marcado como Não verificado até você verificar, e só edita as galáxias que você conceder.',
+            'admin_auto_enroll_enable' => 'Ativar a auto-inscrição nesta instalação',
+            'admin_auto_enroll_enable_warning' => 'Com isto ativado, qualquer pessoa com um e-mail válido (conforme o limite de domínios e o teto abaixo) pode entrar como Editor. Ela só edita as galáxias que você conceder e fica Não verificada até você verificar. Ativar a auto-inscrição?',
+            'admin_auto_enroll_create_galaxy' => 'Criar uma galáxia pessoal para cada novo editor',
+            'admin_auto_enroll_naming_label' => 'Convenção de nome da nova galáxia',
+            'admin_auto_enroll_naming_email_username' => 'Apenas o usuário do e-mail (andrew)',
+            'admin_auto_enroll_naming_full_email' => 'E-mail completo (andrew@example.com)',
+            'admin_auto_enroll_naming_first_name' => 'A galáxia do nome dele',
+            'admin_auto_enroll_naming_user_choice' => 'Deixar escolher no primeiro acesso',
+            'admin_auto_enroll_galaxies_label' => 'Conceder acesso a estas galáxias',
+            'admin_auto_enroll_select_all' => 'Todas',
+            'admin_auto_enroll_select_none' => 'Nenhuma',
+            'admin_auto_enroll_group_hint' => 'Dica: clique em um [PREFIXO] para alternar esse grupo.',
+            'admin_auto_enroll_access_rw' => 'Leitura e escrita',
+            'admin_auto_enroll_access_ro' => 'Somente leitura',
+            'admin_auto_enroll_domains_label' => 'Limitar a domínios de e-mail (opcional)',
+            'admin_auto_enroll_domains_ph' => 'ex.: ubc.ca, gmail.com (vazio = qualquer)',
+            'admin_auto_enroll_cap_label' => 'Limitar o número de editores auto-inscritos',
+            'admin_auto_enroll_cap_count' => 'Atualmente %d editor(es) auto-inscrito(s).',
+            'admin_auto_enroll_save' => 'Salvar configurações',
+            'editor_vetted_banner' => 'Um administrador verificou a sua conta. Você pode criar uma senha pelo link que enviamos por e-mail, para entrar mais rápido. O link por e-mail continua funcionando.',
+            'admin_delete_personal_galaxy' => 'Excluir também a(s) %d galáxia(s) pessoal(is) desta pessoa (criadas por ela) e os seus buracos de minhoca. Galáxias compartilhadas não são afetadas.',
             'auth_email_subject' => 'Redefina sua senha do %s',
             'auth_email_greeting_named' => 'Olá %s,',
             'auth_email_greeting_anon' => 'Olá,',
@@ -5016,6 +5200,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_007' => 'Apenas quem criou a relação ou uma conta de administração pode apagá-la.',
             'api_error_403_008' => 'A verificação de existência de conta é restrita a sessões de administração.',
             'api_error_403_009' => 'Esta galáxia é somente leitura: foi importada ou espelhada de outra instância e não pode ser editada aqui.',
+            'api_error_403_010' => 'Você tem acesso somente leitura a esta galáxia. Pode ver o conteúdo, mas não alterá-lo.',
 
             'api_error_404_001' => 'Nó não encontrado.',
             'api_error_404_002' => 'Galáxia não encontrada.',
@@ -5058,6 +5243,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'galaxy_update_missing_id' => 'Falta o id da galáxia.',
             'galaxy_update_not_authorized' => 'Sem autorização.',
             'galaxy_update_no_access' => 'Sem acesso a esta galáxia.',
+            'galaxy_update_read_only' => 'Você tem acesso somente leitura a esta galáxia. Pode vê-la, mas não alterá-la.',
             'galaxy_update_name_required' => 'O nome da galáxia é obrigatório.',
             'galaxy_update_duplicate_name' => 'Já existe uma galáxia com o nome "%s".',
             'galaxy_update_duplicate_slug' => 'Já existe uma galáxia com o caminho "%s".',
@@ -5319,6 +5505,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_bulk_duplicate' => 'Dupliquer la sélection',
             'editor_btn_bulk_delete' => 'Supprimer la sélection',
             'editor_banner_imported_read_only' => 'Cette galaxie a été importée d\'une source externe et est en lecture seule. Utilise l\'action Rafraîchir dans la liste des galaxies du panneau d\'administration pour synchroniser les changements.',
+            'editor_banner_seat_read_only' => 'Vous avez un accès en lecture seule à cette galaxie. Vous pouvez voir ses trous de ver, mots-clés et pages, mais vous ne pouvez pas faire de modifications.',
             'editor_heading_wormholes' => 'Trous de ver',
             'editor_btn_new_wormhole' => 'Nouveau trou de ver',
             'editor_btn_touched_today_title' => 'Afficher uniquement les trous de ver modifiés aujourd\'hui',
@@ -6331,6 +6518,57 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'auth_forgot_error_invalid_email' => 'Indique une adresse de courriel valide.',
             'auth_forgot_submit' => 'Envoyer le lien de réinitialisation',
             'auth_forgot_back_link' => '← Retour à la connexion',
+            'loginlink_link_label' => 'Pas de mot de passe ? Envoyez-moi un lien de connexion',
+            'loginlink_expired_error' => 'Ce lien de connexion est invalide ou a expiré. Demandez-en un nouveau ci-dessous.',
+            'loginlink_page_title' => 'Envoyer un lien de connexion - Telaris',
+            'loginlink_heading' => 'Envoyez-moi un lien de connexion',
+            'loginlink_subtitle' => 'Nous vous enverrons par courriel un lien à usage unique pour vous connecter sans mot de passe.',
+            'loginlink_generic_notice' => 'S\'il existe un compte avec ce courriel, un lien de connexion a été envoyé.',
+            'loginlink_submit' => 'Envoyer le lien de connexion',
+            'enroll_menu_link' => 'Devenir éditeur',
+            'enroll_page_title' => 'Devenir éditeur - Telaris',
+            'enroll_heading' => 'Devenir éditeur',
+            'enroll_intro' => "Rejoins cette instance Telaris comme éditeur. Indique ton nom et ton courriel, accepte les Conditions d'utilisation et la Politique de confidentialité, et nous t'enverrons un lien de confirmation.",
+            'enroll_name_label' => 'Ton nom',
+            'enroll_email_label' => 'Courriel',
+            'enroll_submit' => "Demander l'accès",
+            'enroll_check_email_notice' => 'Vérifie ton courriel. Si ton adresse peut rejoindre, le lien de confirmation est en route. Le lien expire dans 24 heures.',
+            'enroll_domain_rejected' => "Sur cette instance, devenir éditeur est limité à certains domaines de courriel, et cette adresse n'en fait pas partie.",
+            'enroll_disabled_notice' => "L'inscription des éditeurs n'est pas ouverte sur cette instance pour le moment.",
+            'enroll_full_notice' => "L'inscription des éditeurs est complète sur cette instance pour le moment. Réessaie plus tard.",
+            'enroll_confirm_invalid' => 'Ce lien de confirmation est invalide ou a expiré. Tu peux redemander à rejoindre.',
+            'enroll_galaxy_name_possessive' => 'Galaxie de %s',
+            'enroll_pending_galaxy_banner' => 'Bienvenue. Quand tu seras prêt, crée ta première galaxie pour commencer à ajouter des trous de ver.',
+            'enroll_name_required' => 'Indique ton nom.',
+            'admin_btn_auto_enroll' => 'Auto-inscription',
+            'admin_badge_unvetted' => 'Non vérifié',
+            'admin_unvetted_title' => "Inscrit de lui-même ; pas encore vérifié par un administrateur",
+            'admin_modal_label_vetted' => 'Vérifié',
+            'admin_modal_help_vetted' => "Vérifier un éditeur inscrit de lui-même lui envoie un lien pour définir un mot de passe et lui affiche un avis dans l'application. Cela ne change pas ce qu'il peut modifier. Sans vérification, il se connecte avec un lien par courriel à chaque fois.",
+            'auto_enroll_saved' => "Paramètres d'auto-inscription enregistrés.",
+            'admin_auto_enroll_heading' => 'Auto-inscription des éditeurs',
+            'admin_auto_enroll_intro' => "Laisse les gens rejoindre cette instance comme éditeurs d'eux-mêmes. Désactivé par défaut. Tu gardes le contrôle : les inscrits de cette façon sont marqués Non vérifié jusqu'à ce que tu les vérifies, et n'éditent que les galaxies que tu accordes.",
+            'admin_auto_enroll_enable' => "Activer l'auto-inscription sur cette installation",
+            'admin_auto_enroll_enable_warning' => "Avec ceci activé, toute personne ayant un courriel valide (selon la limite de domaines et le plafond ci-dessous) peut rejoindre comme Éditeur. Elle n'édite que les galaxies que tu accordes et reste Non vérifiée jusqu'à ce que tu la vérifies. Activer l'auto-inscription ?",
+            'admin_auto_enroll_create_galaxy' => 'Créer une galaxie personnelle pour chaque nouvel éditeur',
+            'admin_auto_enroll_naming_label' => 'Convention de nom de la nouvelle galaxie',
+            'admin_auto_enroll_naming_email_username' => "Identifiant du courriel seulement (andrew)",
+            'admin_auto_enroll_naming_full_email' => 'Courriel complet (andrew@example.com)',
+            'admin_auto_enroll_naming_first_name' => 'La galaxie de son prénom',
+            'admin_auto_enroll_naming_user_choice' => "Laisser choisir à la première connexion",
+            'admin_auto_enroll_galaxies_label' => 'Accorder l\'accès à ces galaxies',
+            'admin_auto_enroll_select_all' => 'Toutes',
+            'admin_auto_enroll_select_none' => 'Aucune',
+            'admin_auto_enroll_group_hint' => 'Astuce : clique sur un [PRÉFIXE] pour basculer ce groupe.',
+            'admin_auto_enroll_access_rw' => 'Lecture et écriture',
+            'admin_auto_enroll_access_ro' => 'Lecture seule',
+            'admin_auto_enroll_domains_label' => 'Limiter à des domaines de courriel (facultatif)',
+            'admin_auto_enroll_domains_ph' => 'p. ex. ubc.ca, gmail.com (vide = tous)',
+            'admin_auto_enroll_cap_label' => "Plafonner le nombre d'éditeurs auto-inscrits",
+            'admin_auto_enroll_cap_count' => "Actuellement %d éditeur(s) auto-inscrit(s).",
+            'admin_auto_enroll_save' => 'Enregistrer les paramètres',
+            'editor_vetted_banner' => "Un administrateur a vérifié ton compte. Tu peux définir un mot de passe depuis le lien envoyé par courriel, pour te connecter plus vite. Le lien par courriel continue de fonctionner.",
+            'admin_delete_personal_galaxy' => "Supprimer aussi les %d galaxie(s) personnelle(s) de cette personne (créées par elle) et leurs trous de ver. Les galaxies partagées ne sont pas affectées.",
             'auth_email_subject' => 'Réinitialise ton mot de passe %s',
             'auth_email_greeting_named' => 'Bonjour %s,',
             'auth_email_greeting_anon' => 'Bonjour,',
@@ -6489,6 +6727,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_007' => 'Seul le compte ayant créé la relation ou un compte d\'administration peut la supprimer.',
             'api_error_403_008' => 'La vérification d\'existence de compte est réservée aux sessions d\'administration.',
             'api_error_403_009' => 'Cette galaxie est en lecture seule : elle est importée ou en miroir depuis une autre instance et ne peut pas être modifiée ici.',
+            'api_error_403_010' => 'Vous avez un accès en lecture seule à cette galaxie. Vous pouvez voir son contenu, mais pas le modifier.',
 
             'api_error_404_001' => 'Nœud introuvable.',
             'api_error_404_002' => 'Galaxie introuvable.',
@@ -6531,6 +6770,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'galaxy_update_missing_id' => 'L\'identifiant de la galaxie est manquant.',
             'galaxy_update_not_authorized' => 'Non autorisé.',
             'galaxy_update_no_access' => 'Pas d\'accès à cette galaxie.',
+            'galaxy_update_read_only' => 'Vous avez un accès en lecture seule à cette galaxie. Vous pouvez la voir, mais pas la modifier.',
             'galaxy_update_name_required' => 'Le nom de la galaxie est obligatoire.',
             'galaxy_update_duplicate_name' => 'Une galaxie avec le nom « %s » existe déjà.',
             'galaxy_update_duplicate_slug' => 'Une galaxie avec le chemin « %s » existe déjà.',
@@ -7182,10 +7422,62 @@ function db_ensure_users_pronouns_column(): void {
     }
 }
 
-/** Run both account-field migrations together. Cheap (each is statically guarded). */
+/**
+ * Editor self-enrollment: users.vetted (TINYINT bool). Manually-created and
+ * existing users are vetted (DEFAULT 1 backfills them); self-enrolled editors
+ * are inserted as 0. Vetting is a trust + convenience gate (it unlocks an
+ * optional password), NOT an edit gate: an unvetted editor can already edit
+ * assigned content. Additive and idempotent.
+ */
+function db_ensure_users_vetted_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM users LIKE 'vetted'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN vetted TINYINT(1) NOT NULL DEFAULT 1 AFTER type");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_users_vetted_column: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Editor self-enrollment: make users.password nullable. A NULL password means
+ * "no password yet" (an unvetted self-enrolled editor who logs in only via an
+ * emailed magic link). Guarded on the column's Null flag so the MODIFY runs once.
+ */
+function db_ensure_users_password_nullable(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM users LIKE 'password'")->fetch();
+        if ($row && isset($row['Null']) && strtoupper((string)$row['Null']) === 'NO') {
+            $pdo->exec("ALTER TABLE users MODIFY COLUMN password VARCHAR(255) NULL DEFAULT NULL");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_users_password_nullable: ' . $e->getMessage());
+    }
+}
+
+/** Run the account-field migrations together. Cheap (each is statically guarded). */
 function db_ensure_users_account_columns(): void {
     db_ensure_users_lastname_nullable();
     db_ensure_users_pronouns_column();
+    db_ensure_users_vetted_column();
+    db_ensure_users_password_nullable();
+}
+
+/** Set (or clear) a user's vetted flag. Trust + convenience only; never edit access. */
+function db_set_user_vetted(string $id, bool $vetted): void {
+    db_ensure_users_vetted_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE users SET vetted = :v WHERE id = :id");
+    $stmt->execute([':v' => $vetted ? 1 : 0, ':id' => $id]);
 }
 
 /**
@@ -8608,8 +8900,9 @@ function db_get_user_by_email(string $email): ?array {
 
 function db_get_user_by_id(string $userId): ?array {
     try {
+        db_ensure_users_vetted_column();
         $pdo = getDB();
-        $stmt = $pdo->prepare("SELECT id, email, firstname, lastname, type FROM users WHERE id = :id LIMIT 1");
+        $stmt = $pdo->prepare("SELECT id, email, firstname, lastname, type, vetted FROM users WHERE id = :id LIMIT 1");
         $stmt->execute([':id' => $userId]);
         $row = $stmt->fetch();
         return $row ?: null;
@@ -8714,6 +9007,174 @@ function db_consume_password_reset_token(string $token, string $newPasswordHash)
         $pdo->rollBack();
         error_log('db_consume_password_reset_token error: ' . $e->getMessage());
         return false;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Login tokens (editor self-enrollment): one table for several single-use,
+// emailed-link purposes. Mirrors password_reset_tokens but adds `purpose` so
+// magic-login (15 min), enroll-confirm (24 h), and vetting set-password (7 d)
+// links share one substrate. 64-hex token, SHA-256 at rest, single-use.
+// expires_at is computed in PHP (UTC, matches the DB clock) rather than via
+// MySQL DATE_ADD(... INTERVAL ...) for PostgreSQL portability.
+// ---------------------------------------------------------------------------
+
+const LOGIN_TOKEN_PURPOSES = ['magic_login', 'enroll_confirm', 'vetting'];
+
+function db_ensure_login_tokens_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        getDB()->exec("
+            CREATE TABLE IF NOT EXISTS login_tokens (
+                token_hash CHAR(64) NOT NULL PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                purpose VARCHAR(24) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                used_at DATETIME NULL DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_login_tokens_user_purpose (user_id, purpose),
+                INDEX idx_login_tokens_expires_at (expires_at),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_login_tokens_table: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Create a single-use login token of a given purpose. Stores the SHA-256 hash,
+ * returns the plaintext (the caller emails it in a URL). Any prior unused token
+ * of the SAME purpose for this user is invalidated so a fresh request supersedes
+ * stale links. Throws on an unknown purpose (programming error).
+ */
+function db_create_login_token(string $userId, string $purpose, int $ttlSeconds): string {
+    if (!in_array($purpose, LOGIN_TOKEN_PURPOSES, true)) {
+        throw new InvalidArgumentException('db_create_login_token: unknown purpose ' . $purpose);
+    }
+    db_ensure_login_tokens_table();
+    $pdo = getDB();
+    $pdo->prepare("UPDATE login_tokens SET used_at = CURRENT_TIMESTAMP WHERE user_id = :uid AND purpose = :p AND used_at IS NULL")
+        ->execute([':uid' => $userId, ':p' => $purpose]);
+    $token = bin2hex(random_bytes(32)); // 64 hex chars, ~256 bits
+    $hash = hash('sha256', $token);
+    $expiresAt = date('Y-m-d H:i:s', time() + max(60, $ttlSeconds));
+    $stmt = $pdo->prepare("
+        INSERT INTO login_tokens (token_hash, user_id, purpose, expires_at)
+        VALUES (:h, :uid, :p, :exp)
+    ");
+    $stmt->execute([':h' => $hash, ':uid' => $userId, ':p' => $purpose, ':exp' => $expiresAt]);
+    return $token;
+}
+
+/**
+ * Look up a valid (unconsumed, unexpired) login token of a given purpose without
+ * consuming it. Returns the user row for the GET handler that decides whether to
+ * render a page, null otherwise.
+ *
+ * @return array<string,mixed>|null
+ */
+function db_get_user_for_login_token(string $token, string $purpose): ?array {
+    if ($token === '' || strlen($token) !== 64) return null;
+    if (!in_array($purpose, LOGIN_TOKEN_PURPOSES, true)) return null;
+    db_ensure_login_tokens_table();
+    $pdo = getDB();
+    $hash = hash('sha256', $token);
+    $stmt = $pdo->prepare("
+        SELECT u.id, u.email, u.firstname, u.lastname, u.type, u.vetted, u.date_last_login
+        FROM login_tokens t
+        JOIN users u ON u.id = t.user_id
+        WHERE t.token_hash = :h AND t.purpose = :p AND t.used_at IS NULL AND t.expires_at > CURRENT_TIMESTAMP
+        LIMIT 1
+    ");
+    $stmt->execute([':h' => $hash, ':p' => $purpose]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row !== false ? $row : null;
+}
+
+/**
+ * Atomically consume a login token of a given purpose. Returns the user row on
+ * success (the caller then establishes a session / sets a password), null if the
+ * token is invalid, expired, used, or of the wrong purpose. Single-use via
+ * used_at under FOR UPDATE.
+ *
+ * @return array<string,mixed>|null
+ */
+function db_consume_login_token(string $token, string $purpose): ?array {
+    if ($token === '' || strlen($token) !== 64) return null;
+    if (!in_array($purpose, LOGIN_TOKEN_PURPOSES, true)) return null;
+    db_ensure_login_tokens_table();
+    $pdo = getDB();
+    $hash = hash('sha256', $token);
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("
+            SELECT user_id FROM login_tokens
+            WHERE token_hash = :h AND purpose = :p AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP
+            LIMIT 1
+            FOR UPDATE
+        ");
+        $stmt->execute([':h' => $hash, ':p' => $purpose]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            $pdo->rollBack();
+            return null;
+        }
+        $userId = (string)$row['user_id'];
+        $pdo->prepare("UPDATE login_tokens SET used_at = CURRENT_TIMESTAMP WHERE token_hash = :h")
+            ->execute([':h' => $hash]);
+        $userStmt = $pdo->prepare("SELECT id, email, firstname, lastname, type, vetted, date_last_login FROM users WHERE id = :id LIMIT 1");
+        $userStmt->execute([':id' => $userId]);
+        $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+        $pdo->commit();
+        return $user !== false ? $user : null;
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log('db_consume_login_token error: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/** Delete expired or already-consumed login tokens. Returns rows removed. */
+function db_gc_login_tokens(): int {
+    db_ensure_login_tokens_table();
+    try {
+        $pdo = getDB();
+        return (int)$pdo->exec("DELETE FROM login_tokens WHERE expires_at < CURRENT_TIMESTAMP OR used_at IS NOT NULL");
+    } catch (PDOException $e) {
+        error_log('db_gc_login_tokens: ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Reclaim abandoned self-enrolments: editor accounts that were never confirmed
+ * and never signed in, older than $days. The triple guard
+ * (type editor + vetted=0 + password IS NULL + date_last_login IS NULL) makes
+ * this safe; admin-created and bulk-imported users are vetted=1, and anyone who
+ * confirmed or logged in has date_last_login set, so neither is ever touched.
+ * The cutoff is computed in PHP (PHP tz = DB tz = UTC) to stay engine-portable
+ * (no MySQL DATE_SUB/INTERVAL). FK ON DELETE CASCADE clears their login_tokens
+ * and seats. Returns rows removed.
+ */
+function db_gc_unconfirmed_enrollments(int $days = 30): int {
+    db_ensure_users_account_columns();
+    if ($days < 1) { $days = 1; }
+    $cutoff = date('Y-m-d H:i:s', time() - ($days * 86400));
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->prepare(
+            "DELETE FROM users
+             WHERE type = 1 AND vetted = 0 AND password IS NULL
+               AND date_last_login IS NULL AND date_created < :cutoff"
+        );
+        $stmt->execute([':cutoff' => $cutoff]);
+        return (int)$stmt->rowCount();
+    } catch (PDOException $e) {
+        error_log('db_gc_unconfirmed_enrollments: ' . $e->getMessage());
+        return 0;
     }
 }
 
@@ -9034,7 +9495,7 @@ function db_get_users(): array {
     db_ensure_users_account_columns();
     $pdo = getDB();
     $stmt = $pdo->query("
-        SELECT id, email, firstname, lastname, pronouns, type, locale, date_created, date_last_login, updated_at
+        SELECT id, email, firstname, lastname, pronouns, type, vetted, locale, date_created, date_last_login, updated_at
         FROM users
         ORDER BY date_created DESC
     ");
@@ -9054,21 +9515,22 @@ function db_set_user_locale(string $id, ?string $locale): void {
     $stmt->execute([':loc' => ($locale === '' ? null : $locale), ':id' => $id]);
 }
 
-function db_insert_user(string $id, string $email, string $hashedPassword, string $firstname, ?string $lastname, int $type, ?string $pronouns = null): void {
+function db_insert_user(string $id, string $email, ?string $hashedPassword, string $firstname, ?string $lastname, int $type, ?string $pronouns = null, bool $vetted = true): void {
     db_ensure_users_account_columns();
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        INSERT INTO users (id, email, password, firstname, lastname, pronouns, type)
-        VALUES (:id, :email, :password, :firstname, :lastname, :pronouns, :type)
+        INSERT INTO users (id, email, password, firstname, lastname, pronouns, type, vetted)
+        VALUES (:id, :email, :password, :firstname, :lastname, :pronouns, :type, :vetted)
     ");
     $stmt->execute([
         ':id' => $id,
         ':email' => $email,
-        ':password' => $hashedPassword,
+        ':password' => ($hashedPassword === null || $hashedPassword === '') ? null : $hashedPassword,
         ':firstname' => $firstname,
         ':lastname' => ($lastname === null || $lastname === '') ? null : $lastname,
         ':pronouns' => ($pronouns === null || $pronouns === '') ? null : $pronouns,
-        ':type' => $type
+        ':type' => $type,
+        ':vetted' => $vetted ? 1 : 0
     ]);
 }
 
@@ -9102,6 +9564,48 @@ function db_delete_user(string $id): void {
     $stmt->execute([':id' => $id]);
 }
 
+/**
+ * Editor self-enrollment: per-seat access level on user_constellations. Today a
+ * seat is binary (its presence = read-write); this adds an explicit level so a
+ * seat can be read-only (the editor lists/opens the galaxy's components in the
+ * Edit view but cannot mutate them). VARCHAR + CHECK (not ENUM) for Postgres
+ * portability; DEFAULT 'read_write' backfills existing seats to current behaviour.
+ */
+function db_ensure_user_constellations_access_level_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM user_constellations LIKE 'access_level'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE user_constellations
+                ADD COLUMN access_level VARCHAR(16) NOT NULL DEFAULT 'read_write'
+                CHECK (access_level IN ('read_write','read_only'))");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_user_constellations_access_level_column: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Galaxy ids a user created (their "personal" galaxies). Used by delete-user to
+ * offer removing them; galaxies created by someone else are never included.
+ * @return list<int>
+ */
+function db_get_constellation_ids_created_by(string $userId): array {
+    if ($userId === '') return [];
+    $pdo = getDB();
+    try {
+        $stmt = $pdo->prepare("SELECT id FROM constellations WHERE created_by = :u AND `type` = 'galaxy' ORDER BY id");
+        $stmt->execute([':u' => $userId]);
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    } catch (PDOException $e) {
+        error_log('db_get_constellation_ids_created_by: ' . $e->getMessage());
+        return [];
+    }
+}
+
 /** @return list<int> */
 function db_get_user_constellation_ids(string $userId): array {
     $pdo = getDB();
@@ -9110,16 +9614,90 @@ function db_get_user_constellation_ids(string $userId): array {
     return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 }
 
-function db_set_user_constellations(string $userId, array $constellationIds): void {
+/**
+ * Per-seat access levels for a user as [constellation_id => 'read_write'|'read_only'].
+ * Used to render read-only seats without edit affordances and (via
+ * db_user_can_write_constellation) to enforce write access server-side.
+ *
+ * @return array<int,string>
+ */
+function db_get_user_constellation_access(string $userId): array {
+    db_ensure_user_constellations_access_level_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT constellation_id, access_level FROM user_constellations WHERE user_id = :user_id");
+    $stmt->execute([':user_id' => $userId]);
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $level = (string)$row['access_level'];
+        $out[(int)$row['constellation_id']] = in_array($level, ENROLL_ACCESS_LEVELS, true) ? $level : ENROLL_ACCESS_DEFAULT;
+    }
+    return $out;
+}
+
+/**
+ * Can this editor write to this galaxy? True when the user holds a read_write
+ * seat for it; false for a read_only seat or no seat. A null user id (no editor
+ * context, e.g. an admin or API-key caller) returns true: this gate is only for
+ * per-user editor seats, the existing admin/API-key authorization is unchanged.
+ */
+function db_user_can_write_constellation(?string $userId, int $constellationId): bool {
+    if ($userId === null || $userId === '' || $constellationId <= 0) {
+        return true;
+    }
+    db_ensure_user_constellations_access_level_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT access_level FROM user_constellations WHERE user_id = :uid AND constellation_id = :cid LIMIT 1");
+    $stmt->execute([':uid' => $userId, ':cid' => $constellationId]);
+    $level = $stmt->fetchColumn();
+    if ($level === false) {
+        return false;
+    }
+    return (string)$level !== 'read_only';
+}
+
+/**
+ * Replace a user's galaxy seats. $accessLevel applies to all seats in this call
+ * (the admin UI sets one level for the granted set); validated against
+ * ENROLL_ACCESS_LEVELS, falling back to read_write.
+ */
+function db_set_user_constellations(string $userId, array $constellationIds, string $accessLevel = ENROLL_ACCESS_DEFAULT): void {
+    db_ensure_user_constellations_access_level_column();
+    if (!in_array($accessLevel, ENROLL_ACCESS_LEVELS, true)) {
+        $accessLevel = ENROLL_ACCESS_DEFAULT;
+    }
     $pdo = getDB();
     $pdo->prepare("DELETE FROM user_constellations WHERE user_id = :user_id")->execute([':user_id' => $userId]);
     $constellationIds = array_unique(array_map('intval', $constellationIds));
     if ($constellationIds === []) {
         return;
     }
-    $stmt = $pdo->prepare("INSERT INTO user_constellations (user_id, constellation_id) VALUES (:user_id, :constellation_id)");
+    $stmt = $pdo->prepare("INSERT INTO user_constellations (user_id, constellation_id, access_level) VALUES (:user_id, :constellation_id, :access_level)");
     foreach ($constellationIds as $cid) {
-        $stmt->execute([':user_id' => $userId, ':constellation_id' => $cid]);
+        $stmt->execute([':user_id' => $userId, ':constellation_id' => $cid, ':access_level' => $accessLevel]);
+    }
+}
+
+/**
+ * Add (or update the access level of) a SINGLE galaxy seat for a user, leaving
+ * the user's other seats untouched. Use this for incremental seat additions
+ * (e.g. auto-seating a galaxy's creator) so existing read_only seats are not
+ * flattened to read_write the way db_set_user_constellations (whole-set replace)
+ * would. Portable upsert (no MySQL ON DUPLICATE KEY) for the Postgres migration.
+ */
+function db_add_user_constellation(string $userId, int $constellationId, string $accessLevel = ENROLL_ACCESS_DEFAULT): void {
+    db_ensure_user_constellations_access_level_column();
+    if (!in_array($accessLevel, ENROLL_ACCESS_LEVELS, true)) {
+        $accessLevel = ENROLL_ACCESS_DEFAULT;
+    }
+    $pdo = getDB();
+    $chk = $pdo->prepare("SELECT 1 FROM user_constellations WHERE user_id = :u AND constellation_id = :c LIMIT 1");
+    $chk->execute([':u' => $userId, ':c' => $constellationId]);
+    if ($chk->fetchColumn()) {
+        $pdo->prepare("UPDATE user_constellations SET access_level = :lvl WHERE user_id = :u AND constellation_id = :c")
+            ->execute([':lvl' => $accessLevel, ':u' => $userId, ':c' => $constellationId]);
+    } else {
+        $pdo->prepare("INSERT INTO user_constellations (user_id, constellation_id, access_level) VALUES (:u, :c, :lvl)")
+            ->execute([':u' => $userId, ':c' => $constellationId, ':lvl' => $accessLevel]);
     }
 }
 
@@ -9171,7 +9749,7 @@ function createAdminUser(PDO $pdo, string $email, string $password, string $firs
  * Create user (editor or admin). Returns null on success, error message on failure.
  * $hashedPassword must already be hashed (e.g. by auth hashPassword).
  */
-function createUser(PDO $pdo, string $email, string $hashedPassword, string $firstname, ?string $lastname, int $type, ?string $pronouns = null): ?string {
+function createUser(PDO $pdo, string $email, ?string $hashedPassword, string $firstname, ?string $lastname, int $type, ?string $pronouns = null, bool $vetted = true): ?string {
     try {
         db_ensure_users_account_columns();
         $checkStmt = $pdo->prepare("SELECT id FROM users WHERE email = :email");
@@ -9181,17 +9759,18 @@ function createUser(PDO $pdo, string $email, string $hashedPassword, string $fir
         }
         $userId = 'user_' . bin2hex(random_bytes(8));
         $stmt = $pdo->prepare("
-            INSERT INTO users (id, email, password, firstname, lastname, pronouns, type)
-            VALUES (:id, :email, :password, :firstname, :lastname, :pronouns, :type)
+            INSERT INTO users (id, email, password, firstname, lastname, pronouns, type, vetted)
+            VALUES (:id, :email, :password, :firstname, :lastname, :pronouns, :type, :vetted)
         ");
         $stmt->execute([
             ':id' => $userId,
             ':email' => $email,
-            ':password' => $hashedPassword,
+            ':password' => ($hashedPassword === null || $hashedPassword === '') ? null : $hashedPassword,
             ':firstname' => $firstname,
             ':lastname' => ($lastname === null || $lastname === '') ? null : $lastname,
             ':pronouns' => ($pronouns === null || $pronouns === '') ? null : $pronouns,
-            ':type' => $type
+            ':type' => $type,
+            ':vetted' => $vetted ? 1 : 0
         ]);
         return null;
     } catch (PDOException $e) {
@@ -13976,6 +14555,103 @@ function db_system_meta_delete(string $key): void {
     db_ensure_system_meta_table();
     $stmt = getDB()->prepare("DELETE FROM system_meta WHERE meta_key = :k");
     $stmt->execute([':k' => $key]);
+}
+
+// ---------------------------------------------------------------------------
+// Editor self-enrollment config (stored as one JSON value in system_meta).
+// ---------------------------------------------------------------------------
+
+const AUTO_ENROLL_META_KEY = 'auto_enroll_config';
+
+/**
+ * Read the auto-enroll config, normalized to the canonical shape. Returns safe
+ * defaults (enabled = false) when unset or unparseable, so a fresh instance is
+ * closed to self-enrollment until an admin turns it on.
+ *
+ * @return array{enabled:bool,create_personal_galaxy:bool,naming_convention:string,domains:list<string>,galaxy_ids:list<int>,access_level:string,cap_enabled:bool,cap:int}
+ */
+function db_get_auto_enroll_config(): array {
+    $raw = db_system_meta_get(AUTO_ENROLL_META_KEY);
+    $decoded = [];
+    if (is_string($raw) && $raw !== '') {
+        $tmp = json_decode($raw, true);
+        if (is_array($tmp)) {
+            $decoded = $tmp;
+        }
+    }
+    return auto_enroll_normalize_config($decoded);
+}
+
+/** Validate + persist the auto-enroll config (normalized, JSON-encoded). */
+function db_set_auto_enroll_config(array $config): void {
+    $normalized = auto_enroll_normalize_config($config);
+    db_system_meta_set(AUTO_ENROLL_META_KEY, json_encode($normalized, JSON_UNESCAPED_SLASHES));
+}
+
+/** Count self-enrolled editors not yet vetted (the population the cap limits). */
+function db_count_unvetted_editors(): int {
+    db_ensure_users_vetted_column();
+    $pdo = getDB();
+    // type = 1 is USER_TYPE_EDITOR (literal here to match this layer's convention,
+    // e.g. hasAdminUser uses `type = 2`; the constant lives in utils/auth.php).
+    $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE type = 1 AND vetted = 0");
+    return (int)$stmt->fetchColumn();
+}
+
+/**
+ * Is self-enrollment open right now? Enabled AND (no cap OR under cap). Reused by
+ * both the main-view "Enroll as Editor" link (visibility) and the enroll endpoint
+ * (server-side refusal); never trust the hidden link alone.
+ */
+function db_auto_enroll_is_open(): bool {
+    $cfg = db_get_auto_enroll_config();
+    if (!$cfg['enabled']) {
+        return false;
+    }
+    $count = ($cfg['cap_enabled'] && $cfg['cap'] > 0) ? db_count_unvetted_editors() : 0;
+    return auto_enroll_compute_open($cfg['enabled'], $cfg['cap_enabled'], $cfg['cap'], $count);
+}
+
+/**
+ * Deferred personal-galaxy creation (naming_convention = user_choice). At
+ * enrolment confirm we cannot name the galaxy, so we flag the user; the editor
+ * surface shows a one-time "create your first galaxy" banner on next load.
+ * Stored as a namespaced system_meta key.
+ */
+function db_set_pending_personal_galaxy(string $userId): void {
+    if ($userId === '') return;
+    db_system_meta_set('enroll_pending_galaxy:' . $userId, '1');
+}
+
+/** Read-and-clear the pending-personal-galaxy flag. Returns true if it was set. */
+function db_take_pending_personal_galaxy(string $userId): bool {
+    if ($userId === '') return false;
+    $key = 'enroll_pending_galaxy:' . $userId;
+    if (db_system_meta_get($key) === '1') {
+        db_system_meta_delete($key);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * "You were vetted, you can set a password now" in-app banner, shown once on the
+ * editor's next load after an admin vets them (paired with the vetting email).
+ */
+function db_set_vetted_banner_pending(string $userId): void {
+    if ($userId === '') return;
+    db_system_meta_set('vetted_banner:' . $userId, '1');
+}
+
+/** Read-and-clear the vetted banner flag. Returns true if it was set. */
+function db_take_vetted_banner_pending(string $userId): bool {
+    if ($userId === '') return false;
+    $key = 'vetted_banner:' . $userId;
+    if (db_system_meta_get($key) === '1') {
+        db_system_meta_delete($key);
+        return true;
+    }
+    return false;
 }
 
 /**

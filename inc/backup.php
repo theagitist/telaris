@@ -794,12 +794,11 @@ function backup_restore_from_file(string $path, array $opts): array {
             foreach ($g['editor_emails'] ?? [] as $email) {
                 $uid = $userEmailToId[$email] ?? null;
                 if ($uid === null) continue;
-                // Append rather than overwrite (db_set_user_constellations replaces, so we merge)
-                $existing = db_get_user_constellation_ids($uid);
-                if (!in_array($cid, $existing, true)) {
-                    $existing[] = $cid;
-                    db_set_user_constellations($uid, $existing);
-                }
+                // Append a single seat, preserving the user's other seats and
+                // their per-seat access levels (whole-set replace would flatten).
+                // Note: backups do not yet round-trip access_level, so restored
+                // seats default to read_write (BACKLOG: backup access_level).
+                db_add_user_constellation($uid, $cid, 'read_write');
             }
         }
     }

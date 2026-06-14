@@ -39,6 +39,12 @@ if (!defined('AUTH_LOGIN_MAX_FAILURES')) {
     define('AUTH_FORGOT_WINDOW_SECONDS', 300);
     define('AUTH_RESET_MAX_ATTEMPTS', 10);
     define('AUTH_RESET_WINDOW_SECONDS', 600);
+    // Magic sign-in link requests (editor self-enrollment): same shape as forgot.
+    define('AUTH_LOGINLINK_MAX_ATTEMPTS', 5);
+    define('AUTH_LOGINLINK_WINDOW_SECONDS', 300);
+    // Self-enrolment submissions: per-IP, slightly tighter window.
+    define('AUTH_ENROLL_MAX_ATTEMPTS', 5);
+    define('AUTH_ENROLL_WINDOW_SECONDS', 600);
 }
 // API-key throttle (second-pass audit M3): legitimate visitor pages fetch
 // the public key once per session, then reuse it; sustained-rate-of-failure
@@ -206,7 +212,14 @@ function passwordNeedsRehash(string $hash): bool {
 function authenticateUser(string $email, string $password): ?array {
     try {
         $user = db_get_user_by_email($email);
-        if (!$user || !verifyPassword($password, $user['password'])) {
+        // A null/empty password means "no password set yet" (an unvetted
+        // self-enrolled editor who signs in only via an emailed magic link).
+        // Such an account cannot be authenticated by password; verifyPassword
+        // would also TypeError on a null hash under strict_types.
+        if (!$user || $user['password'] === null || $user['password'] === '') {
+            return null;
+        }
+        if (!verifyPassword($password, (string)$user['password'])) {
             return null;
         }
         if (passwordNeedsRehash($user['password'])) {

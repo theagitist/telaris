@@ -29,6 +29,7 @@ header("X-Content-Type-Options: nosniff");
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../inc/bridges/_lib.php';
+require_once __DIR__ . '/../inc/enroll-mail.php';
 
 // Load each active bridge's admin partial (inc/bridges/{name}-admin.php) so
 // the render hooks below can call into them.
@@ -199,10 +200,38 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     throw new Exception(t('pronouns_error_' . $pr['error']));
                 }
                 $pronouns = $pr['json'];
+                // Current row, to detect a vetting transition (0 -> 1) and to
+                // preserve per-seat access levels across the seat-set rewrite.
+                $currentRow = db_get_user_by_id($id);
+                $wasVetted = (int)($currentRow['vetted'] ?? 1) === 1;
                 $hashedPassword = !empty($password) ? hashPassword($password) : null;
                 db_update_user($id, $email, $firstname, $lastname, $type, $hashedPassword, $pronouns);
+
+                // Vetted flag. A self-enrolled (unvetted) editor becoming vetted
+                // gets a one-time set-password link by email plus an in-app banner;
+                // vetting never changes their seats and never gates editing.
+                $nowVetted = !empty($_POST['vetted']);
+                db_set_user_vetted($id, $nowVetted);
+                if (!$wasVetted && $nowVetted) {
+                    $vetLocale = locale_init_strings()['__locale'] ?? 'en';
+                    $vetToken = db_create_login_token($id, 'vetting', 7 * 86400); // 7 days
+                    @send_vetting_email($email, $vetToken, $vetLocale);
+                    db_set_vetted_banner_pending($id);
+                }
+
+                // Seats: rewrite the SET but preserve each kept seat's access level
+                // (read_only/read_write); new seats default to read_write. A whole-set
+                // replace would silently flatten read_only seats to read_write.
                 $constellationIds = array_map('intval', array_filter((array)($_POST['constellation_ids'] ?? [])));
-                db_set_user_constellations($id, $type === USER_TYPE_EDITOR ? $constellationIds : []);
+                if ($type === USER_TYPE_EDITOR) {
+                    $existingAccess = db_get_user_constellation_access($id);
+                    db_set_user_constellations($id, []); // clear
+                    foreach ($constellationIds as $cid) {
+                        db_add_user_constellation($id, (int)$cid, $existingAccess[(int)$cid] ?? 'read_write');
+                    }
+                } else {
+                    db_set_user_constellations($id, []);
+                }
                 db_audit_log(
                     action: 'user.update',
                     actorUserId: $_SESSION['admin_user_id'] ?? null,
@@ -212,6 +241,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                         'type' => $type,
                         'password_changed' => $hashedPassword !== null,
                         'galaxies' => count($constellationIds),
+                        'vetted' => $nowVetted,
                     ],
                     ip: auth_client_ip(),
                     actorEmail: $_SESSION['admin_user_email'] ?? null,
@@ -243,6 +273,18 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 if ($expected === '' || strcasecmp($provided, $expected) !== 0) {
                     throw new Exception(t('admin_error_delete_confirm_mismatch', 'Confirmation does not match. Type the exact name to confirm deletion.'));
                 }
+                // Optionally delete the user's personal galaxies (the ones they
+                // created), per the operator's choice in the delete dialog. Done
+                // BEFORE deleting the user: constellations.created_by is SET NULL on
+                // user delete, which would otherwise lose the ownership link. Shared
+                // or granted galaxies (created by someone else) are never touched.
+                $deletedGalaxies = 0;
+                if (!empty($_POST['delete_personal_galaxy'])) {
+                    foreach (db_get_constellation_ids_created_by($id) as $gid) {
+                        db_delete_constellation((int)$gid);
+                        $deletedGalaxies++;
+                    }
+                }
                 db_delete_user($id);
                 db_audit_log(
                     action: 'user.delete',
@@ -271,6 +313,31 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 }
                 db_set_user_locale($id, $normalized);
                 $message = t('admin_user_locale_saved', 'Notification language updated.');
+            })(),
+
+            'save_auto_enroll_config' => (function(): void {
+                global $message, $error, $activeTab;
+                $activeTab = 'users';
+                db_set_auto_enroll_config([
+                    'enabled' => !empty($_POST['enabled']),
+                    'create_personal_galaxy' => !empty($_POST['create_personal_galaxy']),
+                    'naming_convention' => (string)($_POST['naming_convention'] ?? 'email_username'),
+                    'domains' => (string)($_POST['domains'] ?? ''),
+                    'galaxy_ids' => array_map('intval', array_filter((array)($_POST['galaxy_ids'] ?? []))),
+                    'access_level' => (string)($_POST['access_level'] ?? 'read_write'),
+                    'cap_enabled' => !empty($_POST['cap_enabled']),
+                    'cap' => (int)($_POST['cap'] ?? 0),
+                ]);
+                db_audit_log(
+                    action: 'auto_enroll.config',
+                    actorUserId: $_SESSION['admin_user_id'] ?? null,
+                    targetType: 'system',
+                    targetId: 'auto_enroll_config',
+                    details: ['enabled' => !empty($_POST['enabled'])],
+                    ip: auth_client_ip(),
+                    actorEmail: $_SESSION['admin_user_email'] ?? null,
+                );
+                $message = t('auto_enroll_saved', 'Auto-enroll settings saved.');
             })(),
 
             'create_constellation' => (function(): void {
@@ -706,6 +773,10 @@ foreach ($users as $u) {
     }
 }
 
+// Editor self-enrollment config + current unvetted-editor count for the Auto-enroll modal.
+$aeConfig = db_get_auto_enroll_config();
+$aeUnvettedCount = db_count_unvetted_editors();
+
 // Check for newly generated key
 $newApiKey = $_SESSION['new_api_key'] ?? null;
 $newApiKeyName = $_SESSION['new_api_key_name'] ?? null;
@@ -950,6 +1021,7 @@ foreach ($importantExtensions as $ext => $name) {
                             <h2 class="text-gray-800 text-base font-semibold"><?= t_attr('admin_heading_users', 'Users') ?> (<?php echo count($users); ?>)</h2>
                             <button type="button" onclick="openCreateUser()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_user', 'New User') ?></button>
                             <button type="button" onclick="openBulkUsersModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_bulk_import', 'Bulk import') ?></button>
+                            <button type="button" onclick="openAutoEnrollModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_auto_enroll', 'Auto enroll') ?></button>
                         </div>
 
                         <!-- Top Pagination -->
@@ -1013,8 +1085,10 @@ foreach ($importantExtensions as $ext => $name) {
                                         $lastLoginIso = $lastLoginTs !== false ? gmdate('c', $lastLoginTs) : null;
                                         $updatedIso = $updatedTs !== false ? gmdate('c', $updatedTs) : null;
                                         $isCurrentUser = $user['id'] === ($_SESSION['admin_user_id'] ?? '');
+                                        // Unvetted = a self-enrolled editor an admin has not yet vetted.
+                                        $isUnvetted = ($userType === USER_TYPE_EDITOR && (int)($user['vetted'] ?? 1) === 0);
                                         ?>
-                                        <tr class="user-row border-b border-gray-300 hover:bg-gray-50" 
+                                        <tr class="user-row border-b border-gray-300 <?php echo $isUnvetted ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'; ?>"
                                             data-user-id="<?php echo htmlspecialchars($user['id']); ?>" 
                                             data-name="<?php echo htmlspecialchars(strtolower(trim($user['firstname'] . ' ' . ($user['lastname'] ?? '')))); ?>"
                                             data-email="<?php echo htmlspecialchars(strtolower($user['email'])); ?>" 
@@ -1029,7 +1103,9 @@ foreach ($importantExtensions as $ext => $name) {
                                                 'lastname' => $user['lastname'] ?? '',
                                                 'pronouns' => $userPronouns,
                                                 'email' => $user['email'],
-                                                'type' => $user['type']
+                                                'type' => $user['type'],
+                                                'vetted' => (int)($user['vetted'] ?? 1),
+                                                'owned_galaxies' => count(db_get_constellation_ids_created_by((string)$user['id'])),
                                             ];
                                             $userJson = htmlspecialchars(json_encode($userData), ENT_QUOTES, 'UTF-8');
                                             $clickEdit = "editUser($userJson)";
@@ -1043,6 +1119,7 @@ foreach ($importantExtensions as $ext => $name) {
                                             </td>
                                             <td class="py-2 px-2 cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <span class="text-xs <?php echo $typeColors[$userType]; ?> text-white px-2 py-1 rounded"><?php echo $typeLabels[$userType]; ?></span>
+                                                <?php if ($isUnvetted): ?><span class="ml-1 text-xs bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded" title="<?= t_attr('admin_unvetted_title', 'Self-enrolled; not yet vetted by an admin') ?>"><?= t_attr('admin_badge_unvetted', 'Unvetted') ?></span><?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <?php if ($createdIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($createdIso); ?>"><?php echo date('y-m-d H:i', $createdTs); ?></span><?php else: ?>—<?php endif; ?>
@@ -1066,8 +1143,9 @@ foreach ($importantExtensions as $ext => $name) {
                                                                 $delMsg = sprintf(t('admin_confirm_delete_user', 'Are you sure you want to delete the user "%s"? This action cannot be undone.'), $fullName);
                                                                 $delMsgJs = htmlspecialchars(json_encode($delMsg), ENT_QUOTES, 'UTF-8');
                                                                 $delConfirmJs = htmlspecialchars(json_encode((string)($user['email'] ?? '')), ENT_QUOTES, 'UTF-8');
+                                                                $ownedGalaxyCount = count(db_get_constellation_ids_created_by((string)$user['id']));
                                                                 ?>
-                                                                <li><a onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, <?php echo $delConfirmJs; ?>)" class="text-red-600 text-xs"><?= t_attr('admin_action_delete', 'Delete') ?></a></li>
+                                                                <li><a onclick="event.stopPropagation(); triggerDelete('delete_user', '<?php echo addslashes($user['id']); ?>', <?php echo $delMsgJs; ?>, <?php echo $delConfirmJs; ?>, <?php echo (int)$ownedGalaxyCount; ?>)" class="text-red-600 text-xs"><?= t_attr('admin_action_delete', 'Delete') ?></a></li>
                                                             <?php endif; ?>
                                                             <?php if ($userType === USER_TYPE_ADMIN):
                                                                 // 6f-ii: notification language. Only admins receive
@@ -2904,6 +2982,8 @@ foreach ($importantExtensions as $ext => $name) {
             document.getElementById('modal-email').value = '';
             document.getElementById('modal-password').value = '';
             document.getElementById('modal-type').value = '1';
+            // Manually created users are vetted by default.
+            (function(){ const v = document.getElementById('modal-vetted'); if (v) v.checked = true; })();
             document.querySelectorAll('.modal-pronoun-common').forEach(cb => { cb.checked = false; });
             document.getElementById('modal-pronouns-custom').value = '';
             document.querySelectorAll('.modal-user-constellation-checkbox').forEach(cb => { cb.checked = false; });
@@ -2938,6 +3018,7 @@ foreach ($importantExtensions as $ext => $name) {
             document.getElementById('modal-email').value = user.email;
             document.getElementById('modal-type').value = user.type;
             document.getElementById('modal-password').value = '';
+            (function(){ const v = document.getElementById('modal-vetted'); if (v) v.checked = (parseInt(user.vetted, 10) === 1); })();
 
             // Pronouns: check the common-option boxes that match the stored set;
             // anything not in the common set goes into the free-text field.
@@ -3102,6 +3183,40 @@ foreach ($importantExtensions as $ext => $name) {
         function openBulkUsersModal() {
             document.getElementById('bulk_users_modal').showModal();
         }
+
+        // ---------- Auto-enroll modal (editor self-enrollment) ----------
+        function openAutoEnrollModal() {
+            aeToggleNaming(); aeToggleCap();
+            document.getElementById('auto_enroll_modal').showModal();
+        }
+        window.openAutoEnrollModal = openAutoEnrollModal;
+        // Turning enrolment ON shows a one-time confirmation; Cancel reverts the toggle.
+        function aeOnEnableToggle(cb) {
+            if (cb.checked) {
+                const warn = <?= json_encode(t('admin_auto_enroll_enable_warning', 'With this on, anyone with a valid email (subject to any domain limit and cap below) can join as an Editor. They still only edit the galaxies you grant them, and stay Unvetted until you vet them. Enable self-enrolment?')) ?>;
+                if (!window.confirm(warn)) { cb.checked = false; }
+            }
+        }
+        function aeToggleNaming() {
+            const on = document.getElementById('ae_create_galaxy').checked;
+            const wrap = document.getElementById('ae_naming_wrap');
+            if (wrap) wrap.style.display = on ? '' : 'none';
+        }
+        function aeToggleCap() {
+            const on = document.getElementById('ae_cap_enabled').checked;
+            const wrap = document.getElementById('ae_cap_wrap');
+            if (wrap) wrap.style.display = on ? '' : 'none';
+        }
+        function aeToggleAll(state) {
+            document.querySelectorAll('.ae-galaxy-cb').forEach(cb => { cb.checked = state; });
+        }
+        function aeToggleGroup(group) {
+            const boxes = document.querySelectorAll('.ae-galaxy-cb[data-ae-group="' + (window.CSS && CSS.escape ? CSS.escape(group) : group) + '"]');
+            // Toggle toward the majority-off state: if any are unchecked, check all; else uncheck all.
+            let anyOff = false;
+            boxes.forEach(cb => { if (!cb.checked) anyOff = true; });
+            boxes.forEach(cb => { cb.checked = anyOff; });
+        }
         // Auto-reopen after preview/commit POSTs (the dialog dismisses on each request).
         <?php if (isset($bulkUsersPreview) || isset($bulkUsersResult)): ?>
         document.addEventListener('DOMContentLoaded', () => {
@@ -3264,11 +3379,26 @@ foreach ($importantExtensions as $ext => $name) {
             window.open(path + sep + 'tour=preview', '_blank');
         });
 
-        async function triggerDelete(action, id, message, confirmName = null) {
+        async function triggerDelete(action, id, message, confirmName = null, ownedGalaxies = 0) {
             document.getElementById('delete-action').value = action;
             document.getElementById('delete-id').value = id;
             document.getElementById('delete-confirm-message').innerHTML = message;
-            
+
+            // Personal-galaxy option (delete_user only): offer to remove galaxies
+            // the user created. Reset each time the dialog opens.
+            const pgWrap = document.getElementById('delete-personal-galaxy-wrap');
+            const pgCb = document.getElementById('delete-personal-galaxy-cb');
+            if (pgWrap && pgCb) {
+                pgCb.checked = false;
+                if (action === 'delete_user' && ownedGalaxies > 0) {
+                    const tpl = pgWrap.getAttribute('data-tpl') || "Also delete this user's %d personal galaxy/galaxies.";
+                    document.getElementById('delete-personal-galaxy-label').textContent = tpl.replace('%d', ownedGalaxies);
+                    pgWrap.classList.remove('hidden');
+                } else {
+                    pgWrap.classList.add('hidden');
+                }
+            }
+
             const confirmWrap = document.getElementById('delete-name-confirm-wrap');
             const confirmInput = document.getElementById('delete-confirm-name-input');
             const deleteBtn = document.getElementById('delete-confirm-btn');
@@ -5170,6 +5300,14 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                     </select>
                 </div>
 
+                <div id="modal-vetted-section" class="mb-4 p-3 border border-gray-200 rounded bg-white">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="modal-vetted" name="vetted" value="1" class="rounded border-gray-300" checked>
+                        <span class="text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_vetted', 'Vetted')) ?></span>
+                    </label>
+                    <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(t('admin_modal_help_vetted', 'Vetting a self-enrolled editor emails them a link to set a password and shows them an in-app notice. It does not change what they can edit. Unvetted editors sign in with an emailed link each time.')) ?></p>
+                </div>
+
                 <div id="um-create-only" class="mb-4 p-3 border border-gray-200 rounded bg-white hidden">
                     <label class="flex items-center gap-2 cursor-pointer mb-2">
                         <input type="checkbox" id="um_create_constellation_cb" name="create_constellation" value="1" class="rounded border-gray-300" checked>
@@ -5222,6 +5360,97 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                             <span id="um-btn-cancel-text" class="hidden"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></span>
                         </button>
                     </div>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Auto-enroll Modal (editor self-enrollment) -->
+    <dialog id="auto_enroll_modal" class="modal">
+        <div class="modal-box max-w-lg bg-gray-50 text-gray-800">
+            <h3 class="text-lg font-semibold mb-1"><?= htmlspecialchars(t('admin_auto_enroll_heading', 'Editor self-enrolment')) ?></h3>
+            <p class="text-xs text-gray-500 mb-4"><?= htmlspecialchars(t('admin_auto_enroll_intro', 'Let people join this instance as editors on their own. Off by default. You stay in control: self-enrolled editors are flagged Unvetted until you vet them, and they only edit galaxies you grant.')) ?></p>
+            <form method="POST" action="index.php">
+                <?= $csrfField ?>
+                <input type="hidden" name="action" value="save_auto_enroll_config">
+
+                <label class="flex items-center gap-2 cursor-pointer mb-4 p-3 border border-gray-200 rounded bg-white">
+                    <input type="checkbox" id="ae_enabled" name="enabled" value="1" onchange="aeOnEnableToggle(this)" <?= $aeConfig['enabled'] ? 'checked' : '' ?> class="rounded border-gray-300">
+                    <span class="font-medium"><?= htmlspecialchars(t('admin_auto_enroll_enable', 'Enable self-enrolment on this installation')) ?></span>
+                </label>
+
+                <label class="flex items-center gap-2 cursor-pointer mb-2">
+                    <input type="checkbox" id="ae_create_galaxy" name="create_personal_galaxy" value="1" onchange="aeToggleNaming()" <?= $aeConfig['create_personal_galaxy'] ? 'checked' : '' ?> class="rounded border-gray-300">
+                    <span class="text-sm font-medium"><?= htmlspecialchars(t('admin_auto_enroll_create_galaxy', 'Create a personal galaxy for each new editor')) ?></span>
+                </label>
+                <div id="ae_naming_wrap" class="mb-4 ml-6">
+                    <label class="block mb-1 text-xs text-gray-600"><?= htmlspecialchars(t('admin_auto_enroll_naming_label', 'New galaxy naming convention')) ?></label>
+                    <select name="naming_convention" class="select select-bordered select-sm w-full bg-white">
+                        <?php foreach ([
+                            'email_username' => t('admin_auto_enroll_naming_email_username', 'Email username only (andrew)'),
+                            'full_email' => t('admin_auto_enroll_naming_full_email', 'Full email (andrew@example.com)'),
+                            'first_name' => t('admin_auto_enroll_naming_first_name', "First name's galaxy"),
+                            'user_choice' => t('admin_auto_enroll_naming_user_choice', 'Let the user choose at first sign-in'),
+                        ] as $val => $label): ?>
+                            <option value="<?= htmlspecialchars($val) ?>" <?= $aeConfig['naming_convention'] === $val ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block mb-1 text-sm font-medium"><?= htmlspecialchars(t('admin_auto_enroll_galaxies_label', 'Grant access to these galaxies')) ?></label>
+                    <div class="flex items-center gap-3 mb-1 text-xs">
+                        <a onclick="aeToggleAll(true)" class="text-blue-600 cursor-pointer hover:underline"><?= htmlspecialchars(t('admin_auto_enroll_select_all', 'All')) ?></a>
+                        <a onclick="aeToggleAll(false)" class="text-blue-600 cursor-pointer hover:underline"><?= htmlspecialchars(t('admin_auto_enroll_select_none', 'None')) ?></a>
+                        <span class="text-gray-400"><?= htmlspecialchars(t('admin_auto_enroll_group_hint', 'Tip: click a [PREFIX] to toggle that group.')) ?></span>
+                    </div>
+                    <div class="border border-gray-200 rounded p-3 bg-white max-h-44 overflow-y-auto">
+                        <?php
+                        $aeGrantSet = array_flip($aeConfig['galaxy_ids']);
+                        $aePrevGroup = false;
+                        foreach ($constellations as $c):
+                            $g = extractConstellationGroup($c['name']);
+                            if ($g !== $aePrevGroup) {
+                                if ($aePrevGroup !== false && $aePrevGroup !== null) echo '</div>';
+                                if ($g !== null) echo '<div class="rounded mb-1 mt-1 px-1" style="background-color:' . htmlspecialchars($constellationGroupColors[$g] ?? '') . '"><a onclick="aeToggleGroup(' . htmlspecialchars(json_encode($g)) . ')" class="text-[11px] font-mono text-gray-500 cursor-pointer hover:underline">[' . htmlspecialchars($g) . ']</a>';
+                                $aePrevGroup = $g;
+                            }
+                        ?>
+                            <label class="flex items-center gap-2 py-1 text-sm cursor-pointer hover:opacity-80 rounded px-2">
+                                <input type="checkbox" name="galaxy_ids[]" value="<?= (int)$c['id'] ?>" data-ae-group="<?= htmlspecialchars((string)($g ?? '')) ?>" <?= isset($aeGrantSet[(int)$c['id']]) ? 'checked' : '' ?> class="ae-galaxy-cb rounded border-gray-300">
+                                <span class="font-mono text-gray-600"><?= (int)$c['id'] ?></span>
+                                <span class="text-gray-800"><?= htmlspecialchars($c['name']) ?></span>
+                            </label>
+                        <?php endforeach;
+                        if ($aePrevGroup !== false && $aePrevGroup !== null) echo '</div>';
+                        ?>
+                    </div>
+                    <div class="mt-2 flex gap-4 text-sm">
+                        <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="access_level" value="read_write" <?= $aeConfig['access_level'] !== 'read_only' ? 'checked' : '' ?>> <?= htmlspecialchars(t('admin_auto_enroll_access_rw', 'Read and write')) ?></label>
+                        <label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="access_level" value="read_only" <?= $aeConfig['access_level'] === 'read_only' ? 'checked' : '' ?>> <?= htmlspecialchars(t('admin_auto_enroll_access_ro', 'Read only')) ?></label>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block mb-1 text-sm font-medium"><?= htmlspecialchars(t('admin_auto_enroll_domains_label', 'Limit to email domains (optional)')) ?></label>
+                    <input type="text" name="domains" value="<?= htmlspecialchars(implode(', ', $aeConfig['domains'])) ?>" placeholder="<?= t_attr('admin_auto_enroll_domains_ph', 'e.g. ubc.ca, gmail.com (blank = any)') ?>" class="w-full p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div class="mb-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="ae_cap_enabled" name="cap_enabled" value="1" onchange="aeToggleCap()" <?= $aeConfig['cap_enabled'] ? 'checked' : '' ?> class="rounded border-gray-300">
+                        <span class="text-sm font-medium"><?= htmlspecialchars(t('admin_auto_enroll_cap_label', 'Cap the number of self-enrolled editors')) ?></span>
+                    </label>
+                    <div id="ae_cap_wrap" class="ml-6 mt-2">
+                        <input type="number" name="cap" min="1" value="<?= $aeConfig['cap'] > 0 ? (int)$aeConfig['cap'] : '' ?>" class="w-28 p-2 border border-gray-300 rounded text-sm">
+                        <span class="text-xs text-gray-500 ml-2"><?= htmlspecialchars(sprintf(t('admin_auto_enroll_cap_count', 'Currently %d self-enrolled editor(s).'), $aeUnvettedCount)) ?></span>
+                    </div>
+                </div>
+
+                <div class="modal-action">
+                    <button type="submit" class="btn btn-neutral"><?= htmlspecialchars(t('admin_auto_enroll_save', 'Save settings')) ?></button>
+                    <button type="button" class="btn" onclick="document.getElementById('auto_enroll_modal').close()"><?= htmlspecialchars(t('admin_btn_cancel', 'Cancel')) ?></button>
                 </div>
             </form>
         </div>
@@ -5292,6 +5521,12 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                                oninput="checkDeleteConfirmName(this)"
                                placeholder="<?= t_attr('admin_modal_placeholder_type_name', 'Type name here...') ?>"
                                class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-error">
+                    </div>
+                    <div id="delete-personal-galaxy-wrap" class="mb-6 hidden w-full" data-tpl="<?= t_attr('admin_delete_personal_galaxy', "Also delete this user's %d personal galaxy/galaxies (created by them) and their wormholes. Shared galaxies are not affected.") ?>">
+                        <label class="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                            <input type="checkbox" name="delete_personal_galaxy" id="delete-personal-galaxy-cb" value="1" class="mt-1">
+                            <span id="delete-personal-galaxy-label"></span>
+                        </label>
                     </div>
                     <button type="submit" id="delete-confirm-btn" class="btn btn-error text-white"><?= htmlspecialchars(t('admin_modal_btn_delete', 'Delete')) ?></button>
                 </form>

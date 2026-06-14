@@ -15,6 +15,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/cli_auth.php';
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../inc/snapshots.php';
+require_once __DIR__ . '/../../inc/db.php';
 
 $stamp = '[' . gmdate('Y-m-d H:i:s') . ' UTC]';
 
@@ -32,4 +33,19 @@ if ($newId !== null) {
 } else {
     echo $stamp . " no-op (schedule disabled or not yet due)\n";
 }
+
+// Self-enrolment maintenance: reclaim expired/used login tokens and abandoned
+// never-confirmed enrolments. Both are cheap indexed deletes that normally
+// touch zero rows, so running each tick is fine; a failure here must not fail
+// the snapshot run, so it is isolated in its own try.
+try {
+    $tokens = db_gc_login_tokens();
+    $stale  = db_gc_unconfirmed_enrollments(30);
+    if ($tokens > 0 || $stale > 0) {
+        echo $stamp . " gc: {$tokens} login token(s), {$stale} abandoned enrolment(s)\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, $stamp . ' gc ERROR: ' . $e->getMessage() . "\n");
+}
+
 exit(0);

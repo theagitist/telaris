@@ -188,6 +188,10 @@ try {
             if (checkEditorConstellationAccess($cid) !== null) {
                 hgp_out(['ok' => false, 'error' => 'not_authorized'], 403);
             }
+            // ...and must have a read_write (not read_only) seat on it.
+            if (!$isAdmin && !db_user_can_write_constellation($userId, (int)$cid)) {
+                hgp_out(['ok' => false, 'error' => 'read_only'], 403);
+            }
             try {
                 $displaced = db_hotglue_page_assign((int)$page['id'], $nodeId);
             } catch (Throwable $e) {
@@ -211,6 +215,9 @@ try {
                 $cid = db_get_node_constellation_id((int)$page['node_id']);
                 if ($cid !== null && checkEditorConstellationAccess($cid) !== null) {
                     hgp_out(['ok' => false, 'error' => 'not_authorized'], 403);
+                }
+                if ($cid !== null && !db_user_can_write_constellation($userId, (int)$cid)) {
+                    hgp_out(['ok' => false, 'error' => 'read_only'], 403);
                 }
             }
             try {
@@ -236,6 +243,11 @@ try {
             // The actor must control the wormhole's galaxy (or be admin).
             if (checkEditorConstellationAccess($cid) !== null) {
                 hgp_out(['ok' => false, 'error' => 'not_authorized'], 403);
+            }
+            // ...and must have a read_write (not read_only) seat on it: this can
+            // create a hotglue page, which is an edit of the wormhole's media.
+            if (!$isAdmin && !db_user_can_write_constellation($userId, (int)$cid)) {
+                hgp_out(['ok' => false, 'error' => 'read_only'], 403);
             }
             $page = db_hotglue_page_get_or_create_for_node($nodeId, $userId);
             if (!$page) {

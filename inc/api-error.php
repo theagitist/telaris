@@ -89,6 +89,7 @@ declare(strict_types=1);
  *   403.007 — only the author or admin can delete           (api/keyword-canvas.php)
  *   403.008 — user existence check is admin-only            (api/validate.php)
  *   403.009 : galaxy is read-only (imported or mirrored)    (api/nodes.php, api/keywords.php, api/keyword-canvas.php)
+ *   403.010 : editor has a read-only seat on this galaxy    (api/{nodes,keywords,keyword-canvas,tags,connections,constellations,hotglue-pages}.php)
  *
  *   404.001 — node not found                                (api/nodes.php)
  *   404.002 — galaxy not found                              (api/constellations.php, api/nodes.php)
@@ -200,9 +201,43 @@ function api_error(string $code, string $fallback, array $args = [], array $extr
  * The localized title comes from the t() system (no English fallback at render
  * per the decolonial-identifier rule); when the locale row is missing api_error
  * surfaces the code 403.009 itself.
+ *
+ * This is also the central choke-point for PER-USER read-only seats: after the
+ * galaxy-level read-only check it calls api_require_user_writable_constellation(),
+ * so every mutation path that already guards on a galaxy being writable (all of
+ * api/nodes.php, api/keywords.php, api/keyword-canvas.php) automatically enforces
+ * the current editor's read_only/read_write seat too. A future mutation that adds
+ * the galaxy-writable guard inherits per-user enforcement for free; endpoints
+ * that do NOT call this (e.g. galaxy update/delete, hotglue-pages, the hg bridge)
+ * call api_require_user_writable_constellation() directly.
  */
 function api_require_writable_constellation(int $constellationId): void {
     if (db_constellation_is_readonly($constellationId)) {
         api_error('403.009', 'This galaxy is read-only: it is imported or mirrored from another instance and cannot be edited here.');
+    }
+    api_require_user_writable_constellation($constellationId);
+}
+
+/**
+ * Per-user read-only seat guard. Call AFTER the editor access check (which
+ * confirms the editor has a seat at all) and the galaxy-level
+ * api_require_writable_constellation() check, on any mutation path: if the
+ * current editor's seat on this galaxy is read_only, emit 403.010 and exit.
+ *
+ * Admins and API-key callers are not restricted by per-user seats (this is the
+ * editor-seat layer only): admins are skipped explicitly, and a non-editor
+ * session (e.g. an API-key request with no admin_user_id) is skipped too, since
+ * its authorization is handled by the api-key/permission checks instead.
+ */
+function api_require_user_writable_constellation(int $constellationId): void {
+    if (function_exists('isAdminLoggedIn') && isAdminLoggedIn()) {
+        return;
+    }
+    $userId = $_SESSION['admin_user_id'] ?? null;
+    if ($userId === null || $userId === '') {
+        return;
+    }
+    if (!db_user_can_write_constellation((string)$userId, $constellationId)) {
+        api_error('403.010', 'You have read-only access to this galaxy. You can view its contents but cannot change them.');
     }
 }

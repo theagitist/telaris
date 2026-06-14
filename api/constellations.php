@@ -177,11 +177,10 @@ try {
             // Admins see every galaxy already, so the auto-seat only matters
             // for non-admin sessions.
             if ($createdBy !== null && !isAdminLoggedIn()) {
-                $existing = db_get_user_constellation_ids($createdBy);
-                if (!in_array($id, $existing, true)) {
-                    $existing[] = $id;
-                    db_set_user_constellations($createdBy, $existing);
-                }
+                // Single-seat add: preserves the creator's other seats (and their
+                // per-seat read_only/read_write levels) instead of rebuilding the
+                // whole set, which would silently upgrade read_only seats.
+                db_add_user_constellation($createdBy, $id, 'read_write');
             }
             echo json_encode([
                 'id' => $id,

@@ -551,6 +551,9 @@ header("X-Content-Type-Options: nosniff");
                 <a href="/utils/logout.php" class="opacity-40 hover:opacity-100 transition-opacity"><?php echo htmlspecialchars($projectLogoutLabelText ?? 'Logout'); ?></a>
             <?php else: ?>
                 <a href="/utils/login.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectInitializeAuthText ?? 'Login'); ?></a>
+                <?php if (db_auto_enroll_is_open()): ?>
+                    <a href="/utils/enroll.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars(t('enroll_menu_link', 'Enrol as Editor')); ?></a>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </div>

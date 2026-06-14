@@ -262,6 +262,14 @@ function telaris_hg_enforce_node_access(int $nodeId, callable $deny): void
 	if (db_constellation_is_readonly($cid)) {
 		$deny(403, '403.009');
 	}
+	// per-user read-only seat: an editor whose seat on this galaxy is read_only
+	// may view but not edit (403.010 parity with the API). Admins always pass.
+	if (!isAdminLoggedIn()) {
+		$uid = $_SESSION['admin_user_id'] ?? null;
+		if ($uid !== null && $uid !== '' && !db_user_can_write_constellation((string)$uid, (int)$cid)) {
+			$deny(403, '403.010');
+		}
+	}
 }
 
 
