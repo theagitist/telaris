@@ -49,7 +49,19 @@ function finalize_user_login(array $user, ?string $requestedTarget, string $loca
     $_SESSION['admin_user_type'] = $user['type'];
     db_update_user_last_login($user['id']);
     if ($isFirstLogin) {
-        @send_welcome_email((string)$user['email'], $locale);
+        // Link the editor's own galaxy in the welcome email when they have one
+        // (e.g. an auto-created personal galaxy); otherwise send_welcome_email
+        // falls back to the instance's main 3D view.
+        $personalGalaxyUrl = null;
+        $ownedIds = db_get_constellation_ids_created_by((string)$user['id']);
+        if (!empty($ownedIds)) {
+            $g = db_get_constellation_by_id((int)$ownedIds[0]);
+            $slug = is_array($g) ? (string)($g['slug'] ?? '') : '';
+            if ($slug !== '') {
+                $personalGalaxyUrl = enroll_mail_base_url() . '/' . rawurlencode($slug);
+            }
+        }
+        @send_welcome_email((string)$user['email'], $locale, $personalGalaxyUrl);
     }
     redirectUser((int)$user['type'], $requestedTarget);
 }

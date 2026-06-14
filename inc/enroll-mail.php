@@ -72,13 +72,15 @@ function enroll_mail_copy(): array {
             'welcome_subject' => 'Welcome to Telaris',
             'welcome_heading' => 'Your editor account is ready',
             'welcome_paras'   => [
-                'Your editor account on %s is active. You can create and edit wormholes in the galaxies you have been given access to.',
+                'Your editor account on Telaris is active. You can create and edit wormholes in the galaxies you have been given access to.',
                 "Two things worth knowing. Your editorial work is yours: no one reviews or rewrites an editor's keywords or connections. And you edit only the content you are assigned to.",
                 'The Editor Manual walks through galaxies, wormholes, keywords, portals, and tours.',
             ],
             'welcome_cta'     => 'Open the editor',
             'welcome_doc_quickstart' => 'Editor Quick Start (PDF)',
             'welcome_doc_manual'     => 'Editor Manual (PDF)',
+            'welcome_personal_galaxy' => 'You can view your personal galaxy here:',
+            'welcome_explore_instance' => 'You can explore this Telaris here:',
             'welcome_note'    => 'You can sign in any time with an emailed link, or with a password once you have set one.',
 
             'confirm_subject' => 'Confirm your Telaris editor account',
@@ -103,13 +105,15 @@ function enroll_mail_copy(): array {
             'welcome_subject' => 'Te damos la bienvenida a Telaris',
             'welcome_heading' => 'Tu cuenta de edición está lista',
             'welcome_paras'   => [
-                'Tu cuenta de edición en %s está activa. Puedes crear y editar agujeros de gusano en las galaxias a las que tienes acceso.',
+                'Tu cuenta de edición en Telaris está activa. Puedes crear y editar agujeros de gusano en las galaxias a las que tienes acceso.',
                 'Dos cosas que conviene saber. Tu trabajo editorial es tuyo: nadie revisa ni reescribe las palabras clave o las conexiones de quien edita. Y editas solo el contenido que se te ha asignado.',
                 'El Manual de edición recorre galaxias, agujeros de gusano, palabras clave, portales y recorridos.',
             ],
             'welcome_cta'     => 'Abrir el editor',
             'welcome_doc_quickstart' => 'Inicio rápido para editoras (PDF)',
             'welcome_doc_manual'     => 'Manual del editor (PDF)',
+            'welcome_personal_galaxy' => 'Puedes ver tu galaxia personal aquí:',
+            'welcome_explore_instance' => 'Puedes explorar este Telaris aquí:',
             'welcome_note'    => 'Puedes iniciar sesión en cualquier momento con un enlace enviado por correo, o con una contraseña una vez que la hayas configurado.',
 
             'confirm_subject' => 'Confirma tu cuenta de edición de Telaris',
@@ -134,13 +138,15 @@ function enroll_mail_copy(): array {
             'welcome_subject' => 'Boas-vindas ao Telaris',
             'welcome_heading' => 'Sua conta de edição está pronta',
             'welcome_paras'   => [
-                'Sua conta de edição em %s está ativa. Você pode criar e editar buracos de minhoca nas galáxias às quais recebeu acesso.',
+                'Sua conta de edição no Telaris está ativa. Você pode criar e editar buracos de minhoca nas galáxias às quais recebeu acesso.',
                 'Duas coisas que vale a pena saber. Seu trabalho editorial é seu: ninguém revisa nem reescreve as palavras-chave ou as conexões de quem edita. E você edita apenas o conteúdo que lhe foi atribuído.',
                 'O Manual de edição percorre galáxias, buracos de minhoca, palavras-chave, portais e percursos.',
             ],
             'welcome_cta'     => 'Abrir o editor',
             'welcome_doc_quickstart' => 'Início rápido para editoras (PDF)',
             'welcome_doc_manual'     => 'Manual do editor (PDF)',
+            'welcome_personal_galaxy' => 'Você pode ver sua galáxia pessoal aqui:',
+            'welcome_explore_instance' => 'Você pode explorar este Telaris aqui:',
             'welcome_note'    => 'Você pode entrar a qualquer momento com um link enviado por e-mail, ou com uma senha depois de defini-la.',
 
             'confirm_subject' => 'Confirme sua conta de edição do Telaris',
@@ -165,13 +171,15 @@ function enroll_mail_copy(): array {
             'welcome_subject' => 'Bienvenue sur Telaris',
             'welcome_heading' => "Ton compte d'édition est prêt",
             'welcome_paras'   => [
-                "Ton compte d'édition sur %s est actif. Tu peux créer et modifier des trous de ver dans les galaxies auxquelles tu as accès.",
+                "Ton compte d'édition sur Telaris est actif. Tu peux créer et modifier des trous de ver dans les galaxies auxquelles tu as accès.",
                 "Deux choses utiles à savoir. Ton travail éditorial t'appartient: personne ne révise ni ne réécrit les mots-clés ou les connexions de la personne qui édite. Et tu modifies uniquement le contenu qui t'est attribué.",
                 "Le Manuel d'édition parcourt les galaxies, les trous de ver, les mots-clés, les portails et les visites.",
             ],
             'welcome_cta'     => "Ouvrir l'éditeur",
             'welcome_doc_quickstart' => "Démarrage rapide d'édition (PDF)",
             'welcome_doc_manual'     => "Manuel d'édition (PDF)",
+            'welcome_personal_galaxy' => 'Tu peux voir ta galaxie personnelle ici :',
+            'welcome_explore_instance' => 'Tu peux explorer ce Telaris ici :',
             'welcome_note'    => 'Tu peux te connecter à tout moment avec un lien envoyé par courriel, ou avec un mot de passe une fois que tu en as défini un.',
 
             'confirm_subject' => "Confirme ton compte d'édition Telaris",
@@ -216,9 +224,29 @@ function send_magic_login_email(string $to, string $token, string $locale = 'en'
     return mail_send($to, (string)enroll_mail_t($locale, 'magic_subject'), $rendered['html'], $rendered['text']);
 }
 
-function send_welcome_email(string $to, string $locale = 'en'): bool {
+/**
+ * First-login welcome. $personalGalaxyUrl, when set, is the absolute URL of the
+ * editor's own galaxy: the email then links it ("view your personal galaxy
+ * here: host/slug"). When null (no personal galaxy), it links the instance's
+ * main 3D view instead so the editor still has somewhere to land.
+ */
+function send_welcome_email(string $to, string $locale = 'en', ?string $personalGalaxyUrl = null): bool {
     $instance = enroll_mail_instance_name();
     $url = enroll_mail_base_url() . '/edit/';
+
+    $paras = enroll_mail_fill(enroll_mail_t($locale, 'welcome_paras'), $instance);
+    $bodyLinks = [];
+    if ($personalGalaxyUrl !== null && $personalGalaxyUrl !== '') {
+        $display = (string)preg_replace('#^https?://#', '', $personalGalaxyUrl);
+        $paras[] = (string)enroll_mail_t($locale, 'welcome_personal_galaxy') . ' ' . $display;
+        $bodyLinks[$display] = $personalGalaxyUrl;
+    } else {
+        // No personal galaxy: point at the instance's main 3D view (its root).
+        $rootUrl = enroll_mail_base_url() . '/';
+        $paras[] = (string)enroll_mail_t($locale, 'welcome_explore_instance') . ' ' . $instance;
+        $bodyLinks[$instance] = $rootUrl;
+    }
+
     // Editor-facing documentation PDFs, in the recipient's locale.
     $docLinks = [
         ['label' => (string)enroll_mail_t($locale, 'welcome_doc_quickstart'), 'url' => enroll_mail_doc_url('editor-quick-start', $locale)],
@@ -226,10 +254,10 @@ function send_welcome_email(string $to, string $locale = 'en'): bool {
     ];
     $rendered = telaris_email_render([
         'heading'    => (string)enroll_mail_t($locale, 'welcome_heading'),
-        'paragraphs' => enroll_mail_fill(enroll_mail_t($locale, 'welcome_paras'), $instance),
+        'paragraphs' => $paras,
         'cta'        => ['label' => (string)enroll_mail_t($locale, 'welcome_cta'), 'url' => $url],
         'links'      => $docLinks,
-        'body_links' => [$instance => $url],
+        'body_links' => $bodyLinks,
         'note'       => (string)enroll_mail_t($locale, 'welcome_note'),
         'locale'     => $locale,
     ]);
