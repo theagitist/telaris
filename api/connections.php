@@ -33,7 +33,11 @@ try {
                     $constellationId = (int) $_GET['constellation_id'];
                 }
             }
-            $connections = db_get_connections($constellationId);
+            // Fuzzy keyword matching: ?fuzzy=1 groups variant keywords (colonial/
+            // colonialism/typos) so they share a connection. Resolved by the view
+            // (inc/bootstrap.php); harmless if toggled on public read-only data.
+            $fuzzy = isset($_GET['fuzzy']) && $_GET['fuzzy'] === '1';
+            $connections = db_get_connections($constellationId, $fuzzy);
             echo json_encode($connections, JSON_THROW_ON_ERROR);
         })(),
         

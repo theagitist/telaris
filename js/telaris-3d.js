@@ -15,6 +15,12 @@ import { NetworkManager } from './network-manager.js';
 import { GeometryManager } from './geometry-manager.js';
 import { getTheme } from './themes.js';
 
+// Append "&fuzzy=1" to a node/connection API URL when fuzzy keyword matching is
+// resolved on for this view (window.TELARIS_FUZZY_KEYWORDS, set by the server in
+// inc/bootstrap.php from the installation + per-cluster toggles). When on, the API
+// adds keyword_groups[] to each node so the 3D view connects variant keywords.
+const fuzzyParam = () => (window.TELARIS_FUZZY_KEYWORDS ? '&fuzzy=1' : '');
+
 class TelarisNetwork {
     constructor() {
         this.scene = new THREE.Scene();
@@ -1949,8 +1955,8 @@ class TelarisNetwork {
             const initialClusterKey = urlParams.get('cluster') || null;
             this.currentClusterKey = initialClusterKey;
             let fetchUrl = multiIds && multiIds.length
-                ? `/api/nodes.php?galaxies=${multiIds.join(',')}`
-                : `/api/nodes.php?constellation_id=${constellationId}`;
+                ? `/api/nodes.php?galaxies=${multiIds.join(',')}${fuzzyParam()}`
+                : `/api/nodes.php?constellation_id=${constellationId}${fuzzyParam()}`;
             if (initialClusterKey) fetchUrl += `&cluster=${encodeURIComponent(initialClusterKey)}`;
             const response = await apiFetch(fetchUrl);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -2213,7 +2219,7 @@ class TelarisNetwork {
         clickedNode.getWorldPosition(portalPos);
 
         // Pre-fetch data immediately
-        let fetchUrl = `/api/nodes.php?constellation_id=${targetId}`;
+        let fetchUrl = `/api/nodes.php?constellation_id=${targetId}${fuzzyParam()}`;
         if (clusterKey) fetchUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
         const dataPromise = apiFetch(fetchUrl)
             .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
@@ -2353,7 +2359,7 @@ class TelarisNetwork {
      * Run transition BACK: show overlay, load data, reveal.
      */
     runBackTransition(targetId) {
-        const fetchUrl = `/api/nodes.php?constellation_id=${targetId}`;
+        const fetchUrl = `/api/nodes.php?constellation_id=${targetId}${fuzzyParam()}`;
         const dataPromise = apiFetch(fetchUrl)
             .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
             .then(json => Array.isArray(json) ? json : []);
@@ -2410,7 +2416,7 @@ class TelarisNetwork {
         }
 
         if (!nodeData) {
-            let url = `/api/nodes.php?constellation_id=${constellationId}`;
+            let url = `/api/nodes.php?constellation_id=${constellationId}${fuzzyParam()}`;
             if (clusterKey) url += `&cluster=${encodeURIComponent(clusterKey)}`;
             const response = await apiFetch(url);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -2448,7 +2454,7 @@ class TelarisNetwork {
      * Transition to a cluster view using back-style cross-fade (for breadcrumb/back navigation).
      */
     transitionToCluster(constellationId, clusterKey, isBack = false) {
-        let fetchUrl = `/api/nodes.php?constellation_id=${constellationId}`;
+        let fetchUrl = `/api/nodes.php?constellation_id=${constellationId}${fuzzyParam()}`;
         if (clusterKey) fetchUrl += `&cluster=${encodeURIComponent(clusterKey)}`;
         const dataPromise = apiFetch(fetchUrl)
             .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP error! status: ${r.status}`)))
@@ -2898,6 +2904,7 @@ class TelarisNetwork {
                     name: data.name,
                     description: data.description,
                     keywords: data.keywords || [],
+                    keyword_groups: data.keyword_groups || [],
                     constellation_id: (data.constellation_id !== undefined && data.constellation_id !== null) ? Number(data.constellation_id) : null,
                     constellation_theme: (typeof data.constellation_theme === 'string' && data.constellation_theme !== '') ? data.constellation_theme : null,
                     url: data.url,
@@ -3017,6 +3024,17 @@ class TelarisNetwork {
     }
 
     getSharedKeywordsCount(n1, n2) {
+        // When fuzzy matching is on, compare the server-computed cluster keys
+        // (keyword_groups) so variant keywords (colonial/colonialism, typos,
+        // shared tokens) count as shared. Falls back to exact keyword overlap
+        // when fuzzy is off or the groups are not present in the payload.
+        if (window.TELARIS_FUZZY_KEYWORDS) {
+            const g1 = n1.userData.keyword_groups;
+            const g2 = n2.userData.keyword_groups;
+            if (Array.isArray(g1) && Array.isArray(g2)) {
+                return g1.filter(k => g2.includes(k)).length;
+            }
+        }
         return (n1.userData.keywords || []).filter(k => (n2.userData.keywords || []).includes(k)).length;
     }
 
@@ -3843,7 +3861,7 @@ class TelarisNetwork {
                     }
 
                     const app = window.telarisApp || this;
-                    let fetchUrl = `/api/nodes.php?constellation_id=${tr.targetId}`;
+                    let fetchUrl = `/api/nodes.php?constellation_id=${tr.targetId}${fuzzyParam()}`;
                     if (tr.clusterKey) fetchUrl += `&cluster=${encodeURIComponent(tr.clusterKey)}`;
                     const dataPromise = tr.dataPromise || apiFetch(fetchUrl).then(r => r.json());
 
@@ -4329,7 +4347,7 @@ class TelarisNetwork {
      * whose ids are in `filterIds`. Used by Enter-commit and single-result click.
      */
     async _loadFlatWithFilter(cid, filterIds) {
-        const fetchUrl = `/api/nodes.php?constellation_id=${cid}&no_cluster=1`;
+        const fetchUrl = `/api/nodes.php?constellation_id=${cid}&no_cluster=1${fuzzyParam()}`;
         const dataPromise = apiFetch(fetchUrl)
             .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to fetch')))
             .then(json => Array.isArray(json) ? json : []);

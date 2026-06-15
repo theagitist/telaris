@@ -178,6 +178,24 @@ try {
             }
             $formatted = db_format_nodes_bulk($nodes);
 
+            // Fuzzy keyword grouping: when enabled for this view, attach keyword_groups[]
+            // (fuzzy cluster keys) to each node so the 3D view connects wormholes whose
+            // keywords name the same concept (across galaxies too). Computed over the whole
+            // loaded set so the cluster keys are mutually consistent. The resolved flag
+            // arrives as ?fuzzy=1 from the view (inc/bootstrap.php); a visitor toggling it
+            // is harmless since this is public, read-only data.
+            if (isset($_GET['fuzzy']) && $_GET['fuzzy'] === '1') {
+                $kwByNode = [];
+                foreach ($formatted as $n) {
+                    $kwByNode[(int)$n['id']] = $n['keywords'] ?? [];
+                }
+                $fuzzyGroups = keyword_fuzzy_build_groups($kwByNode)['groups'];
+                foreach ($formatted as &$n) {
+                    $n['keyword_groups'] = $fuzzyGroups[(int)$n['id']] ?? [];
+                }
+                unset($n);
+            }
+
             // Global search mode: return matching nodes with cluster paths
             $searchQuery = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
             if ($searchQuery !== '') {

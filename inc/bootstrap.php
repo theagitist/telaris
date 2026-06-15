@@ -445,6 +445,23 @@ if (empty($multiGalaxyIds)) {
     unset($_mirrorInfo, $_parsed);
 }
 
+// Resolve the effective fuzzy-keyword-matching flag for this view. The installation
+// default (project_info.fuzzy_keyword_matching) applies to single galaxies and emergent
+// unions; a cluster overrides it via its own inherit|on|off setting. Exposed to the 3D
+// view as window.TELARIS_FUZZY_KEYWORDS so the node/connection APIs are queried with
+// ?fuzzy=1 and getSharedKeywordsCount matches on the server-computed keyword_groups.
+$fuzzyKeywordsEnabled = db_get_fuzzy_keyword_matching();
+$_fuzzyRow = db_get_constellation_by_id((int) $constellationId);
+if ($_fuzzyRow && ($_fuzzyRow['type'] ?? 'galaxy') === 'cluster') {
+    $_clusterFuzzy = (string)($_fuzzyRow['fuzzy_keyword_matching'] ?? 'inherit');
+    if ($_clusterFuzzy === 'on') {
+        $fuzzyKeywordsEnabled = true;
+    } elseif ($_clusterFuzzy === 'off') {
+        $fuzzyKeywordsEnabled = false;
+    }
+}
+unset($_fuzzyRow, $_clusterFuzzy);
+
 $tourConfig = db_get_constellation_tour_config((int) $constellationId);
 if ($tourConfig === null) {
     $tourConfig = [

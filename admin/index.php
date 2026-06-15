@@ -497,7 +497,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 if (!in_array($theme, $allowedThemes, true)) $theme = 'cosmic';
                 $members = array_values(array_filter(array_map('intval', (array)($_POST['members'] ?? [])), fn($i) => $i > 0));
                 $showGalaxyList = !empty($_POST['show_galaxy_list']);
-                db_create_cluster($name, $tagline, $finalSlug, $theme, $members, $showGalaxyList);
+                $fuzzyMatching = in_array(($_POST['fuzzy_keyword_matching'] ?? 'inherit'), ['inherit', 'on', 'off'], true) ? (string)$_POST['fuzzy_keyword_matching'] : 'inherit';
+                db_create_cluster($name, $tagline, $finalSlug, $theme, $members, $showGalaxyList, $fuzzyMatching);
                 $newClusterId = (int) db_get_constellation_id_by_slug($finalSlug);
                 if ($newClusterId > 0) {
                     save_cluster_discovery_config_from_post($newClusterId, $_POST);
@@ -540,7 +541,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $theme = trim((string)($_POST['theme'] ?? 'cosmic'));
                 if (!in_array($theme, $allowedThemes, true)) $theme = 'cosmic';
                 $showGalaxyList = !empty($_POST['show_galaxy_list']);
-                db_update_cluster($id, $name, $tagline, $finalSlug, $theme, $showGalaxyList);
+                $fuzzyMatching = in_array(($_POST['fuzzy_keyword_matching'] ?? 'inherit'), ['inherit', 'on', 'off'], true) ? (string)$_POST['fuzzy_keyword_matching'] : 'inherit';
+                db_update_cluster($id, $name, $tagline, $finalSlug, $theme, $showGalaxyList, $fuzzyMatching);
                 $members = array_values(array_filter(array_map('intval', (array)($_POST['members'] ?? [])), fn($i) => $i > 0));
                 db_set_cluster_members($id, $members);
                 save_cluster_discovery_config_from_post($id, $_POST);
@@ -656,6 +658,12 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                             $mbNum = max(1, min(2048, (int)$mb)); // clamp to 1MB..2GB
                             db_set_pdf_max_bytes($mbNum * 1024 * 1024);
                         }
+                    }
+                    // Fuzzy keyword matching (installation-level default). Unchecked box
+                    // sends no field, so the presence of the hidden marker tells us the
+                    // settings form was submitted and the checkbox state should be saved.
+                    if (isset($_POST['fuzzy_keyword_matching_present'])) {
+                        db_set_fuzzy_keyword_matching(!empty($_POST['fuzzy_keyword_matching']));
                     }
                     header('Location: index.php?tab=settings&saved=1');
                     exit;
@@ -1437,6 +1445,17 @@ foreach ($importantExtensions as $ext => $name) {
                                value="<?php echo (int)(db_get_pdf_max_bytes() / (1024 * 1024)); ?>"
                                class="input input-bordered input-sm w-32 bg-white">
                         <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_pdf_max', "Largest PDF a wormhole can carry. Default 25 MB. Editors uploading bigger files will get a 'File exceeds maximum allowed size' error.") ?></span>
+                    </div>
+
+                    <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <input type="hidden" name="fuzzy_keyword_matching_present" value="1">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="fuzzy_keyword_matching" name="fuzzy_keyword_matching" value="1"
+                                   <?= db_get_fuzzy_keyword_matching() ? 'checked' : '' ?>
+                                   class="toggle toggle-neutral toggle-sm">
+                            <span class="text-gray-800 font-medium text-sm"><?= t_attr('admin_label_fuzzy_keywords', 'Fuzzy keyword matching') ?></span>
+                        </label>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_fuzzy_keywords', 'When on, multi-galaxy views connect wormholes whose keywords name the same idea even when the words differ (for example colonial, colonialism, and typos). Off draws lines only between exact keyword matches. Each cluster can override this default.') ?></span>
                     </div>
 
                     <div class="mt-4">
@@ -3352,6 +3371,8 @@ foreach ($importantExtensions as $ext => $name) {
             document.getElementById('cluster-theme').value = 'cosmic';
             const sgl = document.getElementById('cluster-show-galaxy-list');
             if (sgl) sgl.checked = false;
+            const fz = document.getElementById('cluster-fuzzy');
+            if (fz) fz.value = 'inherit';
             _clusterMemberCheckboxes().forEach(cb => { cb.checked = false; });
             _resetClusterDiscoveryFields();
             document.getElementById('cluster-submit-btn').textContent = ADM.clusterModalCreateSubmit || 'Create Cluster';
@@ -3369,6 +3390,8 @@ foreach ($importantExtensions as $ext => $name) {
             document.getElementById('cluster-theme').value = cluster.theme || 'cosmic';
             const sgl = document.getElementById('cluster-show-galaxy-list');
             if (sgl) sgl.checked = !!cluster.show_galaxy_list;
+            const fz = document.getElementById('cluster-fuzzy');
+            if (fz) fz.value = ['inherit', 'on', 'off'].includes(cluster.fuzzy_keyword_matching) ? cluster.fuzzy_keyword_matching : 'inherit';
             _clusterMemberCheckboxes().forEach(cb => { cb.checked = false; });
             _resetClusterDiscoveryFields();
             // Fetch members + discovery config in parallel.
@@ -4161,7 +4184,8 @@ foreach ($importantExtensions as $ext => $name) {
                     const viewRel = slug ? '../' + encodeURIComponent(slug) : '../index.php?constellation_id=' + cl.id;
                     const cJson = JSON.stringify({
                         id: cl.id, name: cl.name, tagline: cl.tagline, slug: slug, theme: cl.theme,
-                        show_galaxy_list: !!cl.show_galaxy_list
+                        show_galaxy_list: !!cl.show_galaxy_list,
+                        fuzzy_keyword_matching: cl.fuzzy_keyword_matching || 'inherit'
                     });
                     const cJsonAttr = escapeHtmlAdmin(cJson);
                     const clickEdit = `openClusterEdit(${cJsonAttr})`;
@@ -4242,6 +4266,8 @@ foreach ($importantExtensions as $ext => $name) {
             document.getElementById('cluster-theme').value = cluster.theme || 'cosmic';
             const sgl = document.getElementById('cluster-show-galaxy-list');
             if (sgl) sgl.checked = !!cluster.show_galaxy_list;
+            const fz = document.getElementById('cluster-fuzzy');
+            if (fz) fz.value = ['inherit', 'on', 'off'].includes(cluster.fuzzy_keyword_matching) ? cluster.fuzzy_keyword_matching : 'inherit';
             // Member checkboxes + discovery config in parallel.
             try {
                 const [mr, _] = await Promise.all([
@@ -5104,6 +5130,16 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                         <span class="text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_show_galaxy_list', 'Show galaxy list to visitors')) ?></span>
                     </label>
                     <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(t('admin_modal_help_show_galaxy_list', "When on, visitors see a list of the cluster's member galaxies in the bottom-right corner; clicking dims wormholes from other galaxies. Off by default for clusters since the curated framing is usually meant to read as one experience.")) ?></p>
+                </div>
+
+                <div class="mb-4 border-t border-gray-200 pt-4">
+                    <label for="cluster-fuzzy" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_cluster_fuzzy', 'Fuzzy keyword matching')) ?></label>
+                    <select id="cluster-fuzzy" name="fuzzy_keyword_matching" class="select select-bordered select-sm w-full bg-white">
+                        <option value="inherit"><?= htmlspecialchars(t('admin_modal_fuzzy_inherit', 'Use the installation default')) ?></option>
+                        <option value="on"><?= htmlspecialchars(t('admin_modal_fuzzy_on', 'On for this cluster')) ?></option>
+                        <option value="off"><?= htmlspecialchars(t('admin_modal_fuzzy_off', 'Off for this cluster')) ?></option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(t('admin_modal_help_cluster_fuzzy', 'Connect wormholes whose keywords name the same idea even when the words differ (colonial, colonialism, typos). Inherit follows the installation default; On or Off overrides it for this cluster only.')) ?></p>
                 </div>
 
                 <div class="mb-4">

@@ -11,6 +11,11 @@ declare(strict_types=1);
 // enroll_personal_galaxy_name). Required here so the DB wrappers below can reuse them.
 require_once __DIR__ . '/enroll-helpers.php';
 
+// Pure, database-free fuzzy keyword matching pipeline (keyword_fuzzy_build_groups
+// and helpers). Used by db_get_connections() and node serialization to group
+// editor keywords that name the same concept for multi-galaxy relationship lines.
+require_once __DIR__ . '/keyword-fuzzy.php';
+
 // ---------------------------------------------------------------------------
 // Connection
 // ---------------------------------------------------------------------------
@@ -150,6 +155,7 @@ const PROJECT_INFO_KEYS = [
     'admin_label_default_galaxy', 'admin_help_default_galaxy',
     'admin_label_instance_name', 'admin_help_instance_name',
     'admin_label_pdf_max', 'admin_help_pdf_max', 'admin_btn_save_settings',
+    'admin_label_fuzzy_keywords', 'admin_help_fuzzy_keywords',
     // Pluriverse tab (admin/index.php?tab=pluriverse + admin/pluriverse-apply.php).
     'admin_pluriverse_heading', 'admin_pluriverse_subheading',
     'admin_pluriverse_status_heading', 'admin_pluriverse_status_status', 'admin_pluriverse_status_submitted', 'admin_pluriverse_status_name', 'admin_pluriverse_status_email', 'admin_pluriverse_status_fingerprint', 'admin_pluriverse_status_help',
@@ -316,6 +322,8 @@ const PROJECT_INFO_KEYS = [
     'admin_modal_opt_cluster_theme_cosmic', 'admin_modal_opt_cluster_theme_abstract', 'admin_modal_opt_cluster_theme_rectangles', 'admin_modal_opt_cluster_theme_stripes', 'admin_modal_opt_cluster_theme_tech',
     'admin_modal_help_cluster_theme',
     'admin_modal_label_show_galaxy_list', 'admin_modal_help_show_galaxy_list',
+    'admin_modal_label_cluster_fuzzy', 'admin_modal_help_cluster_fuzzy',
+    'admin_modal_fuzzy_inherit', 'admin_modal_fuzzy_on', 'admin_modal_fuzzy_off',
     'admin_modal_label_member_galaxies', 'admin_modal_help_member_galaxies',
     'admin_modal_count_selected_one', 'admin_modal_count_selected_many',
     'admin_modal_label_keyword_chips', 'admin_modal_help_keyword_chips',
@@ -833,6 +841,51 @@ function db_set_pdf_max_bytes(?int $bytes): void {
     $stmt->execute([':v' => $bytes !== null && $bytes > 0 ? $bytes : null]);
 }
 
+/**
+ * Ensure project_info.fuzzy_keyword_matching exists. Installation-level default
+ * (stored on the 'en' row only). 0 = off (exact matching), 1 = on. Off by default.
+ */
+function db_ensure_fuzzy_keyword_matching_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'fuzzy_keyword_matching'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE project_info ADD COLUMN fuzzy_keyword_matching TINYINT(1) NOT NULL DEFAULT 0");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_fuzzy_keyword_matching_column: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Installation-level fuzzy keyword matching default. When on, multi-galaxy 3D
+ * views connect wormholes whose keywords name the same concept (colonial /
+ * colonialism, typos, shared tokens). Per-cluster overrides take precedence at
+ * render time (see inc/bootstrap.php). Off by default.
+ */
+function db_get_fuzzy_keyword_matching(): bool {
+    db_ensure_fuzzy_keyword_matching_column();
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->query("SELECT fuzzy_keyword_matching FROM project_info WHERE locale = 'en' LIMIT 1");
+        $row = $stmt->fetch();
+        return $row ? ((int)$row['fuzzy_keyword_matching'] === 1) : false;
+    } catch (PDOException $e) {
+        error_log('db_get_fuzzy_keyword_matching: ' . $e->getMessage());
+        return false;
+    }
+}
+
+function db_set_fuzzy_keyword_matching(bool $enabled): void {
+    db_ensure_fuzzy_keyword_matching_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE project_info SET fuzzy_keyword_matching = :v WHERE locale = 'en'");
+    $stmt->execute([':v' => $enabled ? 1 : 0]);
+}
+
 function db_get_default_constellation_id(): int {
     try {
         $pdo = getDB();
@@ -1272,6 +1325,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_instance_name' => 'Name',
             'admin_help_instance_name' => 'Public name for this instance. Shown on the visitor side and used as the Pluriverse-directory label when you apply to publish. Defaults to the first segment of the hostname if blank.',
             'admin_label_pdf_max' => 'PDF max size (MB)',
+            'admin_label_fuzzy_keywords' => 'Fuzzy keyword matching',
+            'admin_help_fuzzy_keywords' => 'When on, multi-galaxy views connect wormholes whose keywords name the same idea even when the words differ (for example colonial, colonialism, and typos). Off draws lines only between exact keyword matches. Each cluster can override this default.',
             'admin_help_pdf_max' => "Largest PDF a wormhole can carry. Default 25 MB. Editors uploading bigger files will get a 'File exceeds maximum allowed size' error.",
             'admin_btn_save_settings' => 'Save settings',
             // Pluriverse tab.
@@ -1794,6 +1849,11 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_modal_help_cluster_theme' => 'Scene theme. Each wormhole\'s icon still uses its source galaxy\'s theme.',
             'admin_modal_label_show_galaxy_list' => 'Show galaxy list to visitors',
             'admin_modal_help_show_galaxy_list' => 'When on, visitors see a list of the cluster\'s member galaxies in the bottom-right corner; clicking dims wormholes from other galaxies. Off by default for clusters since the curated framing is usually meant to read as one experience.',
+            'admin_modal_label_cluster_fuzzy' => 'Fuzzy keyword matching',
+            'admin_modal_help_cluster_fuzzy' => 'Connect wormholes whose keywords name the same idea even when the words differ (colonial, colonialism, typos). Inherit follows the installation default; On or Off overrides it for this cluster only.',
+            'admin_modal_fuzzy_inherit' => 'Use the installation default',
+            'admin_modal_fuzzy_on' => 'On for this cluster',
+            'admin_modal_fuzzy_off' => 'Off for this cluster',
             'admin_modal_label_member_galaxies' => 'Member galaxies *',
             'admin_modal_help_member_galaxies' => 'Visitors see the union of these galaxies\' wormholes. Bridges (subtle dashed lines) connect wormholes sharing keyword text across galaxies.',
             'admin_modal_count_selected_one' => '%d selected',
@@ -2808,6 +2868,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_instance_name' => 'Nombre',
             'admin_help_instance_name' => 'Nombre público de esta instancia. Se muestra en el lado visitante y se usa como etiqueta en el directorio del Pluriverse al solicitar publicación. Si queda en blanco, se usa la primera etiqueta del nombre de host.',
             'admin_label_pdf_max' => 'Tamaño máximo de PDF (MB)',
+            'admin_label_fuzzy_keywords' => 'Coincidencia aproximada de palabras clave',
+            'admin_help_fuzzy_keywords' => 'Cuando se activa, las vistas multigalaxia conectan agujeros de gusano cuyas palabras clave nombran la misma idea aunque las palabras difieran (por ejemplo colonial, colonialismo y erratas). Desactivado, solo traza líneas entre coincidencias exactas. Cada cúmulo puede anular esta opción.',
             'admin_help_pdf_max' => "PDF más grande que puede contener un agujero de gusano. Por defecto 25 MB. Al subir archivos más grandes aparece el error 'El archivo supera el tamaño máximo permitido'.",
             'admin_btn_save_settings' => 'Guardar ajustes',
             // Pluriverse tab.
@@ -3330,6 +3392,11 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_modal_help_cluster_theme' => 'Tema de la escena. El ícono de cada agujero de gusano sigue usando el tema de su galaxia de origen.',
             'admin_modal_label_show_galaxy_list' => 'Mostrar la lista de galaxias a quien visita',
             'admin_modal_help_show_galaxy_list' => 'Cuando se activa, quien visita ve una lista de las galaxias miembro del cúmulo en la esquina inferior derecha; al hacer clic se atenúan los agujeros de gusano de otras galaxias. Desactivado por defecto en cúmulos, ya que el encuadre curado suele leerse como una sola experiencia.',
+            'admin_modal_label_cluster_fuzzy' => 'Coincidencia aproximada de palabras clave',
+            'admin_modal_help_cluster_fuzzy' => 'Conecta agujeros de gusano cuyas palabras clave nombran la misma idea aunque las palabras difieran (colonial, colonialismo, erratas). Heredar sigue la opción predeterminada de la instalación; Activado o Desactivado la anula solo para este cúmulo.',
+            'admin_modal_fuzzy_inherit' => 'Usar la opción predeterminada de la instalación',
+            'admin_modal_fuzzy_on' => 'Activada para este cúmulo',
+            'admin_modal_fuzzy_off' => 'Desactivada para este cúmulo',
             'admin_modal_label_member_galaxies' => 'Galaxias miembro *',
             'admin_modal_help_member_galaxies' => 'Quien visita ve la unión de los agujeros de gusano de estas galaxias. Los puentes (líneas discontinuas sutiles) conectan agujeros de gusano que comparten texto de palabra clave entre galaxias.',
             'admin_modal_count_selected_one' => '%d seleccionada',
@@ -4340,6 +4407,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_instance_name' => 'Nome',
             'admin_help_instance_name' => 'Nome público desta instância. Aparece no lado visitante e é usado como rótulo no diretório do Pluriverse ao solicitar publicação. Se ficar em branco, usa-se o primeiro rótulo do nome de host.',
             'admin_label_pdf_max' => 'Tamanho máximo de PDF (MB)',
+            'admin_label_fuzzy_keywords' => 'Correspondência aproximada de palavras-chave',
+            'admin_help_fuzzy_keywords' => 'Quando ativado, as vistas multigaláxia conectam buracos de minhoca cujas palavras-chave nomeiam a mesma ideia mesmo quando as palavras diferem (por exemplo colonial, colonialismo e erros de digitação). Desativado, traça linhas apenas entre correspondências exatas. Cada aglomerado pode substituir esta opção.',
             'admin_help_pdf_max' => "Maior PDF que um buraco de minhoca pode conter. Padrão 25 MB. Ao enviar arquivos maiores aparece o erro 'O arquivo excede o tamanho máximo permitido'.",
             'admin_btn_save_settings' => 'Salvar configurações',
             // Pluriverse tab.
@@ -4862,6 +4931,11 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_modal_help_cluster_theme' => 'Tema da cena. O ícone de cada buraco de minhoca continua usando o tema da galáxia de origem.',
             'admin_modal_label_show_galaxy_list' => 'Mostrar a lista de galáxias a quem visita',
             'admin_modal_help_show_galaxy_list' => 'Quando ativado, quem visita vê uma lista das galáxias membras do aglomerado no canto inferior direito; ao clicar, atenuam-se os buracos de minhoca de outras galáxias. Desativado por padrão para aglomerados, pois o enquadramento curado costuma ler-se como uma experiência única.',
+            'admin_modal_label_cluster_fuzzy' => 'Correspondência aproximada de palavras-chave',
+            'admin_modal_help_cluster_fuzzy' => 'Conecta buracos de minhoca cujas palavras-chave nomeiam a mesma ideia mesmo quando as palavras diferem (colonial, colonialismo, erros de digitação). Herdar segue a opção padrão da instalação; Ativado ou Desativado substitui apenas para este aglomerado.',
+            'admin_modal_fuzzy_inherit' => 'Usar a opção padrão da instalação',
+            'admin_modal_fuzzy_on' => 'Ativada para este aglomerado',
+            'admin_modal_fuzzy_off' => 'Desativada para este aglomerado',
             'admin_modal_label_member_galaxies' => 'Galáxias membras *',
             'admin_modal_help_member_galaxies' => 'Quem visita vê a união dos buracos de minhoca destas galáxias. Pontes (linhas tracejadas sutis) conectam buracos de minhoca que compartilham texto de palavra-chave entre galáxias.',
             'admin_modal_count_selected_one' => '%d selecionada',
@@ -5872,6 +5946,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_instance_name' => 'Nom',
             'admin_help_instance_name' => 'Nom public de cette instance. Affiché côté visite et utilisé comme libellé dans l\'annuaire du Pluriverse au moment de postuler. Par défaut, le premier segment du nom d\'hôte si laissé vide.',
             'admin_label_pdf_max' => 'Taille maximale du PDF (Mo)',
+            'admin_label_fuzzy_keywords' => 'Correspondance approximative des mots-clés',
+            'admin_help_fuzzy_keywords' => 'Lorsque activée, les vues multigalaxie relient les trous de ver dont les mots-clés nomment la même idée même quand les mots diffèrent (par exemple colonial, colonialisme et fautes de frappe). Désactivée, elle ne trace des lignes qu\'entre des correspondances exactes. Chaque amas peut remplacer ce réglage.',
             'admin_help_pdf_max' => "Plus grand PDF qu\'un trou de ver peut contenir. Par défaut 25 Mo. En téléversant des fichiers plus gros, l\'erreur « Le fichier dépasse la taille maximale autorisée » apparaît.",
             'admin_btn_save_settings' => 'Enregistrer les paramètres',
             // Pluriverse tab.
@@ -6394,6 +6470,11 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_modal_help_cluster_theme' => 'Thème de la scène. L\'icône de chaque trou de ver utilise toujours le thème de sa galaxie d\'origine.',
             'admin_modal_label_show_galaxy_list' => 'Afficher la liste des galaxies côté visite',
             'admin_modal_help_show_galaxy_list' => 'Lorsque activée, on voit côté visite une liste des galaxies membres de l\'amas dans le coin inférieur droit ; un clic atténue les trous de ver des autres galaxies. Désactivée par défaut pour les amas, puisque le cadrage choisi se lit habituellement comme une expérience unique.',
+            'admin_modal_label_cluster_fuzzy' => 'Correspondance approximative des mots-clés',
+            'admin_modal_help_cluster_fuzzy' => 'Relie les trous de ver dont les mots-clés nomment la même idée même quand les mots diffèrent (colonial, colonialisme, fautes de frappe). Hériter suit le réglage par défaut de l\'installation ; Activée ou Désactivée le remplace pour cet amas uniquement.',
+            'admin_modal_fuzzy_inherit' => 'Utiliser le réglage par défaut de l\'installation',
+            'admin_modal_fuzzy_on' => 'Activée pour cet amas',
+            'admin_modal_fuzzy_off' => 'Désactivée pour cet amas',
             'admin_modal_label_member_galaxies' => 'Galaxies membres *',
             'admin_modal_help_member_galaxies' => 'Côté visite, on voit l\'union des trous de ver de ces galaxies. Des ponts (lignes pointillées subtiles) relient les trous de ver qui partagent du texte de mot-clé entre galaxies.',
             'admin_modal_count_selected_one' => '%d sélectionnée',
@@ -7187,6 +7268,13 @@ function db_ensure_constellations_type_and_cluster_members(): void {
         $row2 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'show_galaxy_list'")->fetch();
         if (!$row2) {
             $pdo->exec("ALTER TABLE constellations ADD COLUMN show_galaxy_list BOOLEAN NOT NULL DEFAULT FALSE AFTER `type`");
+        }
+        // Per-cluster override for fuzzy keyword matching in the multi-galaxy view.
+        // 'inherit' defers to the installation default (project_info.fuzzy_keyword_matching);
+        // 'on'/'off' force it for this cluster. Only meaningful on type='cluster' rows.
+        $row3 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'fuzzy_keyword_matching'")->fetch();
+        if (!$row3) {
+            $pdo->exec("ALTER TABLE constellations ADD COLUMN fuzzy_keyword_matching ENUM('inherit','on','off') NOT NULL DEFAULT 'inherit' AFTER show_galaxy_list");
         }
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS galaxy_cluster_members (
@@ -10290,17 +10378,19 @@ function db_set_cluster_members(int $clusterId, array $memberIds): void {
  *
  * @param list<int> $memberIds
  */
-function db_create_cluster(string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic', array $memberIds = [], bool $showGalaxyList = false): int {
+function db_create_cluster(string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic', array $memberIds = [], bool $showGalaxyList = false, string $fuzzyMatching = 'inherit'): int {
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
     $finalSlug = ($slug !== null && $slug !== '') ? $slug : db_slugify($name);
-    $stmt = $pdo->prepare("INSERT INTO constellations (name, tagline, slug, theme, `type`, show_galaxy_list) VALUES (:name, :tagline, :slug, :theme, 'cluster', :sgl)");
+    $fm = in_array($fuzzyMatching, ['inherit', 'on', 'off'], true) ? $fuzzyMatching : 'inherit';
+    $stmt = $pdo->prepare("INSERT INTO constellations (name, tagline, slug, theme, `type`, show_galaxy_list, fuzzy_keyword_matching) VALUES (:name, :tagline, :slug, :theme, 'cluster', :sgl, :fm)");
     $stmt->execute([
         ':name' => $name,
         ':tagline' => $tagline,
         ':slug' => $finalSlug,
         ':theme' => $theme,
         ':sgl' => $showGalaxyList ? 1 : 0,
+        ':fm' => $fm,
     ]);
     $clusterId = (int) $pdo->lastInsertId();
     if ($memberIds !== []) {
@@ -10312,11 +10402,12 @@ function db_create_cluster(string $name, string $tagline = '', ?string $slug = n
 /**
  * Update a cluster's metadata. Members are passed separately via db_set_cluster_members.
  */
-function db_update_cluster(int $id, string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic', bool $showGalaxyList = false): void {
+function db_update_cluster(int $id, string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic', bool $showGalaxyList = false, string $fuzzyMatching = 'inherit'): void {
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
     $finalSlug = ($slug !== null && $slug !== '') ? $slug : db_slugify($name);
-    $stmt = $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline, slug = :slug, theme = :theme, show_galaxy_list = :sgl WHERE id = :id AND `type` = 'cluster'");
+    $fm = in_array($fuzzyMatching, ['inherit', 'on', 'off'], true) ? $fuzzyMatching : 'inherit';
+    $stmt = $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline, slug = :slug, theme = :theme, show_galaxy_list = :sgl, fuzzy_keyword_matching = :fm WHERE id = :id AND `type` = 'cluster'");
     $stmt->execute([
         ':id' => $id,
         ':name' => $name,
@@ -10324,6 +10415,7 @@ function db_update_cluster(int $id, string $name, string $tagline = '', ?string 
         ':slug' => $finalSlug,
         ':theme' => $theme,
         ':sgl' => $showGalaxyList ? 1 : 0,
+        ':fm' => $fm,
     ]);
 }
 
@@ -10345,7 +10437,7 @@ function db_get_clusters(): array {
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
     $stmt = $pdo->query("
-        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.show_galaxy_list, c.created_at, c.updated_at,
+        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.show_galaxy_list, c.fuzzy_keyword_matching, c.created_at, c.updated_at,
                (SELECT COUNT(*) FROM galaxy_cluster_members m WHERE m.cluster_id = c.id) AS member_count
         FROM constellations c
         WHERE c.`type` = 'cluster'
@@ -10361,6 +10453,7 @@ function db_get_clusters(): array {
             'slug' => $r['slug'] ?? null,
             'theme' => (string) ($r['theme'] ?? 'cosmic'),
             'show_galaxy_list' => (bool)($r['show_galaxy_list'] ?? false),
+            'fuzzy_keyword_matching' => (string)($r['fuzzy_keyword_matching'] ?? 'inherit'),
             'member_count' => (int) $r['member_count'],
             'created_at' => $r['created_at'] ?? null,
             'updated_at' => $r['updated_at'] ?? null,
@@ -10423,7 +10516,7 @@ function db_get_clusters_paginated(
 
     $offset = ($page - 1) * $perPage;
     $dataStmt = $pdo->prepare("
-        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.show_galaxy_list,
+        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.show_galaxy_list, c.fuzzy_keyword_matching,
                c.tour_enabled, c.idle_spotlight_enabled,
                c.created_at, c.updated_at,
                (SELECT COUNT(*) FROM galaxy_cluster_members m WHERE m.cluster_id = c.id) AS member_count
@@ -10449,6 +10542,7 @@ function db_get_clusters_paginated(
             'slug' => $r['slug'] ?? null,
             'theme' => (string) ($r['theme'] ?? 'cosmic'),
             'show_galaxy_list' => (bool) ($r['show_galaxy_list'] ?? false),
+            'fuzzy_keyword_matching' => (string) ($r['fuzzy_keyword_matching'] ?? 'inherit'),
             'tour_enabled' => (bool) ($r['tour_enabled'] ?? false),
             'idle_spotlight_enabled' => (bool) ($r['idle_spotlight_enabled'] ?? false),
             'member_count' => (int) $r['member_count'],
@@ -10573,7 +10667,7 @@ function db_get_constellation_by_id(int $id): ?array {
     db_ensure_constellations_import_source_column();
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme, import_source, `type`, show_galaxy_list FROM constellations WHERE id = :id LIMIT 1");
+    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme, import_source, `type`, show_galaxy_list, fuzzy_keyword_matching FROM constellations WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
@@ -10587,6 +10681,7 @@ function db_get_constellation_by_id(int $id): ?array {
         'import_source' => $row['import_source'] ?? null,
         'type' => (string) ($row['type'] ?? 'galaxy'),
         'show_galaxy_list' => (bool)($row['show_galaxy_list'] ?? false),
+        'fuzzy_keyword_matching' => (string)($row['fuzzy_keyword_matching'] ?? 'inherit'),
     ];
 }
 
@@ -10605,7 +10700,7 @@ function db_get_constellations_by_ids(array $ids): array {
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
     $place = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = $pdo->prepare("SELECT id, name, tagline, slug, theme, import_source, `type`, show_galaxy_list FROM constellations WHERE id IN ($place)");
+    $stmt = $pdo->prepare("SELECT id, name, tagline, slug, theme, import_source, `type`, show_galaxy_list, fuzzy_keyword_matching FROM constellations WHERE id IN ($place)");
     $stmt->execute($ids);
     $out = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -10617,6 +10712,7 @@ function db_get_constellations_by_ids(array $ids): array {
             'import_source' => $row['import_source'] ?? null,
             'type' => (string)($row['type'] ?? 'galaxy'),
             'show_galaxy_list' => (bool)($row['show_galaxy_list'] ?? false),
+            'fuzzy_keyword_matching' => (string)($row['fuzzy_keyword_matching'] ?? 'inherit'),
         ];
     }
     return $out;
@@ -12785,7 +12881,7 @@ function db_merge_keywords(int $sourceId, int $targetId): void {
  * @param int|null $constellationId If set, only nodes (and keywords) in this constellation; null = all nodes
  * @return list<array{id: int, node1_id: int, node2_id: int, shared_keywords: list<string>, shared_count: int}>
  */
-function db_get_connections(?int $constellationId = null): array {
+function db_get_connections(?int $constellationId = null, bool $fuzzy = false): array {
     $pdo = getDB();
     if ($constellationId !== null) {
         $nodesStmt = $pdo->prepare("SELECT n.id, n.name FROM nodes n WHERE n.constellation_id = :constellation_id ORDER BY n.id");
@@ -12800,25 +12896,36 @@ function db_get_connections(?int $constellationId = null): array {
     $nodeIds = array_map(fn($n) => (int)$n['id'], $nodes);
     $nodeKeywords = db_get_keywords_for_nodes_bulk($nodeIds);
 
-    // Build inverted index: keyword → list of node IDs that have it
+    // When fuzzy matching is on, index by fuzzy cluster key (so "colonial" and
+    // "colonialism" share a connection) instead of the raw keyword. The cluster
+    // representative doubles as the human-readable label in shared_keywords.
+    // Fuzzy only ever adds links; exact matches always survive (see keyword-fuzzy.php).
+    if ($fuzzy) {
+        $built = keyword_fuzzy_build_groups($nodeKeywords);
+        $itemsByNode = $built['groups'];
+    } else {
+        $itemsByNode = $nodeKeywords;
+    }
+
+    // Build inverted index: key → list of node IDs that have it
     // This avoids the O(n²) pairwise comparison
-    $keywordToNodes = [];
-    foreach ($nodeKeywords as $nodeId => $keywords) {
-        foreach ($keywords as $kw) {
-            $keywordToNodes[$kw][] = $nodeId;
+    $keyToNodes = [];
+    foreach ($itemsByNode as $nodeId => $items) {
+        foreach ($items as $key) {
+            $keyToNodes[(string)$key][] = (int)$nodeId;
         }
     }
 
     // Build connections from the inverted index
-    // For each keyword, every pair of nodes sharing it gets a connection
-    $pairShared = []; // "id1:id2" => [keyword, ...]
-    foreach ($keywordToNodes as $kw => $ids) {
+    // For each key, every pair of nodes sharing it gets a connection
+    $pairShared = []; // "id1:id2" => [label, ...]
+    foreach ($keyToNodes as $key => $ids) {
         $count = count($ids);
         for ($i = 0; $i < $count; $i++) {
             for ($j = $i + 1; $j < $count; $j++) {
                 $id1 = min($ids[$i], $ids[$j]);
                 $id2 = max($ids[$i], $ids[$j]);
-                $pairShared["{$id1}:{$id2}"][] = $kw;
+                $pairShared["{$id1}:{$id2}"][] = (string)$key;
             }
         }
     }
