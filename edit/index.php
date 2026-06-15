@@ -91,10 +91,12 @@ $hotglueUserHasPages = count(db_hotglue_pages_list_for_user($currentUserId, $isA
 // remains the authoritative gate regardless of what the UI shows.
 $userAccessMap = ($isAdmin || $currentUserId === null) ? [] : db_get_user_constellation_access((string)$currentUserId);
 
-// One-time "create your first galaxy" prompt for a self-enrolled editor whose
-// personal-galaxy creation was deferred (naming_convention = user_choice). Read
-// clears the flag, so it shows once.
-$pendingGalaxyBanner = ($currentUserId !== null) ? db_take_pending_personal_galaxy((string)$currentUserId) : false;
+// "Create your first galaxy" prompt for a self-enrolled editor whose
+// personal-galaxy creation was deferred (naming_convention = user_choice). This
+// peeks without clearing, so the prompt persists until the editor actually
+// creates a galaxy; that first creation consumes the flag (and sets the galaxy
+// up as their personal one) in enroll_bind_deferred_personal_galaxy().
+$pendingGalaxyBanner = ($currentUserId !== null) ? db_has_pending_personal_galaxy((string)$currentUserId) : false;
 
 // One-time "you were vetted, you can set a password now" notice, set when an
 // admin vets a self-enrolled editor (paired with the vetting email).

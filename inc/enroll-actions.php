@@ -28,30 +28,13 @@ function enroll_apply_config(string $userId, string $email, string $firstname, a
         $name = enroll_personal_galaxy_name((string)($cfg['naming_convention'] ?? ENROLL_NAMING_DEFAULT), $email, $firstname, $possessiveTemplate);
         if ($name !== null && trim($name) !== '') {
             try {
-                $gid = db_create_constellation($name, '', null, 'cosmic', $userId);
+                $gid = db_create_constellation($name, '', null, 'abstract', $userId);
                 db_add_user_constellation($userId, $gid, 'read_write');
                 $result['personal_galaxy_id'] = $gid;
-                // Ship every personal galaxy with the visitor-experience features
-                // on: keyword chips, related wormholes, 2D view switch, idle
-                // spotlight (all nodes). New galaxies have these off by default.
-                // Best-effort: never let a feature/grouping hiccup lose the galaxy.
-                try {
-                    db_enable_personal_galaxy_default_features($gid);
-                } catch (Throwable $e) {
-                    error_log('enroll_apply_config: enabling personal-galaxy features failed: ' . $e->getMessage());
-                }
-                // Gather every auto-created personal galaxy into the per-installation
-                // cluster named after the subdomain (e.g. "[GRSJ306]"), creating it
-                // on the first enrolment.
-                $sub = enroll_installation_subdomain();
-                if ($sub !== null) {
-                    try {
-                        $clusterId = db_find_or_create_named_cluster('[' . $sub . ']');
-                        db_add_cluster_member($clusterId, $gid);
-                    } catch (Throwable $e) {
-                        error_log('enroll_apply_config: per-installation cluster grouping failed: ' . $e->getMessage());
-                    }
-                }
+                // Standard personal-galaxy setup (features + Abstract theme +
+                // per-installation cluster). Best-effort so a hiccup never loses
+                // the galaxy.
+                enroll_setup_personal_galaxy($gid);
             } catch (Throwable $e) {
                 error_log('enroll_apply_config: personal galaxy creation failed: ' . $e->getMessage());
             }
@@ -80,4 +63,63 @@ function enroll_apply_config(string $userId, string $email, string $firstname, a
     }
 
     return $result;
+}
+
+/**
+ * Standard setup applied to every personal galaxy an auto-enrolled editor gets,
+ * regardless of how it came to exist (named at enrolment, or created by the
+ * editor in the deferred user_choice flow):
+ *
+ *   - turn on the visitor-experience features (keyword chips, related wormholes,
+ *     2D view switch, idle spotlight over all nodes), which new galaxies default
+ *     off;
+ *   - default the visual theme to Abstract; and
+ *   - gather it into the single per-installation cluster named after the
+ *     subdomain (e.g. "[GRSJ306]"), created on first use and reused after.
+ *
+ * Each step is guarded independently so a feature/theme/grouping hiccup is
+ * logged but never propagates to the caller.
+ */
+function enroll_setup_personal_galaxy(int $galaxyId): void {
+    if ($galaxyId <= 0) {
+        return;
+    }
+    try {
+        db_enable_personal_galaxy_default_features($galaxyId);
+    } catch (Throwable $e) {
+        error_log('enroll_setup_personal_galaxy: enabling features failed: ' . $e->getMessage());
+    }
+    try {
+        db_set_constellation_theme($galaxyId, 'abstract');
+    } catch (Throwable $e) {
+        error_log('enroll_setup_personal_galaxy: setting theme failed: ' . $e->getMessage());
+    }
+    $sub = enroll_installation_subdomain();
+    if ($sub !== null) {
+        try {
+            $clusterId = db_find_or_create_named_cluster('[' . $sub . ']');
+            db_add_cluster_member($clusterId, $galaxyId);
+        } catch (Throwable $e) {
+            error_log('enroll_setup_personal_galaxy: cluster grouping failed: ' . $e->getMessage());
+        }
+    }
+}
+
+/**
+ * Deferred personal-galaxy binding. When an editor's personal-galaxy creation
+ * was deferred (user_choice naming), the FIRST galaxy they create themselves
+ * becomes their personal one: apply the standard setup above and consume the
+ * pending flag. No-op when the user has no pending flag (e.g. an ordinary editor
+ * creating an additional galaxy), so it is safe to call on every editor-side
+ * galaxy creation.
+ */
+function enroll_bind_deferred_personal_galaxy(string $userId, int $galaxyId): void {
+    if ($userId === '' || $galaxyId <= 0) {
+        return;
+    }
+    if (!db_has_pending_personal_galaxy($userId)) {
+        return;
+    }
+    enroll_setup_personal_galaxy($galaxyId);
+    db_take_pending_personal_galaxy($userId); // consume: only the first galaxy is the personal one
 }

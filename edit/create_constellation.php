@@ -33,6 +33,12 @@ try {
         $userId = (string)($_SESSION['admin_user_id'] ?? '');
         if ($userId !== '') {
             db_add_user_constellation($userId, $id, 'read_write');
+            // Deferred-enrolment binding: if this editor's personal galaxy was
+            // deferred (user_choice naming), the first galaxy they create becomes
+            // their personal one (visitor features on + per-installation cluster).
+            // No-op for ordinary editors with no pending flag.
+            require_once __DIR__ . '/../inc/enroll-actions.php';
+            enroll_bind_deferred_personal_galaxy($userId, $id);
         }
     }
     echo json_encode(['id' => $id, 'name' => $name, 'tagline' => $tagline], JSON_THROW_ON_ERROR);

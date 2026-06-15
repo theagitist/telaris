@@ -181,6 +181,12 @@ try {
                 // per-seat read_only/read_write levels) instead of rebuilding the
                 // whole set, which would silently upgrade read_only seats.
                 db_add_user_constellation($createdBy, $id, 'read_write');
+                // Deferred-enrolment binding: when this editor's personal galaxy
+                // was deferred (user_choice naming), the first galaxy they create
+                // becomes their personal one (visitor features on + per-installation
+                // cluster). No-op without a pending flag.
+                require_once __DIR__ . '/../inc/enroll-actions.php';
+                enroll_bind_deferred_personal_galaxy($createdBy, $id);
             }
             echo json_encode([
                 'id' => $id,

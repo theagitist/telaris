@@ -154,7 +154,7 @@ final class EnrollmentFlowTest extends TestCase
         $this->assertNotNull($res['personal_galaxy_id']);
 
         $row = $this->pdo->query(
-            "SELECT keyword_chips_enabled, related_nodes_enabled, show_2d_view, idle_spotlight_enabled, idle_spotlight_selection"
+            "SELECT keyword_chips_enabled, related_nodes_enabled, show_2d_view, idle_spotlight_enabled, idle_spotlight_selection, theme"
             . " FROM constellations WHERE id=" . (int)$res['personal_galaxy_id']
         )->fetch(PDO::FETCH_ASSOC);
 
@@ -163,6 +163,7 @@ final class EnrollmentFlowTest extends TestCase
         $this->assertSame('1', (string)$row['show_2d_view'], '2D view switch on');
         $this->assertSame('1', (string)$row['idle_spotlight_enabled'], 'idle spotlight on');
         $this->assertSame('all', (string)$row['idle_spotlight_selection'], 'idle spotlight covers all nodes');
+        $this->assertSame('abstract', (string)$row['theme'], 'auto-created personal galaxy defaults to the Abstract theme');
     }
 
     public function testPersonalGalaxyJoinsPerInstallationCluster(): void
@@ -208,6 +209,59 @@ final class EnrollmentFlowTest extends TestCase
         $this->assertContains((int)$res2['personal_galaxy_id'], db_get_cluster_member_ids((int)$clusterId), 'second personal galaxy joins the same cluster');
     }
 
+    public function testDeferredGalaxyBindingSetsUpFirstGalaxyOnly(): void
+    {
+        // user_choice naming defers creation: the editor makes the galaxy
+        // themselves at first login. The FIRST one they create must get the same
+        // treatment as an auto-named personal galaxy (visitor features on +
+        // per-installation cluster) and consume the pending flag; a SECOND galaxy
+        // must be left untouched.
+        $sub = enroll_installation_subdomain();
+        $u = $this->makeEnrollee();
+        $cfg = auto_enroll_normalize_config([
+            'enabled' => true, 'create_personal_galaxy' => true, 'naming_convention' => 'user_choice',
+        ]);
+        $res = enroll_apply_config((string)$u['id'], (string)$u['email'], (string)$u['firstname'], $cfg);
+        $this->assertTrue($res['deferred']);
+        $this->assertTrue(db_has_pending_personal_galaxy((string)$u['id']), 'pending flag set, not yet consumed');
+
+        // The editor creates their first galaxy (mirrors create_constellation.php).
+        $g1 = db_create_constellation('aitest-enr-grant-' . bin2hex(random_bytes(3)), '', null, 'cosmic', (string)$u['id']);
+        $this->tempGalaxyIds[] = $g1;
+        db_add_user_constellation((string)$u['id'], $g1, 'read_write');
+        enroll_bind_deferred_personal_galaxy((string)$u['id'], $g1);
+
+        $row = $this->pdo->query("SELECT keyword_chips_enabled, related_nodes_enabled, show_2d_view, idle_spotlight_enabled, theme FROM constellations WHERE id=" . (int)$g1)->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('1', (string)$row['keyword_chips_enabled']);
+        $this->assertSame('1', (string)$row['related_nodes_enabled']);
+        $this->assertSame('1', (string)$row['show_2d_view']);
+        $this->assertSame('1', (string)$row['idle_spotlight_enabled']);
+        $this->assertSame('abstract', (string)$row['theme'], 'deferred personal galaxy is themed Abstract');
+        $this->assertFalse(db_has_pending_personal_galaxy((string)$u['id']), 'flag consumed by the first galaxy');
+
+        if ($sub !== null) {
+            $clusterId = $this->pdo->query("SELECT id FROM constellations WHERE name = " . $this->pdo->quote('[' . $sub . ']') . " AND `type` = 'cluster' LIMIT 1")->fetchColumn();
+            $this->assertNotFalse($clusterId);
+            $this->assertContains($g1, db_get_cluster_member_ids((int)$clusterId), 'deferred galaxy joined the cluster');
+        }
+
+        // A second galaxy created afterwards is an ordinary galaxy: features off,
+        // not added to the cluster.
+        $g2 = db_create_constellation('aitest-enr-grant-' . bin2hex(random_bytes(3)), '', null, 'cosmic', (string)$u['id']);
+        $this->tempGalaxyIds[] = $g2;
+        db_add_user_constellation((string)$u['id'], $g2, 'read_write');
+        enroll_bind_deferred_personal_galaxy((string)$u['id'], $g2);
+
+        $row2 = $this->pdo->query("SELECT keyword_chips_enabled, related_nodes_enabled, show_2d_view, idle_spotlight_enabled, theme FROM constellations WHERE id=" . (int)$g2)->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('0', (string)$row2['keyword_chips_enabled'], 'second galaxy is left as a plain galaxy');
+        $this->assertSame('0', (string)$row2['idle_spotlight_enabled']);
+        $this->assertSame('cosmic', (string)$row2['theme'], 'second galaxy keeps its created theme, not forced to Abstract');
+        if ($sub !== null) {
+            $clusterId = $this->pdo->query("SELECT id FROM constellations WHERE name = " . $this->pdo->quote('[' . $sub . ']') . " AND `type` = 'cluster' LIMIT 1")->fetchColumn();
+            $this->assertNotContains($g2, db_get_cluster_member_ids((int)$clusterId), 'second galaxy is not gathered into the cluster');
+        }
+    }
+
     public function testNoPersonalGalaxyWhenDisabled(): void
     {
         $u = $this->makeEnrollee();
@@ -223,6 +277,7 @@ final class EnrollmentFlowTest extends TestCase
     private function cleanup(): void
     {
         $this->pdo->exec("DELETE FROM users WHERE id LIKE 'aitest-enr-%' OR email LIKE 'aitest-enr-%@aitest.local'");
+        $this->pdo->exec("DELETE FROM system_meta WHERE meta_key LIKE 'enroll_pending_galaxy:aitest-enr-%'");
         foreach (array_filter($this->tempGalaxyIds) as $gid) {
             $this->pdo->prepare("DELETE FROM constellations WHERE id = ?")->execute([(int)$gid]);
         }

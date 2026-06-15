@@ -11140,6 +11140,18 @@ function db_update_constellation(int $id, string $name, string $tagline = '', ?s
 }
 
 /**
+ * Set just the visual theme of a galaxy, leaving everything else untouched. Used
+ * by editor self-enrollment to default auto-created personal galaxies to the
+ * Abstract theme without disturbing name/slug/tagline.
+ */
+function db_set_constellation_theme(int $id, string $theme): void {
+    getDB()->prepare("UPDATE constellations SET theme = :theme WHERE id = :id")->execute([
+        ':theme' => $theme,
+        ':id' => $id,
+    ]);
+}
+
+/**
  * Read the auto-tour config for a constellation.
  * @return array{
  *   tour_enabled: bool,
@@ -14929,6 +14941,16 @@ function db_auto_enroll_is_open(): bool {
 function db_set_pending_personal_galaxy(string $userId): void {
     if ($userId === '') return;
     db_system_meta_set('enroll_pending_galaxy:' . $userId, '1');
+}
+
+/**
+ * Peek the pending-personal-galaxy flag without clearing it. The editor surface
+ * uses this to keep showing the "create your first galaxy" prompt until the
+ * editor actually creates one (which then consumes the flag via db_take_*).
+ */
+function db_has_pending_personal_galaxy(string $userId): bool {
+    if ($userId === '') return false;
+    return db_system_meta_get('enroll_pending_galaxy:' . $userId) === '1';
 }
 
 /** Read-and-clear the pending-personal-galaxy flag. Returns true if it was set. */
