@@ -201,3 +201,31 @@ function enroll_personal_galaxy_name(string $convention, string $email, string $
             return null;
     }
 }
+
+/**
+ * The installation's subdomain label, uppercased, used to name the
+ * per-installation cluster that gathers auto-enrolled editors' personal
+ * galaxies (e.g. "grsj306.telaris.ca" -> "GRSJ306", bracketed by the caller as
+ * "[GRSJ306]"). Resolved from trusted config (SITE_BASE_URL, then
+ * TELARIS_HOSTNAME), never the request Host header (attacker-controllable, and
+ * empty under CLI). Returns null when no trusted hostname is configured, so the
+ * caller can skip grouping rather than create a bogus cluster.
+ */
+function enroll_installation_subdomain(): ?string
+{
+    $host = '';
+    if (defined('SITE_BASE_URL') && is_string(SITE_BASE_URL) && SITE_BASE_URL !== '') {
+        $host = (string)SITE_BASE_URL;
+    } elseif (defined('TELARIS_HOSTNAME') && is_string(TELARIS_HOSTNAME) && TELARIS_HOSTNAME !== '') {
+        $host = (string)TELARIS_HOSTNAME;
+    }
+    if ($host === '') {
+        return null;
+    }
+    // Strip scheme, then any path/port; take the first DNS label.
+    $host = (string)preg_replace('#^https?://#i', '', $host);
+    $host = (string)preg_replace('#[/:].*$#', '', $host);
+    $label = explode('.', strtolower(trim($host)))[0] ?? '';
+    $label = (string)preg_replace('/[^a-z0-9-]/', '', $label);
+    return $label !== '' ? strtoupper($label) : null;
+}

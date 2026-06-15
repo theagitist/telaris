@@ -99,4 +99,33 @@ final class EnrollHelpersTest extends TestCase
         $this->assertNull(enroll_personal_galaxy_name('email_username', '@b.com', 'X'));
         $this->assertNull(enroll_personal_galaxy_name('full_email', '   ', 'X'));
     }
+
+    public function testInstallationSubdomainMatchesConfiguredHostname(): void
+    {
+        // The bootstrap loads the real config (TELARIS_HOSTNAME), so the helper
+        // resolves to the uppercased first DNS label of this install. Derive the
+        // same expectation from whatever trusted source the helper prefers.
+        $source = '';
+        if (defined('SITE_BASE_URL') && is_string(SITE_BASE_URL) && SITE_BASE_URL !== '') {
+            $source = (string)SITE_BASE_URL;
+        } elseif (defined('TELARIS_HOSTNAME') && is_string(TELARIS_HOSTNAME) && TELARIS_HOSTNAME !== '') {
+            $source = (string)TELARIS_HOSTNAME;
+        }
+
+        $sub = enroll_installation_subdomain();
+
+        if ($source === '') {
+            $this->assertNull($sub, 'no trusted hostname -> no subdomain');
+            return;
+        }
+        $host = (string)preg_replace('#^https?://#i', '', $source);
+        $host = (string)preg_replace('#[/:].*$#', '', $host);
+        $label = (string)preg_replace('/[^a-z0-9-]/', '', explode('.', strtolower(trim($host)))[0] ?? '');
+        $expected = $label !== '' ? strtoupper($label) : null;
+
+        $this->assertSame($expected, $sub);
+        if ($sub !== null) {
+            $this->assertMatchesRegularExpression('/^[A-Z0-9-]+$/', $sub, 'subdomain label is uppercase alnum/hyphen');
+        }
+    }
 }

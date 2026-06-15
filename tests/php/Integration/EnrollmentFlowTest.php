@@ -165,6 +165,49 @@ final class EnrollmentFlowTest extends TestCase
         $this->assertSame('all', (string)$row['idle_spotlight_selection'], 'idle spotlight covers all nodes');
     }
 
+    public function testPersonalGalaxyJoinsPerInstallationCluster(): void
+    {
+        // Each auto-created personal galaxy is gathered into a single cluster
+        // named after the installation subdomain ("[GRSJ306]", "[STARMAPS]", ...),
+        // created on the first enrolment and reused after.
+        $sub = enroll_installation_subdomain();
+        if ($sub === null) {
+            $this->markTestSkipped('No trusted hostname configured; subdomain clustering is skipped.');
+        }
+        $clusterName = '[' . $sub . ']';
+        // Did the cluster already exist? (so teardown only deletes what we made.)
+        $pre = $this->pdo->prepare("SELECT id FROM constellations WHERE name = :n AND `type` = 'cluster' LIMIT 1");
+        $pre->execute([':n' => $clusterName]);
+        $preexisting = $pre->fetchColumn();
+
+        $u = $this->makeEnrollee();
+        $cfg = auto_enroll_normalize_config([
+            'enabled' => true, 'create_personal_galaxy' => true,
+            'naming_convention' => 'email_username', 'galaxy_ids' => [],
+        ]);
+        $res = enroll_apply_config((string)$u['id'], (string)$u['email'], (string)$u['firstname'], $cfg);
+        $this->tempGalaxyIds[] = $res['personal_galaxy_id'];
+        $this->assertNotNull($res['personal_galaxy_id']);
+
+        $cidStmt = $this->pdo->prepare("SELECT id FROM constellations WHERE name = :n AND `type` = 'cluster' LIMIT 1");
+        $cidStmt->execute([':n' => $clusterName]);
+        $clusterId = $cidStmt->fetchColumn();
+        $this->assertNotFalse($clusterId, 'per-installation cluster exists after enrolment');
+        if ($preexisting === false) {
+            $this->tempGalaxyIds[] = (int)$clusterId; // we created it; clean up
+        }
+
+        $this->assertContains((int)$res['personal_galaxy_id'], db_get_cluster_member_ids((int)$clusterId), 'personal galaxy is a member of the cluster');
+
+        // A second enrollee reuses the same cluster (no duplicate).
+        $u2 = $this->makeEnrollee('Bo');
+        $res2 = enroll_apply_config((string)$u2['id'], (string)$u2['email'], (string)$u2['firstname'], $cfg);
+        $this->tempGalaxyIds[] = $res2['personal_galaxy_id'];
+        $dupCount = (int)$this->pdo->query("SELECT COUNT(*) FROM constellations WHERE name = " . $this->pdo->quote($clusterName) . " AND `type` = 'cluster'")->fetchColumn();
+        $this->assertSame(1, $dupCount, 'the per-installation cluster is reused, not duplicated');
+        $this->assertContains((int)$res2['personal_galaxy_id'], db_get_cluster_member_ids((int)$clusterId), 'second personal galaxy joins the same cluster');
+    }
+
     public function testNoPersonalGalaxyWhenDisabled(): void
     {
         $u = $this->makeEnrollee();
@@ -184,6 +227,23 @@ final class EnrollmentFlowTest extends TestCase
             $this->pdo->prepare("DELETE FROM constellations WHERE id = ?")->execute([(int)$gid]);
         }
         $this->pdo->exec("DELETE FROM constellations WHERE slug LIKE 'aitest-enr-grant-%' OR name LIKE 'aitest-enr-grant-%'");
+        // Every personal-galaxy test now also creates/joins the per-installation
+        // cluster ("[STARMAPS]" on this host). Once its test galaxies are gone it
+        // is empty; drop it so runs stay isolated. No real auto-enroll cluster
+        // exists on starmaps, so the empty-membership guard makes this safe.
+        $sub = enroll_installation_subdomain();
+        if ($sub !== null) {
+            $name = '[' . $sub . ']';
+            $cid = $this->pdo->prepare("SELECT id FROM constellations WHERE name = :n AND `type` = 'cluster' LIMIT 1");
+            $cid->execute([':n' => $name]);
+            $clusterId = $cid->fetchColumn();
+            if ($clusterId !== false) {
+                $cnt = (int)$this->pdo->query("SELECT COUNT(*) FROM galaxy_cluster_members WHERE cluster_id = " . (int)$clusterId)->fetchColumn();
+                if ($cnt === 0) {
+                    $this->pdo->prepare("DELETE FROM constellations WHERE id = ? AND `type` = 'cluster'")->execute([(int)$clusterId]);
+                }
+            }
+        }
         $this->tempGalaxyIds = [];
     }
 }

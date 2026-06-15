@@ -10400,6 +10400,54 @@ function db_create_cluster(string $name, string $tagline = '', ?string $slug = n
 }
 
 /**
+ * Find the cluster with this exact name, or create it. Used by editor
+ * self-enrollment to gather every auto-created personal galaxy into a single
+ * per-installation cluster (named after the subdomain, e.g. "[GRSJ306]")
+ * without duplicating it on each enrolment. Matches only type='cluster' rows;
+ * returns the lowest id on the (unexpected) chance of duplicates.
+ */
+function db_find_or_create_named_cluster(string $name): int {
+    db_ensure_constellations_type_and_cluster_members();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT id FROM constellations WHERE name = :name AND `type` = 'cluster' ORDER BY id ASC LIMIT 1");
+    $stmt->execute([':name' => $name]);
+    $id = $stmt->fetchColumn();
+    if ($id !== false) {
+        return (int)$id;
+    }
+    return db_create_cluster($name, '', null, 'cosmic', [], false, 'inherit');
+}
+
+/**
+ * Add a single galaxy to a cluster, preserving the existing membership.
+ * No-op when the member is already present, is the cluster itself, or is not a
+ * galaxy. Appends at the next free position. (db_set_cluster_members replaces
+ * the whole set; this incremental add is what enrolment needs.)
+ */
+function db_add_cluster_member(int $clusterId, int $memberId): void {
+    db_ensure_constellations_type_and_cluster_members();
+    if ($clusterId === $memberId) {
+        return;
+    }
+    $pdo = getDB();
+    $chk = $pdo->prepare("SELECT 1 FROM constellations WHERE id = :id AND `type` = 'galaxy'");
+    $chk->execute([':id' => $memberId]);
+    if ($chk->fetchColumn() === false) {
+        return; // non-galaxy or unknown id
+    }
+    $ex = $pdo->prepare("SELECT 1 FROM galaxy_cluster_members WHERE cluster_id = :cid AND member_id = :mid");
+    $ex->execute([':cid' => $clusterId, ':mid' => $memberId]);
+    if ($ex->fetchColumn() !== false) {
+        return; // already a member
+    }
+    $posStmt = $pdo->prepare("SELECT COALESCE(MAX(position), -1) + 1 FROM galaxy_cluster_members WHERE cluster_id = :cid");
+    $posStmt->execute([':cid' => $clusterId]);
+    $pos = (int)$posStmt->fetchColumn();
+    $ins = $pdo->prepare("INSERT INTO galaxy_cluster_members (cluster_id, member_id, position) VALUES (:cid, :mid, :pos)");
+    $ins->execute([':cid' => $clusterId, ':mid' => $memberId, ':pos' => $pos]);
+}
+
+/**
  * Update a cluster's metadata. Members are passed separately via db_set_cluster_members.
  */
 function db_update_cluster(int $id, string $name, string $tagline = '', ?string $slug = null, string $theme = 'cosmic', bool $showGalaxyList = false, string $fuzzyMatching = 'inherit'): void {

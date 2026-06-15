@@ -30,11 +30,28 @@ function enroll_apply_config(string $userId, string $email, string $firstname, a
             try {
                 $gid = db_create_constellation($name, '', null, 'cosmic', $userId);
                 db_add_user_constellation($userId, $gid, 'read_write');
+                $result['personal_galaxy_id'] = $gid;
                 // Ship every personal galaxy with the visitor-experience features
                 // on: keyword chips, related wormholes, 2D view switch, idle
                 // spotlight (all nodes). New galaxies have these off by default.
-                db_enable_personal_galaxy_default_features($gid);
-                $result['personal_galaxy_id'] = $gid;
+                // Best-effort: never let a feature/grouping hiccup lose the galaxy.
+                try {
+                    db_enable_personal_galaxy_default_features($gid);
+                } catch (Throwable $e) {
+                    error_log('enroll_apply_config: enabling personal-galaxy features failed: ' . $e->getMessage());
+                }
+                // Gather every auto-created personal galaxy into the per-installation
+                // cluster named after the subdomain (e.g. "[GRSJ306]"), creating it
+                // on the first enrolment.
+                $sub = enroll_installation_subdomain();
+                if ($sub !== null) {
+                    try {
+                        $clusterId = db_find_or_create_named_cluster('[' . $sub . ']');
+                        db_add_cluster_member($clusterId, $gid);
+                    } catch (Throwable $e) {
+                        error_log('enroll_apply_config: per-installation cluster grouping failed: ' . $e->getMessage());
+                    }
+                }
             } catch (Throwable $e) {
                 error_log('enroll_apply_config: personal galaxy creation failed: ' . $e->getMessage());
             }
