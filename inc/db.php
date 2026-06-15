@@ -492,6 +492,19 @@ const PROJECT_INFO_KEYS = [
     'admin_label_cluster_editors_enabled', 'admin_help_cluster_editors_enabled',
     'admin_label_galaxy_editors_enabled', 'admin_help_galaxy_editors_enabled',
     'admin_label_user_editor_enabled', 'admin_help_user_editor_enabled',
+    'admin_settings_site_heading',
+    'admin_label_site_hostname', 'admin_help_site_hostname',
+    'admin_label_site_base_url', 'admin_help_site_base_url',
+    'admin_label_default_locale', 'admin_help_default_locale', 'admin_default_locale_automatic',
+    'admin_settings_mail_heading', 'admin_settings_mail_intro',
+    'admin_mail_not_configured', 'admin_mail_configured',
+    'admin_label_mail_host', 'admin_label_mail_port', 'admin_label_mail_user',
+    'admin_label_mail_pass', 'admin_help_mail_pass', 'admin_mail_pass_set',
+    'admin_label_mail_from_address', 'admin_label_mail_from_name',
+    'admin_label_mail_secure', 'admin_mail_secure_tls', 'admin_mail_secure_ssl', 'admin_mail_secure_none',
+    'admin_btn_send_test_email', 'admin_help_send_test_email',
+    'admin_msg_mailtest_ok', 'admin_msg_mailtest_unconfigured', 'admin_msg_mailtest_noaddr', 'admin_msg_mailtest_fail',
+    'admin_auto_enroll_mail_warning',
     'api_error_404_001', 'api_error_404_002', 'api_error_404_003', 'api_error_404_004',
     'api_error_404_005', 'api_error_404_006', 'api_error_404_007', 'api_error_404_008',
     'api_error_404_009', 'api_error_404_010', 'api_error_404_011', 'api_error_404_012',
@@ -697,7 +710,12 @@ const PROJECT_INFO_LOCALES = ['en', 'es', 'pt', 'fr'];
  * found.
  */
 function locale_resolve_from_request(mixed $queryLang, ?string $acceptLanguage): string {
-    $default = PROJECT_INFO_LOCALES[0];
+    // Operator-set default locale (admin Global Settings) overrides the built-in
+    // first-locale default, so an instance whose audience is e.g. Spanish can
+    // greet a visitor with no language preference in their language. An explicit
+    // ?lang and a matching Accept-Language still win over it.
+    $operatorDefault = instance_setting_get('default_locale');
+    $default = (in_array($operatorDefault, PROJECT_INFO_LOCALES, true)) ? $operatorDefault : PROJECT_INFO_LOCALES[0];
     if (is_string($queryLang) && $queryLang !== '') {
         $code = locale_normalize_code($queryLang);
         if ($code !== null && in_array($code, PROJECT_INFO_LOCALES, true)) {
@@ -2280,6 +2298,37 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_help_galaxy_editors_enabled' => 'When off, editors cannot edit this galaxy. Admins are unaffected.',
             'admin_label_user_editor_enabled' => 'Editor enabled',
             'admin_help_user_editor_enabled' => 'When off, this editor cannot sign in or make changes. Their account and galaxies are kept.',
+            'admin_settings_site_heading' => 'Site',
+            'admin_label_site_hostname' => 'Public hostname',
+            'admin_help_site_hostname' => 'Canonical hostname for this instance (no scheme, no trailing slash). Used to build links in outgoing email and as the federation identity host. Leave blank to use the value from config.php.',
+            'admin_label_site_base_url' => 'Base URL (optional override)',
+            'admin_help_site_base_url' => 'Full base URL with scheme, used in preference to the hostname when set. Leave blank unless this instance is served from a non-standard scheme or path.',
+            'admin_label_default_locale' => 'Default language',
+            'admin_help_default_locale' => 'Language shown to a visitor whose browser asks for no language Telaris speaks. Automatic falls back to the first supported language. An explicit choice in the address bar always wins.',
+            'admin_default_locale_automatic' => 'Automatic (visitor browser preference)',
+            'admin_settings_mail_heading' => 'Email (SMTP)',
+            'admin_settings_mail_intro' => 'Required for sign-in links, enrolment confirmations, and password resets. When this is blank, those emails silently do not send.',
+            'admin_mail_not_configured' => 'Mail is not configured. Transactional email will not be sent until the SMTP settings below are complete.',
+            'admin_mail_configured' => 'Mail is configured. Use the test button below to confirm delivery.',
+            'admin_label_mail_host' => 'SMTP host',
+            'admin_label_mail_port' => 'Port',
+            'admin_label_mail_user' => 'Username',
+            'admin_label_mail_pass' => 'Password',
+            'admin_help_mail_pass' => 'Leave blank to keep the stored password.',
+            'admin_mail_pass_set' => '(unchanged)',
+            'admin_label_mail_from_address' => 'From address',
+            'admin_label_mail_from_name' => 'From name',
+            'admin_label_mail_secure' => 'Encryption',
+            'admin_mail_secure_tls' => 'STARTTLS (587)',
+            'admin_mail_secure_ssl' => 'SSL (465)',
+            'admin_mail_secure_none' => 'None (not recommended)',
+            'admin_btn_send_test_email' => 'Send test email',
+            'admin_help_send_test_email' => 'Sends a test message to your admin email address.',
+            'admin_msg_mailtest_ok' => 'Test email sent. Check your inbox to confirm delivery.',
+            'admin_msg_mailtest_unconfigured' => 'Mail is not configured. Fill in the SMTP settings below and save before sending a test.',
+            'admin_msg_mailtest_noaddr' => 'Your admin account has no email address on file, so there is nowhere to send the test.',
+            'admin_msg_mailtest_fail' => 'Test email could not be sent. Check the SMTP settings and the server mail log.',
+            'admin_auto_enroll_mail_warning' => 'Email is not configured on this instance, so enrolment confirmation links cannot be sent and self-enrolment will not work. Set up email in Global Settings first.',
 
             'api_error_404_001' => 'Node not found.',
             'api_error_404_002' => 'Galaxy not found.',
@@ -3840,6 +3889,37 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_help_galaxy_editors_enabled' => 'Si está desactivado, no se puede editar esta galaxia. No afecta a administración.',
             'admin_label_user_editor_enabled' => 'Edición activada',
             'admin_help_user_editor_enabled' => 'Si está desactivado, esta persona no puede iniciar sesión ni hacer cambios. Se conservan su cuenta y sus galaxias.',
+            'admin_settings_site_heading' => 'Sitio',
+            'admin_label_site_hostname' => 'Nombre de host público',
+            'admin_help_site_hostname' => 'Nombre de host canónico de esta instancia (sin esquema ni barra final). Se usa para construir enlaces en el correo saliente y como host de identidad de federación. Déjalo en blanco para usar el valor de config.php.',
+            'admin_label_site_base_url' => 'URL base (anulación opcional)',
+            'admin_help_site_base_url' => 'URL base completa con esquema, usada en lugar del nombre de host cuando se define. Déjala en blanco salvo que esta instancia se sirva con un esquema o una ruta no estándar.',
+            'admin_label_default_locale' => 'Idioma predeterminado',
+            'admin_help_default_locale' => 'Idioma que se muestra a quien visita cuando su navegador no pide ningún idioma que Telaris hable. Automático recurre al primer idioma disponible. Una elección explícita en la barra de direcciones siempre tiene prioridad.',
+            'admin_default_locale_automatic' => 'Automático (preferencia del navegador)',
+            'admin_settings_mail_heading' => 'Correo (SMTP)',
+            'admin_settings_mail_intro' => 'Necesario para los enlaces de inicio de sesión, las confirmaciones de alta y los restablecimientos de contraseña. Cuando está en blanco, esos correos no se envían sin avisar.',
+            'admin_mail_not_configured' => 'El correo no está configurado. No se enviará correo transaccional hasta que los ajustes de SMTP de abajo estén completos.',
+            'admin_mail_configured' => 'El correo está configurado. Usa el botón de prueba de abajo para confirmar la entrega.',
+            'admin_label_mail_host' => 'Host SMTP',
+            'admin_label_mail_port' => 'Puerto',
+            'admin_label_mail_user' => 'Usuario',
+            'admin_label_mail_pass' => 'Contraseña',
+            'admin_help_mail_pass' => 'Déjala en blanco para conservar la contraseña guardada.',
+            'admin_mail_pass_set' => '(sin cambios)',
+            'admin_label_mail_from_address' => 'Dirección de remitente',
+            'admin_label_mail_from_name' => 'Nombre de remitente',
+            'admin_label_mail_secure' => 'Cifrado',
+            'admin_mail_secure_tls' => 'STARTTLS (587)',
+            'admin_mail_secure_ssl' => 'SSL (465)',
+            'admin_mail_secure_none' => 'Ninguno (no recomendado)',
+            'admin_btn_send_test_email' => 'Enviar correo de prueba',
+            'admin_help_send_test_email' => 'Envía un mensaje de prueba a tu dirección de correo de administración.',
+            'admin_msg_mailtest_ok' => 'Correo de prueba enviado. Revisa tu bandeja de entrada para confirmar la entrega.',
+            'admin_msg_mailtest_unconfigured' => 'El correo no está configurado. Completa los ajustes de SMTP de abajo y guárdalos antes de enviar una prueba.',
+            'admin_msg_mailtest_noaddr' => 'Tu cuenta de administración no tiene una dirección de correo registrada, así que no hay a dónde enviar la prueba.',
+            'admin_msg_mailtest_fail' => 'No se pudo enviar el correo de prueba. Revisa los ajustes de SMTP y el registro de correo del servidor.',
+            'admin_auto_enroll_mail_warning' => 'El correo no está configurado en esta instancia, así que no se pueden enviar los enlaces de confirmación de alta y el alta automática no funcionará. Configura el correo en Ajustes globales primero.',
 
             'api_error_404_001' => 'Nodo no encontrado.',
             'api_error_404_002' => 'Galaxia no encontrada.',
@@ -5396,6 +5476,37 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_help_galaxy_editors_enabled' => 'Quando desativado, não é possível editar esta galáxia. Não afeta a administração.',
             'admin_label_user_editor_enabled' => 'Edição ativada',
             'admin_help_user_editor_enabled' => 'Quando desativado, esta pessoa não consegue entrar nem fazer alterações. A conta e as galáxias são mantidas.',
+            'admin_settings_site_heading' => 'Site',
+            'admin_label_site_hostname' => 'Nome de host público',
+            'admin_help_site_hostname' => 'Nome de host canônico desta instância (sem esquema nem barra final). Usado para construir links no email enviado e como host de identidade de federação. Deixe em branco para usar o valor do config.php.',
+            'admin_label_site_base_url' => 'URL base (substituição opcional)',
+            'admin_help_site_base_url' => 'URL base completa com esquema, usada no lugar do nome de host quando definida. Deixe em branco a menos que esta instância seja servida com um esquema ou caminho não padrão.',
+            'admin_label_default_locale' => 'Idioma padrão',
+            'admin_help_default_locale' => 'Idioma mostrado a quem visita quando o navegador não pede nenhum idioma que o Telaris fale. Automático recorre ao primeiro idioma disponível. Uma escolha explícita na barra de endereços sempre prevalece.',
+            'admin_default_locale_automatic' => 'Automático (preferência do navegador)',
+            'admin_settings_mail_heading' => 'Email (SMTP)',
+            'admin_settings_mail_intro' => 'Necessário para os links de entrada, as confirmações de cadastro e as redefinições de senha. Quando está em branco, esses emails não são enviados sem aviso.',
+            'admin_mail_not_configured' => 'O email não está configurado. Nenhum email transacional será enviado até que os ajustes de SMTP abaixo estejam completos.',
+            'admin_mail_configured' => 'O email está configurado. Use o botão de teste abaixo para confirmar a entrega.',
+            'admin_label_mail_host' => 'Host SMTP',
+            'admin_label_mail_port' => 'Porta',
+            'admin_label_mail_user' => 'Usuário',
+            'admin_label_mail_pass' => 'Senha',
+            'admin_help_mail_pass' => 'Deixe em branco para manter a senha armazenada.',
+            'admin_mail_pass_set' => '(sem alteração)',
+            'admin_label_mail_from_address' => 'Endereço de remetente',
+            'admin_label_mail_from_name' => 'Nome de remetente',
+            'admin_label_mail_secure' => 'Criptografia',
+            'admin_mail_secure_tls' => 'STARTTLS (587)',
+            'admin_mail_secure_ssl' => 'SSL (465)',
+            'admin_mail_secure_none' => 'Nenhuma (não recomendado)',
+            'admin_btn_send_test_email' => 'Enviar email de teste',
+            'admin_help_send_test_email' => 'Envia uma mensagem de teste para o seu email de administração.',
+            'admin_msg_mailtest_ok' => 'Email de teste enviado. Verifique sua caixa de entrada para confirmar a entrega.',
+            'admin_msg_mailtest_unconfigured' => 'O email não está configurado. Preencha os ajustes de SMTP abaixo e salve antes de enviar um teste.',
+            'admin_msg_mailtest_noaddr' => 'Sua conta de administração não tem um endereço de email registrado, então não há para onde enviar o teste.',
+            'admin_msg_mailtest_fail' => 'Não foi possível enviar o email de teste. Verifique os ajustes de SMTP e o registro de email do servidor.',
+            'admin_auto_enroll_mail_warning' => 'O email não está configurado nesta instância, então os links de confirmação de cadastro não podem ser enviados e o autocadastro não vai funcionar. Configure o email em Configurações globais primeiro.',
 
             'api_error_404_001' => 'Nó não encontrado.',
             'api_error_404_002' => 'Galáxia não encontrada.',
@@ -6952,6 +7063,37 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_help_galaxy_editors_enabled' => 'Désactivé, cette galaxie ne peut pas être modifiée. L\'administration n\'est pas affectée.',
             'admin_label_user_editor_enabled' => 'Modification activée',
             'admin_help_user_editor_enabled' => 'Désactivé, cette personne ne peut ni se connecter ni faire de changements. Son compte et ses galaxies sont conservés.',
+            'admin_settings_site_heading' => 'Site',
+            'admin_label_site_hostname' => 'Nom d\'hôte public',
+            'admin_help_site_hostname' => 'Nom d\'hôte canonique de cette instance (sans protocole ni barre oblique finale). Sert à construire les liens dans le courriel sortant et comme hôte d\'identité de fédération. Laisse vide pour utiliser la valeur de config.php.',
+            'admin_label_site_base_url' => 'URL de base (remplacement facultatif)',
+            'admin_help_site_base_url' => 'URL de base complète avec le protocole, utilisée à la place du nom d\'hôte quand elle est définie. Laisse vide sauf si cette instance est servie avec un protocole ou un chemin non standard.',
+            'admin_label_default_locale' => 'Langue par défaut',
+            'admin_help_default_locale' => 'Langue présentée à qui visite quand son navigateur ne demande aucune langue que Telaris parle. Automatique se rabat sur la première langue disponible. Un choix explicite dans la barre d\'adresse l\'emporte toujours.',
+            'admin_default_locale_automatic' => 'Automatique (préférence du navigateur)',
+            'admin_settings_mail_heading' => 'Courriel (SMTP)',
+            'admin_settings_mail_intro' => 'Nécessaire pour les liens de connexion, les confirmations d\'inscription et les réinitialisations de mot de passe. Quand c\'est vide, ces courriels ne partent pas sans prévenir.',
+            'admin_mail_not_configured' => 'Le courriel n\'est pas configuré. Aucun courriel transactionnel ne sera envoyé tant que les réglages SMTP ci-dessous ne sont pas complets.',
+            'admin_mail_configured' => 'Le courriel est configuré. Utilise le bouton de test ci-dessous pour confirmer la livraison.',
+            'admin_label_mail_host' => 'Hôte SMTP',
+            'admin_label_mail_port' => 'Port',
+            'admin_label_mail_user' => 'Utilisateur',
+            'admin_label_mail_pass' => 'Mot de passe',
+            'admin_help_mail_pass' => 'Laisse vide pour conserver le mot de passe enregistré.',
+            'admin_mail_pass_set' => '(inchangé)',
+            'admin_label_mail_from_address' => 'Adresse d\'expéditeur',
+            'admin_label_mail_from_name' => 'Nom d\'expéditeur',
+            'admin_label_mail_secure' => 'Chiffrement',
+            'admin_mail_secure_tls' => 'STARTTLS (587)',
+            'admin_mail_secure_ssl' => 'SSL (465)',
+            'admin_mail_secure_none' => 'Aucun (non recommandé)',
+            'admin_btn_send_test_email' => 'Envoyer un courriel de test',
+            'admin_help_send_test_email' => 'Envoie un message de test à ton adresse de courriel d\'administration.',
+            'admin_msg_mailtest_ok' => 'Courriel de test envoyé. Vérifie ta boîte de réception pour confirmer la livraison.',
+            'admin_msg_mailtest_unconfigured' => 'Le courriel n\'est pas configuré. Remplis les réglages SMTP ci-dessous et enregistre avant d\'envoyer un test.',
+            'admin_msg_mailtest_noaddr' => 'Ton compte d\'administration n\'a aucune adresse de courriel enregistrée, il n\'y a donc nulle part où envoyer le test.',
+            'admin_msg_mailtest_fail' => 'Le courriel de test n\'a pas pu être envoyé. Vérifie les réglages SMTP et le journal de courriel du serveur.',
+            'admin_auto_enroll_mail_warning' => 'Le courriel n\'est pas configuré sur cette instance, donc les liens de confirmation d\'inscription ne peuvent pas être envoyés et l\'auto-inscription ne fonctionnera pas. Configure le courriel dans les Réglages globaux d\'abord.',
 
             'api_error_404_001' => 'Nœud introuvable.',
             'api_error_404_002' => 'Galaxie introuvable.',
@@ -15117,6 +15259,41 @@ function db_system_meta_set(string $key, string $value): void {
         ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)
     ");
     $stmt->execute([':k' => $key, ':v' => $value]);
+}
+
+/**
+ * Operator-tunable scalar settings, each backed by system_meta with a config.php
+ * constant as fallback. The DB value (when non-empty) wins; otherwise the
+ * constant; otherwise ''. config.php stays the first-run seed and the home of
+ * everything that cannot move (DB creds, filesystem paths). Mail SMTP settings
+ * are a cohesive group handled separately as a JSON blob in inc/mail.php.
+ *
+ * Logical key => the config.php constant it falls back to (null = no constant).
+ * system_meta rows are namespaced with a 'setting_' prefix.
+ */
+const INSTANCE_SETTING_FALLBACK = [
+    'telaris_hostname' => 'TELARIS_HOSTNAME',
+    'site_base_url'    => 'SITE_BASE_URL',
+    'default_locale'   => null,
+];
+
+function instance_setting_get(string $key): string {
+    $v = db_system_meta_get('setting_' . $key);
+    if (is_string($v) && $v !== '') {
+        return $v;
+    }
+    $const = INSTANCE_SETTING_FALLBACK[$key] ?? null;
+    if ($const !== null && defined($const)) {
+        $cv = constant($const);
+        if (is_string($cv) && $cv !== '') {
+            return $cv;
+        }
+    }
+    return '';
+}
+
+function instance_setting_set(string $key, string $value): void {
+    db_system_meta_set('setting_' . $key, trim($value));
 }
 
 function db_system_meta_delete(string $key): void {

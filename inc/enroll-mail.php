@@ -20,20 +20,23 @@ require_once __DIR__ . '/email-template.php';
 require_once __DIR__ . '/mail.php';
 
 /**
- * Pinned site base URL for email links. Resolved from trusted config, never the
+ * Pinned site base URL for email links. Resolved from trusted settings, never the
  * request Host header (which is attacker-controllable and is also empty/localhost
- * when mail is sent from the CLI). Order: SITE_BASE_URL (explicit override) ->
- * https://TELARIS_HOSTNAME (core per-instance config, present on every instance)
- * -> Host header (logged last-resort only).
+ * when mail is sent from the CLI). Order: site_base_url (explicit override) ->
+ * https://telaris_hostname -> Host header (logged last-resort only). Both values
+ * resolve through instance_setting_get(), so an operator can set them from the
+ * admin Global Settings (system_meta) with the config.php constants as fallback.
  */
 function enroll_mail_base_url(): string {
-    if (defined('SITE_BASE_URL') && is_string(SITE_BASE_URL) && preg_match('#^https?://#', SITE_BASE_URL)) {
-        return rtrim(SITE_BASE_URL, '/');
+    $baseUrl = function_exists('instance_setting_get') ? instance_setting_get('site_base_url') : '';
+    if ($baseUrl !== '' && preg_match('#^https?://#', $baseUrl)) {
+        return rtrim($baseUrl, '/');
     }
-    if (defined('TELARIS_HOSTNAME') && is_string(TELARIS_HOSTNAME) && TELARIS_HOSTNAME !== '') {
-        return 'https://' . rtrim(TELARIS_HOSTNAME, '/');
+    $hostname = function_exists('instance_setting_get') ? instance_setting_get('telaris_hostname') : '';
+    if ($hostname !== '') {
+        return 'https://' . rtrim($hostname, '/');
     }
-    error_log('inc/enroll-mail.php: neither SITE_BASE_URL nor TELARIS_HOSTNAME is set; falling back to Host header (Host-injection risk).');
+    error_log('inc/enroll-mail.php: neither site_base_url nor telaris_hostname is set; falling back to Host header (Host-injection risk).');
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     return $scheme . '://' . $host;

@@ -213,11 +213,9 @@ function enroll_personal_galaxy_name(string $convention, string $email, string $
  */
 function enroll_installation_subdomain(): ?string
 {
-    $host = '';
-    if (defined('SITE_BASE_URL') && is_string(SITE_BASE_URL) && SITE_BASE_URL !== '') {
-        $host = (string)SITE_BASE_URL;
-    } elseif (defined('TELARIS_HOSTNAME') && is_string(TELARIS_HOSTNAME) && TELARIS_HOSTNAME !== '') {
-        $host = (string)TELARIS_HOSTNAME;
+    $host = function_exists('instance_setting_get') ? instance_setting_get('site_base_url') : '';
+    if ($host === '') {
+        $host = function_exists('instance_setting_get') ? instance_setting_get('telaris_hostname') : '';
     }
     if ($host === '') {
         return null;

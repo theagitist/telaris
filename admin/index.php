@@ -691,6 +691,31 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     if (isset($_POST['editors_enabled_present'])) {
                         db_set_installation_editors_enabled(!empty($_POST['editors_enabled']));
                     }
+                    // Mail (SMTP) settings. Stored in system_meta; the password is
+                    // preserved when left blank (it is never echoed back to the form),
+                    // so saving other fields does not wipe the stored secret.
+                    if (isset($_POST['mail_settings_present'])) {
+                        $currentMail = mail_settings_get();
+                        $postedPass = (string)($_POST['mail_pass'] ?? '');
+                        mail_settings_save([
+                            'host'         => (string)($_POST['mail_host'] ?? ''),
+                            'port'         => (string)($_POST['mail_port'] ?? ''),
+                            'user'         => (string)($_POST['mail_user'] ?? ''),
+                            'pass'         => $postedPass !== '' ? $postedPass : $currentMail['pass'],
+                            'secure'       => (string)($_POST['mail_secure'] ?? 'tls'),
+                            'from_address' => (string)($_POST['mail_from_address'] ?? ''),
+                            'from_name'    => (string)($_POST['mail_from_name'] ?? ''),
+                        ]);
+                    }
+                    // Site settings: public hostname, explicit base URL, default
+                    // locale. Each stored in system_meta with the config.php constant
+                    // as fallback; a blank value reverts to that fallback.
+                    if (isset($_POST['site_settings_present'])) {
+                        instance_setting_set('telaris_hostname', (string)($_POST['site_hostname'] ?? ''));
+                        instance_setting_set('site_base_url', (string)($_POST['site_base_url'] ?? ''));
+                        $loc = (string)($_POST['default_locale'] ?? '');
+                        instance_setting_set('default_locale', in_array($loc, PROJECT_INFO_LOCALES, true) ? $loc : '');
+                    }
                     header('Location: index.php?tab=settings&saved=1');
                     exit;
                 } catch (Throwable $e) {
@@ -698,7 +723,33 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     $activeTab = 'settings';
                 }
             })(),
-            
+
+            // Send a branded test email to the signed-in admin's own address so the
+            // operator can confirm the SMTP settings work without waiting for a real
+            // transactional email. Redirects back with a mailtest=ok|fail|noaddr flag.
+            'send_test_email' => (function(): void {
+                global $currentLocale;
+                $status = 'fail';
+                try {
+                    $adminId = isset($_SESSION['admin_user_id']) ? (string)$_SESSION['admin_user_id'] : '';
+                    $adminRow = $adminId !== '' ? db_get_user_by_id($adminId) : null;
+                    $adminEmail = is_array($adminRow) ? (string)($adminRow['email'] ?? '') : '';
+                    $loc = (isset($currentLocale) && is_string($currentLocale)) ? $currentLocale : 'en';
+                    if ($adminEmail === '') {
+                        $status = 'noaddr';
+                    } elseif (!mail_is_configured()) {
+                        $status = 'unconfigured';
+                    } else {
+                        $status = mail_send_test($adminEmail, $loc) ? 'ok' : 'fail';
+                    }
+                } catch (Throwable $e) {
+                    error_log('send_test_email: ' . (function_exists('db_safe_error_descriptor') ? db_safe_error_descriptor($e) : 'failed'));
+                    $status = 'fail';
+                }
+                header('Location: index.php?tab=settings&mailtest=' . $status);
+                exit;
+            })(),
+
             default => throw new RuntimeException('Invalid action')
         };
     } catch (Exception $e) {
@@ -1000,6 +1051,18 @@ foreach ($importantExtensions as $ext => $name) {
             <?php endif; ?>
             <?php if (isset($_GET['saved']) && $_GET['saved'] === '1'): ?>
                 <div data-type="success"><?= t_attr('admin_msg_settings_saved', 'Global settings saved.') ?></div>
+            <?php endif; ?>
+            <?php if (isset($_GET['mailtest'])): ?>
+                <?php $mt = (string)$_GET['mailtest']; ?>
+                <?php if ($mt === 'ok'): ?>
+                    <div data-type="success"><?= t_attr('admin_msg_mailtest_ok', 'Test email sent. Check your inbox to confirm delivery.') ?></div>
+                <?php elseif ($mt === 'unconfigured'): ?>
+                    <div data-type="error"><?= t_attr('admin_msg_mailtest_unconfigured', 'Mail is not configured. Fill in the SMTP settings below and save before sending a test.') ?></div>
+                <?php elseif ($mt === 'noaddr'): ?>
+                    <div data-type="error"><?= t_attr('admin_msg_mailtest_noaddr', 'Your admin account has no email address on file, so there is nowhere to send the test.') ?></div>
+                <?php else: ?>
+                    <div data-type="error"><?= t_attr('admin_msg_mailtest_fail', 'Test email could not be sent. Check the SMTP settings and the server mail log.') ?></div>
+                <?php endif; ?>
             <?php endif; ?>
             <?php if ($settingsError): ?>
                 <div data-type="error"><?php echo htmlspecialchars($settingsError); ?></div>
@@ -1510,6 +1573,133 @@ foreach ($importantExtensions as $ext => $name) {
                     <div class="mt-4">
                         <button type="submit" class="btn btn-neutral"><?= t_attr('admin_btn_save_settings', 'Save settings') ?></button>
                     </div>
+                </form>
+
+                <?php
+                    $siteHostname = instance_setting_get('telaris_hostname');
+                    $siteBaseUrl  = instance_setting_get('site_base_url');
+                    $defaultLocaleOverride = (string)(db_system_meta_get('setting_default_locale') ?? '');
+                ?>
+                <!-- Site settings: public URL + default locale (system_meta, config.php fallback) -->
+                <form method="post" action="" class="max-w-2xl mt-8">
+                    <input type="hidden" name="action" value="save_settings">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                    <input type="hidden" name="site_settings_present" value="1">
+                    <h3 class="text-gray-800 text-base font-semibold mb-3"><?= t_attr('admin_settings_site_heading', 'Site') ?></h3>
+
+                    <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <label for="site_hostname" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_site_hostname', 'Public hostname') ?></label>
+                        <input type="text" id="site_hostname" name="site_hostname" maxlength="255"
+                               value="<?= htmlspecialchars($siteHostname) ?>" placeholder="example.telaris.ca"
+                               class="input input-bordered input-sm w-full bg-white">
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_site_hostname', 'Canonical hostname for this instance (no scheme, no trailing slash). Used to build links in outgoing email and as the federation identity host. Leave blank to use the value from config.php.') ?></span>
+                    </div>
+
+                    <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <label for="site_base_url" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_site_base_url', 'Base URL (optional override)') ?></label>
+                        <input type="text" id="site_base_url" name="site_base_url" maxlength="255"
+                               value="<?= htmlspecialchars($siteBaseUrl) ?>" placeholder="https://example.telaris.ca"
+                               class="input input-bordered input-sm w-full bg-white">
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_site_base_url', 'Full base URL with scheme, used in preference to the hostname when set. Leave blank unless this instance is served from a non-standard scheme or path.') ?></span>
+                    </div>
+
+                    <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <label for="default_locale" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_default_locale', 'Default language') ?></label>
+                        <select id="default_locale" name="default_locale" class="select select-bordered select-sm w-full bg-white">
+                            <option value="" <?= $defaultLocaleOverride === '' ? 'selected' : '' ?>><?= t_attr('admin_default_locale_automatic', 'Automatic (visitor browser preference)') ?></option>
+                            <?php foreach (PROJECT_INFO_LOCALES as $lc): ?>
+                                <option value="<?= htmlspecialchars($lc) ?>" <?= $defaultLocaleOverride === $lc ? 'selected' : '' ?>><?= htmlspecialchars(strtoupper($lc)) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_default_locale', 'Language shown to a visitor whose browser asks for no language Telaris speaks. Automatic falls back to the first supported language. An explicit choice in the address bar always wins.') ?></span>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-neutral"><?= t_attr('admin_btn_save_settings', 'Save settings') ?></button>
+                    </div>
+                </form>
+
+                <?php
+                    $mailSettings = mail_settings_get();
+                    $mailPassSet = $mailSettings['pass'] !== '';
+                    $mailConfigured = mail_is_configured();
+                ?>
+                <!-- Mail (SMTP) settings (system_meta, config.php fallback; password never echoed) -->
+                <form method="post" action="" class="max-w-2xl mt-8">
+                    <input type="hidden" name="action" value="save_settings">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                    <input type="hidden" name="mail_settings_present" value="1">
+                    <h3 class="text-gray-800 text-base font-semibold mb-1"><?= t_attr('admin_settings_mail_heading', 'Email (SMTP)') ?></h3>
+                    <p class="text-sm text-gray-600 mb-3"><?= t_attr('admin_settings_mail_intro', 'Required for sign-in links, enrolment confirmations, and password resets. When this is blank, those emails silently do not send.') ?></p>
+
+                    <?php if (!$mailConfigured): ?>
+                        <div class="mb-4 p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm">
+                            <?= t_attr('admin_mail_not_configured', 'Mail is not configured. Transactional email will not be sent until the SMTP settings below are complete.') ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="mb-4 p-3 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 text-sm">
+                            <?= t_attr('admin_mail_configured', 'Mail is configured. Use the test button below to confirm delivery.') ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="mail_host" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_mail_host', 'SMTP host') ?></label>
+                            <input type="text" id="mail_host" name="mail_host" maxlength="255"
+                                   value="<?= htmlspecialchars($mailSettings['host']) ?>" placeholder="smtp.example.org"
+                                   class="input input-bordered input-sm w-full bg-white">
+                        </div>
+                        <div>
+                            <label for="mail_port" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_mail_port', 'Port') ?></label>
+                            <input type="number" id="mail_port" name="mail_port" min="1" max="65535"
+                                   value="<?= htmlspecialchars($mailSettings['port']) ?>" placeholder="587"
+                                   class="input input-bordered input-sm w-full bg-white">
+                        </div>
+                        <div>
+                            <label for="mail_user" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_mail_user', 'Username') ?></label>
+                            <input type="text" id="mail_user" name="mail_user" maxlength="255" autocomplete="off"
+                                   value="<?= htmlspecialchars($mailSettings['user']) ?>"
+                                   class="input input-bordered input-sm w-full bg-white">
+                        </div>
+                        <div>
+                            <label for="mail_pass" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_mail_pass', 'Password') ?></label>
+                            <input type="password" id="mail_pass" name="mail_pass" autocomplete="new-password"
+                                   value="" placeholder="<?= $mailPassSet ? t_attr('admin_mail_pass_set', '(unchanged)') : '' ?>"
+                                   class="input input-bordered input-sm w-full bg-white">
+                            <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_mail_pass', 'Leave blank to keep the stored password.') ?></span>
+                        </div>
+                        <div>
+                            <label for="mail_from_address" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_mail_from_address', 'From address') ?></label>
+                            <input type="email" id="mail_from_address" name="mail_from_address" maxlength="255"
+                                   value="<?= htmlspecialchars($mailSettings['from_address']) ?>" placeholder="no-reply@example.org"
+                                   class="input input-bordered input-sm w-full bg-white">
+                        </div>
+                        <div>
+                            <label for="mail_from_name" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_mail_from_name', 'From name') ?></label>
+                            <input type="text" id="mail_from_name" name="mail_from_name" maxlength="255"
+                                   value="<?= htmlspecialchars($mailSettings['from_name']) ?>" placeholder="Telaris"
+                                   class="input input-bordered input-sm w-full bg-white">
+                        </div>
+                        <div>
+                            <label for="mail_secure" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('admin_label_mail_secure', 'Encryption') ?></label>
+                            <select id="mail_secure" name="mail_secure" class="select select-bordered select-sm w-full bg-white">
+                                <option value="tls" <?= $mailSettings['secure'] === 'tls' ? 'selected' : '' ?>><?= t_attr('admin_mail_secure_tls', 'STARTTLS (587)') ?></option>
+                                <option value="ssl" <?= $mailSettings['secure'] === 'ssl' ? 'selected' : '' ?>><?= t_attr('admin_mail_secure_ssl', 'SSL (465)') ?></option>
+                                <option value="none" <?= $mailSettings['secure'] === 'none' ? 'selected' : '' ?>><?= t_attr('admin_mail_secure_none', 'None (not recommended)') ?></option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-neutral"><?= t_attr('admin_btn_save_settings', 'Save settings') ?></button>
+                    </div>
+                </form>
+                <!-- Send-test is its own form (sibling) so it posts a different action. -->
+                <form method="post" action="" class="max-w-2xl mt-2">
+                    <input type="hidden" name="action" value="send_test_email">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                    <button type="submit" class="btn btn-outline btn-sm" <?= $mailConfigured ? '' : 'disabled' ?>><?= t_attr('admin_btn_send_test_email', 'Send test email') ?></button>
+                    <span class="text-xs text-gray-500 ml-2"><?= t_attr('admin_help_send_test_email', 'Sends a test message to your admin email address.') ?></span>
                 </form>
             </div>
 
@@ -5523,6 +5713,11 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
         <div class="modal-box max-w-lg bg-gray-50 text-gray-800">
             <h3 class="text-lg font-semibold mb-1"><?= htmlspecialchars(t('admin_auto_enroll_heading', 'Editor self-enrolment')) ?></h3>
             <p class="text-xs text-gray-500 mb-4"><?= htmlspecialchars(t('admin_auto_enroll_intro', 'Let people join this instance as editors on their own. Off by default. You stay in control: self-enrolled editors are flagged Unvetted until you vet them, and they only edit galaxies you grant.')) ?></p>
+            <?php if (!mail_is_configured()): ?>
+                <div class="mb-4 p-3 rounded border border-amber-300 bg-amber-50 text-amber-800 text-xs">
+                    <?= htmlspecialchars(t('admin_auto_enroll_mail_warning', 'Email is not configured on this instance, so enrolment confirmation links cannot be sent and self-enrolment will not work. Set up email in Global Settings first.')) ?>
+                </div>
+            <?php endif; ?>
             <form method="POST" action="index.php">
                 <?= $csrfField ?>
                 <input type="hidden" name="action" value="save_auto_enroll_config">

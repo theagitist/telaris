@@ -23,6 +23,10 @@ define('TELARIS_HOSTNAME', '');
 // Outgoing mail (Mailgun or any SMTP relay). Required for password-reset emails and
 // bulk-user-creation account invitations. Leave blank to disable mail features.
 // Use STARTTLS on port 25 or 587 (recommended); 465 uses implicit SSL.
+// NOTE: these MAIL_* values (and TELARIS_HOSTNAME above) can also be set from the
+// admin Global Settings page, which stores them in the database and takes
+// precedence over the constants here. Editing them in the UI avoids the config.php
+// file-permission hazard; the constants below remain the first-run seed + fallback.
 define('MAIL_SMTP_HOST', '');           // e.g. smtp.mailgun.org or smtp.eu.mailgun.org
 define('MAIL_SMTP_PORT', 587);          // 25 / 587 = STARTTLS, 465 = implicit SSL
 define('MAIL_SMTP_USER', '');           // SMTP login (often postmaster@<your-mailgun-domain>)
