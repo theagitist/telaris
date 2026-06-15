@@ -76,6 +76,14 @@ $apiKey = getDefaultApiKey($pdo);
 // Editors see only constellations assigned to them; admins see all
 $currentUserId = $_SESSION['admin_user_id'] ?? null;
 $isAdmin = isAdminLoggedIn();
+// Editor enable/disable gate: a non-admin editor whose access was revoked
+// (installation switch off, or their own switch off) mid-session is signed out
+// and bounced to the login notice. Admins always retain access.
+if (!$isAdmin && !db_editor_login_allowed($currentUserId !== null ? (string)$currentUserId : null)) {
+    $_SESSION = [];
+    header('Location: ../utils/login.php?notice=editors_disabled');
+    exit();
+}
 $constellations = db_get_constellations_for_user($currentUserId, $isAdmin);
 
 // "Disable Hotglue content" installation switch. When on, the editor hides the

@@ -82,6 +82,12 @@ function handle_galaxy_update_post(array $post, ?string $userId, bool $isAdmin):
 
     db_update_constellation($id, $name, $tagline, $slug !== '' ? $slug : null, $theme);
 
+    // Galaxy-level "Allow editors" (admin-only control). The marker is only
+    // rendered for admins, so editors never post it; gate on $isAdmin anyway.
+    if ($isAdmin && isset($post['editors_enabled_present'])) {
+        db_set_constellation_editors_enabled($id, !empty($post['editors_enabled']));
+    }
+
     db_set_constellation_tour_config($id, [
         'tour_enabled' => !empty($post['tour_enabled']),
         'tour_start_mode' => (string)($post['tour_start_mode'] ?? 'manual'),

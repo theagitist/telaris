@@ -16,9 +16,17 @@ $authLocale = locale_init_strings()['__locale'] ?? 'en';
 // Get requested redirect from URL
 $requestedTarget = $_GET['redirect'] ?? $_POST['redirect'] ?? null;
 
-// If already logged in, redirect based on role
+// If already logged in, redirect based on role. A disabled editor (installation
+// switch off, or their own switch off) is not allowed an editor session: clear
+// it and show the notice below. Admins are never gated.
 if (isEditorOrAdminLoggedIn()) {
-    redirectUser((int)$_SESSION['admin_user_type'], $requestedTarget);
+    $loggedType = (int)$_SESSION['admin_user_type'];
+    if ($loggedType === USER_TYPE_ADMIN || db_editor_login_allowed((string)($_SESSION['admin_user_id'] ?? ''))) {
+        redirectUser($loggedType, $requestedTarget);
+    }
+    $_SESSION = [];
+    header('Location: login.php?notice=editors_disabled');
+    exit();
 }
 
 // Generate CSRF token for this session
@@ -27,6 +35,10 @@ if (empty($_SESSION['csrf_token'])) {
 }
 
 $error = null;
+// Surfaced when a disabled editor is bounced out of the editor or off a sign-in.
+if (($_GET['notice'] ?? '') === 'editors_disabled') {
+    $error = t('auth_editors_disabled_notice', 'Editing is currently disabled here. Please contact the operator if you think this is a mistake.');
+}
 
 // The login screen presents a single, identical layout for every email so it
 // never reveals whether an account exists or whether it has a password. The

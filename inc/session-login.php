@@ -39,6 +39,13 @@ function redirectUser(int $type, ?string $requestedTarget = null): void {
  * @param array<string,mixed> $user
  */
 function finalize_user_login(array $user, ?string $requestedTarget, string $locale): void {
+    // Editor enable/disable gate: a disabled editor (installation switch off, or
+    // their own switch off) is never granted a session. Admins are never gated,
+    // so an operator can always sign in to re-enable.
+    if ((int)($user['type'] ?? 0) === USER_TYPE_EDITOR && !db_editor_login_allowed((string)($user['id'] ?? ''))) {
+        header('Location: login.php?notice=editors_disabled');
+        exit();
+    }
     $isFirstLogin = empty($user['date_last_login']);
     // Prevent session fixation.
     session_regenerate_id(true);

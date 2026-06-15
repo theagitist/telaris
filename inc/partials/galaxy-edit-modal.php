@@ -66,6 +66,17 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
                   // is configured once the galaxy exists (open it for edit). ?>
             <div id="gem-edit-only">
 
+            <?php if ($isAdmin): ?>
+            <div class="mb-4 border-t border-gray-200 pt-4">
+                <input type="hidden" name="editors_enabled_present" value="1">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="modal-constellation-editors-enabled" name="editors_enabled" value="1" class="toggle toggle-neutral toggle-sm" checked>
+                    <span class="text-gray-800 font-medium text-sm"><?= t_attr('admin_label_galaxy_editors_enabled', 'Allow editors') ?></span>
+                </label>
+                <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_galaxy_editors_enabled', 'When off, editors cannot edit this galaxy. Admins are unaffected.') ?></span>
+            </div>
+            <?php endif; ?>
+
             <div class="mb-4">
                 <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('gem_tags_label', 'Tags') ?></label>
                 <div id="modal-galaxy-tags-container" class="flex flex-wrap gap-2 p-2 border border-gray-300 rounded bg-white focus-within:border-blue-500 transition-colors min-h-[2.75rem] relative">

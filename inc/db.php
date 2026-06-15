@@ -486,6 +486,12 @@ const PROJECT_INFO_KEYS = [
     'api_error_403_001', 'api_error_403_002', 'api_error_403_003', 'api_error_403_004',
     'api_error_403_005', 'api_error_403_006', 'api_error_403_007', 'api_error_403_008',
     'api_error_403_009', 'api_error_403_010',
+    'api_error_403_011', 'api_error_403_012', 'api_error_403_013', 'api_error_403_014',
+    'auth_editors_disabled_notice',
+    'admin_label_editors_enabled', 'admin_help_editors_enabled',
+    'admin_label_cluster_editors_enabled', 'admin_help_cluster_editors_enabled',
+    'admin_label_galaxy_editors_enabled', 'admin_help_galaxy_editors_enabled',
+    'admin_label_user_editor_enabled', 'admin_help_user_editor_enabled',
     'api_error_404_001', 'api_error_404_002', 'api_error_404_003', 'api_error_404_004',
     'api_error_404_005', 'api_error_404_006', 'api_error_404_007', 'api_error_404_008',
     'api_error_404_009', 'api_error_404_010', 'api_error_404_011', 'api_error_404_012',
@@ -2261,6 +2267,19 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_008' => 'User existence checks are restricted to administrative sessions.',
             'api_error_403_009' => 'This galaxy is read-only: it is imported or mirrored from another instance and cannot be edited here.',
             'api_error_403_010' => 'You have read-only access to this galaxy. You can view its contents but cannot change them.',
+            'api_error_403_011' => 'Editing is currently disabled on this installation.',
+            'api_error_403_012' => 'Editing is disabled for this cluster.',
+            'api_error_403_013' => 'Editing is disabled for this galaxy.',
+            'api_error_403_014' => 'Your editor account is disabled. Editing is turned off.',
+            'auth_editors_disabled_notice' => 'Editing is currently disabled here. Please contact the operator if you think this is a mistake.',
+            'admin_label_editors_enabled' => 'Allow editors',
+            'admin_help_editors_enabled' => 'When off, editors cannot sign in or make changes anywhere on this installation. Accounts and content are kept; admins are unaffected.',
+            'admin_label_cluster_editors_enabled' => 'Allow editors',
+            'admin_help_cluster_editors_enabled' => 'When off, editors cannot edit any galaxy in this cluster. Admins are unaffected.',
+            'admin_label_galaxy_editors_enabled' => 'Allow editors',
+            'admin_help_galaxy_editors_enabled' => 'When off, editors cannot edit this galaxy. Admins are unaffected.',
+            'admin_label_user_editor_enabled' => 'Editor enabled',
+            'admin_help_user_editor_enabled' => 'When off, this editor cannot sign in or make changes. Their account and galaxies are kept.',
 
             'api_error_404_001' => 'Node not found.',
             'api_error_404_002' => 'Galaxy not found.',
@@ -3808,6 +3827,19 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_008' => 'La verificación de la existencia de una cuenta se restringe a sesiones de administración.',
             'api_error_403_009' => 'Esta galaxia es de solo lectura: se importó o se refleja desde otra instancia y no se puede editar aquí.',
             'api_error_403_010' => 'Tienes acceso de solo lectura a esta galaxia. Puedes ver su contenido, pero no modificarlo.',
+            'api_error_403_011' => 'La edición está desactivada en esta instalación en este momento.',
+            'api_error_403_012' => 'La edición está desactivada para este cúmulo.',
+            'api_error_403_013' => 'La edición está desactivada para esta galaxia.',
+            'api_error_403_014' => 'Tu cuenta de edición está desactivada. La edición está apagada.',
+            'auth_editors_disabled_notice' => 'La edición está desactivada aquí en este momento. Si crees que es un error, contacta a quien administra la instalación.',
+            'admin_label_editors_enabled' => 'Permitir edición',
+            'admin_help_editors_enabled' => 'Si está desactivado, quienes editan no pueden iniciar sesión ni hacer cambios en toda la instalación. Se conservan las cuentas y el contenido; no afecta a administración.',
+            'admin_label_cluster_editors_enabled' => 'Permitir edición',
+            'admin_help_cluster_editors_enabled' => 'Si está desactivado, no se puede editar ninguna galaxia de este cúmulo. No afecta a administración.',
+            'admin_label_galaxy_editors_enabled' => 'Permitir edición',
+            'admin_help_galaxy_editors_enabled' => 'Si está desactivado, no se puede editar esta galaxia. No afecta a administración.',
+            'admin_label_user_editor_enabled' => 'Edición activada',
+            'admin_help_user_editor_enabled' => 'Si está desactivado, esta persona no puede iniciar sesión ni hacer cambios. Se conservan su cuenta y sus galaxias.',
 
             'api_error_404_001' => 'Nodo no encontrado.',
             'api_error_404_002' => 'Galaxia no encontrada.',
@@ -5351,6 +5383,19 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_008' => 'A verificação de existência de conta é restrita a sessões de administração.',
             'api_error_403_009' => 'Esta galáxia é somente leitura: foi importada ou espelhada de outra instância e não pode ser editada aqui.',
             'api_error_403_010' => 'Você tem acesso somente leitura a esta galáxia. Pode ver o conteúdo, mas não alterá-lo.',
+            'api_error_403_011' => 'A edição está desativada nesta instalação no momento.',
+            'api_error_403_012' => 'A edição está desativada para este aglomerado.',
+            'api_error_403_013' => 'A edição está desativada para esta galáxia.',
+            'api_error_403_014' => 'Sua conta de edição está desativada. A edição está desligada.',
+            'auth_editors_disabled_notice' => 'A edição está desativada aqui no momento. Se você acha que é um engano, fale com quem administra a instalação.',
+            'admin_label_editors_enabled' => 'Permitir edição',
+            'admin_help_editors_enabled' => 'Quando desativado, quem edita não consegue entrar nem fazer alterações em toda a instalação. As contas e o conteúdo são mantidos; não afeta a administração.',
+            'admin_label_cluster_editors_enabled' => 'Permitir edição',
+            'admin_help_cluster_editors_enabled' => 'Quando desativado, não é possível editar nenhuma galáxia deste aglomerado. Não afeta a administração.',
+            'admin_label_galaxy_editors_enabled' => 'Permitir edição',
+            'admin_help_galaxy_editors_enabled' => 'Quando desativado, não é possível editar esta galáxia. Não afeta a administração.',
+            'admin_label_user_editor_enabled' => 'Edição ativada',
+            'admin_help_user_editor_enabled' => 'Quando desativado, esta pessoa não consegue entrar nem fazer alterações. A conta e as galáxias são mantidas.',
 
             'api_error_404_001' => 'Nó não encontrado.',
             'api_error_404_002' => 'Galáxia não encontrada.',
@@ -6894,6 +6939,19 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_403_008' => 'La vérification d\'existence de compte est réservée aux sessions d\'administration.',
             'api_error_403_009' => 'Cette galaxie est en lecture seule : elle est importée ou en miroir depuis une autre instance et ne peut pas être modifiée ici.',
             'api_error_403_010' => 'Vous avez un accès en lecture seule à cette galaxie. Vous pouvez voir son contenu, mais pas le modifier.',
+            'api_error_403_011' => 'La modification est désactivée sur cette installation pour le moment.',
+            'api_error_403_012' => 'La modification est désactivée pour cet amas.',
+            'api_error_403_013' => 'La modification est désactivée pour cette galaxie.',
+            'api_error_403_014' => 'Ton compte de modification est désactivé. La modification est coupée.',
+            'auth_editors_disabled_notice' => 'La modification est désactivée ici pour le moment. Si tu penses que c\'est une erreur, contacte la personne qui administre l\'installation.',
+            'admin_label_editors_enabled' => 'Autoriser la modification',
+            'admin_help_editors_enabled' => 'Désactivé, les personnes qui modifient ne peuvent ni se connecter ni faire de changements sur toute l\'installation. Les comptes et le contenu sont conservés ; l\'administration n\'est pas affectée.',
+            'admin_label_cluster_editors_enabled' => 'Autoriser la modification',
+            'admin_help_cluster_editors_enabled' => 'Désactivé, aucune galaxie de cet amas ne peut être modifiée. L\'administration n\'est pas affectée.',
+            'admin_label_galaxy_editors_enabled' => 'Autoriser la modification',
+            'admin_help_galaxy_editors_enabled' => 'Désactivé, cette galaxie ne peut pas être modifiée. L\'administration n\'est pas affectée.',
+            'admin_label_user_editor_enabled' => 'Modification activée',
+            'admin_help_user_editor_enabled' => 'Désactivé, cette personne ne peut ni se connecter ni faire de changements. Son compte et ses galaxies sont conservés.',
 
             'api_error_404_001' => 'Nœud introuvable.',
             'api_error_404_002' => 'Galaxie introuvable.',
@@ -9667,9 +9725,10 @@ function db_audit_log(
 function db_get_users(): array {
     db_ensure_users_locale_column();
     db_ensure_users_account_columns();
+    db_ensure_users_editor_enabled_column();
     $pdo = getDB();
     $stmt = $pdo->query("
-        SELECT id, email, firstname, lastname, pronouns, type, vetted, locale, date_created, date_last_login, updated_at
+        SELECT id, email, firstname, lastname, pronouns, type, vetted, editor_enabled, locale, date_created, date_last_login, updated_at
         FROM users
         ORDER BY date_created DESC
     ");
@@ -9850,6 +9909,129 @@ function db_user_can_write_constellation(?string $userId, int $constellationId):
         return false;
     }
     return (string)$level !== 'read_only';
+}
+
+// ---------------------------------------------------------------------------
+// Editor enable/disable (cascading: Installation > Cluster > Galaxy > User).
+//
+// Each level defaults to ENABLED. The effective permission for an editor to act
+// is the AND of every level: installation, the user, the galaxy, and every
+// cluster the galaxy belongs to (most-restrictive wins). Admins are never gated
+// by this (they manage the installation and must be able to re-enable). The
+// flags only gate the EDITOR role; they never delete accounts or content.
+//   - Installation: system_meta key 'editors_enabled' ('0' disables).
+//   - Cluster + Galaxy: constellations.editors_enabled (TINYINT, default 1).
+//   - User: users.editor_enabled (TINYINT, default 1).
+// ---------------------------------------------------------------------------
+
+function db_ensure_constellations_editors_enabled_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'editors_enabled'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE constellations ADD COLUMN editors_enabled TINYINT(1) NOT NULL DEFAULT 1");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_constellations_editors_enabled_column: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_users_editor_enabled_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM users LIKE 'editor_enabled'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN editor_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER vetted");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_users_editor_enabled_column: ' . $e->getMessage());
+    }
+}
+
+/** Installation-wide editor switch. Defaults to enabled when unset. */
+function db_installation_editors_enabled(): bool {
+    $v = db_system_meta_get('editors_enabled');
+    return $v === null ? true : ($v !== '0');
+}
+
+function db_set_installation_editors_enabled(bool $enabled): void {
+    db_system_meta_set('editors_enabled', $enabled ? '1' : '0');
+}
+
+/** Per-constellation (cluster OR galaxy) editor switch. Defaults to enabled. */
+function db_constellation_editors_enabled(int $constellationId): bool {
+    if ($constellationId <= 0) return true;
+    db_ensure_constellations_editors_enabled_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT editors_enabled FROM constellations WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $constellationId]);
+    $v = $stmt->fetchColumn();
+    return $v === false ? true : ((int)$v === 1);
+}
+
+function db_set_constellation_editors_enabled(int $constellationId, bool $enabled): void {
+    if ($constellationId <= 0) return;
+    db_ensure_constellations_editors_enabled_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE constellations SET editors_enabled = :v WHERE id = :id");
+    $stmt->execute([':v' => $enabled ? 1 : 0, ':id' => $constellationId]);
+}
+
+/** Per-user editor switch. Defaults to enabled. */
+function db_user_editor_enabled(?string $userId): bool {
+    if ($userId === null || $userId === '') return true;
+    db_ensure_users_editor_enabled_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT editor_enabled FROM users WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $userId]);
+    $v = $stmt->fetchColumn();
+    return $v === false ? true : ((int)$v === 1);
+}
+
+function db_set_user_editor_enabled(string $userId, bool $enabled): void {
+    if ($userId === '') return;
+    db_ensure_users_editor_enabled_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE users SET editor_enabled = :v WHERE id = :id");
+    $stmt->execute([':v' => $enabled ? 1 : 0, ':id' => $userId]);
+}
+
+/** The cluster ids a galaxy belongs to (its parent clusters). */
+function db_get_parent_cluster_ids(int $galaxyId): array {
+    if ($galaxyId <= 0) return [];
+    db_ensure_constellations_type_and_cluster_members();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT cluster_id FROM galaxy_cluster_members WHERE member_id = :mid");
+    $stmt->execute([':mid' => $galaxyId]);
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+/**
+ * Whether editors may edit this galaxy, cascading installation + the galaxy +
+ * every parent cluster (NOT the user; that is the login axis). Returns the
+ * blocking level for messaging: 'installation' | 'cluster' | 'galaxy' | null.
+ */
+function db_editors_blocked_level_for_galaxy(int $galaxyId): ?string {
+    if (!db_installation_editors_enabled()) return 'installation';
+    if ($galaxyId > 0) {
+        if (!db_constellation_editors_enabled($galaxyId)) return 'galaxy';
+        foreach (db_get_parent_cluster_ids($galaxyId) as $cid) {
+            if (!db_constellation_editors_enabled($cid)) return 'cluster';
+        }
+    }
+    return null;
+}
+
+/** Whether an editor may log in / hold an editing session (installation + user). */
+function db_editor_login_allowed(?string $userId): bool {
+    if (!db_installation_editors_enabled()) return false;
+    return db_user_editor_enabled($userId);
 }
 
 /**
@@ -10590,9 +10772,10 @@ function db_delete_cluster(int $id): void {
  */
 function db_get_clusters(): array {
     db_ensure_constellations_type_and_cluster_members();
+    db_ensure_constellations_editors_enabled_column();
     $pdo = getDB();
     $stmt = $pdo->query("
-        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.show_galaxy_list, c.fuzzy_keyword_matching, c.created_at, c.updated_at,
+        SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.show_galaxy_list, c.fuzzy_keyword_matching, c.editors_enabled, c.created_at, c.updated_at,
                (SELECT COUNT(*) FROM galaxy_cluster_members m WHERE m.cluster_id = c.id) AS member_count
         FROM constellations c
         WHERE c.`type` = 'cluster'
@@ -10721,6 +10904,7 @@ function db_get_constellations_paginated(
     ?string $filter = null
 ): array {
     db_ensure_constellations_import_source_column();
+    db_ensure_constellations_editors_enabled_column();
     db_ensure_constellations_tour_columns();
     $pdo = getDB();
 
@@ -10765,7 +10949,7 @@ function db_get_constellations_paginated(
     // cheaper. Galaxies with zero nodes still appear thanks to LEFT JOIN + COALESCE.
     $dataStmt = $pdo->prepare("
         SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.import_source, c.tour_enabled,
-               c.created_at, c.updated_at,
+               c.editors_enabled, c.created_at, c.updated_at,
                COALESCE(nc.node_count, 0) AS node_count
         FROM constellations c
         LEFT JOIN (
@@ -10821,8 +11005,9 @@ function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
 function db_get_constellation_by_id(int $id): ?array {
     db_ensure_constellations_import_source_column();
     db_ensure_constellations_type_and_cluster_members();
+    db_ensure_constellations_editors_enabled_column();
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme, import_source, `type`, show_galaxy_list, fuzzy_keyword_matching FROM constellations WHERE id = :id LIMIT 1");
+    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme, import_source, `type`, show_galaxy_list, fuzzy_keyword_matching, editors_enabled FROM constellations WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {

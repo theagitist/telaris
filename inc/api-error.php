@@ -237,6 +237,20 @@ function api_require_user_writable_constellation(int $constellationId): void {
     if ($userId === null || $userId === '') {
         return;
     }
+    // Editor enable/disable cascade (installation > cluster > galaxy > user).
+    // Most-restrictive wins; checked before the per-seat read_only gate so a
+    // disabled editor gets the clearer "editing is disabled" message.
+    if (!db_user_editor_enabled((string)$userId)) {
+        api_error('403.014', 'Your editor account is disabled. Editing is turned off.');
+    }
+    $blockedLevel = db_editors_blocked_level_for_galaxy($constellationId);
+    if ($blockedLevel === 'installation') {
+        api_error('403.011', 'Editing is currently disabled on this installation.');
+    } elseif ($blockedLevel === 'cluster') {
+        api_error('403.012', 'Editing is disabled for this cluster.');
+    } elseif ($blockedLevel === 'galaxy') {
+        api_error('403.013', 'Editing is disabled for this galaxy.');
+    }
     if (!db_user_can_write_constellation((string)$userId, $constellationId)) {
         api_error('403.010', 'You have read-only access to this galaxy. You can view its contents but cannot change them.');
     }

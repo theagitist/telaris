@@ -91,6 +91,8 @@
         if (nameErr) nameErr.classList.add('hidden');
         const slugErr = document.getElementById('modal-constellation-slug-error');
         if (slugErr) slugErr.classList.add('hidden');
+        const gemEe = document.getElementById('modal-constellation-editors-enabled');
+        if (gemEe) gemEe.checked = true; // new galaxies allow editors by default
         setGalaxyMode('create');
         document.getElementById('constellation_modal').showModal();
         // No endPopulate(): autosave stays suspended; the explicit Create button POSTs.
@@ -105,6 +107,8 @@
         if (slugEl) slugEl.value = c.slug || '';
         document.getElementById('modal-constellation-tagline').value = c.tagline || '';
         document.getElementById('modal-constellation-theme').value = c.theme || 'cosmic';
+        const gemEe = document.getElementById('modal-constellation-editors-enabled');
+        if (gemEe) gemEe.checked = (c.editors_enabled !== false);
         const badge = document.getElementById('modal-constellation-id-badge');
         if (badge) badge.textContent = '#' + c.id;
         const feedback = document.getElementById('modal-bulk-feedback');

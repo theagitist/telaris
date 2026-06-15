@@ -229,6 +229,13 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                         db_set_vetted_banner_pending($id);
                     }
 
+                    // Editor enable/disable (per-user). When off, the editor cannot
+                    // sign in or make changes; the account + galaxies are kept. The
+                    // hidden marker is always posted, so an unchecked box means off.
+                    if (isset($_POST['editor_enabled_present'])) {
+                        db_set_user_editor_enabled($id, !empty($_POST['editor_enabled']));
+                    }
+
                     // Seats: rewrite the SET but preserve each kept seat's access level
                     // (read_only/read_write); new seats default to read_write. A whole-set
                     // replace would silently flatten read_only seats to read_write.
@@ -383,6 +390,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 if (!in_array($theme, $allowedThemes, true)) { $theme = 'cosmic'; }
                 $createdBy = isset($_SESSION['admin_user_id']) ? (string)$_SESSION['admin_user_id'] : null;
                 $newGalaxyId = db_create_constellation($name, $tagline, $slug !== '' ? $slug : null, $theme, $createdBy);
+                if ($newGalaxyId > 0 && isset($_POST['editors_enabled_present'])) {
+                    db_set_constellation_editors_enabled($newGalaxyId, !empty($_POST['editors_enabled']));
+                }
                 db_audit_log(
                     action: 'galaxy.create',
                     actorUserId: $_SESSION['admin_user_id'] ?? null,
@@ -502,6 +512,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $newClusterId = (int) db_get_constellation_id_by_slug($finalSlug);
                 if ($newClusterId > 0) {
                     save_cluster_discovery_config_from_post($newClusterId, $_POST);
+                    if (isset($_POST['editors_enabled_present'])) {
+                        db_set_constellation_editors_enabled($newClusterId, !empty($_POST['editors_enabled']));
+                    }
                 }
                 db_audit_log(
                     action: 'cluster.create',
@@ -546,6 +559,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $members = array_values(array_filter(array_map('intval', (array)($_POST['members'] ?? [])), fn($i) => $i > 0));
                 db_set_cluster_members($id, $members);
                 save_cluster_discovery_config_from_post($id, $_POST);
+                if (isset($_POST['editors_enabled_present'])) {
+                    db_set_constellation_editors_enabled($id, !empty($_POST['editors_enabled']));
+                }
                 db_audit_log(
                     action: 'cluster.update',
                     actorUserId: $_SESSION['admin_user_id'] ?? null,
@@ -669,6 +685,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     // pattern as above: an unchecked toggle posts no value.
                     if (isset($_POST['disable_hotglue_content_present'])) {
                         db_set_disable_hotglue_content(!empty($_POST['disable_hotglue_content']));
+                    }
+                    // Allow editors (installation-level switch). When off, editors
+                    // can neither sign in nor make changes anywhere here.
+                    if (isset($_POST['editors_enabled_present'])) {
+                        db_set_installation_editors_enabled(!empty($_POST['editors_enabled']));
                     }
                     header('Location: index.php?tab=settings&saved=1');
                     exit;
@@ -1145,6 +1166,7 @@ foreach ($importantExtensions as $ext => $name) {
                                                 'email' => $user['email'],
                                                 'type' => $user['type'],
                                                 'vetted' => (int)($user['vetted'] ?? 1),
+                                                'editor_enabled' => (int)($user['editor_enabled'] ?? 1),
                                                 'owned_galaxies' => $ownedGalaxyCounts[(string)$user['id']] ?? 0,
                                             ];
                                             $userJson = htmlspecialchars(json_encode($userData), ENT_QUOTES, 'UTF-8');
@@ -1472,6 +1494,17 @@ foreach ($importantExtensions as $ext => $name) {
                             <span class="text-gray-800 font-medium text-sm"><?= t_attr('admin_label_disable_hotglue', 'Disable Hotglue content') ?></span>
                         </label>
                         <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_disable_hotglue', 'When on, no new hotglue content can be created on this installation. Wormholes that already have hotglue content keep showing and editing it; new wormholes only offer Classic Media. Off by default (hotglue is available).') ?></span>
+                    </div>
+
+                    <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <input type="hidden" name="editors_enabled_present" value="1">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="editors_enabled" name="editors_enabled" value="1"
+                                   <?= db_installation_editors_enabled() ? 'checked' : '' ?>
+                                   class="toggle toggle-neutral toggle-sm">
+                            <span class="text-gray-800 font-medium text-sm"><?= t_attr('admin_label_editors_enabled', 'Allow editors') ?></span>
+                        </label>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_editors_enabled', 'When off, editors cannot sign in or make changes anywhere on this installation. Accounts and content are kept; admins are unaffected.') ?></span>
                     </div>
 
                     <div class="mt-4">
@@ -3050,6 +3083,8 @@ foreach ($importantExtensions as $ext => $name) {
             (function(){
                 const v = document.getElementById('modal-vetted'); if (v) v.checked = true;
                 const sec = document.getElementById('modal-vetted-section'); if (sec) sec.classList.add('hidden');
+                const ee = document.getElementById('modal-editor-enabled'); if (ee) ee.checked = true;
+                const eesec = document.getElementById('modal-editor-enabled-section'); if (eesec) eesec.classList.add('hidden');
             })();
             document.querySelectorAll('.modal-pronoun-common').forEach(cb => { cb.checked = false; });
             document.getElementById('modal-pronouns-custom').value = '';
@@ -3088,6 +3123,8 @@ foreach ($importantExtensions as $ext => $name) {
             (function(){
                 const v = document.getElementById('modal-vetted'); if (v) v.checked = (parseInt(user.vetted, 10) === 1);
                 const sec = document.getElementById('modal-vetted-section'); if (sec) sec.classList.remove('hidden');
+                const ee = document.getElementById('modal-editor-enabled'); if (ee) ee.checked = (parseInt(user.editor_enabled, 10) !== 0);
+                const eesec = document.getElementById('modal-editor-enabled-section'); if (eesec) eesec.classList.remove('hidden');
             })();
 
             // Pronouns: check the common-option boxes that match the stored set;
@@ -3387,6 +3424,8 @@ foreach ($importantExtensions as $ext => $name) {
             document.getElementById('cluster-theme').value = 'cosmic';
             const sgl = document.getElementById('cluster-show-galaxy-list');
             if (sgl) sgl.checked = false;
+            const cee = document.getElementById('cluster-editors-enabled');
+            if (cee) cee.checked = true;
             const fz = document.getElementById('cluster-fuzzy');
             if (fz) fz.value = 'inherit';
             _clusterMemberCheckboxes().forEach(cb => { cb.checked = false; });
@@ -3406,6 +3445,8 @@ foreach ($importantExtensions as $ext => $name) {
             document.getElementById('cluster-theme').value = cluster.theme || 'cosmic';
             const sgl = document.getElementById('cluster-show-galaxy-list');
             if (sgl) sgl.checked = !!cluster.show_galaxy_list;
+            const cee = document.getElementById('cluster-editors-enabled');
+            if (cee) cee.checked = (cluster.editors_enabled !== false);
             const fz = document.getElementById('cluster-fuzzy');
             if (fz) fz.value = ['inherit', 'on', 'off'].includes(cluster.fuzzy_keyword_matching) ? cluster.fuzzy_keyword_matching : 'inherit';
             _clusterMemberCheckboxes().forEach(cb => { cb.checked = false; });
@@ -3968,7 +4009,7 @@ foreach ($importantExtensions as $ext => $name) {
                     const hoverClass = bgColor ? '' : ' hover:bg-gray-50';
                     const slug = c.slug || '';
                     const viewRel = c.is_default ? '../index.php' : (slug ? '../' + encodeURIComponent(slug) : '../index.php?constellation_id=' + c.id);
-                    const cJson = JSON.stringify({ id: c.id, name: c.name, tagline: c.tagline, slug: slug, theme: c.theme });
+                    const cJson = JSON.stringify({ id: c.id, name: c.name, tagline: c.tagline, slug: slug, theme: c.theme, editors_enabled: (parseInt(c.editors_enabled, 10) !== 0) });
                     const cJsonAttr = escapeHtmlAdmin(cJson);
                     const clickEdit = `editConstellation(${cJsonAttr})`;
 
@@ -4201,6 +4242,7 @@ foreach ($importantExtensions as $ext => $name) {
                     const cJson = JSON.stringify({
                         id: cl.id, name: cl.name, tagline: cl.tagline, slug: slug, theme: cl.theme,
                         show_galaxy_list: !!cl.show_galaxy_list,
+                        editors_enabled: (parseInt(cl.editors_enabled, 10) !== 0),
                         fuzzy_keyword_matching: cl.fuzzy_keyword_matching || 'inherit'
                     });
                     const cJsonAttr = escapeHtmlAdmin(cJson);
@@ -4282,6 +4324,8 @@ foreach ($importantExtensions as $ext => $name) {
             document.getElementById('cluster-theme').value = cluster.theme || 'cosmic';
             const sgl = document.getElementById('cluster-show-galaxy-list');
             if (sgl) sgl.checked = !!cluster.show_galaxy_list;
+            const cee = document.getElementById('cluster-editors-enabled');
+            if (cee) cee.checked = (cluster.editors_enabled !== false);
             const fz = document.getElementById('cluster-fuzzy');
             if (fz) fz.value = ['inherit', 'on', 'off'].includes(cluster.fuzzy_keyword_matching) ? cluster.fuzzy_keyword_matching : 'inherit';
             // Member checkboxes + discovery config in parallel.
@@ -5149,6 +5193,15 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                 </div>
 
                 <div class="mb-4 border-t border-gray-200 pt-4">
+                    <input type="hidden" name="editors_enabled_present" value="1">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="cluster-editors-enabled" name="editors_enabled" value="1" class="toggle toggle-neutral toggle-sm" checked>
+                        <span class="text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_label_cluster_editors_enabled', 'Allow editors')) ?></span>
+                    </label>
+                    <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(t('admin_help_cluster_editors_enabled', 'When off, editors cannot edit any galaxy in this cluster. Admins are unaffected.')) ?></p>
+                </div>
+
+                <div class="mb-4 border-t border-gray-200 pt-4">
                     <label for="cluster-fuzzy" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= htmlspecialchars(t('admin_modal_label_cluster_fuzzy', 'Fuzzy keyword matching')) ?></label>
                     <select id="cluster-fuzzy" name="fuzzy_keyword_matching" class="select select-bordered select-sm w-full bg-white">
                         <option value="inherit"><?= htmlspecialchars(t('admin_modal_fuzzy_inherit', 'Use the installation default')) ?></option>
@@ -5396,6 +5449,15 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
                         <span class="text-gray-800 font-medium"><?= htmlspecialchars(t('admin_modal_label_vetted', 'Vetted')) ?></span>
                     </label>
                     <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(t('admin_modal_help_vetted', 'Vetting a self-enrolled editor emails them a link to set a password and shows them an in-app notice. It does not change what they can edit. Unvetted editors sign in with an emailed link each time.')) ?></p>
+                </div>
+
+                <div id="modal-editor-enabled-section" class="mb-4 p-3 border border-gray-200 rounded bg-white">
+                    <input type="hidden" name="editor_enabled_present" value="1">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="modal-editor-enabled" name="editor_enabled" value="1" class="rounded border-gray-300" checked>
+                        <span class="text-gray-800 font-medium"><?= htmlspecialchars(t('admin_label_user_editor_enabled', 'Editor enabled')) ?></span>
+                    </label>
+                    <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(t('admin_help_user_editor_enabled', 'When off, this editor cannot sign in or make changes. Their account and galaxies are kept.')) ?></p>
                 </div>
 
                 <div id="um-create-only" class="mb-4 p-3 border border-gray-200 rounded bg-white hidden">
