@@ -9997,6 +9997,32 @@ function db_slugify(string $text): string {
 }
 
 /**
+ * Slugify a name into a constellation slug that is guaranteed free, appending
+ * "-2", "-3", ... until no existing constellation holds it. The slug column is
+ * UNIQUE, so two galaxies sharing a name (two editors named "Alex", or one
+ * editor who enrolled twice) would otherwise collide and the INSERT would throw.
+ * Whatever the editor put as their name is enough; this makes creation succeed.
+ */
+function db_unique_constellation_slug(string $name): string {
+    $base = db_slugify($name);
+    if ($base === '') {
+        $base = 'galaxy';
+    }
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT 1 FROM constellations WHERE slug = :s LIMIT 1");
+    $slug = $base;
+    $n = 1;
+    while (true) {
+        $stmt->execute([':s' => $slug]);
+        if ($stmt->fetchColumn() === false) {
+            return $slug;
+        }
+        $n++;
+        $slug = $base . '-' . $n;
+    }
+}
+
+/**
  * Galaxy-typed constellations. Existing callers (editor dropdowns, portal-target pickers,
  * admin galaxy list) all want galaxies only — clusters are managed via db_get_clusters().
  *

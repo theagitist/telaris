@@ -274,6 +274,41 @@ final class EnrollmentFlowTest extends TestCase
         $this->assertSame([], db_get_user_constellation_access((string)$u['id']), 'no seats granted');
     }
 
+    public function testSameNameEnrolleesEachGetTheirOwnPersonalGalaxy(): void
+    {
+        // Regression: two editors with the SAME name (or one editor enrolling
+        // twice). The auto-slug collided on the UNIQUE slug column and the
+        // exception was swallowed, leaving the second editor with NO writable
+        // galaxy. Both must now get a personal galaxy with a read_write seat.
+        $cfg = auto_enroll_normalize_config([
+            'enabled' => true, 'create_personal_galaxy' => true,
+            'naming_convention' => 'first_name', 'galaxy_ids' => [],
+        ]);
+
+        $u1 = $this->makeEnrollee('Jiseon');
+        $res1 = enroll_apply_config((string)$u1['id'], (string)$u1['email'], (string)$u1['firstname'], $cfg, '%s');
+        $this->tempGalaxyIds[] = $res1['personal_galaxy_id'];
+
+        $u2 = $this->makeEnrollee('Jiseon');
+        $res2 = enroll_apply_config((string)$u2['id'], (string)$u2['email'], (string)$u2['firstname'], $cfg, '%s');
+        $this->tempGalaxyIds[] = $res2['personal_galaxy_id'];
+
+        $this->assertNotNull($res1['personal_galaxy_id'], 'first same-name enrollee gets a galaxy');
+        $this->assertNotNull($res2['personal_galaxy_id'], 'second same-name enrollee gets a galaxy too');
+        $this->assertNotSame($res1['personal_galaxy_id'], $res2['personal_galaxy_id'], 'distinct galaxies');
+
+        // Slugs are distinct (the dedupe appended a suffix), names can match.
+        $slug1 = (string)$this->pdo->query("SELECT slug FROM constellations WHERE id=" . (int)$res1['personal_galaxy_id'])->fetchColumn();
+        $slug2 = (string)$this->pdo->query("SELECT slug FROM constellations WHERE id=" . (int)$res2['personal_galaxy_id'])->fetchColumn();
+        $this->assertNotSame($slug1, $slug2, 'deduped slug, no collision');
+
+        // Both owners have a read_write seat on their own galaxy.
+        $a1 = db_get_user_constellation_access((string)$u1['id']);
+        $a2 = db_get_user_constellation_access((string)$u2['id']);
+        $this->assertSame('read_write', $a1[(int)$res1['personal_galaxy_id']] ?? null);
+        $this->assertSame('read_write', $a2[(int)$res2['personal_galaxy_id']] ?? null);
+    }
+
     private function cleanup(): void
     {
         $this->pdo->exec("DELETE FROM users WHERE id LIKE 'aitest-enr-%' OR email LIKE 'aitest-enr-%@aitest.local'");

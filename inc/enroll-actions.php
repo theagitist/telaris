@@ -28,7 +28,10 @@ function enroll_apply_config(string $userId, string $email, string $firstname, a
         $name = enroll_personal_galaxy_name((string)($cfg['naming_convention'] ?? ENROLL_NAMING_DEFAULT), $email, $firstname, $possessiveTemplate);
         if ($name !== null && trim($name) !== '') {
             try {
-                $gid = db_create_constellation($name, '', null, 'abstract', $userId);
+                // Deduplicate the slug so a shared name (two editors named the
+                // same, or one editor enrolling twice) never collides on the
+                // UNIQUE slug and silently loses the personal galaxy.
+                $gid = db_create_constellation($name, '', db_unique_constellation_slug($name), 'abstract', $userId);
                 db_add_user_constellation($userId, $gid, 'read_write');
                 $result['personal_galaxy_id'] = $gid;
                 // Standard personal-galaxy setup (features + Abstract theme +
