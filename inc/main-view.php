@@ -261,12 +261,6 @@ header("X-Content-Type-Options: nosniff");
         <!-- Keyword chips strip (bottom-center). Populated by js/keyword-chips.js. -->
         <div id="keyword-chips-strip" class="hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-[210] flex flex-wrap gap-x-3 gap-y-0 justify-center max-w-[80vw] overflow-hidden" style="font-size: 0.85rem; line-height: 1.4; max-height: 2.4rem;"></div>
 
-        <!-- Dim + blur backdrop behind the galaxy list. Fades in when the list is
-             open so the galaxies read clearly against the scene. Sits below the
-             strip (210) and the view switch (220), above the canvas + tooltip.
-             Clicking it closes the list (via the strip's outside-click handler). -->
-        <div id="galaxy-list-backdrop" class="fixed inset-0 z-[205]" style="opacity: 0; pointer-events: none; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); transition: opacity 180ms ease;"></div>
-
         <!-- Galaxy list strip (visitor multigalaxy filter, bottom-right). Slide-up menu:
              a button reveals the chip panel. Populated by js/galaxy-list-strip.js.
              Whole strip hidden by default; controller un-hides if window.TELARIS_GALAXY_LIST_ENABLED is true. -->
