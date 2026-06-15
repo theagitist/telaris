@@ -4169,7 +4169,7 @@ class TelarisNetwork {
             resultsDropdown.innerHTML = '';
 
             if (results.length === 0) {
-                resultsDropdown.innerHTML = '<div class="px-3 py-2 text-xs text-white/40 uppercase tracking-wider">' + escapeHtml(window.TELARIS_NO_RESULTS_TEXT || 'window.TELARIS_NO_RESULTS_TEXT') + '</div>';
+                resultsDropdown.innerHTML = '<div class="px-3 py-2 text-xs text-white/40 uppercase tracking-wider">' + escapeHtml(window.TELARIS_NO_RESULTS_TEXT || '') + '</div>';
                 resultsDropdown.style.display = 'block';
                 return;
             }
