@@ -1,0 +1,26 @@
+# Telaris maintenance cron (log + history pruning).
+#
+# Drains the three append-only tables that grow with ordinary use:
+#   - auth_attempts          (login/forgot throttle ledger, >30d)
+#   - audit_events           (accountability log, >AUDIT_LOG_KEEP_DAYS)
+#   - keyword_position_history (one row per canvas drag, >90d)
+#
+# Both tables that back auth_attempts/audit_events already self-prune
+# opportunistically in-process (capped LIMIT 10000 per request), so a fresh
+# install without this cron still gets some tidy-up; this nightly run drains
+# the rest outside the request-serving path. keyword_position_history has no
+# opportunistic prune, so this cron is its only drain.
+#
+# Installed by bin/setup-host.php; canonical source is
+# etc/cron.d/maintenance.sample in the Telaris repo. The site root placeholder
+# below is substituted with the absolute install path at install time.
+# Re-running setup-host.php overwrites this file (no drift). Runs as www-data,
+# the php-fpm pool user, so the prune helpers reuse the same DB credentials.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Once daily in the quiet small hours (UTC), staggered minutes so the two
+# scripts do not start in the same tick.
+17 4 * * * www-data /usr/bin/php __SITE_ROOT__/admin/cli/prune_history.php --quiet > /dev/null 2>&1
+23 4 * * * www-data /usr/bin/php __SITE_ROOT__/admin/cli/prune_logs.php --quiet > /dev/null 2>&1

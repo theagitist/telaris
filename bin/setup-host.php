@@ -14,6 +14,7 @@ declare(strict_types=1);
  *   - /etc/cron.d/telaris-pluriverse-pull-<site>     (federation stage 3)
  *   - /etc/cron.d/telaris-pluriverse-dispatch-<site> (federation stage 4d)
  *   - /etc/cron.d/telaris-galaxy-pull-<site>         (federation stage 5d-v)
+ *   - /etc/cron.d/telaris-maintenance-<site>         (nightly log/history prune)
  *   - chmod 0640 + chgrp www-data on config.php
  *   - secrets/ dir 0700 owned by www-data
  *
@@ -120,6 +121,9 @@ $dispatchCronDst = '/etc/cron.d/telaris-pluriverse-dispatch-' . $siteName;
 
 $galaxyPullCronSrc = $root . '/etc/cron.d/galaxy-pull.sample';
 $galaxyPullCronDst = '/etc/cron.d/telaris-galaxy-pull-' . $siteName;
+
+$maintCronSrc = $root . '/etc/cron.d/maintenance.sample';
+$maintCronDst = '/etc/cron.d/telaris-maintenance-' . $siteName;
 
 $configPath = $root . '/config.php';
 $vhostCandidates = [
@@ -594,6 +598,58 @@ $tasks[] = (function() use ($galaxyPullCronSrc, $galaxyPullCronDst, $root) {
         'name' => 'galaxy-pull cron',
         'status' => file_exists($galaxyPullCronDst) ? 'mismatch' : 'missing',
         'detail' => file_exists($galaxyPullCronDst) ? "{$galaxyPullCronDst} differs from canonical" : "{$galaxyPullCronDst} does not exist",
+        'fix' => $fix,
+    ];
+})();
+
+// 4d. Maintenance cron entry (log + history pruning).
+// Same shape as 4a/4b/4c: drops /etc/cron.d/telaris-maintenance-<site> with
+// the nightly prune of auth_attempts / audit_events / keyword_position_history.
+// Not federation-specific; every instance accumulates these tables, so this
+// installs on every host regardless of the federation surface.
+$tasks[] = (function() use ($maintCronSrc, $maintCronDst, $root) {
+    if (!file_exists($maintCronSrc)) {
+        return ['name' => 'maintenance cron', 'status' => 'error', 'detail' => "repo source missing at {$maintCronSrc}", 'fix' => null];
+    }
+    if (!file_exists('/etc/cron.d')) {
+        return ['name' => 'maintenance cron', 'status' => 'error', 'detail' => '/etc/cron.d does not exist; cron not installed', 'fix' => null];
+    }
+    if (!file_exists($root . '/admin/cli/prune_logs.php') || !file_exists($root . '/admin/cli/prune_history.php')) {
+        return ['name' => 'maintenance cron', 'status' => 'error', 'detail' => "{$root}/admin/cli/prune_*.php missing (code not yet deployed?)", 'fix' => null];
+    }
+    $template = file_get_contents($maintCronSrc);
+    $canonical = str_replace('__SITE_ROOT__', $root, $template);
+    $installed = file_exists($maintCronDst) ? file_get_contents($maintCronDst) : '';
+    if ($installed === $canonical) {
+        return ['name' => 'maintenance cron', 'status' => 'ok', 'detail' => "matches {$maintCronDst}", 'fix' => null];
+    }
+    $fix = function() use ($maintCronDst, $canonical) {
+        if (is_link($maintCronDst)) {
+            return ['ok' => false, 'detail' => "{$maintCronDst} is a symlink; refusing to write through it (unlink first if intentional)"];
+        }
+        if (file_exists($maintCronDst)) {
+            $real = realpath($maintCronDst);
+            if ($real === false || !str_starts_with($real, '/etc/cron.d/')) {
+                return ['ok' => false, 'detail' => "{$maintCronDst} resolves outside /etc/cron.d/ (real='{$real}'); refusing to write"];
+            }
+        }
+        $tmp = $maintCronDst . '.new.' . posix_getpid();
+        if (file_put_contents($tmp, $canonical) === false) {
+            return ['ok' => false, 'detail' => "could not write to {$tmp}"];
+        }
+        @chmod($tmp, 0644);
+        @chown($tmp, 'root');
+        @chgrp($tmp, 'root');
+        if (!rename($tmp, $maintCronDst)) {
+            @unlink($tmp);
+            return ['ok' => false, 'detail' => "could not move {$tmp} → {$maintCronDst}"];
+        }
+        return ['ok' => true, 'detail' => "wrote {$maintCronDst} (cron picks up automatically)"];
+    };
+    return [
+        'name' => 'maintenance cron',
+        'status' => file_exists($maintCronDst) ? 'mismatch' : 'missing',
+        'detail' => file_exists($maintCronDst) ? "{$maintCronDst} differs from canonical" : "{$maintCronDst} does not exist",
         'fix' => $fix,
     ];
 })();

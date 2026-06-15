@@ -34,6 +34,25 @@ if (PHP_SAPI !== 'cli') {
 require_once __DIR__ . '/../inc/bootstrap.php';
 require_once __DIR__ . '/../inc/federation/dispatcher.php';
 require_once __DIR__ . '/../inc/federation/handshake.php';
+require_once __DIR__ . '/../inc/federation/sig_verify.php';
+
+/**
+ * Garbage-collect the replay-protection nonce store, but at most once per
+ * hour so it is not paid on every minute-cadence dispatch run. The GC is not
+ * time-critical (hourly or daily is ample); without this the seen_nonces
+ * table grows without bound on a long-lived peered instance.
+ * Returns rows removed, or -1 when the gate skipped the run.
+ */
+function dispatch_maybe_gc_nonces(int $minIntervalSeconds = 3600): int {
+    $now = time();
+    $last = (int)(db_system_meta_get('seen_nonces_gc_last_run') ?? '0');
+    if ($last !== 0 && ($now - $last) < $minIntervalSeconds) {
+        return -1;
+    }
+    // Claim the slot before doing the work so two concurrent runs do not both GC.
+    db_system_meta_set('seen_nonces_gc_last_run', (string)$now);
+    return federation_seen_nonces_gc();
+}
 
 $opts = ['status' => false, 'batch' => null];
 foreach (array_slice($argv, 1) as $a) {
@@ -67,5 +86,8 @@ if ($opts['status']) {
 
 $summary = federation_dispatcher_process_batch($opts['batch'] ?? FEDERATION_DISPATCH_BATCH_SIZE);
 $expired = handshake_expire_stale();
-echo json_encode(['ok' => true, 'dispatch' => $summary, 'expired_handshakes' => $expired], JSON_UNESCAPED_SLASHES) . "\n";
+$noncesGc = dispatch_maybe_gc_nonces();
+$out = ['ok' => true, 'dispatch' => $summary, 'expired_handshakes' => $expired];
+if ($noncesGc >= 0) { $out['nonces_gc'] = $noncesGc; }
+echo json_encode($out, JSON_UNESCAPED_SLASHES) . "\n";
 exit(0);
