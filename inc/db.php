@@ -7761,7 +7761,7 @@ function db_record_user_consent(string $userId, string $documentType, string $ve
         ");
         return $stmt->execute([':u' => $userId, ':d' => $documentType, ':v' => $version]);
     } catch (PDOException $e) {
-        error_log('db_record_user_consent: ' . $e->getMessage());
+        error_log('db_record_user_consent: ' . db_safe_error_descriptor($e));
         return false;
     }
 }
@@ -9237,7 +9237,7 @@ function db_consume_password_reset_token(string $token, string $newPasswordHash)
         return true;
     } catch (Throwable $e) {
         $pdo->rollBack();
-        error_log('db_consume_password_reset_token error: ' . $e->getMessage());
+        error_log('db_consume_password_reset_token error: ' . db_safe_error_descriptor($e));
         return false;
     }
 }
@@ -9364,7 +9364,7 @@ function db_consume_login_token(string $token, string $purpose): ?array {
         return $user !== false ? $user : null;
     } catch (Throwable $e) {
         $pdo->rollBack();
-        error_log('db_consume_login_token error: ' . $e->getMessage());
+        error_log('db_consume_login_token error: ' . db_safe_error_descriptor($e));
         return null;
     }
 }
@@ -10090,6 +10090,21 @@ function hasAdminUser(PDO $pdo): bool {
 }
 
 /**
+ * Safe error descriptor for logging a DB exception on the users / token / auth
+ * tables, where the raw driver message can incidentally echo a column value
+ * (e.g. "Duplicate entry 'someone@example.com' for key 'email'" or a reset
+ * token), leaking PII into error_log. Returns the SQLSTATE when present plus the
+ * exception class, never the driver message. Use this instead of $e->getMessage()
+ * for catch blocks around INSERT/UPDATE on those tables. DDL/schema (db_ensure_*)
+ * catch blocks keep the full message: a CREATE/ALTER error carries no row value.
+ */
+function db_safe_error_descriptor(Throwable $e): string {
+    $code = $e->getCode();
+    $sqlstate = (is_string($code) && $code !== '') ? $code : (is_int($code) && $code !== 0 ? (string)$code : 'unknown');
+    return 'SQLSTATE ' . $sqlstate . ' (' . get_class($e) . ')';
+}
+
+/**
  * Create admin user (type 2). Returns null on success, error message string on failure.
  */
 function createAdminUser(PDO $pdo, string $email, string $password, string $firstname, ?string $lastname, ?string $pronouns = null): ?string {
@@ -10119,7 +10134,7 @@ function createAdminUser(PDO $pdo, string $email, string $password, string $firs
         ]);
         return null;
     } catch (PDOException $e) {
-        error_log('createAdminUser PDOException: ' . $e->getMessage());
+        error_log('createAdminUser PDOException: ' . db_safe_error_descriptor($e));
         return 'Database error while creating user. Please try again.';
     }
 }
@@ -10153,7 +10168,7 @@ function createUser(PDO $pdo, string $email, ?string $hashedPassword, string $fi
         ]);
         return null;
     } catch (PDOException $e) {
-        error_log('createUser PDOException: ' . $e->getMessage());
+        error_log('createUser PDOException: ' . db_safe_error_descriptor($e));
         return 'Database error while creating user. Please try again.';
     }
 }
