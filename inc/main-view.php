@@ -261,11 +261,17 @@ header("X-Content-Type-Options: nosniff");
         <!-- Keyword chips strip (bottom-center). Populated by js/keyword-chips.js. -->
         <div id="keyword-chips-strip" class="hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-[210] flex flex-wrap gap-x-3 gap-y-0 justify-center max-w-[80vw] overflow-hidden" style="font-size: 0.85rem; line-height: 1.4; max-height: 2.4rem;"></div>
 
+        <!-- Dim + blur backdrop behind the galaxy list. Fades in when the list is
+             open so the galaxies read clearly against the scene. Sits below the
+             strip (210) and the view switch (220), above the canvas + tooltip.
+             Clicking it closes the list (via the strip's outside-click handler). -->
+        <div id="galaxy-list-backdrop" class="fixed inset-0 z-[205]" style="opacity: 0; pointer-events: none; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); transition: opacity 180ms ease;"></div>
+
         <!-- Galaxy list strip (visitor multigalaxy filter, bottom-right). Slide-up menu:
              a button reveals the chip panel. Populated by js/galaxy-list-strip.js.
              Whole strip hidden by default; controller un-hides if window.TELARIS_GALAXY_LIST_ENABLED is true. -->
         <div id="galaxy-list-strip" class="hidden fixed bottom-3 right-3 z-[210] flex flex-col items-end gap-2" style="font-size: 0.85rem; line-height: 1.4;">
-            <div id="galaxy-list-panel" class="flex flex-col gap-1 items-end max-h-[60vh] overflow-y-auto" style="opacity: 0; transform: translateY(8px); transition: opacity 180ms ease, transform 180ms ease; pointer-events: none;"></div>
+            <div id="galaxy-list-panel" class="flex flex-col gap-1 items-end max-h-[60vh] overflow-y-auto" style="opacity: 0; transform: translateY(8px); transition: opacity 180ms ease, transform 180ms ease; pointer-events: none; background: rgba(12,12,16,0.72); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; padding: 0.55rem; box-shadow: 0 12px 32px rgba(0,0,0,0.45);"></div>
             <button id="galaxy-list-toggle" type="button" aria-expanded="false" style="background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.18); border-radius:9999px; padding:0.35rem 0.85rem; color:#fff; font-weight:500; cursor:pointer; backdrop-filter:blur(4px); display:flex; align-items:center; gap:0.5rem; transition:border-color 150ms, background 150ms;">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" id="galaxy-list-toggle-icon" style="transition: transform 180ms ease;" aria-hidden="true">
                     <path d="M6 9l6 6 6-6"/>

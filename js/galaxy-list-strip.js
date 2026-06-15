@@ -36,6 +36,7 @@ export class GalaxyListStripController {
         this.strip = document.getElementById('galaxy-list-strip');
         this.panel = document.getElementById('galaxy-list-panel');
         this.toggleBtn = document.getElementById('galaxy-list-toggle');
+        this.backdrop = document.getElementById('galaxy-list-backdrop');
         this.toggleIcon = document.getElementById('galaxy-list-toggle-icon');
         this.toggleLabel = document.getElementById('galaxy-list-toggle-label');
         this.galaxies = Array.isArray(window.TELARIS_GALAXY_LIST) ? window.TELARIS_GALAXY_LIST : [];
@@ -63,17 +64,18 @@ export class GalaxyListStripController {
             chip.className = 'galaxy-list-chip';
             chip.dataset.galaxyId = String(g.id);
             chip.style.cssText = [
-                'background:rgba(0,0,0,0.55)',
+                // Subtle fill: the glass panel behind provides the surface, so the
+                // chips stay light and the galaxy colour reads clearly.
+                'background:rgba(255,255,255,0.06)',
                 'border:1px solid rgba(255,255,255,0.15)',
                 'border-radius:9999px',
                 'padding:0.25rem 0.65rem',
                 'color:' + fg,
                 'font-weight:500',
                 'cursor:pointer',
-                'transition:opacity 150ms, text-shadow 150ms, border-color 150ms',
+                'transition:opacity 150ms, text-shadow 150ms, border-color 150ms, background 150ms',
                 'opacity:0.85',
                 'white-space:nowrap',
-                'backdrop-filter:blur(4px)',
                 'text-shadow:none',
                 'display:flex',
                 'align-items:center',
@@ -123,10 +125,18 @@ export class GalaxyListStripController {
             this.panel.style.opacity = '1';
             this.panel.style.transform = 'translateY(0)';
             this.panel.style.pointerEvents = 'auto';
+            if (this.backdrop) {
+                this.backdrop.style.opacity = '1';
+                this.backdrop.style.pointerEvents = 'auto';
+            }
         } else {
             this.panel.style.opacity = '0';
             this.panel.style.transform = 'translateY(8px)';
             this.panel.style.pointerEvents = 'none';
+            if (this.backdrop) {
+                this.backdrop.style.opacity = '0';
+                this.backdrop.style.pointerEvents = 'none';
+            }
         }
     }
 
