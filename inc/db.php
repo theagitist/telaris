@@ -156,6 +156,7 @@ const PROJECT_INFO_KEYS = [
     'admin_label_instance_name', 'admin_help_instance_name',
     'admin_label_pdf_max', 'admin_help_pdf_max', 'admin_btn_save_settings',
     'admin_label_fuzzy_keywords', 'admin_help_fuzzy_keywords',
+    'admin_label_disable_hotglue', 'admin_help_disable_hotglue', 'editor_error_hotglue_disabled',
     // Pluriverse tab (admin/index.php?tab=pluriverse + admin/pluriverse-apply.php).
     'admin_pluriverse_heading', 'admin_pluriverse_subheading',
     'admin_pluriverse_status_heading', 'admin_pluriverse_status_status', 'admin_pluriverse_status_submitted', 'admin_pluriverse_status_name', 'admin_pluriverse_status_email', 'admin_pluriverse_status_fingerprint', 'admin_pluriverse_status_help',
@@ -886,6 +887,52 @@ function db_set_fuzzy_keyword_matching(bool $enabled): void {
     $stmt->execute([':v' => $enabled ? 1 : 0]);
 }
 
+/**
+ * Ensure project_info.disable_hotglue_content exists. Installation-level switch
+ * (stored on the 'en' row only). 0 = hotglue supported (the default, so every
+ * installation behaves as before), 1 = no new hotglue content may be created.
+ */
+function db_ensure_disable_hotglue_content_column(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $row = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'disable_hotglue_content'")->fetch();
+        if (!$row) {
+            $pdo->exec("ALTER TABLE project_info ADD COLUMN disable_hotglue_content TINYINT(1) NOT NULL DEFAULT 0");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_disable_hotglue_content_column: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Installation-level "Disable Hotglue content" switch. When true, no new hotglue
+ * content may be created (new/classic wormholes only offer Classic Media, the
+ * editor's Hotglue controls hide); wormholes that already have hotglue content
+ * keep showing and editing it, and visitor rendering is unaffected. Off by default.
+ */
+function db_get_disable_hotglue_content(): bool {
+    db_ensure_disable_hotglue_content_column();
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->query("SELECT disable_hotglue_content FROM project_info WHERE locale = 'en' LIMIT 1");
+        $row = $stmt->fetch();
+        return $row ? ((int)$row['disable_hotglue_content'] === 1) : false;
+    } catch (PDOException $e) {
+        error_log('db_get_disable_hotglue_content: ' . $e->getMessage());
+        return false;
+    }
+}
+
+function db_set_disable_hotglue_content(bool $enabled): void {
+    db_ensure_disable_hotglue_content_column();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE project_info SET disable_hotglue_content = :v WHERE locale = 'en'");
+    $stmt->execute([':v' => $enabled ? 1 : 0]);
+}
+
 function db_get_default_constellation_id(): int {
     try {
         $pdo = getDB();
@@ -1327,6 +1374,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_pdf_max' => 'PDF max size (MB)',
             'admin_label_fuzzy_keywords' => 'Fuzzy keyword matching',
             'admin_help_fuzzy_keywords' => 'When on, multi-galaxy views connect wormholes whose keywords name the same idea even when the words differ (for example colonial, colonialism, and typos). Off draws lines only between exact keyword matches. Each cluster can override this default.',
+            'admin_label_disable_hotglue' => 'Disable Hotglue content',
+            'admin_help_disable_hotglue' => 'When on, no new hotglue content can be created on this installation. Wormholes that already have hotglue content keep showing and editing it; new wormholes only offer Classic Media. Off by default (hotglue is available).',
+            'editor_error_hotglue_disabled' => 'Hotglue content is disabled on this installation. New hotglue content cannot be created.',
             'admin_help_pdf_max' => "Largest PDF a wormhole can carry. Default 25 MB. Editors uploading bigger files will get a 'File exceeds maximum allowed size' error.",
             'admin_btn_save_settings' => 'Save settings',
             // Pluriverse tab.
@@ -2870,6 +2920,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_pdf_max' => 'Tamaño máximo de PDF (MB)',
             'admin_label_fuzzy_keywords' => 'Coincidencia aproximada de palabras clave',
             'admin_help_fuzzy_keywords' => 'Cuando se activa, las vistas multigalaxia conectan agujeros de gusano cuyas palabras clave nombran la misma idea aunque las palabras difieran (por ejemplo colonial, colonialismo y erratas). Desactivado, solo traza líneas entre coincidencias exactas. Cada cúmulo puede anular esta opción.',
+            'admin_label_disable_hotglue' => 'Desactivar el contenido hotglue',
+            'admin_help_disable_hotglue' => 'Cuando se activa, no se puede crear contenido hotglue nuevo en esta instalación. Los agujeros de gusano que ya tienen contenido hotglue siguen mostrándolo y permitiendo editarlo; los agujeros de gusano nuevos solo ofrecen Medios clásicos. Desactivado de forma predeterminada (el contenido hotglue está disponible).',
+            'editor_error_hotglue_disabled' => 'El contenido hotglue está desactivado en esta instalación. No se puede crear contenido hotglue nuevo.',
             'admin_help_pdf_max' => "PDF más grande que puede contener un agujero de gusano. Por defecto 25 MB. Al subir archivos más grandes aparece el error 'El archivo supera el tamaño máximo permitido'.",
             'admin_btn_save_settings' => 'Guardar ajustes',
             // Pluriverse tab.
@@ -4409,6 +4462,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_pdf_max' => 'Tamanho máximo de PDF (MB)',
             'admin_label_fuzzy_keywords' => 'Correspondência aproximada de palavras-chave',
             'admin_help_fuzzy_keywords' => 'Quando ativado, as vistas multigaláxia conectam buracos de minhoca cujas palavras-chave nomeiam a mesma ideia mesmo quando as palavras diferem (por exemplo colonial, colonialismo e erros de digitação). Desativado, traça linhas apenas entre correspondências exatas. Cada aglomerado pode substituir esta opção.',
+            'admin_label_disable_hotglue' => 'Desativar o conteúdo hotglue',
+            'admin_help_disable_hotglue' => 'Quando ativado, não é possível criar conteúdo hotglue novo nesta instalação. Os buracos de minhoca que já têm conteúdo hotglue continuam a mostrá-lo e a permitir editá-lo; os buracos de minhoca novos só oferecem Mídia clássica. Desativado por padrão (o conteúdo hotglue está disponível).',
+            'editor_error_hotglue_disabled' => 'O conteúdo hotglue está desativado nesta instalação. Não é possível criar conteúdo hotglue novo.',
             'admin_help_pdf_max' => "Maior PDF que um buraco de minhoca pode conter. Padrão 25 MB. Ao enviar arquivos maiores aparece o erro 'O arquivo excede o tamanho máximo permitido'.",
             'admin_btn_save_settings' => 'Salvar configurações',
             // Pluriverse tab.
@@ -5948,6 +6004,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_pdf_max' => 'Taille maximale du PDF (Mo)',
             'admin_label_fuzzy_keywords' => 'Correspondance approximative des mots-clés',
             'admin_help_fuzzy_keywords' => 'Lorsque activée, les vues multigalaxie relient les trous de ver dont les mots-clés nomment la même idée même quand les mots diffèrent (par exemple colonial, colonialisme et fautes de frappe). Désactivée, elle ne trace des lignes qu\'entre des correspondances exactes. Chaque amas peut remplacer ce réglage.',
+            'admin_label_disable_hotglue' => 'Désactiver le contenu hotglue',
+            'admin_help_disable_hotglue' => 'Lorsque activée, aucun nouveau contenu hotglue ne peut être créé sur cette instance. Les trous de ver qui ont déjà du contenu hotglue continuent de l\'afficher et de permettre sa modification ; les nouveaux trous de ver n\'offrent que les Médias classiques. Désactivée par défaut (le contenu hotglue est disponible).',
+            'editor_error_hotglue_disabled' => 'Le contenu hotglue est désactivé sur cette instance. Aucun nouveau contenu hotglue ne peut être créé.',
             'admin_help_pdf_max' => "Plus grand PDF qu\'un trou de ver peut contenir. Par défaut 25 Mo. En téléversant des fichiers plus gros, l\'erreur « Le fichier dépasse la taille maximale autorisée » apparaît.",
             'admin_btn_save_settings' => 'Enregistrer les paramètres',
             // Pluriverse tab.
@@ -12493,6 +12552,32 @@ function db_set_node_media_mode(int $nodeId, string $mode, bool $allowReadOnly =
     $pdo = getDB();
     $stmt = $pdo->prepare("UPDATE nodes SET media_mode = :m WHERE id = :id");
     $stmt->execute([':m' => $mode, ':id' => $nodeId]);
+}
+
+/**
+ * Whether a wormhole already has hotglue content: its media_mode is 'hotglue', or
+ * a hotglue_pages row is assigned to it. Used to decide whether the "Disable
+ * Hotglue content" switch should still allow editing existing content (it does)
+ * without permitting new content. Read-only: no rows are created.
+ */
+function db_node_has_hotglue_content(int $nodeId): bool {
+    db_ensure_nodes_hotglue_columns();
+    db_ensure_hotglue_pages_table();
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->prepare("SELECT media_mode FROM nodes WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $nodeId]);
+        $mode = $stmt->fetchColumn();
+        if (is_string($mode) && $mode === 'hotglue') {
+            return true;
+        }
+        $stmt = $pdo->prepare("SELECT 1 FROM hotglue_pages WHERE node_id = :n LIMIT 1");
+        $stmt->execute([':n' => $nodeId]);
+        return (bool)$stmt->fetchColumn();
+    } catch (PDOException $e) {
+        error_log('db_node_has_hotglue_content: ' . $e->getMessage());
+        return false;
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -665,6 +665,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     if (isset($_POST['fuzzy_keyword_matching_present'])) {
                         db_set_fuzzy_keyword_matching(!empty($_POST['fuzzy_keyword_matching']));
                     }
+                    // Disable Hotglue content (installation-level switch). Same hidden-marker
+                    // pattern as above: an unchecked toggle posts no value.
+                    if (isset($_POST['disable_hotglue_content_present'])) {
+                        db_set_disable_hotglue_content(!empty($_POST['disable_hotglue_content']));
+                    }
                     header('Location: index.php?tab=settings&saved=1');
                     exit;
                 } catch (Throwable $e) {
@@ -1456,6 +1461,17 @@ foreach ($importantExtensions as $ext => $name) {
                             <span class="text-gray-800 font-medium text-sm"><?= t_attr('admin_label_fuzzy_keywords', 'Fuzzy keyword matching') ?></span>
                         </label>
                         <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_fuzzy_keywords', 'When on, multi-galaxy views connect wormholes whose keywords name the same idea even when the words differ (for example colonial, colonialism, and typos). Off draws lines only between exact keyword matches. Each cluster can override this default.') ?></span>
+                    </div>
+
+                    <div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <input type="hidden" name="disable_hotglue_content_present" value="1">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="disable_hotglue_content" name="disable_hotglue_content" value="1"
+                                   <?= db_get_disable_hotglue_content() ? 'checked' : '' ?>
+                                   class="toggle toggle-neutral toggle-sm">
+                            <span class="text-gray-800 font-medium text-sm"><?= t_attr('admin_label_disable_hotglue', 'Disable Hotglue content') ?></span>
+                        </label>
+                        <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('admin_help_disable_hotglue', 'When on, no new hotglue content can be created on this installation. Wormholes that already have hotglue content keep showing and editing it; new wormholes only offer Classic Media. Off by default (hotglue is available).') ?></span>
                     </div>
 
                     <div class="mt-4">

@@ -78,6 +78,13 @@ $currentUserId = $_SESSION['admin_user_id'] ?? null;
 $isAdmin = isAdminLoggedIn();
 $constellations = db_get_constellations_for_user($currentUserId, $isAdmin);
 
+// "Disable Hotglue content" installation switch. When on, the editor hides the
+// per-wormhole Hotglue tab for wormholes that don't already have hotglue content,
+// and the editor-home "Hotglue content" tab is hidden unless this user already has
+// hotglue pages to manage. Existing content stays fully editable.
+$hotglueDisabled = db_get_disable_hotglue_content();
+$hotglueUserHasPages = count(db_hotglue_pages_list_for_user($currentUserId, $isAdmin)) > 0;
+
 // Per-user seat access levels, so the editor UI can render read-only seats
 // without edit affordances. Admins always have full write access; the server
 // (api_require_writable_constellation -> api_require_user_writable_constellation)
@@ -249,7 +256,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
              (standalone hotglue pages, optionally assigned to a wormhole). -->
         <div role="tablist" class="tabs tabs-boxed bg-white shadow-md mb-6 p-2 inline-flex gap-1">
             <a id="etab-wormholes" role="tab" class="tab tab-active font-medium" onclick="switchEditorTab('wormholes')"><?= t_attr('editor_viewtab_wormholes', 'Wormholes') ?></a>
-            <a id="etab-hotglue" role="tab" class="tab font-medium" onclick="switchEditorTab('hotglue')"><?= t_attr('editor_viewtab_hotglue', 'Hotglue content') ?></a>
+            <a id="etab-hotglue" role="tab" class="tab font-medium <?= ($hotglueDisabled && !$hotglueUserHasPages) ? 'hidden' : '' ?>" onclick="switchEditorTab('hotglue')"><?= t_attr('editor_viewtab_hotglue', 'Hotglue content') ?></a>
         </div>
 
         <!-- Wormholes tab -->
@@ -454,6 +461,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // window.TELARIS_* pattern; bundled in one object to avoid declaring
         // ~80 PHP variables for every key.
         window.TELARIS_EDIT = <?= json_encode([
+            // Installation switches
+            'hotglueDisabled' => $hotglueDisabled,
+            'errorHotglueDisabled' => t('editor_error_hotglue_disabled', 'Hotglue content is disabled on this installation. New hotglue content cannot be created.'),
             // Loading + retrieval states
             'msgRetrieving' => t('editor_msg_retrieving_wormholes', 'Retrieving wormholes...'),
             'errorApiKeyMissingFetch' => t('editor_error_api_key_missing_fetch', 'Error: API key is missing. Please contact an administrator.'),
@@ -2036,6 +2046,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             // Media mode (Classic vs Hotglue) and the node's hotglue page slug.
             document.getElementById('edit-hotglue-page').value = node.hotglue_page || ('node-' + node.id);
             switchMediaMode(node.media_mode === 'hotglue' ? 'hotglue' : 'classic', 'edit');
+            applyHotglueTabVisibility(node);
 
             // Toggle target constellation if portal
             toggleTargetConstellation(node.node_type || 'object', 'modal');
@@ -2567,6 +2578,19 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         let pendingHotglueCreate = false;  // create mode: Hotglue picked but the name was still empty
         let creatingHotglueNode = false;   // guard against a double create
 
+        // "Disable Hotglue content" switch: hide the per-wormhole Hotglue media tab for
+        // wormholes that don't already have hotglue content. A wormhole already in hotglue
+        // mode keeps the tab so its existing content stays editable. When the tab is hidden
+        // we force Classic, so only the Classic Media subsection shows.
+        function applyHotglueTabVisibility(node) {
+            const tab = document.getElementById('edit-media-hotglue-tab');
+            if (!tab) return;
+            const alreadyHotglue = !!(node && node.media_mode === 'hotglue');
+            const showTab = !TELARIS_EDIT.hotglueDisabled || alreadyHotglue;
+            tab.classList.toggle('hidden', !showTab);
+            if (!showTab) { switchMediaMode('classic', 'edit'); }
+        }
+
         function setWormholeMode(mode) {
             wormholeModalMode = mode;
             const isCreate = mode === 'create';
@@ -2687,6 +2711,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             switchVisualTab('image', 'edit');
             setVal('edit-hotglue-page', '');
             switchMediaMode('classic', 'edit');
+            applyHotglueTabVisibility(null);
 
             setWormholeMode('create');
             document.getElementById('edit_modal').showModal();
@@ -3960,6 +3985,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         //      galaxy switch keeps you on the same tab) -----------------------
         window.switchEditorTab = function (tab, fromHash) {
             const isHg = (tab === 'hotglue');
+            // When "Disable Hotglue content" is on and this user has no hotglue pages,
+            // the tab is rendered hidden; don't let a #hotglue hash force it open.
+            if (isHg) {
+                const ht0 = document.getElementById('etab-hotglue');
+                if (ht0 && ht0.classList.contains('hidden')) { return; }
+            }
             const wp = document.getElementById('editor-tab-wormholes');
             const hp = document.getElementById('editor-tab-hotglue');
             if (wp) wp.classList.toggle('hidden', isHg);
