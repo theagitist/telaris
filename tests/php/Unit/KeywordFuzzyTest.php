@@ -125,11 +125,48 @@ final class KeywordFuzzyTest extends TestCase
 
     // --- Typos ---
 
-    public function testTypoConnects(): void
+    public function testTypoConnectsToCommonWord(): void
     {
+        // "colonialism" is established (several wormholes); "clonialism" is a rare slip
+        // and folds into it.
+        $nodes = [
+            1 => ['colonialism'],
+            2 => ['colonialism'],
+            3 => ['colonialism'],
+            4 => ['clonialism'],
+        ];
+        $this->assertTrue($this->connected($nodes, 1, 4));
+    }
+
+    public function testEstablishedNearSpellingsDoNotMerge(): void
+    {
+        // gender / render: both used by editors across wormholes, so both are real
+        // words, not typos of each other. The corpus-frequency guard keeps them apart.
+        $nodes = [
+            1 => ['gender'], 2 => ['gender'], 3 => ['gender'],
+            4 => ['render'], 5 => ['render'], 6 => ['render'],
+        ];
+        $this->assertFalse($this->connected($nodes, 1, 4));
+    }
+
+    public function testTinyCorpusTypoNotMergedByFrequency(): void
+    {
+        // Documented limit: when the typo and the correct word each appear once,
+        // frequency cannot tell them apart, so the typo arm does not fire. (The prefix
+        // arm still groups true morphological variants regardless of frequency.)
         $nodes = [
             1 => ['colonialism'],
             2 => ['clonialism'],
+        ];
+        $this->assertFalse($this->connected($nodes, 1, 2));
+    }
+
+    public function testMorphologyUnaffectedByFrequency(): void
+    {
+        // Prefix arm is unconditional: colonial/colonialism group even when each appears once.
+        $nodes = [
+            1 => ['colonial'],
+            2 => ['colonialism'],
         ];
         $this->assertTrue($this->connected($nodes, 1, 2));
     }

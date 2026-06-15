@@ -82,14 +82,32 @@ final class FuzzyConnectionsTest extends TestCase
         $this->assertFalse($this->connected($conns, $a, $c), 'Unrelated keyword must stay unconnected.');
     }
 
-    public function testFuzzyOnConnectsTypo(): void
+    public function testFuzzyOnConnectsTypoToCommonWord(): void
     {
+        // "colonialism" is established across several wormholes; the rare slip
+        // "clonialism" folds into it. (Corpus-frequency typo guard.)
         $cid = $this->makeConstellation();
-        $a = $this->makeNode($cid, 'A', ['colonialism']);
-        $b = $this->makeNode($cid, 'B', ['clonialism']);
+        $c1 = $this->makeNode($cid, 'C1', ['colonialism']);
+        $this->makeNode($cid, 'C2', ['colonialism']);
+        $this->makeNode($cid, 'C3', ['colonialism']);
+        $typo = $this->makeNode($cid, 'T', ['clonialism']);
 
         $conns = db_get_connections($cid, true);
-        $this->assertTrue($this->connected($conns, $a, $b), 'Fuzzy must connect a typo to its keyword.');
+        $this->assertTrue($this->connected($conns, $c1, $typo), 'Rare typo must fold into the common word.');
+    }
+
+    public function testEstablishedNearSpellingsDoNotMerge(): void
+    {
+        // gender / render: both used across wormholes, so both are real words and
+        // must NOT merge despite being one edit apart.
+        $cid = $this->makeConstellation();
+        $g1 = $this->makeNode($cid, 'G1', ['gender']);
+        $this->makeNode($cid, 'G2', ['gender']);
+        $r1 = $this->makeNode($cid, 'R1', ['render']);
+        $this->makeNode($cid, 'R2', ['render']);
+
+        $conns = db_get_connections($cid, true);
+        $this->assertFalse($this->connected($conns, $g1, $r1), 'Two established near-spellings must stay apart.');
     }
 
     public function testExactMatchSurvivesUnderFuzzy(): void

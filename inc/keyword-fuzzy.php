@@ -40,6 +40,20 @@ const KEYWORD_FUZZY_DIST_SHORT = 1;
 /** Allowed edits for tokens longer than KEYWORD_FUZZY_SHORT_LEN characters. */
 const KEYWORD_FUZZY_DIST_LONG = 2;
 
+// --- Typo guard (corpus frequency) ---
+// The edit-distance arm distinguishes a typo from a real word by how editors
+// actually use it: a typo is a rare near-spelling of an established keyword. So a
+// near-spelling pair only merges when one token is rare (appears on at most
+// KEYWORD_FUZZY_TYPO_RARE_MAX_DF wormholes) AND the other is clearly more common
+// (at least KEYWORD_FUZZY_TYPO_DOMINANCE times as frequent). Two established words
+// that happen to differ by one edit (gender / render) never merge. The prefix arm
+// (morphology) is unaffected by this guard.
+
+/** A typo candidate appears on at most this many wormholes (document frequency). */
+const KEYWORD_FUZZY_TYPO_RARE_MAX_DF = 1;
+/** The established neighbour must be at least this many times as frequent as the rare token. */
+const KEYWORD_FUZZY_TYPO_DOMINANCE = 3;
+
 /**
  * Connective stopwords across EN/ES/PT/FR. Dropped entirely so they never become
  * hubs. Kept deliberately small: only function words, never content words.
@@ -154,16 +168,25 @@ function keyword_fuzzy_common_prefix_len(string $a, string $b): int {
 }
 
 /**
- * Whether two fuzzable tokens are equivalent under the Balanced rules:
- * shared prefix >= KEYWORD_FUZZY_PREFIX_MIN, or Levenshtein within the
- * length-scaled threshold (typos). Callers ensure both tokens are fuzzable.
+ * Whether two fuzzable tokens are related by FORM: identical, or sharing a common
+ * prefix >= KEYWORD_FUZZY_PREFIX_MIN (morphology). This arm is unconditional; it does
+ * not depend on corpus frequency. Callers ensure both tokens are fuzzable.
  */
-function keyword_fuzzy_tokens_equivalent(string $a, string $b): bool {
+function keyword_fuzzy_tokens_related_by_form(string $a, string $b): bool {
     if ($a === $b) {
         return true;
     }
-    if (keyword_fuzzy_common_prefix_len($a, $b) >= KEYWORD_FUZZY_PREFIX_MIN) {
-        return true;
+    return keyword_fuzzy_common_prefix_len($a, $b) >= KEYWORD_FUZZY_PREFIX_MIN;
+}
+
+/**
+ * Whether two distinct fuzzable tokens are within the length-scaled Levenshtein
+ * threshold (a possible typo). Frequency is NOT considered here; the corpus-frequency
+ * guard is applied separately (keyword_fuzzy_typo_freq_allows).
+ */
+function keyword_fuzzy_tokens_within_typo_distance(string $a, string $b): bool {
+    if ($a === $b) {
+        return false;
     }
     $maxLen = max(mb_strlen($a, 'UTF-8'), mb_strlen($b, 'UTF-8'));
     $threshold = ($maxLen <= KEYWORD_FUZZY_SHORT_LEN) ? KEYWORD_FUZZY_DIST_SHORT : KEYWORD_FUZZY_DIST_LONG;
@@ -173,6 +196,30 @@ function keyword_fuzzy_tokens_equivalent(string $a, string $b): bool {
         return false;
     }
     return levenshtein($a, $b) <= $threshold;
+}
+
+/**
+ * Corpus-frequency guard for the typo arm: a near-spelling pair only merges when one
+ * token is rare and the other is clearly more common (the rare one is the likely slip).
+ * Two established words never merge by edit distance. $dfA/$dfB are document
+ * frequencies (distinct wormholes carrying the token).
+ */
+function keyword_fuzzy_typo_freq_allows(int $dfA, int $dfB): bool {
+    $lo = min($dfA, $dfB);
+    $hi = max($dfA, $dfB);
+    return $hi > $lo
+        && $lo <= KEYWORD_FUZZY_TYPO_RARE_MAX_DF
+        && $hi >= $lo * KEYWORD_FUZZY_TYPO_DOMINANCE;
+}
+
+/**
+ * Whether two fuzzable tokens are equivalent IGNORING corpus frequency: related by
+ * form, or within typo distance. Retained for callers/tests that reason about form
+ * alone; the clustering applies the frequency guard to the typo arm separately.
+ */
+function keyword_fuzzy_tokens_equivalent(string $a, string $b): bool {
+    return keyword_fuzzy_tokens_related_by_form($a, $b)
+        || keyword_fuzzy_tokens_within_typo_distance($a, $b);
 }
 
 /** Disjoint-set find with path compression. */
@@ -196,10 +243,12 @@ function keyword_fuzzy_dsu_find(array &$parent, string $x): string {
  * character bounds the pairwise work.
  *
  * @param list<string> $tokens distinct normalized tokens
+ * @param array<string, int> $df document frequency per token (distinct wormholes
+ *                               carrying it); gates the typo arm. Missing => 1.
  * @return array<string, string> token => cluster representative (the shortest, then
  *                                lexicographically first, token in the cluster)
  */
-function keyword_fuzzy_cluster_tokens(array $tokens): array {
+function keyword_fuzzy_cluster_tokens(array $tokens, array $df = []): array {
     $parent = [];
     foreach ($tokens as $t) {
         $parent[$t] = $t;
@@ -219,9 +268,16 @@ function keyword_fuzzy_cluster_tokens(array $tokens): array {
         $count = count($bucket);
         for ($i = 0; $i < $count; $i++) {
             for ($j = $i + 1; $j < $count; $j++) {
-                if (keyword_fuzzy_tokens_equivalent($bucket[$i], $bucket[$j])) {
-                    $ri = keyword_fuzzy_dsu_find($parent, $bucket[$i]);
-                    $rj = keyword_fuzzy_dsu_find($parent, $bucket[$j]);
+                $a = $bucket[$i];
+                $b = $bucket[$j];
+                // Form arm (morphology) is unconditional; typo arm is gated by the
+                // corpus-frequency guard so two established words never merge.
+                $join = keyword_fuzzy_tokens_related_by_form($a, $b)
+                    || (keyword_fuzzy_tokens_within_typo_distance($a, $b)
+                        && keyword_fuzzy_typo_freq_allows((int)($df[$a] ?? 1), (int)($df[$b] ?? 1)));
+                if ($join) {
+                    $ri = keyword_fuzzy_dsu_find($parent, $a);
+                    $rj = keyword_fuzzy_dsu_find($parent, $b);
                     if ($ri !== $rj) {
                         $parent[$ri] = $rj;
                     }
@@ -278,8 +334,17 @@ function keyword_fuzzy_build_groups(array $nodeKeywords): array {
     }
     $distinct = array_values(array_unique($allTokens, SORT_STRING));
 
-    // 2. Cluster the distinct tokens.
-    $rep = keyword_fuzzy_cluster_tokens($distinct);
+    // 1b. Document frequency per token (distinct wormholes carrying it), used to tell
+    // a typo (rare near-spelling of a common word) from two genuinely distinct words.
+    $df = [];
+    foreach ($nodeTokens as $toks) {
+        foreach (array_unique($toks, SORT_STRING) as $t) {
+            $df[$t] = ($df[$t] ?? 0) + 1;
+        }
+    }
+
+    // 2. Cluster the distinct tokens (typo arm gated by document frequency).
+    $rep = keyword_fuzzy_cluster_tokens($distinct, $df);
 
     // 3. Map each node to its set of cluster keys.
     $groups = [];
