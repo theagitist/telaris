@@ -139,6 +139,32 @@ final class EnrollmentFlowTest extends TestCase
         $this->assertSame('read_only', $access[$granted] ?? null, 'granted galaxy honours the configured level');
     }
 
+    public function testPersonalGalaxyShipsWithVisitorFeaturesOn(): void
+    {
+        // A freshly auto-created personal galaxy must enable the visitor-facing
+        // features: keyword chips, related wormholes, the 2D view switch, and
+        // idle spotlight (spotlighting all nodes). New galaxies default these off.
+        $u = $this->makeEnrollee();
+        $cfg = auto_enroll_normalize_config([
+            'enabled' => true, 'create_personal_galaxy' => true,
+            'naming_convention' => 'email_username', 'galaxy_ids' => [],
+        ]);
+        $res = enroll_apply_config((string)$u['id'], (string)$u['email'], (string)$u['firstname'], $cfg);
+        $this->tempGalaxyIds[] = $res['personal_galaxy_id'];
+        $this->assertNotNull($res['personal_galaxy_id']);
+
+        $row = $this->pdo->query(
+            "SELECT keyword_chips_enabled, related_nodes_enabled, show_2d_view, idle_spotlight_enabled, idle_spotlight_selection"
+            . " FROM constellations WHERE id=" . (int)$res['personal_galaxy_id']
+        )->fetch(PDO::FETCH_ASSOC);
+
+        $this->assertSame('1', (string)$row['keyword_chips_enabled'], 'keyword chips on');
+        $this->assertSame('1', (string)$row['related_nodes_enabled'], 'related wormholes on');
+        $this->assertSame('1', (string)$row['show_2d_view'], '2D view switch on');
+        $this->assertSame('1', (string)$row['idle_spotlight_enabled'], 'idle spotlight on');
+        $this->assertSame('all', (string)$row['idle_spotlight_selection'], 'idle spotlight covers all nodes');
+    }
+
     public function testNoPersonalGalaxyWhenDisabled(): void
     {
         $u = $this->makeEnrollee();

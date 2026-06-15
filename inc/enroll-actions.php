@@ -30,6 +30,10 @@ function enroll_apply_config(string $userId, string $email, string $firstname, a
             try {
                 $gid = db_create_constellation($name, '', null, 'cosmic', $userId);
                 db_add_user_constellation($userId, $gid, 'read_write');
+                // Ship every personal galaxy with the visitor-experience features
+                // on: keyword chips, related wormholes, 2D view switch, idle
+                // spotlight (all nodes). New galaxies have these off by default.
+                db_enable_personal_galaxy_default_features($gid);
                 $result['personal_galaxy_id'] = $gid;
             } catch (Throwable $e) {
                 error_log('enroll_apply_config: personal galaxy creation failed: ' . $e->getMessage());

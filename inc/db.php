@@ -11216,6 +11216,28 @@ function db_set_constellation_tour_config(int $id, array $config): void {
 }
 
 /**
+ * Turn on the visitor-experience features we want every auto-created personal
+ * galaxy (editor self-enrollment) to ship with: keyword chips, related
+ * wormholes, the 2D view switch, and idle spotlight (spotlighting all nodes).
+ *
+ * A freshly created galaxy has all of these OFF by default; this is a focused
+ * UPDATE of just those columns, so it never disturbs tour settings or anything
+ * else on the row. Idempotent and safe to call once right after creation.
+ */
+function db_enable_personal_galaxy_default_features(int $id): void {
+    db_ensure_constellations_tour_columns();
+    getDB()->prepare("
+        UPDATE constellations SET
+            keyword_chips_enabled = 1,
+            related_nodes_enabled = 1,
+            show_2d_view = 1,
+            idle_spotlight_enabled = 1,
+            idle_spotlight_selection = 'all'
+        WHERE id = :id
+    ")->execute([':id' => $id]);
+}
+
+/**
  * @return list<int>
  */
 function db_get_tour_keyword_ids(int $constellationId): array {
