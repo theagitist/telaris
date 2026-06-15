@@ -97,10 +97,10 @@ function enroll_setup_personal_galaxy(int $galaxyId): void {
     } catch (Throwable $e) {
         error_log('enroll_setup_personal_galaxy: setting theme failed: ' . $e->getMessage());
     }
-    $sub = enroll_installation_subdomain();
-    if ($sub !== null) {
+    $clusterName = enroll_installation_cluster_name();
+    if ($clusterName !== null) {
         try {
-            $clusterId = db_find_or_create_named_cluster('[' . $sub . ']');
+            $clusterId = db_find_or_create_named_cluster($clusterName);
             db_add_cluster_member($clusterId, $galaxyId);
         } catch (Throwable $e) {
             error_log('enroll_setup_personal_galaxy: cluster grouping failed: ' . $e->getMessage());

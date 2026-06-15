@@ -10504,7 +10504,22 @@ function db_find_or_create_named_cluster(string $name): int {
     if ($id !== false) {
         return (int)$id;
     }
-    return db_create_cluster($name, '', null, 'cosmic', [], false, 'inherit');
+    // Not found: create it. Under simultaneous enrolments (a whole class signing
+    // up at once) two callers can reach here together; the UNIQUE slug means the
+    // loser's INSERT throws. That used to bubble up and silently drop the
+    // galaxy from the cluster. Treat a create failure as "someone else just
+    // created it": re-select and return the now-existing row. Only re-throw if
+    // it still isn't there (a genuine, non-race failure).
+    try {
+        return db_create_cluster($name, '', null, 'cosmic', [], false, 'inherit');
+    } catch (Throwable $e) {
+        $stmt->execute([':name' => $name]);
+        $id = $stmt->fetchColumn();
+        if ($id !== false) {
+            return (int)$id;
+        }
+        throw $e;
+    }
 }
 
 /**
@@ -10532,7 +10547,10 @@ function db_add_cluster_member(int $clusterId, int $memberId): void {
     $posStmt = $pdo->prepare("SELECT COALESCE(MAX(position), -1) + 1 FROM galaxy_cluster_members WHERE cluster_id = :cid");
     $posStmt->execute([':cid' => $clusterId]);
     $pos = (int)$posStmt->fetchColumn();
-    $ins = $pdo->prepare("INSERT INTO galaxy_cluster_members (cluster_id, member_id, position) VALUES (:cid, :mid, :pos)");
+    // INSERT IGNORE: PRIMARY KEY (cluster_id, member_id) makes a concurrent add
+    // of the same galaxy a harmless no-op rather than a thrown duplicate-key
+    // error (the membership is already the desired end state).
+    $ins = $pdo->prepare("INSERT IGNORE INTO galaxy_cluster_members (cluster_id, member_id, position) VALUES (:cid, :mid, :pos)");
     $ins->execute([':cid' => $clusterId, ':mid' => $memberId, ':pos' => $pos]);
 }
 

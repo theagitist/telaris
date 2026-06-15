@@ -229,3 +229,15 @@ function enroll_installation_subdomain(): ?string
     $label = (string)preg_replace('/[^a-z0-9-]/', '', $label);
     return $label !== '' ? strtoupper($label) : null;
 }
+
+/**
+ * The bracketed name of the per-installation cluster that gathers auto-enrolled
+ * editors' personal galaxies (e.g. "[GRSJ306]"), or null when no trusted
+ * hostname is configured. Single source of truth so enrolment and the backfill
+ * sweep always target the same cluster, on every installation.
+ */
+function enroll_installation_cluster_name(): ?string
+{
+    $sub = enroll_installation_subdomain();
+    return $sub !== null ? '[' . $sub . ']' : null;
+}
