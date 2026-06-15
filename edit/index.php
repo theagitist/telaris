@@ -466,6 +466,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             // Installation switches
             'hotglueDisabled' => $hotglueDisabled,
             'errorHotglueDisabled' => t('editor_error_hotglue_disabled', 'Hotglue content is disabled on this installation. New hotglue content cannot be created.'),
+            // Media-section tab labels. When the Hotglue tab is hidden, the lone
+            // remaining tab reads "Media" (not "Classic", which only makes sense
+            // when there is a Hotglue alternative beside it).
+            'tabClassic' => t('editor_tab_classic', 'Classic'),
+            'tabMedia' => t('editor_tab_media', 'Media'),
             // Loading + retrieval states
             'msgRetrieving' => t('editor_msg_retrieving_wormholes', 'Retrieving wormholes...'),
             'errorApiKeyMissingFetch' => t('editor_error_api_key_missing_fetch', 'Error: API key is missing. Please contact an administrator.'),
@@ -2590,6 +2595,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const alreadyHotglue = !!(node && node.media_mode === 'hotglue');
             const showTab = !TELARIS_EDIT.hotglueDisabled || alreadyHotglue;
             tab.classList.toggle('hidden', !showTab);
+            // With no Hotglue alternative beside it, the lone media tab reads "Media";
+            // when both tabs show, it stays "Classic".
+            const classicTab = document.getElementById('edit-media-classic-tab');
+            if (classicTab) { classicTab.textContent = showTab ? TELARIS_EDIT.tabClassic : TELARIS_EDIT.tabMedia; }
             if (!showTab) { switchMediaMode('classic', 'edit'); }
         }
 
