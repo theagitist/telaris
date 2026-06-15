@@ -79,6 +79,10 @@ export class GalaxyListStripController {
                 'display:flex',
                 'align-items:center',
                 'gap:0.4rem',
+                // Keep the names clear of the scroll-bar gutter on the right.
+                // A content-side margin works for both classic and overlay
+                // scrollbars (panel padding-right does not).
+                'margin-right:0.5rem',
             ].join(';');
             const dot = document.createElement('span');
             dot.style.cssText = 'width:0.5rem;height:0.5rem;border-radius:9999px;background:' + fg + ';display:inline-block;flex-shrink:0;';
