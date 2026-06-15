@@ -204,6 +204,15 @@ header("X-Content-Type-Options: nosniff");
              style="z-index: 1; background-color: #000; background-image: radial-gradient(circle, rgba(113,113,122,0.45) 1.5px, transparent 2px); background-size: 28px 28px; overflow: auto;">
             <svg id="wormhole-grid-2d-lines" class="absolute inset-0 pointer-events-none" style="width: 100%; height: 100%;"></svg>
             <div id="wormhole-grid-2d-cards" class="absolute inset-0"></div>
+            <!-- Zoom controls. Scroll to zoom, drag to pan; Fit frames all wormholes. -->
+            <div class="absolute bottom-4 left-4 z-[5] flex flex-col gap-1" style="pointer-events: auto;">
+                <button type="button" id="wormhole-grid-2d-zoom-in" aria-label="Zoom in"
+                        class="w-9 h-9 flex items-center justify-center text-lg leading-none text-white bg-black/50 border border-white/20 rounded-md backdrop-blur-sm hover:bg-white/10 transition-colors">+</button>
+                <button type="button" id="wormhole-grid-2d-zoom-out" aria-label="Zoom out"
+                        class="w-9 h-9 flex items-center justify-center text-lg leading-none text-white bg-black/50 border border-white/20 rounded-md backdrop-blur-sm hover:bg-white/10 transition-colors">&minus;</button>
+                <button type="button" id="wormhole-grid-2d-zoom-fit" aria-label="Fit all wormholes"
+                        class="w-9 h-9 flex items-center justify-center text-[0.6rem] uppercase tracking-wider leading-none text-white bg-black/50 border border-white/20 rounded-md backdrop-blur-sm hover:bg-white/10 transition-colors">Fit</button>
+            </div>
         </div>
 
         <?php if (!empty($show2dView)): ?>

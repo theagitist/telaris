@@ -43,6 +43,18 @@ const PHYS_REPULSION_CUTOFF = 180;
 const PHYS_REPULSION_MIN_DIST = 30;
 const PRESETTLE_STEPS = 160;
 const CROSSFADE_MS = 280;
+
+// Zoom / pan. Cards + lines live in a "world" that grows with node count and
+// can be larger than the viewport; the view maps world -> screen with
+// translate(pan) + scale(zoom). This is what lets a many-node galaxy (e.g. a
+// large cluster) be navigated instead of stacking every card into the viewport.
+const MIN_ZOOM = 0.12;
+const MAX_ZOOM = 2.5;
+const ZOOM_WHEEL_FACTOR = 0.0015; // per wheel delta unit
+const ZOOM_BUTTON_STEP = 1.25;    // multiply/divide per +/- click
+const FIT_PADDING = 64;           // px of breathing room around content when fitting
+const FIT_MAX_ZOOM = 1;           // fitting never zooms in past 1:1
+const WORLD_MARGIN = 60;          // px border inside the world around the seed region
 // Target area each chip "owns" during Poisson seeding (chip body + room
 // to breathe). Total seed region scales linearly with node count, then
 // gets clamped to a min/max so 5-node and 200-node galaxies both look OK.
@@ -105,8 +117,19 @@ export class WormholeGrid2D {
         this.hoveredNodeId = null;
         this._lastActiveKeywordsSnapshot = '';
 
+        // Zoom / pan view transform (world -> screen).
+        this.zoom = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.worldW = 0;
+        this.worldH = 0;
+        this.linesGroup = null;     // <g> inside linesSvg that carries the transform
+        this._panning = false;
+        this._panStart = null;
+
         this._onResize = this._onResize.bind(this);
         window.addEventListener('resize', this._onResize);
+        this._bindViewControls();
     }
 
     isActive() { return this.active; }
@@ -160,12 +183,15 @@ export class WormholeGrid2D {
             this.lineEls.clear();
             return;
         }
+        // Force the keyword/galaxy dim to re-apply to the freshly built cards.
+        this._lastActiveKeywordsSnapshot = null;
         this._buildAdjacency(nodes);
         this._buildCards(nodes);          // measures + stores card sizes
         this._seedPositions(nodes);        // Poisson-disc within the viewport
         this._buildLines(nodes);           // SVG lines, positioned in _renderFrame
         this._presettle();                 // resolve any seed overlaps offscreen
         this._resolveOverlaps();           // hard guarantee: no rectangle overlaps
+        this._fitToContent();              // frame ALL cards in the default view
         this._renderFrame();               // place cards + lines at settled positions
     }
 
@@ -367,20 +393,19 @@ export class WormholeGrid2D {
         const targetArea = nodes.length * SEED_AREA_PER_CHIP;
         let regionW = Math.sqrt(targetArea * aspect);
         let regionH = targetArea / Math.max(1, regionW);
-        // Clamp upward to viewport (with chrome margins) and downward to a
-        // sensible minimum so few-chip galaxies don't collapse to a dot.
-        const maxRegionW = Math.max(SEED_REGION_MIN_W, W - 120);
-        const maxRegionH = Math.max(SEED_REGION_MIN_H, H - 160);
-        regionW = Math.min(regionW, maxRegionW);
-        regionH = Math.min(regionH, maxRegionH);
+        // The region scales with node count and is NOT clamped to the viewport:
+        // a large cluster gets a large world that the visitor pans/zooms across,
+        // instead of stacking every card into one screenful. Only a floor so a
+        // few-chip galaxy doesn't collapse to a dot.
         regionW = Math.max(regionW, SEED_REGION_MIN_W);
         regionH = Math.max(regionH, SEED_REGION_MIN_H);
-        const xMin = (W - regionW) / 2;
-        const xMax = xMin + regionW;
-        // Push the region down a bit so the top-center switch + the
-        // (optional) keyword chip strip at the bottom stay clear.
-        const yMin = Math.max(80, (H - regionH) / 2);
-        const yMax = yMin + regionH;
+        // World bounds (used by overlap resolution + physics clamping + fit).
+        this.worldW = regionW + WORLD_MARGIN * 2;
+        this.worldH = regionH + WORLD_MARGIN * 2;
+        const xMin = WORLD_MARGIN;
+        const xMax = WORLD_MARGIN + regionW;
+        const yMin = WORLD_MARGIN;
+        const yMax = WORLD_MARGIN + regionH;
         // Strict no-overlap Poisson. For each node we try up to N candidate
         // positions, REJECT any that overlap an already-placed card using
         // exact axis-aligned-rectangle math, then among the non-overlapping
@@ -437,7 +462,6 @@ export class WormholeGrid2D {
     _resolveOverlaps() {
         const MAX_ITER = 60;
         const ids = Array.from(this.positions.keys());
-        const rect = this.container.getBoundingClientRect();
         const margin = 30;
         for (let iter = 0; iter < MAX_ITER; iter++) {
             let any = false;
@@ -471,7 +495,8 @@ export class WormholeGrid2D {
                     }
                 }
             }
-            // Clamp inside the container so we don't push a chip off-screen.
+            // Clamp inside the WORLD bounds (not the viewport) so cards spread
+            // across the full world without stacking; the visitor pans/zooms.
             for (const id of ids) {
                 const p = this.positions.get(id);
                 const s = this.cardSizes.get(id);
@@ -479,9 +504,9 @@ export class WormholeGrid2D {
                 const hx = s.w / 2 + margin;
                 const hy = s.h / 2 + margin;
                 if (p.x < hx) p.x = hx;
-                if (p.x > rect.width - hx) p.x = rect.width - hx;
-                if (p.y < hy + 30) p.y = hy + 30;
-                if (p.y > rect.height - hy) p.y = rect.height - hy;
+                if (p.x > this.worldW - hx) p.x = this.worldW - hx;
+                if (p.y < hy) p.y = hy;
+                if (p.y > this.worldH - hy) p.y = this.worldH - hy;
             }
             if (!any) return;
         }
@@ -494,6 +519,11 @@ export class WormholeGrid2D {
         this.linesSvg.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
         this.linesSvg.setAttribute('width', String(rect.width));
         this.linesSvg.setAttribute('height', String(rect.height));
+        // Lines live in world space inside a <g> that carries the same
+        // translate/scale as the cards layer, so they track the cards under
+        // pan/zoom. Line coordinates are world coordinates.
+        this.linesGroup = document.createElementNS(SVG_NS, 'g');
+        this.linesSvg.appendChild(this.linesGroup);
         const nodeById = new Map();
         for (const n of nodes) nodeById.set(n.id, n);
         const seen = new Set();
@@ -521,6 +551,8 @@ export class WormholeGrid2D {
                 line.setAttribute('stroke-opacity', String(LINE_BASE_OPACITY));
                 line.setAttribute('stroke-width', String(width));
                 line.setAttribute('stroke-linecap', 'round');
+                // Keep stroke width in screen pixels regardless of zoom.
+                line.setAttribute('vector-effect', 'non-scaling-stroke');
                 line.setAttribute('data-a', String(n.id));
                 line.setAttribute('data-b', String(otherId));
                 line.setAttribute('data-glow', glow);
@@ -528,7 +560,7 @@ export class WormholeGrid2D {
                 line.setAttribute('data-shared', String(sharedCount));
                 line.style.transition = 'stroke-opacity 160ms ease, stroke-width 160ms ease, filter 160ms ease';
                 line.style.filter = `drop-shadow(0 0 ${LINE_GLOW_REST_PX}px ${glow})`;
-                this.linesSvg.appendChild(line);
+                this.linesGroup.appendChild(line);
                 this.lineEls.set(key, line);
             }
         }
@@ -554,6 +586,118 @@ export class WormholeGrid2D {
         if (this.animationRafId) cancelAnimationFrame(this.animationRafId);
         this.animationRafId = null;
         this.velocities.clear();
+    }
+
+    // ---------------------------------------------------------------------
+    // Zoom / pan view transform (world -> screen)
+    // ---------------------------------------------------------------------
+
+    /** Push the current zoom/pan onto the cards layer and the lines group. */
+    _applyTransform() {
+        if (this.cardsLayer) {
+            this.cardsLayer.style.transformOrigin = '0 0';
+            this.cardsLayer.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoom})`;
+        }
+        if (this.linesGroup) {
+            this.linesGroup.setAttribute('transform', `translate(${this.panX} ${this.panY}) scale(${this.zoom})`);
+        }
+    }
+
+    /** Frame every card in the viewport (the default view shows all nodes). */
+    _fitToContent() {
+        if (!this.container) return;
+        const rect = this.container.getBoundingClientRect();
+        const vw = Math.max(1, rect.width);
+        const vh = Math.max(1, rect.height);
+        if (!this.nodes.length) {
+            this.zoom = 1; this.panX = 0; this.panY = 0;
+            this._applyTransform();
+            return;
+        }
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const n of this.nodes) {
+            const p = this.positions.get(n.id);
+            if (!p) continue;
+            const s = this.cardSizes.get(n.id) || { w: 80, h: 28 };
+            minX = Math.min(minX, p.x - s.w / 2);
+            maxX = Math.max(maxX, p.x + s.w / 2);
+            minY = Math.min(minY, p.y - s.h / 2);
+            maxY = Math.max(maxY, p.y + s.h / 2);
+        }
+        if (!isFinite(minX)) { this.zoom = 1; this.panX = 0; this.panY = 0; this._applyTransform(); return; }
+        const bw = Math.max(1, maxX - minX);
+        const bh = Math.max(1, maxY - minY);
+        const z = Math.min((vw - FIT_PADDING * 2) / bw, (vh - FIT_PADDING * 2) / bh);
+        this.zoom = Math.max(MIN_ZOOM, Math.min(FIT_MAX_ZOOM, z));
+        const cx = (minX + maxX) / 2;
+        const cy = (minY + maxY) / 2;
+        this.panX = vw / 2 - cx * this.zoom;
+        this.panY = vh / 2 - cy * this.zoom;
+        this._applyTransform();
+    }
+
+    /** Zoom by `factor` keeping the world point under (screenX, screenY) fixed. */
+    _zoomAt(screenX, screenY, factor) {
+        const rect = this.container.getBoundingClientRect();
+        const sx = screenX - rect.left;
+        const sy = screenY - rect.top;
+        const worldX = (sx - this.panX) / this.zoom;
+        const worldY = (sy - this.panY) / this.zoom;
+        const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom * factor));
+        if (newZoom === this.zoom) return;
+        this.zoom = newZoom;
+        this.panX = sx - worldX * newZoom;
+        this.panY = sy - worldY * newZoom;
+        this._applyTransform();
+    }
+
+    /** Wheel zoom, drag pan, and the +/-/fit buttons. Bound once at construction. */
+    _bindViewControls() {
+        const el = this.container;
+        if (!el) return;
+
+        el.addEventListener('wheel', (e) => {
+            if (!this.active) return;
+            e.preventDefault();
+            const factor = Math.exp(-e.deltaY * ZOOM_WHEEL_FACTOR);
+            this._zoomAt(e.clientX, e.clientY, factor);
+        }, { passive: false });
+
+        el.addEventListener('pointerdown', (e) => {
+            if (!this.active || e.button !== 0) return;
+            // Don't start a pan when grabbing a card (it has its own click).
+            if (e.target.closest && e.target.closest('.wh2d-card')) return;
+            this._panning = true;
+            this._panStart = { x: e.clientX, y: e.clientY, panX: this.panX, panY: this.panY };
+            el.style.cursor = 'grabbing';
+            try { el.setPointerCapture(e.pointerId); } catch (_) {}
+        });
+        el.addEventListener('pointermove', (e) => {
+            if (!this._panning || !this._panStart) return;
+            this.panX = this._panStart.panX + (e.clientX - this._panStart.x);
+            this.panY = this._panStart.panY + (e.clientY - this._panStart.y);
+            this._applyTransform();
+        });
+        const endPan = (e) => {
+            if (!this._panning) return;
+            this._panning = false;
+            this._panStart = null;
+            el.style.cursor = '';
+            try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+        };
+        el.addEventListener('pointerup', endPan);
+        el.addEventListener('pointercancel', endPan);
+
+        const center = () => {
+            const r = this.container.getBoundingClientRect();
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        };
+        const zin = document.getElementById('wormhole-grid-2d-zoom-in');
+        const zout = document.getElementById('wormhole-grid-2d-zoom-out');
+        const zfit = document.getElementById('wormhole-grid-2d-zoom-fit');
+        if (zin) zin.addEventListener('click', () => { const c = center(); this._zoomAt(c.x, c.y, ZOOM_BUTTON_STEP); });
+        if (zout) zout.addEventListener('click', () => { const c = center(); this._zoomAt(c.x, c.y, 1 / ZOOM_BUTTON_STEP); });
+        if (zfit) zfit.addEventListener('click', () => this._fitToContent());
     }
 
     /**
@@ -588,8 +732,7 @@ export class WormholeGrid2D {
             }
         }
 
-        // Integrate.
-        const rect = this.container.getBoundingClientRect();
+        // Integrate, clamping to the WORLD bounds (not the viewport).
         const margin = 40;
         let maxV = 0;
         for (const [id, pos] of this.positions) {
@@ -602,58 +745,65 @@ export class WormholeGrid2D {
             const speed = Math.sqrt(v.vx * v.vx + v.vy * v.vy);
             if (speed > maxV) maxV = speed;
             if (speed > 0.01) {
-                pos.x = Math.max(margin, Math.min(rect.width - margin, pos.x + v.vx));
-                pos.y = Math.max(margin + 30, Math.min(rect.height - margin, pos.y + v.vy));
+                pos.x = Math.max(margin, Math.min(this.worldW - margin, pos.x + v.vx));
+                pos.y = Math.max(margin, Math.min(this.worldH - margin, pos.y + v.vy));
             }
         }
         return maxV;
     }
 
     /**
-     * Mirror the 3D scene's keyword-chip filter: when one or more chips at the
-     * bottom strip are active, dim cards whose keywords don't intersect the
-     * active set. Diffed against the last snapshot to avoid per-frame DOM work
-     * when nothing changed.
+     * Mirror the 3D scene's two dimming filters so the 2D grid responds the same
+     * way: the bottom keyword-chip strip (`app.activeKeywords`) AND the bottom-
+     * right galaxy list (`app.activeGalaxyIds`). A card is fully lit only when it
+     * passes BOTH; an empty set means "no constraint" for that axis. Diffed
+     * against a combined snapshot to avoid per-frame DOM work when nothing
+     * changed.
      */
     _syncActiveKeywordDim() {
-        const active = this.app && this.app.activeKeywords;
-        const snapshot = active && active.size > 0
-            ? Array.from(active).sort().join('|').toLowerCase()
+        const activeKw = this.app && this.app.activeKeywords;
+        const kwSnap = activeKw && activeKw.size > 0
+            ? Array.from(activeKw).sort().join('|').toLowerCase()
             : '';
+        const activeGx = this.app && this.app.activeGalaxyIds;
+        const gxSnap = activeGx && activeGx.size > 0
+            ? Array.from(activeGx).sort((a, b) => a - b).join(',')
+            : '';
+        const snapshot = kwSnap + '#' + gxSnap;
         if (snapshot === this._lastActiveKeywordsSnapshot) return;
         this._lastActiveKeywordsSnapshot = snapshot;
-        const filter = snapshot ? new Set(snapshot.split('|')) : null;
+
+        const kwFilter = kwSnap ? new Set(kwSnap.split('|')) : null;
+        const gxFilter = (activeGx && activeGx.size > 0) ? activeGx : null;
+
+        const matchesNode = (n) => {
+            if (gxFilter && !gxFilter.has(Number(n.constellation_id))) return false;
+            if (kwFilter) {
+                const kws = Array.isArray(n.keywords) ? n.keywords : [];
+                let hit = false;
+                for (const kw of kws) {
+                    if (kw && kwFilter.has(String(kw).toLowerCase())) { hit = true; break; }
+                }
+                if (!hit) return false;
+            }
+            return true;
+        };
+
+        const matchingIds = new Set();
         for (const n of this.nodes) {
+            const ok = matchesNode(n);
+            if (ok) matchingIds.add(n.id);
             const card = this.cardEls.get(n.id);
             if (!card) continue;
-            let matches = true;
-            if (filter) {
-                matches = false;
-                const kws = Array.isArray(n.keywords) ? n.keywords : [];
-                for (const kw of kws) {
-                    if (kw && filter.has(String(kw).toLowerCase())) { matches = true; break; }
-                }
-            }
-            card.style.opacity = matches ? '1' : '0.18';
+            card.style.opacity = ok ? '1' : '0.18';
             card.style.transition = 'opacity 200ms ease';
         }
-        // Also dim lines whose endpoints aren't both in the matching set.
-        if (filter) {
-            const matchingIds = new Set();
-            for (const n of this.nodes) {
-                const kws = Array.isArray(n.keywords) ? n.keywords : [];
-                for (const kw of kws) {
-                    if (kw && filter.has(String(kw).toLowerCase())) { matchingIds.add(n.id); break; }
-                }
-            }
-            for (const [key, line] of this.lineEls) {
-                const aId = parseInt(line.getAttribute('data-a'), 10);
-                const bId = parseInt(line.getAttribute('data-b'), 10);
-                const both = matchingIds.has(aId) && matchingIds.has(bId);
-                line.style.opacity = both ? '1' : '0.15';
-            }
-        } else {
-            for (const [, line] of this.lineEls) line.style.opacity = '1';
+        const anyFilter = !!(kwFilter || gxFilter);
+        for (const [, line] of this.lineEls) {
+            if (!anyFilter) { line.style.opacity = '1'; continue; }
+            const aId = parseInt(line.getAttribute('data-a'), 10);
+            const bId = parseInt(line.getAttribute('data-b'), 10);
+            line.style.opacity = (matchingIds.has(aId) && matchingIds.has(bId)) ? '1' : '0.15';
         }
     }
 
@@ -770,6 +920,18 @@ export class WormholeGrid2D {
         if (entering) {
             tip.textContent = '';
             const pastel = card.dataset.pastel || '#ffffff';
+            // In a multi-galaxy view (cluster / multi-galaxy union / prefix),
+            // show the galaxy name before the wormhole name, matching the 3D
+            // tooltip. Uses the 3D app's shared multi-galaxy check + the
+            // constellation_name already on the node payload.
+            const isMulti = this.app && typeof this.app.isMultiGalaxyView === 'function' && this.app.isMultiGalaxyView();
+            const galaxyName = (isMulti && typeof node.constellation_name === 'string') ? node.constellation_name.trim() : '';
+            if (galaxyName) {
+                const galaxyEyebrow = document.createElement('div');
+                galaxyEyebrow.style.cssText = 'opacity:0.6;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:1px;';
+                galaxyEyebrow.textContent = galaxyName;
+                tip.appendChild(galaxyEyebrow);
+            }
             const name = document.createElement('div');
             name.style.cssText = 'font-weight:600;margin-bottom:2px;';
             name.textContent = node.node_type === 'cluster' ? this._clusterDisplayName(node) : (node.name || '#' + node.id);
