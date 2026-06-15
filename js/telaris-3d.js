@@ -167,8 +167,27 @@ class TelarisNetwork {
 
         if (!overlay || !win) return;
 
-        // Title
-        if (titleEl) titleEl.textContent = d.name || window.TELARIS_NODE_NAME_FALLBACK_TEXT || 'window.TELARIS_NODE_NAME_FALLBACK_TEXT';
+        // Title. In a multi-galaxy view, show the galaxy name (dimmed) before
+        // the wormhole name so it is clear which galaxy the wormhole belongs to.
+        if (titleEl) {
+            const wormholeName = d.name || window.TELARIS_NODE_NAME_FALLBACK_TEXT || 'window.TELARIS_NODE_NAME_FALLBACK_TEXT';
+            const galaxyName = this.galaxyLabelForNode(d);
+            titleEl.textContent = '';
+            if (galaxyName) {
+                const gSpan = document.createElement('span');
+                gSpan.textContent = galaxyName;
+                gSpan.style.opacity = '0.6';
+                titleEl.appendChild(gSpan);
+                const sep = document.createElement('span');
+                sep.textContent = ' · ';
+                sep.style.opacity = '0.5';
+                sep.setAttribute('aria-hidden', 'true');
+                titleEl.appendChild(sep);
+            }
+            const nSpan = document.createElement('span');
+            nSpan.textContent = wormholeName;
+            titleEl.appendChild(nSpan);
+        }
 
         // Description
         if (descriptionEl) {
@@ -2823,6 +2842,14 @@ class TelarisNetwork {
 
                 this.tooltip.textContent = '';
 
+                const galaxyLabel = this.galaxyLabelForNode(node.userData);
+                if (galaxyLabel) {
+                    const galaxyDiv = document.createElement('div');
+                    galaxyDiv.style.cssText = 'opacity:0.6; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:1px;';
+                    galaxyDiv.textContent = galaxyLabel;
+                    this.tooltip.appendChild(galaxyDiv);
+                }
+
                 const nameDiv = document.createElement('div');
                 nameDiv.style.cssText = 'font-weight:600; margin-bottom: 2px;';
                 nameDiv.textContent = node.userData.name;
@@ -2906,6 +2933,7 @@ class TelarisNetwork {
                     keywords: data.keywords || [],
                     keyword_groups: data.keyword_groups || [],
                     constellation_id: (data.constellation_id !== undefined && data.constellation_id !== null) ? Number(data.constellation_id) : null,
+                    constellation_name: (typeof data.constellation_name === 'string' && data.constellation_name !== '') ? data.constellation_name : null,
                     constellation_theme: (typeof data.constellation_theme === 'string' && data.constellation_theme !== '') ? data.constellation_theme : null,
                     url: data.url,
                     image_url: data.image_url,
@@ -3021,6 +3049,32 @@ class TelarisNetwork {
                 console.error('[Telaris] Failed to create node:', data?.name ?? data?.id ?? i, err);
             }
         });
+
+        // Cache how many distinct galaxies the current 3D view spans. The galaxy
+        // name is shown before the wormhole name (tooltip + media modal) only
+        // when more than one galaxy is loaded, covering every multi-galaxy entry
+        // point uniformly: cluster, multi-galaxy URL, "[PREFIX]" union, etc.
+        const galaxyIds = new Set();
+        for (const m of this.nodes) {
+            const cid = m.userData && m.userData.constellation_id;
+            if (cid !== null && cid !== undefined) galaxyIds.add(cid);
+        }
+        this._distinctGalaxyCount = galaxyIds.size;
+    }
+
+    /** True when the 3D view currently spans more than one galaxy. */
+    isMultiGalaxyView() {
+        return (this._distinctGalaxyCount || 0) > 1;
+    }
+
+    /**
+     * The galaxy name to show before a wormhole name, or null when it should be
+     * omitted (single-galaxy view, or the node carries no galaxy name).
+     */
+    galaxyLabelForNode(d) {
+        if (!this.isMultiGalaxyView()) return null;
+        const name = d && typeof d.constellation_name === 'string' ? d.constellation_name.trim() : '';
+        return name !== '' ? name : null;
     }
 
     getSharedKeywordsCount(n1, n2) {
@@ -3678,6 +3732,14 @@ class TelarisNetwork {
                     }
 
                     this.tooltip.textContent = '';
+
+                    const galaxyLabel = this.galaxyLabelForNode(hoveredNode.userData);
+                    if (galaxyLabel) {
+                        const galaxyDiv = document.createElement('div');
+                        galaxyDiv.style.cssText = 'opacity:0.6; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:1px;';
+                        galaxyDiv.textContent = galaxyLabel;
+                        this.tooltip.appendChild(galaxyDiv);
+                    }
 
                     const nameDiv = document.createElement('div');
                     nameDiv.style.cssText = 'font-weight:600; margin-bottom: 2px;';
