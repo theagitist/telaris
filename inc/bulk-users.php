@@ -164,13 +164,13 @@ function bulk_users_parse(string $input, bool $defaultCreateGalaxy = true): arra
  * }
  */
 function bulk_users_apply(array $rows, string $baseUrl): array {
-    $appName = defined('MAIL_FROM_NAME') && MAIL_FROM_NAME !== '' ? (string)MAIL_FROM_NAME : 'Telaris';
+    require_once __DIR__ . '/mail.php';
+    require_once __DIR__ . '/email-template.php';
+
+    $appName = mail_settings_get()['from_name'] !== '' ? mail_settings_get()['from_name'] : 'Telaris';
     $created = 0; $galaxiesCreated = 0;
     $skippedExists = 0; $skippedInvalid = 0; $mailFailed = 0;
     $outRows = [];
-
-    require_once __DIR__ . '/mail.php';
-    require_once __DIR__ . '/email-template.php';
 
     $claimedSlugs = [];
     // Resolved once for every audit row in the loop below.

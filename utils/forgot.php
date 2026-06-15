@@ -66,7 +66,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 }
                 $resetUrl = $base . '/utils/reset.php?token=' . urlencode($token);
 
-                $appName = defined('MAIL_FROM_NAME') && MAIL_FROM_NAME !== '' ? (string)MAIL_FROM_NAME : 'Telaris';
+                $appName = mail_settings_get()['from_name'] !== '' ? mail_settings_get()['from_name'] : 'Telaris';
                 $name = trim(((string)($user['firstname'] ?? '')) . ' ' . ((string)($user['lastname'] ?? '')));
                 // Raw (unescaped) greeting: the email shell escapes paragraph text.
                 $greeting = $name !== ''
