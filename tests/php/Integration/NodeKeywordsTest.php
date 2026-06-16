@@ -121,6 +121,25 @@ final class NodeKeywordsTest extends TestCase
         $this->assertSame('foo', mb_strtolower($got[0]));
     }
 
+    /**
+     * Companion migration tripwire to the case-insensitive dedupe above. MySQL's
+     * utf8mb4_unicode_ci collation is ALSO accent-insensitive, so 'café' and
+     * 'cafe' collide on the (keyword, constellation_id) unique index and collapse
+     * to a single stored keyword today. Postgres' default collation is
+     * accent-sensitive, so the migration must reproduce this with a unique index
+     * on lower(unaccent(keyword)) (the unaccent extension) for this to keep
+     * passing. Pins the current behaviour so the rewrite cannot silently start
+     * treating accented multilingual variants as distinct keywords. See
+     * ROADMAP ^pg-migration, decision 2.
+     */
+    public function testAccentInsensitiveDedupeToOneKeyword(): void
+    {
+        [, $nodeId] = $this->makeNode();
+        db_save_node_keywords($nodeId, ['café', 'cafe', 'CAFÉ']);
+        $got = db_get_keywords_for_node($nodeId);
+        $this->assertCount(1, $got, 'accent/case-variants of one keyword must collapse to a single row');
+    }
+
     public function testEmptyArrayClearsAllKeywords(): void
     {
         [, $nodeId] = $this->makeNode();
