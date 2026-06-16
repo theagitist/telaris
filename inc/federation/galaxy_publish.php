@@ -252,11 +252,11 @@ function federation_galaxy_publish(int $constellationId): array {
         INSERT INTO published_galaxies
             (constellation_id, slug, published_sequence, content_hash, envelope_jws, is_current, published_at)
         VALUES (:cid, :slug, :seq, :hash, :jws, TRUE, NOW())
-        ON DUPLICATE KEY UPDATE
-            constellation_id = VALUES(constellation_id),
-            published_sequence = VALUES(published_sequence),
-            content_hash = VALUES(content_hash),
-            envelope_jws = VALUES(envelope_jws),
+        ON CONFLICT (slug) DO UPDATE SET
+            constellation_id = EXCLUDED.constellation_id,
+            published_sequence = EXCLUDED.published_sequence,
+            content_hash = EXCLUDED.content_hash,
+            envelope_jws = EXCLUDED.envelope_jws,
             is_current = TRUE,
             published_at = NOW()
     ");

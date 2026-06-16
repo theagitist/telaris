@@ -63,9 +63,10 @@ function federation_send_peer_blacklist_notice(int $blacklistedPeerId, string $r
                 (peer_id, direction, thread_id, message_type, subject, body, payload, jws_envelope,
                  delivery_status, next_attempt_at)
             VALUES (:p, 'outbound', :t, 'peer_blacklist_notice', NULL, NULL, :pl, :j, 'pending', NOW())
+            RETURNING id
         ");
         $stmt->execute([':p' => $blacklistedPeerId, ':t' => $threadId, ':pl' => $body, ':j' => $body]);
-        return ['ok' => true, 'message_id' => (int)$pdo->lastInsertId()];
+        return ['ok' => true, 'message_id' => (int)$stmt->fetchColumn()];
     } catch (Throwable $e) {
         error_log('federation_send_peer_blacklist_notice: ' . $e->getMessage());
         return ['ok' => false, 'error' => 'enqueue_failed'];

@@ -283,7 +283,7 @@ function federation_dispatcher_advance(int $messageId, bool $delivered, ?int $ht
     $pdo->prepare("
         UPDATE pluriverse_messages
         SET delivery_status = 'failed',
-            next_attempt_at = DATE_ADD(NOW(), INTERVAL :d SECOND),
+            next_attempt_at = NOW() + (:d * INTERVAL '1 second'),
             last_attempt_error = :e,
             attempt_count = :c
         WHERE id = :id

@@ -106,7 +106,7 @@ function federation_galaxy_retract(int $constellationId, string $retractedBy, ?s
     db_ensure_published_galaxies_table();
     $pdo = getDB();
 
-    $stmt = $pdo->prepare("SELECT slug, `type`, import_source FROM constellations WHERE id = :id LIMIT 1");
+    $stmt = $pdo->prepare("SELECT slug, type, import_source FROM constellations WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $constellationId]);
     $c = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($c === false) {
@@ -147,10 +147,10 @@ function federation_galaxy_retract(int $constellationId, string $retractedBy, ?s
     $up = $pdo->prepare("
         INSERT INTO retracted_galaxies (constellation_id, slug, retracted_by, reason, retraction_jws)
         VALUES (:cid, :slug, :by, :reason, :jws)
-        ON DUPLICATE KEY UPDATE
-            retraction_jws = COALESCE(retraction_jws, VALUES(retraction_jws)),
-            retracted_by = COALESCE(retracted_by, VALUES(retracted_by)),
-            reason = COALESCE(reason, VALUES(reason))
+        ON CONFLICT (slug) DO UPDATE SET
+            retraction_jws = COALESCE(retracted_galaxies.retraction_jws, EXCLUDED.retraction_jws),
+            retracted_by = COALESCE(retracted_galaxies.retracted_by, EXCLUDED.retracted_by),
+            reason = COALESCE(retracted_galaxies.reason, EXCLUDED.reason)
     ");
     $up->execute([
         ':cid' => $constellationId,

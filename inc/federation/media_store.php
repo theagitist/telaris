@@ -98,10 +98,10 @@ function federation_media_record(string $sha256, string $storagePath, string $mi
     $stmt = getDB()->prepare("
         INSERT INTO media_blobs (sha256, storage_path, mime, size_bytes, ref_count)
         VALUES (:sha, :path, :mime, :size, 1)
-        ON DUPLICATE KEY UPDATE
-            storage_path = VALUES(storage_path),
-            mime = VALUES(mime),
-            size_bytes = VALUES(size_bytes)
+        ON CONFLICT (sha256) DO UPDATE SET
+            storage_path = EXCLUDED.storage_path,
+            mime = EXCLUDED.mime,
+            size_bytes = EXCLUDED.size_bytes
     ");
     $stmt->execute([':sha' => $sha256, ':path' => $storagePath, ':mime' => $mime, ':size' => $size]);
 }

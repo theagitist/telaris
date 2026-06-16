@@ -561,8 +561,8 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
                 // Check if table already exists
                 $tableExists = false;
                 try {
-                    $checkStmt = $pdo->query("SHOW TABLES LIKE '$tableName'");
-                    $tableExists = $checkStmt->rowCount() > 0;
+                    $checkStmt = $pdo->query("SELECT to_regclass('public.$tableName')");
+                    $tableExists = $checkStmt->fetchColumn() !== null;
                 } catch (PDOException $e) {
                     // Table check failed, proceed with creation
                 }
@@ -584,7 +584,7 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
         try {
             $defaultConstellationName = (trim($websiteName) !== '') ? trim($websiteName) : 'Default';
             $defaultConstellationTagline = (trim($websiteTagline) !== '') ? trim($websiteTagline) : '';
-            $pdo->prepare("INSERT INTO constellations (id, name, tagline, theme) VALUES (0, :name, :tagline, 'cosmic') ON DUPLICATE KEY UPDATE name = VALUES(name), tagline = VALUES(tagline), theme = VALUES(theme)")->execute([':name' => $defaultConstellationName, ':tagline' => $defaultConstellationTagline]);
+            $pdo->prepare("INSERT INTO constellations (id, name, tagline, theme) VALUES (0, :name, :tagline, 'cosmic') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, tagline = EXCLUDED.tagline, theme = EXCLUDED.theme")->execute([':name' => $defaultConstellationName, ':tagline' => $defaultConstellationTagline]);
         } catch (PDOException $e) {
             // Table may not exist or column tagline missing before migration
         }
@@ -601,6 +601,12 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
                 require_once $configPath;
             }
             require_once dirname(__DIR__) . '/inc/db.php';
+            // Postgres-only schema prerequisites that the ";"-split SCHEMA.sql loader
+            // cannot carry: the unaccent/updated_at functions, the accent-folding
+            // keyword unique index, and the per-table updated_at triggers.
+            if (function_exists('db_ensure_pg_runtime')) {
+                db_ensure_pg_runtime();
+            }
             db_ensure_project_info_table();
             db_insert_default_project_info_rows($pdo, $websiteName, $websiteTagline);
         } catch (Throwable $e) {
@@ -611,11 +617,11 @@ function executeSchema(string $host, string $port, string $dbname, string $user,
             $placeholders = ':' . implode(', :', $keys);
             $updates = [];
             foreach ($keys as $k) {
-                $updates[] = "$k = VALUES($k)";
+                $updates[] = "$k = EXCLUDED.$k";
             }
             $updateStr = implode(', ', $updates);
-            
-            $stmt = $pdo->prepare("INSERT INTO project_info (locale, $cols) VALUES (:locale, $placeholders) ON DUPLICATE KEY UPDATE $updateStr");
+
+            $stmt = $pdo->prepare("INSERT INTO project_info (locale, $cols) VALUES (:locale, $placeholders) ON CONFLICT (locale) DO UPDATE SET $updateStr");
             foreach (PROJECT_INFO_LOCALES as $locale) {
                 $params = [':locale' => $locale];
                 foreach ($keys as $k) {
@@ -1136,8 +1142,8 @@ if (!$showForm && !$showWebsiteForm && file_exists($configPath)) {
             $projectDescription = $_SESSION['website_tagline'] ?? 'Weaving memory';
             
             // Check if tables exist, if not execute schema
-            $tablesCheck = $pdo->query("SHOW TABLES LIKE 'project_info'")->fetch();
-            if ($tablesCheck === false) {
+            $tablesCheck = $pdo->query("SELECT to_regclass('public.project_info')")->fetchColumn();
+            if ($tablesCheck === null) {
             // Tables don't exist, execute schema
             // Use extracted config values instead of constants
             $extractedConfig = extractConfigValues();

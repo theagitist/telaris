@@ -40,7 +40,7 @@ if ($clusterName === null) {
 
 // Existing cluster id, if the cluster already exists (we never create an empty
 // one: only proceed to create + fill it when there are galaxies to add).
-$find = $pdo->prepare("SELECT id FROM constellations WHERE name = :n AND `type` = 'cluster' ORDER BY id ASC LIMIT 1");
+$find = $pdo->prepare("SELECT id FROM constellations WHERE name = :n AND type = 'cluster' ORDER BY id ASC LIMIT 1");
 $find->execute([':n' => $clusterName]);
 $existingId = $find->fetchColumn();
 $existingId = $existingId === false ? null : (int)$existingId;

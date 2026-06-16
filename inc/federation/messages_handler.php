@@ -207,6 +207,7 @@ $insert = getDB()->prepare("
     INSERT INTO pluriverse_messages
         (peer_id, direction, thread_id, message_type, subject, body, payload, jws_envelope, delivery_status)
     VALUES (:p, 'inbound', :t, :mt, :s, :b, :pl, :j, 'not_applicable')
+    RETURNING id
 ");
 $insert->execute([
     ':p' => $senderPeerId,
@@ -217,7 +218,7 @@ $insert->execute([
     ':pl' => json_encode($innerPayload, JSON_UNESCAPED_SLASHES),
     ':j' => $envelope,
 ]);
-$messageId = (int)getDB()->lastInsertId();
+$messageId = (int)$insert->fetchColumn();
 
 // Handshake first-contact: relay-forwarded handshake_request creates the
 // handshakes row in pending_our_response so the admin Inbox can surface it.

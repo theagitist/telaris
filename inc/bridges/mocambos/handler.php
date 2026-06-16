@@ -921,13 +921,17 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
         ? sprintf(t('mocambos_h_adding_new_nodes', 'Adding %d new nodes...'), $expectedCount)
         : sprintf(t('mocambos_h_phase1_creating', 'Phase 1: creating %d nodes...'), $expectedCount));
     $pdo = getDB();
+    db_ensure_keywords_unaccent_index();
     $insertStmt = $pdo->prepare("
         INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, audio_autoplay, video_autoplay, source_facet, media_type, source_created_at, import_slug)
         VALUES (:name, :description, :url, :animation, :constellation_id, 'object', 1, 1, :source_facet, :media_type, :source_created_at, :import_slug)
+        RETURNING id
     ");
-    $kwInsertStmt = $pdo->prepare("INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :cid) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)");
+    // get-or-create the keyword id: the no-op DO UPDATE lets RETURNING hand back the
+    // existing row's id on the accent+case-insensitive expression-index conflict.
+    $kwInsertStmt = $pdo->prepare("INSERT INTO keywords (keyword, constellation_id) VALUES (:keyword, :cid) ON CONFLICT (lower(immutable_unaccent(keyword)), constellation_id) DO UPDATE SET constellation_id = keywords.constellation_id RETURNING id");
     $kwLookupStmt = $pdo->prepare("SELECT id FROM keywords WHERE keyword = :keyword AND constellation_id = :cid LIMIT 1");
-    $nkInsertStmt = $pdo->prepare("INSERT INTO node_keywords (node_id, keyword_id) VALUES (:nid, :kid) ON DUPLICATE KEY UPDATE node_id=node_id");
+    $nkInsertStmt = $pdo->prepare("INSERT INTO node_keywords (node_id, keyword_id) VALUES (:nid, :kid) ON CONFLICT (node_id, keyword_id) DO NOTHING");
 
     $batchSize = 500;
     $pdo->beginTransaction();
@@ -963,14 +967,14 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
                 ':source_created_at' => $item['created'] ?? null,
                 ':import_slug' => $item['slug'] ?? null,
             ]);
-            $nodeId = (int)$pdo->lastInsertId();
+            $nodeId = (int)$insertStmt->fetchColumn();
             $nodeIdMap[$itemIndex] = $nodeId;
 
             foreach ($tags as $tag) {
                 $tag = trim($tag);
                 if ($tag === '') continue;
                 $kwInsertStmt->execute([':keyword' => $tag, ':cid' => $constellationId]);
-                $kwId = (int)$pdo->lastInsertId();
+                $kwId = (int)$kwInsertStmt->fetchColumn();
                 if ($kwId === 0) {
                     $kwLookupStmt->execute([':keyword' => $tag, ':cid' => $constellationId]);
                     $kwId = (int)($kwLookupStmt->fetchColumn() ?: 0);

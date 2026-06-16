@@ -1013,7 +1013,7 @@ function backup_restore_one_galaxy(array $g, array $dump, array $opts): array {
             if (!isset($kwRefToId[$kwRef])) continue;
             $kid = $kwRefToId[$kwRef];
             $pdo = getDB();
-            $pdo->prepare("INSERT IGNORE INTO node_keywords (node_id, keyword_id) VALUES (:nid, :kid)")
+            $pdo->prepare("INSERT INTO node_keywords (node_id, keyword_id) VALUES (:nid, :kid) ON CONFLICT (node_id, keyword_id) DO NOTHING")
                 ->execute([':nid' => $newNodeId, ':kid' => $kid]);
         }
 

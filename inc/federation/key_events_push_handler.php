@@ -172,9 +172,10 @@ function federation_handler_collect_headers_kep(): array {
 function federation_key_events_insert(array $payload, string $envelope): void {
     db_ensure_key_events_table();
     $stmt = getDB()->prepare("
-        INSERT IGNORE INTO key_events
+        INSERT INTO key_events
             (origin_host, event_type, occurred_at, signed_payload, received_via)
         VALUES (:o, :e, :t, :s, 'push')
+        ON CONFLICT DO NOTHING
     ");
     $eventType = (string)($payload['event_type'] ?? '');
     $origin = (string)($payload['origin_host'] ?? ($eventType === 'coord_rotation' ? 'www.telaris.ca' : ''));

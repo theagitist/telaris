@@ -52,7 +52,7 @@ try {
     $rows = $pdo->query("
         SELECT slug, name, tagline
         FROM constellations
-        WHERE `type` = 'galaxy'
+        WHERE type = 'galaxy'
         ORDER BY id
     ")->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable $e) {

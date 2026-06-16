@@ -84,7 +84,7 @@ function pluriverse_pull_state_mark_start(string $endpoint): void {
     $s = $pdo->prepare("
         INSERT INTO pluriverse_pull_state (endpoint, last_pull_started_at)
         VALUES (:e, CURRENT_TIMESTAMP)
-        ON DUPLICATE KEY UPDATE last_pull_started_at = CURRENT_TIMESTAMP
+        ON CONFLICT (endpoint) DO UPDATE SET last_pull_started_at = CURRENT_TIMESTAMP
     ");
     $s->execute([':e' => $endpoint]);
 }
@@ -105,14 +105,14 @@ function pluriverse_pull_state_mark_success(
              rows_processed_total)
         VALUES
             (:e, :lsid, :etag, :lm, CURRENT_TIMESTAMP, NULL, 0, :rows)
-        ON DUPLICATE KEY UPDATE
-            last_seen_id = GREATEST(last_seen_id, VALUES(last_seen_id)),
-            last_etag = VALUES(last_etag),
-            last_modified = VALUES(last_modified),
+        ON CONFLICT (endpoint) DO UPDATE SET
+            last_seen_id = GREATEST(pluriverse_pull_state.last_seen_id, EXCLUDED.last_seen_id),
+            last_etag = EXCLUDED.last_etag,
+            last_modified = EXCLUDED.last_modified,
             last_pull_succeeded_at = CURRENT_TIMESTAMP,
             last_error = NULL,
             consecutive_failures = 0,
-            rows_processed_total = rows_processed_total + VALUES(rows_processed_total)
+            rows_processed_total = pluriverse_pull_state.rows_processed_total + EXCLUDED.rows_processed_total
     ");
     $s->execute([
         ':e' => $endpoint,
@@ -131,10 +131,10 @@ function pluriverse_pull_state_mark_failure(string $endpoint, string $error): vo
         INSERT INTO pluriverse_pull_state
             (endpoint, last_pull_failed_at, last_error, consecutive_failures)
         VALUES (:e, CURRENT_TIMESTAMP, :err, 1)
-        ON DUPLICATE KEY UPDATE
+        ON CONFLICT (endpoint) DO UPDATE SET
             last_pull_failed_at = CURRENT_TIMESTAMP,
-            last_error = VALUES(last_error),
-            consecutive_failures = consecutive_failures + 1
+            last_error = EXCLUDED.last_error,
+            consecutive_failures = pluriverse_pull_state.consecutive_failures + 1
     ");
     $s->execute([':e' => $endpoint, ':err' => $msg]);
 }
@@ -333,6 +333,7 @@ function pluriverse_pull_peers(): array {
                 VALUES
                     (:h, :u, :pe, :pk, :pp, :kra, :rr, :l, :b, 'registry',
                      'pluriverse-pull', :ts, FALSE, 'unknown')
+                RETURNING id
             ");
             $ins->execute([
                 ':h' => $hostname, ':u' => $url, ':pe' => $url,
@@ -344,7 +345,7 @@ function pluriverse_pull_peers(): array {
             $inserted++;
 
             if ($restoredFromHandshakeId !== null) {
-                $newPeerId = (int)$pdo->lastInsertId();
+                $newPeerId = (int)$ins->fetchColumn();
                 // Relink EVERY orphaned handshake for this hostname (not just
                 // the one that triggered the restore decision) so admin views
                 // and peer_id lookups see the full history, even rows from

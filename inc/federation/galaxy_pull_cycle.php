@@ -111,7 +111,7 @@ function federation_galaxy_pull_state_start(int $peerId): void {
     getDB()->prepare("
         INSERT INTO peer_pull_state (peer_id, last_pull_started_at, next_pull_at, consecutive_failures)
         VALUES (:p, NOW(), NULL, 0)
-        ON DUPLICATE KEY UPDATE
+        ON CONFLICT (peer_id) DO UPDATE SET
             last_pull_started_at = NOW(),
             next_pull_at = NULL
     ")->execute([':p' => $peerId]);
@@ -123,7 +123,7 @@ function federation_galaxy_pull_state_record_success(int $peerId): void {
     getDB()->prepare("
         INSERT INTO peer_pull_state (peer_id, last_pull_succeeded_at, consecutive_failures, last_error, next_pull_at)
         VALUES (:p, NOW(), 0, NULL, NULL)
-        ON DUPLICATE KEY UPDATE
+        ON CONFLICT (peer_id) DO UPDATE SET
             last_pull_succeeded_at = NOW(),
             consecutive_failures = 0,
             last_error = NULL,
@@ -143,15 +143,15 @@ function federation_galaxy_pull_state_record_failure(int $peerId, string $error)
     $pdo->prepare("
         INSERT INTO peer_pull_state (peer_id, last_pull_failed_at, consecutive_failures, last_error, next_pull_at)
         VALUES (:p, NOW(), 1, :err, NOW())
-        ON DUPLICATE KEY UPDATE
+        ON CONFLICT (peer_id) DO UPDATE SET
             last_pull_failed_at = NOW(),
-            consecutive_failures = consecutive_failures + 1,
+            consecutive_failures = peer_pull_state.consecutive_failures + 1,
             last_error = :err2
     ")->execute([':p' => $peerId, ':err' => $err, ':err2' => $err]);
     // Compute the new next_pull_at based on the post-increment failure count.
     $cnt = (int)$pdo->query("SELECT consecutive_failures FROM peer_pull_state WHERE peer_id = $peerId")->fetchColumn();
     $cooldown = federation_galaxy_pull_backoff_seconds($cnt);
-    $pdo->prepare("UPDATE peer_pull_state SET next_pull_at = DATE_ADD(NOW(), INTERVAL :s SECOND) WHERE peer_id = :p")
+    $pdo->prepare("UPDATE peer_pull_state SET next_pull_at = NOW() + (:s * INTERVAL '1 second') WHERE peer_id = :p")
         ->execute([':s' => $cooldown, ':p' => $peerId]);
 }
 

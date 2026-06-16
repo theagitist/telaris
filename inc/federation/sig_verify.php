@@ -228,7 +228,7 @@ function federation_seen_nonce_record(string $host, string $nonceBytes): bool {
     db_ensure_seen_nonces_table();
     try {
         $pdo = getDB();
-        $stmt = $pdo->prepare("INSERT IGNORE INTO seen_nonces (origin_host, nonce) VALUES (:h, :n)");
+        $stmt = $pdo->prepare("INSERT INTO seen_nonces (origin_host, nonce) VALUES (:h, :n) ON CONFLICT (origin_host, nonce) DO NOTHING");
         $stmt->execute([':h' => $host, ':n' => $nonceBytes]);
         return $stmt->rowCount() === 1;
     } catch (PDOException $e) {
@@ -263,7 +263,7 @@ function federation_seen_nonces_gc(int $retentionDays = 7): int {
     try {
         $stmt = getDB()->prepare("
             DELETE FROM seen_nonces
-            WHERE seen_at < DATE_SUB(NOW(), INTERVAL :d DAY)
+            WHERE seen_at < NOW() - (:d * INTERVAL '1 day')
         ");
         $stmt->execute([':d' => max(1, $retentionDays)]);
         return $stmt->rowCount();

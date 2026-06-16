@@ -286,10 +286,10 @@ function federation_unmirror_record_remote_retraction(
     $stmt = getDB()->prepare("
         INSERT INTO remote_retractions (peer_id, remote_slug, retracted_at, reason, retraction_jws)
         VALUES (:p, :s, :ts, :reason, :jws)
-        ON DUPLICATE KEY UPDATE
-            retracted_at = VALUES(retracted_at),
-            reason = VALUES(reason),
-            retraction_jws = VALUES(retraction_jws)
+        ON CONFLICT (peer_id, remote_slug) DO UPDATE SET
+            retracted_at = EXCLUDED.retracted_at,
+            reason = EXCLUDED.reason,
+            retraction_jws = EXCLUDED.retraction_jws
     ");
     $stmt->execute([
         ':p' => $peerId,

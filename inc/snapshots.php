@@ -139,7 +139,7 @@ function snapshot_create(?string $note = null, string $trigger = 'manual', ?stri
         unset($dump);
 
         $pdo = getDB();
-        $stmt = $pdo->prepare("INSERT INTO snapshots (filename, size_bytes, created_by, trigger_type, note, sha256) VALUES (:f, :s, :u, :t, :n, :h)");
+        $stmt = $pdo->prepare("INSERT INTO snapshots (filename, size_bytes, created_by, trigger_type, note, sha256) VALUES (:f, :s, :u, :t, :n, :h) RETURNING id");
         $stmt->execute([
             ':f' => $filename,
             ':s' => $written['size_bytes'],
@@ -148,7 +148,7 @@ function snapshot_create(?string $note = null, string $trigger = 'manual', ?stri
             ':n' => $note !== null && $note !== '' ? $note : null,
             ':h' => $written['sha256'] ?? null,
         ]);
-        return (int)$pdo->lastInsertId();
+        return (int)$stmt->fetchColumn();
     } finally {
         snapshot_release_lock($lock);
     }
@@ -304,7 +304,7 @@ function snapshot_get_schedule(): array {
     $pdo = getDB();
     $row = $pdo->query("SELECT id, enabled, hour, keep_days, last_run_at, updated_at FROM snapshot_schedule WHERE id = 1 LIMIT 1")->fetch();
     if (!$row) {
-        $pdo->exec("INSERT IGNORE INTO snapshot_schedule (id) VALUES (1)");
+        $pdo->exec("INSERT INTO snapshot_schedule (id) VALUES (1) ON CONFLICT (id) DO NOTHING");
         $row = $pdo->query("SELECT id, enabled, hour, keep_days, last_run_at, updated_at FROM snapshot_schedule WHERE id = 1 LIMIT 1")->fetch();
     }
     $row['enabled'] = (bool)$row['enabled'];
@@ -333,7 +333,7 @@ function snapshot_trim_scheduled(int $keepDays): int {
     $stmt = $pdo->prepare("
         SELECT id, filename FROM snapshots
         WHERE trigger_type = 'scheduled'
-          AND created_at < (NOW() - INTERVAL :d DAY)
+          AND created_at < (NOW() - (:d * INTERVAL '1 day'))
     ");
     $stmt->bindValue(':d', $keepDays, PDO::PARAM_INT);
     $stmt->execute();

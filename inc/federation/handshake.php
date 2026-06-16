@@ -160,6 +160,7 @@ function handshake_initiate_outbound(
                 (peer_id, direction, thread_id, message_type, subject, body, payload, jws_envelope,
                  delivery_status, next_attempt_at)
             VALUES (:p, 'outbound', :t, 'handshake_request', :s, :b, :pl, :j, 'pending', NOW())
+            RETURNING id
         ");
         $msgStmt->execute([
             ':p' => $peerId,
@@ -169,13 +170,14 @@ function handshake_initiate_outbound(
             ':pl' => json_encode($payload, JSON_UNESCAPED_SLASHES),
             ':j' => $jws,
         ]);
-        $msgId = (int)$pdo->lastInsertId();
+        $msgId = (int)$msgStmt->fetchColumn();
 
         $hsStmt = $pdo->prepare("
             INSERT INTO handshakes
                 (peer_id, remote_hostname, initiator, status, requested_galaxies_publish,
                  requested_galaxies_subscribe, thread_id, initial_message_id, expires_at)
             VALUES (:p, :h, 'us', 'pending_their_response', :pubg, :subg, :t, :im, :e)
+            RETURNING id
         ");
         $hsStmt->execute([
             ':p' => $peerId,
@@ -186,7 +188,7 @@ function handshake_initiate_outbound(
             ':im' => $msgId,
             ':e' => $expiresAt,
         ]);
-        $hsId = (int)$pdo->lastInsertId();
+        $hsId = (int)$hsStmt->fetchColumn();
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -243,6 +245,7 @@ function handshake_apply_inbound_round2(int $peerId, array $body, string $remote
             INSERT INTO pluriverse_messages
                 (peer_id, direction, thread_id, message_type, body, payload, jws_envelope, delivery_status)
             VALUES (:p, 'inbound', :t, 'handshake_response', :b, :pl, :j, 'not_applicable')
+            RETURNING id
         ");
         $msgStmt->execute([
             ':p' => $peerId,
@@ -251,7 +254,7 @@ function handshake_apply_inbound_round2(int $peerId, array $body, string $remote
             ':pl' => json_encode($body, JSON_UNESCAPED_SLASHES),
             ':j' => isset($body['_envelope']) ? (string)$body['_envelope'] : '',
         ]);
-        $msgId = (int)$pdo->lastInsertId();
+        $msgId = (int)$msgStmt->fetchColumn();
 
         if ($status === 'rejected') {
             $pdo->prepare("
@@ -330,6 +333,7 @@ function handshake_apply_inbound_round2(int $peerId, array $body, string $remote
                  delivery_status, next_attempt_at)
             VALUES (:p, 'outbound', :t, 'handshake_response', 'complete', :pl, :j,
                     'pending', NOW())
+            RETURNING id
         ");
         $r3Stmt->execute([
             ':p' => $peerId,
@@ -337,7 +341,7 @@ function handshake_apply_inbound_round2(int $peerId, array $body, string $remote
             ':pl' => json_encode($round3Body, JSON_UNESCAPED_SLASHES),
             ':j' => $r3Envelope,
         ]);
-        $r3MsgId = (int)$pdo->lastInsertId();
+        $r3MsgId = (int)$r3Stmt->fetchColumn();
 
         $pdo->prepare("
             UPDATE handshakes
@@ -421,6 +425,7 @@ function handshake_apply_inbound_round3(int $peerId, array $body, string $remote
             INSERT INTO pluriverse_messages
                 (peer_id, direction, thread_id, message_type, body, payload, jws_envelope, delivery_status)
             VALUES (:p, 'inbound', :t, 'handshake_response', 'complete', :pl, :j, 'not_applicable')
+            RETURNING id
         ");
         $msgStmt->execute([
             ':p' => $peerId,
@@ -428,7 +433,7 @@ function handshake_apply_inbound_round3(int $peerId, array $body, string $remote
             ':pl' => json_encode($body, JSON_UNESCAPED_SLASHES),
             ':j' => isset($body['_envelope']) ? (string)$body['_envelope'] : '',
         ]);
-        $msgId = (int)$pdo->lastInsertId();
+        $msgId = (int)$msgStmt->fetchColumn();
 
         $pdo->prepare("
             INSERT INTO peer_keys (peer_id, api_key_hash, direction, is_active)
@@ -521,6 +526,7 @@ function handshake_register_inbound_round1_via_relay(
             (peer_id, remote_hostname, initiator, status, requested_galaxies_publish,
              requested_galaxies_subscribe, thread_id, initial_message_id, expires_at)
         VALUES (:p, :h, 'them', 'pending_our_response', :pubg, :subg, :t, :im, :e)
+        RETURNING id
     ");
     $stmt->execute([
         ':p' => $peerId,
@@ -531,7 +537,7 @@ function handshake_register_inbound_round1_via_relay(
         ':im' => $messageId,
         ':e' => $expiresAt,
     ]);
-    return ['ok' => true, 'handshake_id' => (int)$pdo->lastInsertId()];
+    return ['ok' => true, 'handshake_id' => (int)$stmt->fetchColumn()];
 }
 
 /**
@@ -614,6 +620,7 @@ function handshake_accept_inbound(int $handshakeId): array {
                  delivery_status, next_attempt_at)
             VALUES (:p, 'outbound', :t, 'handshake_response', 'accepted', :pl, :j,
                     'pending', NOW())
+            RETURNING id
         ");
         $msg->execute([
             ':p' => $peerId,
@@ -621,7 +628,7 @@ function handshake_accept_inbound(int $handshakeId): array {
             ':pl' => json_encode($round2Body, JSON_UNESCAPED_SLASHES),
             ':j' => $envelope,
         ]);
-        $msgId = (int)$pdo->lastInsertId();
+        $msgId = (int)$msg->fetchColumn();
 
         $pdo->prepare("
             UPDATE handshakes
@@ -706,6 +713,7 @@ function handshake_reject_inbound(int $handshakeId, string $reason): array {
                  delivery_status, next_attempt_at)
             VALUES (:p, 'outbound', :t, 'handshake_response', :b, :pl, :j,
                     'pending', NOW())
+            RETURNING id
         ");
         $msg->execute([
             ':p' => $peerId !== 0 ? $peerId : null,
@@ -714,7 +722,7 @@ function handshake_reject_inbound(int $handshakeId, string $reason): array {
             ':pl' => json_encode($body, JSON_UNESCAPED_SLASHES),
             ':j' => $envelope,
         ]);
-        $msgId = (int)$pdo->lastInsertId();
+        $msgId = (int)$msg->fetchColumn();
 
         $pdo->prepare("
             UPDATE handshakes
@@ -933,7 +941,7 @@ function handshake_list_recent_history(int $limit = 20, int $withinDays = 30): a
         FROM handshakes h
         LEFT JOIN peers p ON p.id = h.peer_id
         WHERE h.status IN ('complete', 'rejected', 'expired', 'cancelled')
-          AND h.updated_at >= DATE_SUB(NOW(), INTERVAL :d DAY)
+          AND h.updated_at >= NOW() - (:d * INTERVAL '1 day')
         ORDER BY h.updated_at DESC
         LIMIT :n
     ");
