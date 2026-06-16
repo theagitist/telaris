@@ -80,6 +80,96 @@ function getDB(): PDO {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Postgres schema prerequisites (functions, triggers, expression indexes)
+//
+// These replace MySQL constructs that have no Postgres equivalent and that the
+// ";"-splitting SCHEMA.sql loader cannot carry (a "$$" function body). They are
+// idempotent and guarded so they run at most once per request; setup.php invokes
+// db_ensure_pg_runtime() right after loading SCHEMA.sql, and the keyword write
+// path calls db_ensure_keywords_unaccent_index() lazily.
+// ---------------------------------------------------------------------------
+
+/**
+ * The unaccent extension (provisioning normally installs it; we try in case the
+ * role can), an IMMUTABLE wrapper over the 2-arg unaccent (the 1-arg form is only
+ * STABLE, so it cannot be used in an index), and the shared updated_at trigger
+ * function that replaces MySQL's ON UPDATE CURRENT_TIMESTAMP. Idempotent.
+ */
+function db_ensure_pg_prerequisites(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    $pdo = getDB();
+    // The extension is a provisioning concern (a managed-cluster admin installs it);
+    // attempt it for self-owned local databases, ignore if the role lacks rights.
+    try { $pdo->exec('CREATE EXTENSION IF NOT EXISTS unaccent'); }
+    catch (PDOException $e) { /* expected when the app role cannot create extensions */ }
+    try {
+        $pdo->exec('CREATE OR REPLACE FUNCTION immutable_unaccent(text) RETURNS text LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $func$ SELECT public.unaccent(\'public.unaccent\', $1) $func$');
+        $pdo->exec('CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger LANGUAGE plpgsql AS $func$ BEGIN NEW.updated_at := CURRENT_TIMESTAMP; RETURN NEW; END; $func$');
+    } catch (PDOException $e) {
+        error_log('db_ensure_pg_prerequisites: ' . $e->getMessage());
+    }
+}
+
+/**
+ * The accent + case-insensitive unique on keywords (keyword, constellation_id),
+ * reproducing MySQL's utf8mb4_unicode_ci behaviour as an expression index. Required
+ * by the ON CONFLICT upserts in db_save_node_keywords / db_create_keyword. Idempotent.
+ */
+function db_ensure_keywords_unaccent_index(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_pg_prerequisites();
+    try {
+        getDB()->exec('CREATE UNIQUE INDEX IF NOT EXISTS unique_keyword_constellation ON keywords (lower(immutable_unaccent(keyword)), constellation_id)');
+    } catch (PDOException $e) {
+        error_log('db_ensure_keywords_unaccent_index: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Attach the shared set_updated_at() BEFORE UPDATE trigger to every table that has
+ * an updated_at column (replacing MySQL's per-column ON UPDATE CURRENT_TIMESTAMP).
+ * Discovered dynamically so new tables with an updated_at are covered automatically.
+ * The trigger sets updated_at unconditionally on every UPDATE; no code path relies on
+ * passing its own updated_at value. Idempotent.
+ */
+function db_ensure_updated_at_triggers(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_pg_prerequisites();
+    try {
+        $pdo = getDB();
+        $tables = $pdo->query(
+            "SELECT table_name FROM information_schema.columns
+             WHERE table_schema = current_schema() AND column_name = 'updated_at'"
+        )->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($tables as $t) {
+            if (!preg_match('/^[a-z_][a-z0-9_]*$/', (string)$t)) continue; // defensive: our own names only
+            $trg = 'trg_set_updated_at_' . $t;
+            $pdo->exec("DROP TRIGGER IF EXISTS $trg ON $t");
+            $pdo->exec("CREATE TRIGGER $trg BEFORE UPDATE ON $t FOR EACH ROW EXECUTE FUNCTION set_updated_at()");
+        }
+    } catch (PDOException $e) {
+        error_log('db_ensure_updated_at_triggers: ' . $e->getMessage());
+    }
+}
+
+/**
+ * One-shot Postgres runtime bootstrap: prerequisites, the keyword expression index,
+ * and the updated_at triggers. Called by admin/setup.php after the schema load and
+ * safe to call again (each step is guarded/idempotent).
+ */
+function db_ensure_pg_runtime(): void {
+    db_ensure_pg_prerequisites();
+    db_ensure_keywords_unaccent_index();
+    db_ensure_updated_at_triggers();
+}
+
 
 /**
  * @param PDO|null $pdo
@@ -830,10 +920,7 @@ function db_ensure_pdf_max_bytes_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'pdf_max_bytes'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE project_info ADD COLUMN pdf_max_bytes BIGINT UNSIGNED NULL DEFAULT NULL");
-        }
+        $pdo->exec("ALTER TABLE project_info ADD COLUMN IF NOT EXISTS pdf_max_bytes BIGINT NULL DEFAULT NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_pdf_max_bytes_column: ' . $e->getMessage());
     }
@@ -881,10 +968,7 @@ function db_ensure_fuzzy_keyword_matching_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'fuzzy_keyword_matching'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE project_info ADD COLUMN fuzzy_keyword_matching TINYINT(1) NOT NULL DEFAULT 0");
-        }
+        $pdo->exec("ALTER TABLE project_info ADD COLUMN IF NOT EXISTS fuzzy_keyword_matching SMALLINT NOT NULL DEFAULT 0");
     } catch (PDOException $e) {
         error_log('db_ensure_fuzzy_keyword_matching_column: ' . $e->getMessage());
     }
@@ -927,10 +1011,7 @@ function db_ensure_disable_hotglue_content_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM project_info LIKE 'disable_hotglue_content'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE project_info ADD COLUMN disable_hotglue_content TINYINT(1) NOT NULL DEFAULT 0");
-        }
+        $pdo->exec("ALTER TABLE project_info ADD COLUMN IF NOT EXISTS disable_hotglue_content SMALLINT NOT NULL DEFAULT 0");
     } catch (PDOException $e) {
         error_log('db_ensure_disable_hotglue_content_column: ' . $e->getMessage());
     }
@@ -976,8 +1057,8 @@ function db_get_default_constellation_id(): int {
 function db_has_project_table(): bool {
     try {
         $pdo = getDB();
-        $stmt = $pdo->query("SHOW TABLES LIKE 'project_info'");
-        return $stmt->fetch() !== false;
+        $stmt = $pdo->query("SELECT to_regclass('public.project_info')");
+        return $stmt->fetchColumn() !== null;
     } catch (PDOException $e) {
         return false;
     }
@@ -7350,10 +7431,7 @@ function db_ensure_nodes_show_keywords_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'show_keywords'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE nodes ADD COLUMN show_keywords BOOLEAN NOT NULL DEFAULT FALSE AFTER is_accentuated");
-        }
+        $pdo->exec("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS show_keywords BOOLEAN NOT NULL DEFAULT FALSE");
     } catch (PDOException $e) {
         error_log('db_ensure_nodes_show_keywords_column: ' . $e->getMessage());
     }
@@ -7366,10 +7444,7 @@ function db_ensure_nodes_use_image_as_node_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'use_image_as_node'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE nodes ADD COLUMN use_image_as_node BOOLEAN NOT NULL DEFAULT FALSE AFTER show_keywords");
-        }
+        $pdo->exec("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS use_image_as_node BOOLEAN NOT NULL DEFAULT FALSE");
     } catch (PDOException $e) {
         error_log('db_ensure_nodes_use_image_as_node_column: ' . $e->getMessage());
     }
@@ -7388,12 +7463,8 @@ function db_ensure_nodes_hotglue_columns(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        if (!$pdo->query("SHOW COLUMNS FROM nodes LIKE 'media_mode'")->fetch()) {
-            $pdo->exec("ALTER TABLE nodes ADD COLUMN media_mode VARCHAR(16) NOT NULL DEFAULT 'classic'");
-        }
-        if (!$pdo->query("SHOW COLUMNS FROM nodes LIKE 'hotglue_page'")->fetch()) {
-            $pdo->exec("ALTER TABLE nodes ADD COLUMN hotglue_page VARCHAR(255) NULL DEFAULT NULL");
-        }
+        $pdo->exec("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS media_mode VARCHAR(16) NOT NULL DEFAULT 'classic'");
+        $pdo->exec("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS hotglue_page VARCHAR(255) NULL DEFAULT NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_nodes_hotglue_columns: ' . $e->getMessage());
     }
@@ -7417,17 +7488,17 @@ function db_ensure_hotglue_pages_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS hotglue_pages (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 slug VARCHAR(255) NOT NULL UNIQUE,
                 title VARCHAR(255) NOT NULL DEFAULT '',
                 owner_user_id VARCHAR(255) NULL DEFAULT NULL,
                 node_id INT NULL DEFAULT NULL,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_hotglue_pages_owner (owner_user_id),
-                INDEX idx_hotglue_pages_node (node_id),
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 CONSTRAINT fk_hotglue_pages_node FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE SET NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE INDEX IF NOT EXISTS idx_hotglue_pages_owner ON hotglue_pages (owner_user_id);
+            CREATE INDEX IF NOT EXISTS idx_hotglue_pages_node ON hotglue_pages (node_id);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_hotglue_pages_table: ' . $e->getMessage());
@@ -7440,10 +7511,7 @@ function db_ensure_constellations_import_source_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'import_source'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE constellations ADD COLUMN import_source VARCHAR(500) NULL DEFAULT NULL AFTER theme");
-        }
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS import_source VARCHAR(500) NULL DEFAULT NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_constellations_import_source_column: ' . $e->getMessage());
     }
@@ -7456,56 +7524,41 @@ function db_ensure_constellations_tour_columns(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'tour_enabled'")->fetch();
-        if (!$row) {
-            $pdo->exec("
-                ALTER TABLE constellations
-                    ADD COLUMN tour_enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER import_source,
-                    ADD COLUMN tour_start_mode ENUM('immediate','idle','manual') NOT NULL DEFAULT 'manual' AFTER tour_enabled,
-                    ADD COLUMN tour_idle_seconds INT UNSIGNED NOT NULL DEFAULT 30 AFTER tour_start_mode,
-                    ADD COLUMN tour_node_selection ENUM('all','accentuated','random_n','tagged') NOT NULL DEFAULT 'all' AFTER tour_idle_seconds,
-                    ADD COLUMN tour_random_count INT UNSIGNED NOT NULL DEFAULT 10 AFTER tour_node_selection,
-                    ADD COLUMN tour_default_dwell INT UNSIGNED NOT NULL DEFAULT 8 AFTER tour_random_count,
-                    ADD COLUMN tour_loop BOOLEAN NOT NULL DEFAULT TRUE AFTER tour_default_dwell
-            ");
-        }
+        $pdo->exec("
+            ALTER TABLE constellations
+                ADD COLUMN IF NOT EXISTS tour_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS tour_start_mode VARCHAR(16) NOT NULL DEFAULT 'manual' CHECK (tour_start_mode IN ('immediate','idle','manual')),
+                ADD COLUMN IF NOT EXISTS tour_idle_seconds INT NOT NULL DEFAULT 30,
+                ADD COLUMN IF NOT EXISTS tour_node_selection VARCHAR(16) NOT NULL DEFAULT 'all' CHECK (tour_node_selection IN ('all','accentuated','random_n','tagged')),
+                ADD COLUMN IF NOT EXISTS tour_random_count INT NOT NULL DEFAULT 10,
+                ADD COLUMN IF NOT EXISTS tour_default_dwell INT NOT NULL DEFAULT 8,
+                ADD COLUMN IF NOT EXISTS tour_loop BOOLEAN NOT NULL DEFAULT TRUE
+        ");
         // keyword_chips_enabled was added later; check separately so older instances pick it up.
-        $row2 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'keyword_chips_enabled'")->fetch();
-        if (!$row2) {
-            $pdo->exec("ALTER TABLE constellations ADD COLUMN keyword_chips_enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER tour_loop");
-        }
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS keyword_chips_enabled BOOLEAN NOT NULL DEFAULT FALSE");
         // idle_spotlight_* added later; check separately.
-        $row3 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'idle_spotlight_enabled'")->fetch();
-        if (!$row3) {
-            $pdo->exec("
-                ALTER TABLE constellations
-                    ADD COLUMN idle_spotlight_enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER keyword_chips_enabled,
-                    ADD COLUMN idle_spotlight_selection ENUM('all','accentuated') NOT NULL DEFAULT 'all' AFTER idle_spotlight_enabled,
-                    ADD COLUMN idle_spotlight_idle_seconds INT UNSIGNED NOT NULL DEFAULT 30 AFTER idle_spotlight_selection
-            ");
-        }
+        $pdo->exec("
+            ALTER TABLE constellations
+                ADD COLUMN IF NOT EXISTS idle_spotlight_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS idle_spotlight_selection VARCHAR(16) NOT NULL DEFAULT 'all' CHECK (idle_spotlight_selection IN ('all','accentuated')),
+                ADD COLUMN IF NOT EXISTS idle_spotlight_idle_seconds INT NOT NULL DEFAULT 30
+        ");
         // related_nodes_enabled added later; check separately.
-        $row4 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'related_nodes_enabled'")->fetch();
-        if (!$row4) {
-            $pdo->exec("ALTER TABLE constellations ADD COLUMN related_nodes_enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER idle_spotlight_idle_seconds");
-        }
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS related_nodes_enabled BOOLEAN NOT NULL DEFAULT FALSE");
         // show_2d_view: opt-in per galaxy / cluster. When TRUE, the visitor
         // view shows a top-center "3D / 2D" segmented switch (and remembers
         // the visitor's choice in localStorage).
-        $row5 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'show_2d_view'")->fetch();
-        if (!$row5) {
-            $pdo->exec("ALTER TABLE constellations ADD COLUMN show_2d_view BOOLEAN NOT NULL DEFAULT FALSE AFTER related_nodes_enabled");
-        }
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS show_2d_view BOOLEAN NOT NULL DEFAULT FALSE");
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS constellation_tour_keywords (
                 constellation_id INT NOT NULL,
                 keyword_id INT NOT NULL,
                 PRIMARY KEY (constellation_id, keyword_id),
                 FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE,
-                FOREIGN KEY (keyword_id) REFERENCES keywords(id) ON DELETE CASCADE,
-                INDEX idx_constellation_id (constellation_id),
-                INDEX idx_keyword_id (keyword_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                FOREIGN KEY (keyword_id) REFERENCES keywords(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_ctk_constellation_id ON constellation_tour_keywords (constellation_id);
+            CREATE INDEX IF NOT EXISTS idx_ctk_keyword_id ON constellation_tour_keywords (keyword_id);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_constellations_tour_columns: ' . $e->getMessage());
@@ -7526,35 +7579,27 @@ function db_ensure_constellations_type_and_cluster_members(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'type'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE constellations ADD COLUMN `type` ENUM('galaxy','cluster') NOT NULL DEFAULT 'galaxy' AFTER theme, ADD INDEX idx_type (`type`)");
-        }
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS type VARCHAR(16) NOT NULL DEFAULT 'galaxy' CHECK (type IN ('galaxy','cluster'))");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_constellations_type ON constellations (type)");
         // Per-cluster opt-in for the visitor's galaxy-list strip. Emergent unions
         // (?galaxies=, /[XX], /tag/) default to ON; clusters default to OFF since the
         // curator has authored a unified experience.
-        $row2 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'show_galaxy_list'")->fetch();
-        if (!$row2) {
-            $pdo->exec("ALTER TABLE constellations ADD COLUMN show_galaxy_list BOOLEAN NOT NULL DEFAULT FALSE AFTER `type`");
-        }
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS show_galaxy_list BOOLEAN NOT NULL DEFAULT FALSE");
         // Per-cluster override for fuzzy keyword matching in the multi-galaxy view.
         // 'inherit' defers to the installation default (project_info.fuzzy_keyword_matching);
         // 'on'/'off' force it for this cluster. Only meaningful on type='cluster' rows.
-        $row3 = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'fuzzy_keyword_matching'")->fetch();
-        if (!$row3) {
-            $pdo->exec("ALTER TABLE constellations ADD COLUMN fuzzy_keyword_matching ENUM('inherit','on','off') NOT NULL DEFAULT 'inherit' AFTER show_galaxy_list");
-        }
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS fuzzy_keyword_matching VARCHAR(16) NOT NULL DEFAULT 'inherit' CHECK (fuzzy_keyword_matching IN ('inherit','on','off'))");
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS galaxy_cluster_members (
                 cluster_id INT NOT NULL,
                 member_id INT NOT NULL,
-                position INT UNSIGNED NOT NULL DEFAULT 0,
+                position INT NOT NULL DEFAULT 0,
                 PRIMARY KEY (cluster_id, member_id),
-                INDEX idx_cluster_id (cluster_id),
-                INDEX idx_member_id (member_id),
                 FOREIGN KEY (cluster_id) REFERENCES constellations(id) ON DELETE CASCADE,
                 FOREIGN KEY (member_id)  REFERENCES constellations(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE INDEX IF NOT EXISTS idx_gcm_cluster_id ON galaxy_cluster_members (cluster_id);
+            CREATE INDEX IF NOT EXISTS idx_gcm_member_id ON galaxy_cluster_members (member_id);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_constellations_type_and_cluster_members: ' . $e->getMessage());
@@ -7578,13 +7623,13 @@ function db_ensure_password_reset_tokens_table(): void {
             CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 token_hash CHAR(64) NOT NULL PRIMARY KEY,
                 user_id VARCHAR(255) NOT NULL,
-                expires_at DATETIME NOT NULL,
-                used_at DATETIME NULL DEFAULT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                used_at TIMESTAMP NULL DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_user_id (user_id),
-                INDEX idx_expires_at (expires_at),
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE INDEX IF NOT EXISTS idx_prt_user_id ON password_reset_tokens (user_id);
+            CREATE INDEX IF NOT EXISTS idx_prt_expires_at ON password_reset_tokens (expires_at);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_password_reset_tokens_table: ' . $e->getMessage());
@@ -7611,10 +7656,10 @@ function db_ensure_galaxy_tags_table(): void {
                 tag_slug VARCHAR(80) NOT NULL,
                 tag_label VARCHAR(120) NOT NULL,
                 PRIMARY KEY (constellation_id, tag_slug),
-                INDEX idx_tag_slug (tag_slug),
-                INDEX idx_constellation_id (constellation_id),
                 FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE INDEX IF NOT EXISTS idx_galaxy_tags_tag_slug ON galaxy_tags (tag_slug);
+            CREATE INDEX IF NOT EXISTS idx_galaxy_tags_constellation_id ON galaxy_tags (constellation_id);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_galaxy_tags_table: ' . $e->getMessage());
@@ -7634,13 +7679,12 @@ function db_ensure_keywords_created_by_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM keywords LIKE 'created_by'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE keywords
-                ADD COLUMN created_by VARCHAR(255) NULL DEFAULT NULL AFTER created_at,
-                ADD INDEX idx_keywords_created_by (created_by),
+        $pdo->exec("ALTER TABLE keywords
+                ADD COLUMN IF NOT EXISTS created_by VARCHAR(255) NULL DEFAULT NULL;
+            CREATE INDEX IF NOT EXISTS idx_keywords_created_by ON keywords (created_by);
+            ALTER TABLE keywords
+                DROP CONSTRAINT IF EXISTS fk_keywords_created_by,
                 ADD CONSTRAINT fk_keywords_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL");
-        }
     } catch (PDOException $e) {
         error_log('db_ensure_keywords_created_by_column: ' . $e->getMessage());
     }
@@ -7652,13 +7696,12 @@ function db_ensure_node_keywords_created_by_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM node_keywords LIKE 'created_by'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE node_keywords
-                ADD COLUMN created_by VARCHAR(255) NULL DEFAULT NULL AFTER created_at,
-                ADD INDEX idx_node_keywords_created_by (created_by),
+        $pdo->exec("ALTER TABLE node_keywords
+                ADD COLUMN IF NOT EXISTS created_by VARCHAR(255) NULL DEFAULT NULL;
+            CREATE INDEX IF NOT EXISTS idx_node_keywords_created_by ON node_keywords (created_by);
+            ALTER TABLE node_keywords
+                DROP CONSTRAINT IF EXISTS fk_node_keywords_created_by,
                 ADD CONSTRAINT fk_node_keywords_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL");
-        }
     } catch (PDOException $e) {
         error_log('db_ensure_node_keywords_created_by_column: ' . $e->getMessage());
     }
@@ -7671,19 +7714,13 @@ function db_ensure_galaxy_tags_provenance_columns(): void {
     try {
         $pdo = getDB();
         db_ensure_galaxy_tags_table();
-        $cols = [];
-        foreach ($pdo->query("SHOW COLUMNS FROM galaxy_tags") as $r) {
-            $cols[$r['Field']] = true;
-        }
-        if (!isset($cols['created_at'])) {
-            $pdo->exec("ALTER TABLE galaxy_tags ADD COLUMN created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP AFTER tag_label");
-        }
-        if (!isset($cols['created_by'])) {
-            $pdo->exec("ALTER TABLE galaxy_tags
-                ADD COLUMN created_by VARCHAR(255) NULL DEFAULT NULL AFTER created_at,
-                ADD INDEX idx_galaxy_tags_created_by (created_by),
+        $pdo->exec("ALTER TABLE galaxy_tags ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP");
+        $pdo->exec("ALTER TABLE galaxy_tags
+                ADD COLUMN IF NOT EXISTS created_by VARCHAR(255) NULL DEFAULT NULL;
+            CREATE INDEX IF NOT EXISTS idx_galaxy_tags_created_by ON galaxy_tags (created_by);
+            ALTER TABLE galaxy_tags
+                DROP CONSTRAINT IF EXISTS fk_galaxy_tags_created_by,
                 ADD CONSTRAINT fk_galaxy_tags_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL");
-        }
     } catch (PDOException $e) {
         error_log('db_ensure_galaxy_tags_provenance_columns: ' . $e->getMessage());
     }
@@ -7695,13 +7732,12 @@ function db_ensure_constellations_created_by_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'created_by'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE constellations
-                ADD COLUMN created_by VARCHAR(255) NULL DEFAULT NULL AFTER updated_at,
-                ADD INDEX idx_constellations_created_by (created_by),
+        $pdo->exec("ALTER TABLE constellations
+                ADD COLUMN IF NOT EXISTS created_by VARCHAR(255) NULL DEFAULT NULL;
+            CREATE INDEX IF NOT EXISTS idx_constellations_created_by ON constellations (created_by);
+            ALTER TABLE constellations
+                DROP CONSTRAINT IF EXISTS fk_constellations_created_by,
                 ADD CONSTRAINT fk_constellations_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL");
-        }
     } catch (PDOException $e) {
         error_log('db_ensure_constellations_created_by_column: ' . $e->getMessage());
     }
@@ -7714,10 +7750,7 @@ function db_ensure_nodes_image_attribution_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'image_attribution'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE nodes ADD COLUMN image_attribution VARCHAR(255) NULL DEFAULT NULL AFTER image_url");
-        }
+        $pdo->exec("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS image_attribution VARCHAR(255) NULL DEFAULT NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_nodes_image_attribution_column: ' . $e->getMessage());
     }
@@ -7729,10 +7762,7 @@ function db_ensure_nodes_icon_url_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'icon_url'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE nodes ADD COLUMN icon_url VARCHAR(500) NULL DEFAULT NULL AFTER image_url");
-        }
+        $pdo->exec("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS icon_url VARCHAR(500) NULL DEFAULT NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_nodes_icon_url_column: ' . $e->getMessage());
     }
@@ -7751,10 +7781,7 @@ function db_ensure_users_locale_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM users LIKE 'locale'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE users ADD COLUMN locale VARCHAR(5) NULL DEFAULT NULL AFTER type");
-        }
+        $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS locale VARCHAR(5) NULL DEFAULT NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_users_locale_column: ' . $e->getMessage());
     }
@@ -7771,10 +7798,7 @@ function db_ensure_users_lastname_nullable(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM users LIKE 'lastname'")->fetch();
-        if ($row && isset($row['Null']) && strtoupper((string)$row['Null']) === 'NO') {
-            $pdo->exec("ALTER TABLE users MODIFY COLUMN lastname VARCHAR(100) NULL DEFAULT NULL");
-        }
+        $pdo->exec("ALTER TABLE users ALTER COLUMN lastname DROP NOT NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_users_lastname_nullable: ' . $e->getMessage());
     }
@@ -7791,10 +7815,7 @@ function db_ensure_users_pronouns_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM users LIKE 'pronouns'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE users ADD COLUMN pronouns VARCHAR(255) NULL DEFAULT NULL AFTER lastname");
-        }
+        $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS pronouns VARCHAR(255) NULL DEFAULT NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_users_pronouns_column: ' . $e->getMessage());
     }
@@ -7813,10 +7834,7 @@ function db_ensure_users_vetted_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM users LIKE 'vetted'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE users ADD COLUMN vetted TINYINT(1) NOT NULL DEFAULT 1 AFTER type");
-        }
+        $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS vetted SMALLINT NOT NULL DEFAULT 1");
     } catch (PDOException $e) {
         error_log('db_ensure_users_vetted_column: ' . $e->getMessage());
     }
@@ -7833,10 +7851,7 @@ function db_ensure_users_password_nullable(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM users LIKE 'password'")->fetch();
-        if ($row && isset($row['Null']) && strtoupper((string)$row['Null']) === 'NO') {
-            $pdo->exec("ALTER TABLE users MODIFY COLUMN password VARCHAR(255) NULL DEFAULT NULL");
-        }
+        $pdo->exec("ALTER TABLE users ALTER COLUMN password DROP NOT NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_users_password_nullable: ' . $e->getMessage());
     }
@@ -7878,15 +7893,15 @@ function db_ensure_user_consents_table(): void {
     try {
         getDB()->exec("
             CREATE TABLE IF NOT EXISTS user_consents (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 user_id VARCHAR(255) NOT NULL,
                 document_type VARCHAR(32) NOT NULL,
                 document_version VARCHAR(32) NOT NULL,
                 consented_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY uniq_user_doc_version (user_id, document_type, document_version),
-                INDEX idx_user (user_id),
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uniq_user_doc_version ON user_consents (user_id, document_type, document_version);
+            CREATE INDEX IF NOT EXISTS idx_user_consents_user ON user_consents (user_id);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_user_consents_table: ' . $e->getMessage());
@@ -7904,7 +7919,7 @@ function db_record_user_consent(string $userId, string $documentType, string $ve
         $stmt = getDB()->prepare("
             INSERT INTO user_consents (user_id, document_type, document_version)
             VALUES (:u, :d, :v)
-            ON DUPLICATE KEY UPDATE consented_at = consented_at
+            ON CONFLICT (user_id, document_type, document_version) DO NOTHING
         ");
         return $stmt->execute([':u' => $userId, ':d' => $documentType, ':v' => $version]);
     } catch (PDOException $e) {
@@ -7955,26 +7970,26 @@ function db_ensure_consent_notice_tables(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS consent_notice_decisions (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 document_type VARCHAR(32) NOT NULL,
                 document_version VARCHAR(32) NOT NULL,
                 decision VARCHAR(16) NOT NULL,
                 decided_by VARCHAR(255) NULL,
-                decided_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY uniq_doc_version (document_type, document_version)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                decided_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uniq_doc_version ON consent_notice_decisions (document_type, document_version);
         ");
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS consent_notifications (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 user_id VARCHAR(255) NOT NULL,
                 document_type VARCHAR(32) NOT NULL,
                 document_version VARCHAR(32) NOT NULL,
                 notified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY uniq_user_doc_version (user_id, document_type, document_version),
-                INDEX idx_user (user_id),
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uniq_notif_user_doc_version ON consent_notifications (user_id, document_type, document_version);
+            CREATE INDEX IF NOT EXISTS idx_consent_notifications_user ON consent_notifications (user_id);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_consent_notice_tables: ' . $e->getMessage());
@@ -7993,7 +8008,7 @@ function db_record_consent_notice_decision(string $documentType, string $version
         $stmt = getDB()->prepare("
             INSERT INTO consent_notice_decisions (document_type, document_version, decision, decided_by)
             VALUES (:d, :v, :dec, :by)
-            ON DUPLICATE KEY UPDATE decision = VALUES(decision), decided_by = VALUES(decided_by), decided_at = CURRENT_TIMESTAMP
+            ON CONFLICT (document_type, document_version) DO UPDATE SET decision = EXCLUDED.decision, decided_by = EXCLUDED.decided_by, decided_at = CURRENT_TIMESTAMP
         ");
         return $stmt->execute([':d' => $documentType, ':v' => $version, ':dec' => $decision, ':by' => $adminId]);
     } catch (PDOException $e) {
@@ -8032,7 +8047,7 @@ function db_record_consent_notification(string $userId, string $documentType, st
         $stmt = getDB()->prepare("
             INSERT INTO consent_notifications (user_id, document_type, document_version)
             VALUES (:u, :d, :v)
-            ON DUPLICATE KEY UPDATE notified_at = notified_at
+            ON CONFLICT (user_id, document_type, document_version) DO NOTHING
         ");
         return $stmt->execute([':u' => $userId, ':d' => $documentType, ':v' => $version]);
     } catch (PDOException $e) {
@@ -8225,10 +8240,7 @@ function db_ensure_nodes_pdf_url_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'pdf_url'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE nodes ADD COLUMN pdf_url VARCHAR(500) NULL DEFAULT NULL AFTER video_autoplay");
-        }
+        $pdo->exec("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS pdf_url VARCHAR(500) NULL DEFAULT NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_nodes_pdf_url_column: ' . $e->getMessage());
     }
@@ -8246,11 +8258,7 @@ function db_ensure_nodes_node_type_index(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $stmt = $pdo->prepare("SHOW INDEX FROM nodes WHERE Key_name = :name");
-        $stmt->execute([':name' => 'idx_node_type']);
-        if (!$stmt->fetch()) {
-            $pdo->exec("ALTER TABLE nodes ADD INDEX idx_node_type (node_type)");
-        }
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_node_type ON nodes (node_type)");
     } catch (PDOException $e) {
         error_log('db_ensure_nodes_node_type_index: ' . $e->getMessage());
     }
@@ -8288,12 +8296,12 @@ function db_ensure_keyword_canvas_tables(): void {
                 moved_at TIMESTAMP NULL,
                 FOREIGN KEY (keyword_id) REFERENCES keywords(id) ON DELETE CASCADE,
                 FOREIGN KEY (moved_by) REFERENCES users(id) ON DELETE SET NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            )
         ");
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS keyword_relations (
-                id INT PRIMARY KEY AUTO_INCREMENT,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 keyword_a_id INT NOT NULL,
                 keyword_b_id INT NOT NULL,
                 created_by VARCHAR(255) NULL,
@@ -8301,32 +8309,29 @@ function db_ensure_keyword_canvas_tables(): void {
                 note TEXT NULL,
                 anchor_a VARCHAR(8) NOT NULL DEFAULT 'right',
                 anchor_b VARCHAR(8) NOT NULL DEFAULT 'left',
-                UNIQUE KEY uk_pair (keyword_a_id, keyword_b_id),
+                CONSTRAINT uk_pair UNIQUE (keyword_a_id, keyword_b_id),
                 CONSTRAINT chk_canonical CHECK (keyword_a_id < keyword_b_id),
                 FOREIGN KEY (keyword_a_id) REFERENCES keywords(id) ON DELETE CASCADE,
                 FOREIGN KEY (keyword_b_id) REFERENCES keywords(id) ON DELETE CASCADE,
                 FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            )
         ");
         // Idempotent migration: if keyword_relations was created before the
         // anchor_a/anchor_b columns landed, add them now with sensible defaults.
-        $hasAnchorA = $pdo->query("SHOW COLUMNS FROM keyword_relations LIKE 'anchor_a'")->fetch();
-        if (!$hasAnchorA) {
-            $pdo->exec("ALTER TABLE keyword_relations ADD COLUMN anchor_a VARCHAR(8) NOT NULL DEFAULT 'right' AFTER note");
-            $pdo->exec("ALTER TABLE keyword_relations ADD COLUMN anchor_b VARCHAR(8) NOT NULL DEFAULT 'left' AFTER anchor_a");
-        }
+        $pdo->exec("ALTER TABLE keyword_relations ADD COLUMN IF NOT EXISTS anchor_a VARCHAR(8) NOT NULL DEFAULT 'right'");
+        $pdo->exec("ALTER TABLE keyword_relations ADD COLUMN IF NOT EXISTS anchor_b VARCHAR(8) NOT NULL DEFAULT 'left'");
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS keyword_position_history (
-                id INT PRIMARY KEY AUTO_INCREMENT,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 keyword_id INT NOT NULL,
                 canvas_x FLOAT NOT NULL,
                 canvas_y FLOAT NOT NULL,
                 moved_by VARCHAR(255) NULL,
                 moved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_keyword (keyword_id),
                 FOREIGN KEY (keyword_id) REFERENCES keywords(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE INDEX IF NOT EXISTS idx_kph_keyword ON keyword_position_history (keyword_id);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_keyword_canvas_tables: ' . $e->getMessage());
@@ -8397,8 +8402,9 @@ function db_seed_keyword_positions_for_galaxy(int $galaxyId): int {
     $minDist = max(40.0, min(180.0, sqrt($w * $h / max(1, $totalAfter)) * 0.55));
 
     $insert = $pdo->prepare("
-        INSERT IGNORE INTO keyword_positions (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
+        INSERT INTO keyword_positions (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
         VALUES (:kid, :x, :y, NULL, NULL)
+        ON CONFLICT (keyword_id) DO NOTHING
     ");
 
     $seeded = 0;
@@ -8500,11 +8506,11 @@ function db_record_keyword_position(int $keywordId, float $x, float $y, ?string 
         $pdo->prepare("
             INSERT INTO keyword_positions (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
             VALUES (:kid, :x, :y, :uid, NOW())
-            ON DUPLICATE KEY UPDATE
-                canvas_x = VALUES(canvas_x),
-                canvas_y = VALUES(canvas_y),
-                moved_by = VALUES(moved_by),
-                moved_at = VALUES(moved_at)
+            ON CONFLICT (keyword_id) DO UPDATE SET
+                canvas_x = EXCLUDED.canvas_x,
+                canvas_y = EXCLUDED.canvas_y,
+                moved_by = EXCLUDED.moved_by,
+                moved_at = EXCLUDED.moved_at
         ")->execute([':kid' => $keywordId, ':x' => $x, ':y' => $y, ':uid' => $userId]);
         $pdo->prepare("
             INSERT INTO keyword_position_history (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
@@ -8550,9 +8556,9 @@ function db_reset_keyword_position(int $keywordId, ?string $userId): void {
         $pdo->prepare("
             INSERT INTO keyword_positions (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
             VALUES (:kid, :x, :y, NULL, NULL)
-            ON DUPLICATE KEY UPDATE
-                canvas_x = VALUES(canvas_x),
-                canvas_y = VALUES(canvas_y),
+            ON CONFLICT (keyword_id) DO UPDATE SET
+                canvas_x = EXCLUDED.canvas_x,
+                canvas_y = EXCLUDED.canvas_y,
                 moved_by = NULL,
                 moved_at = NULL
         ")->execute([':kid' => $keywordId, ':x' => $x, ':y' => $y]);
@@ -8598,9 +8604,9 @@ function db_reset_galaxy_positions(int $galaxyId, ?string $userId): int {
         $upsert = $pdo->prepare("
             INSERT INTO keyword_positions (keyword_id, canvas_x, canvas_y, moved_by, moved_at)
             VALUES (:kid, :x, :y, NULL, NULL)
-            ON DUPLICATE KEY UPDATE
-                canvas_x = VALUES(canvas_x),
-                canvas_y = VALUES(canvas_y),
+            ON CONFLICT (keyword_id) DO UPDATE SET
+                canvas_x = EXCLUDED.canvas_x,
+                canvas_y = EXCLUDED.canvas_y,
                 moved_by = NULL,
                 moved_at = NULL
         ");
@@ -8710,12 +8716,13 @@ function db_create_keyword_relation(
         INSERT INTO keyword_relations
             (keyword_a_id, keyword_b_id, created_by, note, anchor_a, anchor_b)
         VALUES (:a, :b, :uid, :note, :anchor_a, :anchor_b)
+        RETURNING id
     ");
     $stmt->execute([
         ':a' => $lo, ':b' => $hi, ':uid' => $userId, ':note' => $note,
         ':anchor_a' => $loAnchor, ':anchor_b' => $hiAnchor,
     ]);
-    return (int)$pdo->lastInsertId();
+    return (int)$stmt->fetchColumn();
 }
 
 /**
@@ -8808,17 +8815,17 @@ function db_ensure_nodes_clustering_columns(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $hasSourceFacet = (bool)$pdo->query("SHOW COLUMNS FROM nodes LIKE 'source_facet'")->fetch();
+        $hasSourceFacet = $pdo->query("SELECT to_regclass('public.nodes') IS NOT NULL AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'nodes' AND column_name = 'source_facet')")->fetchColumn();
         if ($hasSourceFacet) return;
 
-        $hasMucuaName = (bool)$pdo->query("SHOW COLUMNS FROM nodes LIKE 'mucua_name'")->fetch();
+        $hasMucuaName = $pdo->query("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'nodes' AND column_name = 'mucua_name')")->fetchColumn();
         if ($hasMucuaName) {
             // Old schema: rename the column so existing data carries over.
-            $pdo->exec("ALTER TABLE nodes CHANGE COLUMN mucua_name source_facet VARCHAR(255) NULL");
+            $pdo->exec("ALTER TABLE nodes RENAME COLUMN mucua_name TO source_facet");
             return;
         }
 
-        $pdo->exec("ALTER TABLE nodes ADD COLUMN source_facet VARCHAR(255) NULL AFTER show_keywords, ADD COLUMN media_type VARCHAR(50) NULL AFTER source_facet, ADD COLUMN source_created_at VARCHAR(30) NULL AFTER media_type");
+        $pdo->exec("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS source_facet VARCHAR(255) NULL, ADD COLUMN IF NOT EXISTS media_type VARCHAR(50) NULL, ADD COLUMN IF NOT EXISTS source_created_at VARCHAR(30) NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_nodes_clustering_columns: ' . $e->getMessage());
     }
@@ -8833,47 +8840,44 @@ function db_ensure_snapshots_tables(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS snapshots (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 filename VARCHAR(255) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 size_bytes BIGINT NOT NULL DEFAULT 0,
                 created_by VARCHAR(255) NULL,
-                trigger_type ENUM('manual','scheduled') NOT NULL DEFAULT 'manual',
+                trigger_type VARCHAR(16) NOT NULL DEFAULT 'manual' CHECK (trigger_type IN ('manual','scheduled')),
                 note VARCHAR(500) NULL,
                 sha256 CHAR(64) NULL,
-                UNIQUE KEY unique_filename (filename),
-                INDEX idx_created_at (created_at),
                 FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS unique_filename ON snapshots (filename);
+            CREATE INDEX IF NOT EXISTS idx_snapshots_created_at ON snapshots (created_at);
         ");
         // Idempotent backfill: older installs predate the integrity column.
         // NULL means "no recorded checksum" — restore proceeds without
         // verification rather than refusing to restore legacy snapshots.
-        $snapCols = $pdo->query("SHOW COLUMNS FROM snapshots")->fetchAll(PDO::FETCH_COLUMN, 0);
-        if (!in_array('sha256', $snapCols, true)) {
-            $pdo->exec("ALTER TABLE snapshots ADD COLUMN sha256 CHAR(64) NULL AFTER note");
-        }
+        $pdo->exec("ALTER TABLE snapshots ADD COLUMN IF NOT EXISTS sha256 CHAR(64) NULL");
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS snapshot_schedule (
-                id TINYINT NOT NULL PRIMARY KEY DEFAULT 1,
+                id SMALLINT NOT NULL PRIMARY KEY DEFAULT 1,
                 enabled BOOLEAN NOT NULL DEFAULT FALSE,
-                hour TINYINT NOT NULL DEFAULT 3,
+                hour SMALLINT NOT NULL DEFAULT 3,
                 keep_days INT NOT NULL DEFAULT 7,
                 last_run_at TIMESTAMP NULL DEFAULT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
         ");
         // Seed the singleton schedule row.
-        $pdo->exec("INSERT IGNORE INTO snapshot_schedule (id) VALUES (1)");
+        $pdo->exec("INSERT INTO snapshot_schedule (id) VALUES (1) ON CONFLICT (id) DO NOTHING");
 
         // Migrate older installs to the simplified schema (enabled / hour / keep_days).
-        $cols = $pdo->query("SHOW COLUMNS FROM snapshot_schedule")->fetchAll(PDO::FETCH_COLUMN, 0);
+        $cols = $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'snapshot_schedule'")->fetchAll(PDO::FETCH_COLUMN, 0);
         if (in_array('keep_last', $cols, true) && !in_array('keep_days', $cols, true)) {
             $pdo->exec("ALTER TABLE snapshot_schedule ADD COLUMN keep_days INT NOT NULL DEFAULT 7");
             $pdo->exec("ALTER TABLE snapshot_schedule DROP COLUMN keep_last");
         }
         if (in_array('frequency', $cols, true) && !in_array('enabled', $cols, true)) {
-            $pdo->exec("ALTER TABLE snapshot_schedule ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER id");
+            $pdo->exec("ALTER TABLE snapshot_schedule ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT FALSE");
             $pdo->exec("UPDATE snapshot_schedule SET enabled = (frequency <> 'off')");
         }
         if (in_array('frequency', $cols, true)) {
@@ -8883,10 +8887,11 @@ function db_ensure_snapshots_tables(): void {
             $pdo->exec("ALTER TABLE snapshot_schedule DROP COLUMN day_of_week");
         }
         // 'hour' was nullable in older schemas; make it NOT NULL DEFAULT 3.
-        $hourCol = $pdo->query("SHOW COLUMNS FROM snapshot_schedule LIKE 'hour'")->fetch(PDO::FETCH_ASSOC);
-        if ($hourCol && (($hourCol['Null'] ?? 'YES') === 'YES')) {
+        $hourCol = $pdo->query("SELECT is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'snapshot_schedule' AND column_name = 'hour'")->fetch(PDO::FETCH_ASSOC);
+        if ($hourCol && (($hourCol['is_nullable'] ?? 'YES') === 'YES')) {
             $pdo->exec("UPDATE snapshot_schedule SET hour = 3 WHERE hour IS NULL");
-            $pdo->exec("ALTER TABLE snapshot_schedule MODIFY COLUMN hour TINYINT NOT NULL DEFAULT 3");
+            $pdo->exec("ALTER TABLE snapshot_schedule ALTER COLUMN hour SET DEFAULT 3");
+            $pdo->exec("ALTER TABLE snapshot_schedule ALTER COLUMN hour SET NOT NULL");
         }
     } catch (PDOException $e) {
         error_log('db_ensure_snapshots_tables: ' . $e->getMessage());
@@ -8900,10 +8905,8 @@ function db_ensure_nodes_import_slug_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM nodes LIKE 'import_slug'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE nodes ADD COLUMN import_slug VARCHAR(255) NULL AFTER source_created_at, ADD INDEX idx_import_slug (constellation_id, import_slug)");
-        }
+        $pdo->exec("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS import_slug VARCHAR(255) NULL");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_import_slug ON nodes (constellation_id, import_slug)");
     } catch (PDOException $e) {
         error_log('db_ensure_nodes_import_slug_column: ' . $e->getMessage());
     }
@@ -9022,10 +9025,7 @@ function db_ensure_project_info_columns(): void {
     try {
         $pdo = getDB();
         foreach ($newCols as $col => $def) {
-            $row = $pdo->query("SHOW COLUMNS FROM project_info LIKE '{$col}'")->fetch();
-            if (!$row) {
-                $pdo->exec("ALTER TABLE project_info ADD COLUMN {$col} {$def}");
-            }
+            $pdo->exec("ALTER TABLE project_info ADD COLUMN IF NOT EXISTS {$col} {$def}");
         }
         // Populate defaults for non-en locales
         $defaults = db_default_project_info_rows();
@@ -9056,18 +9056,18 @@ function db_insert_default_project_info_rows(PDO $pdo, string $enName = 'Telaris
     // PROJECT_INFO_KEYS that don't yet have a matching SQL column resolve
     // through the PHP-default fallback at read time (see
     // db_get_project_info_for_locale) and don't need to be persisted.
-    $actualCols = $pdo->query("SHOW COLUMNS FROM project_info")->fetchAll(PDO::FETCH_COLUMN);
+    $actualCols = $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'project_info'")->fetchAll(PDO::FETCH_COLUMN);
     $keys = array_values(array_intersect(PROJECT_INFO_KEYS, $actualCols));
     if (empty($keys)) return;
     $cols = implode(', ', $keys);
     $placeholders = ':' . implode(', :', $keys);
     $updates = [];
     foreach ($keys as $k) {
-        $updates[] = "$k = VALUES($k)";
+        $updates[] = "$k = EXCLUDED.$k";
     }
     $updateStr = implode(', ', $updates);
 
-    $stmt = $pdo->prepare("INSERT INTO project_info (locale, $cols) VALUES (:locale, $placeholders) ON DUPLICATE KEY UPDATE $updateStr");
+    $stmt = $pdo->prepare("INSERT INTO project_info (locale, $cols) VALUES (:locale, $placeholders) ON CONFLICT (locale) DO UPDATE SET $updateStr");
     foreach (PROJECT_INFO_LOCALES as $locale) {
         $params = [':locale' => $locale];
         foreach ($keys as $k) {
@@ -9322,7 +9322,7 @@ function db_create_password_reset_token(string $userId, int $ttlSeconds = 86400)
     $hash = hash('sha256', $token);
     $stmt = $pdo->prepare("
         INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
-        VALUES (:h, :uid, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL :ttl SECOND))
+        VALUES (:h, :uid, CURRENT_TIMESTAMP + (:ttl * INTERVAL '1 second'))
     ");
     $stmt->execute([':h' => $hash, ':uid' => $userId, ':ttl' => max(60, $ttlSeconds)]);
     return $token;
@@ -9410,13 +9410,13 @@ function db_ensure_login_tokens_table(): void {
                 token_hash CHAR(64) NOT NULL PRIMARY KEY,
                 user_id VARCHAR(255) NOT NULL,
                 purpose VARCHAR(24) NOT NULL,
-                expires_at DATETIME NOT NULL,
-                used_at DATETIME NULL DEFAULT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                used_at TIMESTAMP NULL DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_login_tokens_user_purpose (user_id, purpose),
-                INDEX idx_login_tokens_expires_at (expires_at),
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE INDEX IF NOT EXISTS idx_login_tokens_user_purpose ON login_tokens (user_id, purpose);
+            CREATE INDEX IF NOT EXISTS idx_login_tokens_expires_at ON login_tokens (expires_at);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_login_tokens_table: ' . $e->getMessage());
@@ -9581,15 +9581,15 @@ function db_ensure_auth_attempts_table(): void {
     $pdo = getDB();
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS auth_attempts (
-            id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             action VARCHAR(16) NOT NULL,
             email VARCHAR(255) NULL,
             ip VARCHAR(45) NOT NULL,
-            success TINYINT(1) NOT NULL DEFAULT 0,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_lookup (action, email, ip, created_at),
-            INDEX idx_ip_window (ip, created_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            success SMALLINT NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_lookup ON auth_attempts (action, email, ip, created_at);
+        CREATE INDEX IF NOT EXISTS idx_ip_window ON auth_attempts (ip, created_at);
     ");
 }
 
@@ -9613,7 +9613,7 @@ function db_record_auth_attempt(string $action, ?string $email, string $ip, bool
     if (!$pruned) {
         $pruned = true;
         try {
-            $pdo->exec("DELETE FROM auth_attempts WHERE created_at < (NOW() - INTERVAL 30 DAY) LIMIT 10000");
+            $pdo->exec("DELETE FROM auth_attempts WHERE id IN (SELECT id FROM auth_attempts WHERE created_at < (NOW() - INTERVAL '30 day') LIMIT 10000)");
         } catch (Throwable $_) {
             // Best-effort.
         }
@@ -9744,20 +9744,20 @@ function db_ensure_audit_events_table(): void {
     $pdo = getDB();
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS audit_events (
-            id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             action VARCHAR(64) NOT NULL,
             actor_user_id VARCHAR(255) NULL,
             actor_email_tag VARCHAR(64) NULL,
             target_type VARCHAR(32) NULL,
             target_id VARCHAR(64) NULL,
-            details_json JSON NULL,
+            details_json JSONB NULL,
             ip VARCHAR(45) NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_action_time (action, created_at),
-            INDEX idx_actor_time (actor_user_id, created_at),
-            INDEX idx_target (target_type, target_id),
             CONSTRAINT fk_audit_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        );
+        CREATE INDEX IF NOT EXISTS idx_action_time ON audit_events (action, created_at);
+        CREATE INDEX IF NOT EXISTS idx_actor_time ON audit_events (actor_user_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_target ON audit_events (target_type, target_id);
     ");
 }
 
@@ -9854,7 +9854,7 @@ function db_audit_log(
             $pruned = true;
             $keepDays = defined('AUDIT_LOG_KEEP_DAYS') ? max(7, (int)AUDIT_LOG_KEEP_DAYS) : 365;
             try {
-                $pdo->exec("DELETE FROM audit_events WHERE created_at < (NOW() - INTERVAL {$keepDays} DAY) LIMIT 10000");
+                $pdo->exec("DELETE FROM audit_events WHERE id IN (SELECT id FROM audit_events WHERE created_at < (NOW() - INTERVAL '{$keepDays} day') LIMIT 10000)");
             } catch (Throwable $e) {
                 error_log('db_audit_log: prune failed: ' . $e->getMessage());
             }
@@ -9957,12 +9957,9 @@ function db_ensure_user_constellations_access_level_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM user_constellations LIKE 'access_level'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE user_constellations
-                ADD COLUMN access_level VARCHAR(16) NOT NULL DEFAULT 'read_write'
+        $pdo->exec("ALTER TABLE user_constellations
+                ADD COLUMN IF NOT EXISTS access_level VARCHAR(16) NOT NULL DEFAULT 'read_write'
                 CHECK (access_level IN ('read_write','read_only'))");
-        }
     } catch (PDOException $e) {
         error_log('db_ensure_user_constellations_access_level_column: ' . $e->getMessage());
     }
@@ -9977,7 +9974,7 @@ function db_get_constellation_ids_created_by(string $userId): array {
     if ($userId === '') return [];
     $pdo = getDB();
     try {
-        $stmt = $pdo->prepare("SELECT id FROM constellations WHERE created_by = :u AND `type` = 'galaxy' ORDER BY id");
+        $stmt = $pdo->prepare("SELECT id FROM constellations WHERE created_by = :u AND type = 'galaxy' ORDER BY id");
         $stmt->execute([':u' => $userId]);
         return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     } catch (PDOException $e) {
@@ -9997,7 +9994,7 @@ function db_get_constellation_ids_created_by(string $userId): array {
 function db_count_galaxies_by_creator(): array {
     $pdo = getDB();
     try {
-        $stmt = $pdo->query("SELECT created_by, COUNT(*) AS n FROM constellations WHERE created_by IS NOT NULL AND `type` = 'galaxy' GROUP BY created_by");
+        $stmt = $pdo->query("SELECT created_by, COUNT(*) AS n FROM constellations WHERE created_by IS NOT NULL AND type = 'galaxy' GROUP BY created_by");
         $out = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $out[(string)$row['created_by']] = (int)$row['n'];
@@ -10077,10 +10074,7 @@ function db_ensure_constellations_editors_enabled_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM constellations LIKE 'editors_enabled'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE constellations ADD COLUMN editors_enabled TINYINT(1) NOT NULL DEFAULT 1");
-        }
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS editors_enabled SMALLINT NOT NULL DEFAULT 1");
     } catch (PDOException $e) {
         error_log('db_ensure_constellations_editors_enabled_column: ' . $e->getMessage());
     }
@@ -10092,10 +10086,7 @@ function db_ensure_users_editor_enabled_column(): void {
     $checked = true;
     try {
         $pdo = getDB();
-        $row = $pdo->query("SHOW COLUMNS FROM users LIKE 'editor_enabled'")->fetch();
-        if (!$row) {
-            $pdo->exec("ALTER TABLE users ADD COLUMN editor_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER vetted");
-        }
+        $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS editor_enabled SMALLINT NOT NULL DEFAULT 1");
     } catch (PDOException $e) {
         error_log('db_ensure_users_editor_enabled_column: ' . $e->getMessage());
     }
@@ -10376,7 +10367,7 @@ function db_get_constellations(): array {
     db_ensure_constellations_import_source_column();
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
-    $stmt = $pdo->query("SELECT id, name, tagline, slug, theme, import_source, created_at, updated_at FROM constellations WHERE `type` = 'galaxy' ORDER BY id");
+    $stmt = $pdo->query("SELECT id, name, tagline, slug, theme, import_source, created_at, updated_at FROM constellations WHERE type = 'galaxy' ORDER BY id");
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -10422,7 +10413,7 @@ function db_get_constellations_by_name_prefix(string $prefix): array {
     db_ensure_constellations_type_and_cluster_members();
     $needle = '[' . $prefix . ']';
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT id, name, slug, theme FROM constellations WHERE name LIKE :p AND `type` = 'galaxy' ORDER BY id");
+    $stmt = $pdo->prepare("SELECT id, name, slug, theme FROM constellations WHERE name LIKE :p AND type = 'galaxy' ORDER BY id");
     // Escape LIKE wildcards in the supplied prefix; we want a literal prefix match.
     $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $needle);
     $stmt->execute([':p' => $escaped . '%']);
@@ -10482,7 +10473,7 @@ function db_set_tags_for_galaxy(int $constellationId, array $labels, ?string $cr
         // model is ever needed, switch to a diff-based update here.
         $del = $pdo->prepare("DELETE FROM galaxy_tags WHERE constellation_id = :cid");
         $del->execute([':cid' => $constellationId]);
-        $ins = $pdo->prepare("INSERT IGNORE INTO galaxy_tags (constellation_id, tag_slug, tag_label, created_by) VALUES (:cid, :slug, :label, :created_by)");
+        $ins = $pdo->prepare("INSERT INTO galaxy_tags (constellation_id, tag_slug, tag_label, created_by) VALUES (:cid, :slug, :label, :created_by) ON CONFLICT (constellation_id, tag_slug) DO NOTHING");
         $seen = [];
         foreach ($labels as $raw) {
             $label = trim((string) $raw);
@@ -10523,7 +10514,7 @@ function db_get_galaxies_for_tag(string $tagSlug): array {
         SELECT c.id, c.name, c.slug, c.theme, gt.tag_label
         FROM galaxy_tags gt
         JOIN constellations c ON c.id = gt.constellation_id
-        WHERE gt.tag_slug = :s AND c.`type` = 'galaxy'
+        WHERE gt.tag_slug = :s AND c.type = 'galaxy'
         ORDER BY c.id
     ");
     $stmt->execute([':s' => $tagSlug]);
@@ -10760,7 +10751,7 @@ function db_get_cluster_member_ids(int $clusterId): array {
     $stmt = $pdo->prepare("
         SELECT m.member_id
         FROM galaxy_cluster_members m
-        JOIN constellations c ON c.id = m.member_id AND c.`type` = 'galaxy'
+        JOIN constellations c ON c.id = m.member_id AND c.type = 'galaxy'
         WHERE m.cluster_id = :cid
         ORDER BY m.position ASC, m.member_id ASC
     ");
@@ -10786,7 +10777,7 @@ function db_set_cluster_members(int $clusterId, array $memberIds): void {
         if ($ids !== []) {
             // Validate each candidate is a galaxy (not a cluster, not the cluster itself).
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            $vstmt = $pdo->prepare("SELECT id FROM constellations WHERE id IN ($placeholders) AND `type` = 'galaxy'");
+            $vstmt = $pdo->prepare("SELECT id FROM constellations WHERE id IN ($placeholders) AND type = 'galaxy'");
             $vstmt->execute($ids);
             $valid = array_map('intval', $vstmt->fetchAll(PDO::FETCH_COLUMN));
             $validSet = array_flip($valid);
@@ -10816,7 +10807,7 @@ function db_create_cluster(string $name, string $tagline = '', ?string $slug = n
     $pdo = getDB();
     $finalSlug = ($slug !== null && $slug !== '') ? $slug : db_slugify($name);
     $fm = in_array($fuzzyMatching, ['inherit', 'on', 'off'], true) ? $fuzzyMatching : 'inherit';
-    $stmt = $pdo->prepare("INSERT INTO constellations (name, tagline, slug, theme, `type`, show_galaxy_list, fuzzy_keyword_matching) VALUES (:name, :tagline, :slug, :theme, 'cluster', :sgl, :fm)");
+    $stmt = $pdo->prepare("INSERT INTO constellations (name, tagline, slug, theme, type, show_galaxy_list, fuzzy_keyword_matching) VALUES (:name, :tagline, :slug, :theme, 'cluster', :sgl, :fm) RETURNING id");
     $stmt->execute([
         ':name' => $name,
         ':tagline' => $tagline,
@@ -10825,7 +10816,7 @@ function db_create_cluster(string $name, string $tagline = '', ?string $slug = n
         ':sgl' => $showGalaxyList ? 1 : 0,
         ':fm' => $fm,
     ]);
-    $clusterId = (int) $pdo->lastInsertId();
+    $clusterId = (int) $stmt->fetchColumn();
     if ($memberIds !== []) {
         db_set_cluster_members($clusterId, $memberIds);
     }
@@ -10842,7 +10833,7 @@ function db_create_cluster(string $name, string $tagline = '', ?string $slug = n
 function db_find_or_create_named_cluster(string $name): int {
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT id FROM constellations WHERE name = :name AND `type` = 'cluster' ORDER BY id ASC LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id FROM constellations WHERE name = :name AND type = 'cluster' ORDER BY id ASC LIMIT 1");
     $stmt->execute([':name' => $name]);
     $id = $stmt->fetchColumn();
     if ($id !== false) {
@@ -10878,7 +10869,7 @@ function db_add_cluster_member(int $clusterId, int $memberId): void {
         return;
     }
     $pdo = getDB();
-    $chk = $pdo->prepare("SELECT 1 FROM constellations WHERE id = :id AND `type` = 'galaxy'");
+    $chk = $pdo->prepare("SELECT 1 FROM constellations WHERE id = :id AND type = 'galaxy'");
     $chk->execute([':id' => $memberId]);
     if ($chk->fetchColumn() === false) {
         return; // non-galaxy or unknown id
@@ -10894,7 +10885,7 @@ function db_add_cluster_member(int $clusterId, int $memberId): void {
     // INSERT IGNORE: PRIMARY KEY (cluster_id, member_id) makes a concurrent add
     // of the same galaxy a harmless no-op rather than a thrown duplicate-key
     // error (the membership is already the desired end state).
-    $ins = $pdo->prepare("INSERT IGNORE INTO galaxy_cluster_members (cluster_id, member_id, position) VALUES (:cid, :mid, :pos)");
+    $ins = $pdo->prepare("INSERT INTO galaxy_cluster_members (cluster_id, member_id, position) VALUES (:cid, :mid, :pos) ON CONFLICT (cluster_id, member_id) DO NOTHING");
     $ins->execute([':cid' => $clusterId, ':mid' => $memberId, ':pos' => $pos]);
 }
 
@@ -10906,7 +10897,7 @@ function db_update_cluster(int $id, string $name, string $tagline = '', ?string 
     $pdo = getDB();
     $finalSlug = ($slug !== null && $slug !== '') ? $slug : db_slugify($name);
     $fm = in_array($fuzzyMatching, ['inherit', 'on', 'off'], true) ? $fuzzyMatching : 'inherit';
-    $stmt = $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline, slug = :slug, theme = :theme, show_galaxy_list = :sgl, fuzzy_keyword_matching = :fm WHERE id = :id AND `type` = 'cluster'");
+    $stmt = $pdo->prepare("UPDATE constellations SET name = :name, tagline = :tagline, slug = :slug, theme = :theme, show_galaxy_list = :sgl, fuzzy_keyword_matching = :fm WHERE id = :id AND type = 'cluster'");
     $stmt->execute([
         ':id' => $id,
         ':name' => $name,
@@ -10924,7 +10915,7 @@ function db_update_cluster(int $id, string $name, string $tagline = '', ?string 
 function db_delete_cluster(int $id): void {
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
-    $pdo->prepare("DELETE FROM constellations WHERE id = :id AND `type` = 'cluster'")->execute([':id' => $id]);
+    $pdo->prepare("DELETE FROM constellations WHERE id = :id AND type = 'cluster'")->execute([':id' => $id]);
 }
 
 /**
@@ -10940,7 +10931,7 @@ function db_get_clusters(): array {
         SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.show_galaxy_list, c.fuzzy_keyword_matching, c.editors_enabled, c.created_at, c.updated_at,
                (SELECT COUNT(*) FROM galaxy_cluster_members m WHERE m.cluster_id = c.id) AS member_count
         FROM constellations c
-        WHERE c.`type` = 'cluster'
+        WHERE c.type = 'cluster'
         ORDER BY c.id
     ");
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -10982,7 +10973,7 @@ function db_get_clusters_paginated(
     db_ensure_constellations_tour_columns();
     $pdo = getDB();
 
-    $where = ["c.`type` = 'cluster'"];
+    $where = ["c.type = 'cluster'"];
     $params = [];
     if ($filter !== null && $filter !== '') {
         $filterVal = '%' . addcslashes($filter, '%_\\') . '%';
@@ -11071,7 +11062,7 @@ function db_get_constellations_paginated(
     $pdo = getDB();
 
     db_ensure_constellations_type_and_cluster_members();
-    $where = ["c.`type` = 'galaxy'"];
+    $where = ["c.type = 'galaxy'"];
     $params = [];
 
     if ($filter !== null && $filter !== '') {
@@ -11153,7 +11144,7 @@ function db_get_constellations_for_user(?string $userId, bool $isAdmin): array {
         SELECT c.id, c.name, c.tagline, c.slug, c.theme, c.import_source, c.created_at, c.updated_at
         FROM constellations c
         INNER JOIN user_constellations uc ON uc.constellation_id = c.id AND uc.user_id = :user_id
-        WHERE c.`type` = 'galaxy'
+        WHERE c.type = 'galaxy'
         ORDER BY c.id
     ");
     $stmt->execute([':user_id' => $userId]);
@@ -11169,7 +11160,7 @@ function db_get_constellation_by_id(int $id): ?array {
     db_ensure_constellations_type_and_cluster_members();
     db_ensure_constellations_editors_enabled_column();
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme, import_source, `type`, show_galaxy_list, fuzzy_keyword_matching, editors_enabled FROM constellations WHERE id = :id LIMIT 1");
+    $stmt = $pdo->prepare("SELECT name, tagline, slug, theme, import_source, type, show_galaxy_list, fuzzy_keyword_matching, editors_enabled FROM constellations WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
@@ -11202,7 +11193,7 @@ function db_get_constellations_by_ids(array $ids): array {
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
     $place = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = $pdo->prepare("SELECT id, name, tagline, slug, theme, import_source, `type`, show_galaxy_list, fuzzy_keyword_matching FROM constellations WHERE id IN ($place)");
+    $stmt = $pdo->prepare("SELECT id, name, tagline, slug, theme, import_source, type, show_galaxy_list, fuzzy_keyword_matching FROM constellations WHERE id IN ($place)");
     $stmt->execute($ids);
     $out = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -11296,13 +11287,13 @@ function db_bulk_delete_nodes_by_constellation(int $constellationId): void {
 function db_get_constellation_by_slug(string $slug): ?array {
     db_ensure_constellations_type_and_cluster_members();
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT id, name, tagline, theme, `type` FROM constellations WHERE slug = :slug LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, name, tagline, theme, type FROM constellations WHERE slug = :slug LIMIT 1");
     $stmt->execute([':slug' => $slug]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$row) {
         // Fallback: check if any constellation name slugifies to this value
-        $all = $pdo->query("SELECT id, name, tagline, slug, theme, `type` FROM constellations");
+        $all = $pdo->query("SELECT id, name, tagline, slug, theme, type FROM constellations");
         while ($c = $all->fetch(PDO::FETCH_ASSOC)) {
             if (db_slugify($c['name']) === strtolower($slug)) {
                 $row = $c;
@@ -11373,14 +11364,15 @@ function db_create_constellation(string $name, string $tagline = '', ?string $sl
         $slug = db_slugify($name);
     }
 
-    $pdo->prepare("INSERT INTO constellations (name, tagline, slug, theme, created_by) VALUES (:name, :tagline, :slug, :theme, :created_by)")->execute([
+    $stmt = $pdo->prepare("INSERT INTO constellations (name, tagline, slug, theme, created_by) VALUES (:name, :tagline, :slug, :theme, :created_by) RETURNING id");
+    $stmt->execute([
         ':name' => $name,
         ':tagline' => trim($tagline),
         ':slug' => trim($slug),
         ':theme' => $theme,
         ':created_by' => $createdBy,
     ]);
-    return (int)$pdo->lastInsertId();
+    return (int)$stmt->fetchColumn();
 }
 
 /**
@@ -11407,11 +11399,11 @@ function db_duplicate_constellation(int $sourceId, string $newName, string $newT
         $stmt = $pdo->prepare("SELECT id, keyword FROM keywords WHERE constellation_id = :sid");
         $stmt->execute([':sid' => $sourceId]);
         $oldToNewKeywordIds = [];
-        $insertKw = $pdo->prepare("INSERT INTO keywords (constellation_id, keyword) VALUES (:cid, :kw)");
-        
+        $insertKw = $pdo->prepare("INSERT INTO keywords (constellation_id, keyword) VALUES (:cid, :kw) RETURNING id");
+
         while ($kwRow = $stmt->fetch()) {
             $insertKw->execute([':cid' => $newId, ':kw' => $kwRow['keyword']]);
-            $oldToNewKeywordIds[$kwRow['id']] = (int)$pdo->lastInsertId();
+            $oldToNewKeywordIds[$kwRow['id']] = (int)$insertKw->fetchColumn();
         }
 
         // 4. Duplicate Nodes
@@ -11422,6 +11414,7 @@ function db_duplicate_constellation(int $sourceId, string $newName, string $newT
         $insertNode = $pdo->prepare("
             INSERT INTO nodes (constellation_id, name, description, url, image_url, embed_code, audio_url, audio_autoplay, audio_loop, video_url, video_autoplay, node_type, target_constellation_id, is_accentuated, created_by, animation)
             VALUES (:cid, :name, :description, :url, :image_url, :embed_code, :audio_url, :audio_autoplay, :audio_loop, :video_url, :video_autoplay, :node_type, :target_constellation_id, :is_accentuated, :created_by, :animation)
+            RETURNING id
         ");
 
         $insertNodeKw = $pdo->prepare("INSERT INTO node_keywords (node_id, keyword_id) VALUES (:nid, :kid)");
@@ -11491,7 +11484,7 @@ function db_duplicate_constellation(int $sourceId, string $newName, string $newT
                 ':created_by' => $node['created_by'],
                 ':animation' => $node['animation']
             ]);
-            $newNodeId = (int)$pdo->lastInsertId();
+            $newNodeId = (int)$insertNode->fetchColumn();
 
             // Link keywords to the new node
             $stmtKw = $pdo->prepare("SELECT keyword_id FROM node_keywords WHERE node_id = :nid");
@@ -11878,11 +11871,11 @@ function db_set_cluster_tour_keyword_names(int $clusterId, array $names): void {
         $pdo->prepare("DELETE FROM keywords WHERE constellation_id = :cid")
             ->execute([':cid' => $clusterId]);
         if (!empty($clean)) {
-            $insertKw = $pdo->prepare("INSERT INTO keywords (keyword, constellation_id) VALUES (:kw, :cid)");
+            $insertKw = $pdo->prepare("INSERT INTO keywords (keyword, constellation_id) VALUES (:kw, :cid) RETURNING id");
             $insertJunc = $pdo->prepare("INSERT INTO constellation_tour_keywords (constellation_id, keyword_id) VALUES (:cid, :kid)");
             foreach ($clean as $name) {
                 $insertKw->execute([':kw' => $name, ':cid' => $clusterId]);
-                $kid = (int)$pdo->lastInsertId();
+                $kid = (int)$insertKw->fetchColumn();
                 $insertJunc->execute([':cid' => $clusterId, ':kid' => $kid]);
             }
         }
@@ -12211,7 +12204,7 @@ function db_get_nodes_paginated(
         'is_accentuated' => 'n.is_accentuated',
         'created_at' => 'n.created_at',
         'updated_at' => 'n.updated_at',
-        'keywords' => '(SELECT GROUP_CONCAT(k2.keyword ORDER BY k2.keyword) FROM node_keywords nk2 JOIN keywords k2 ON k2.id = nk2.keyword_id WHERE nk2.node_id = n.id)',
+        'keywords' => "(SELECT string_agg(k2.keyword::text, ',' ORDER BY k2.keyword) FROM node_keywords nk2 JOIN keywords k2 ON k2.id = nk2.keyword_id WHERE nk2.node_id = n.id)",
     ];
     $orderDir = strtolower($order) === 'desc' ? 'DESC' : 'ASC';
     $orderClause = 'ORDER BY n.id ASC';
@@ -12440,6 +12433,7 @@ function db_format_node(array $node): array {
 function db_save_node_keywords(int $nodeId, array $keywords, ?string $createdBy = null, bool $allowReadOnly = false): void {
     db_ensure_keywords_created_by_column();
     db_ensure_node_keywords_created_by_column();
+    db_ensure_keywords_unaccent_index();
     $pdo = getDB();
     $nodeStmt = $pdo->prepare("SELECT constellation_id FROM nodes WHERE id = :id LIMIT 1");
     $nodeStmt->execute([':id' => $nodeId]);
@@ -12467,12 +12461,14 @@ function db_save_node_keywords(int $nodeId, array $keywords, ?string $createdBy 
     if ($names === []) return;
 
     try {
-        // Step 1: upsert every keyword in a single statement. INSERT IGNORE relies on
-        // unique_keyword_constellation (keyword, constellation_id). created_by lands
-        // on rows that win the insert race; existing keyword rows keep their prior
-        // creator attribution.
+        // Step 1: upsert every keyword in a single statement. ON CONFLICT DO NOTHING
+        // relies on the accent+case-insensitive expression unique index
+        // unique_keyword_constellation (lower(immutable_unaccent(keyword)), constellation_id);
+        // created_by lands on rows that win the insert race; existing keyword rows keep
+        // their prior creator attribution. Duplicate conflict keys within this one
+        // statement (e.g. 'Cafe' and 'cafe') are skipped, collapsing to a single row.
         $kwPlaceholders = implode(',', array_fill(0, count($names), '(?, ?, ?)'));
-        $kwStmt = $pdo->prepare("INSERT IGNORE INTO keywords (keyword, constellation_id, created_by) VALUES $kwPlaceholders");
+        $kwStmt = $pdo->prepare("INSERT INTO keywords (keyword, constellation_id, created_by) VALUES $kwPlaceholders ON CONFLICT (lower(immutable_unaccent(keyword)), constellation_id) DO NOTHING");
         $bind = [];
         foreach ($names as $n) {
             $bind[] = $n;
@@ -12504,7 +12500,7 @@ function db_save_node_keywords(int $nodeId, array $keywords, ?string $createdBy 
         }
         if ($keywordIds === []) return;
         $jPlaceholders = implode(',', array_fill(0, count($keywordIds), '(?, ?, ?)'));
-        $jStmt = $pdo->prepare("INSERT IGNORE INTO node_keywords (node_id, keyword_id, created_by) VALUES $jPlaceholders");
+        $jStmt = $pdo->prepare("INSERT INTO node_keywords (node_id, keyword_id, created_by) VALUES $jPlaceholders ON CONFLICT (node_id, keyword_id) DO NOTHING");
         $jBind = [];
         foreach (array_keys($keywordIds) as $kid) {
             $jBind[] = $nodeId;
@@ -12592,6 +12588,7 @@ function db_create_node(string $name, ?string $description, ?string $url, string
     $stmt = $pdo->prepare("
         INSERT INTO nodes (name, description, url, image_url, image_attribution, icon_url, embed_code, audio_url, audio_autoplay, audio_loop, video_url, video_autoplay, pdf_url, animation, constellation_id, node_type, target_constellation_id, is_accentuated, show_keywords, use_image_as_node, created_by)
         VALUES (:name, :description, :url, :image_url, :image_attribution, :icon_url, :embed_code, :audio_url, :audio_autoplay, :audio_loop, :video_url, :video_autoplay, :pdf_url, :animation, :constellation_id, :node_type, :target_constellation_id, :is_accentuated, :show_keywords, :use_image_as_node, :created_by)
+        RETURNING id
     ");
     $stmt->execute([
         ':name' => $name,
@@ -12616,7 +12613,7 @@ function db_create_node(string $name, ?string $description, ?string $url, string
         ':use_image_as_node' => $useImageAsNode ? 1 : 0,
         ':created_by' => $createdBy,
     ]);
-    return (int)$pdo->lastInsertId();
+    return (int)$stmt->fetchColumn();
 }
 
 function db_update_node(int $id, string $name, ?string $description, ?string $url, string $animation, ?int $constellationId = null, string $nodeType = 'object', ?int $targetConstellationId = null, ?string $imageUrl = null, ?string $embedCode = null, ?string $audioUrl = null, bool $audioAutoplay = true, bool $isAccentuated = false, ?string $videoUrl = null, bool $videoAutoplay = true, bool $audioLoop = false, bool $showKeywords = false, ?string $iconUrl = null, ?string $imageAttribution = null, bool $useImageAsNode = false, ?string $pdfUrl = null, bool $allowReadOnly = false): void {
@@ -12904,20 +12901,23 @@ function db_create_keyword(string $keyword, ?int $constellationId = null, ?strin
         $constellationId = db_get_default_constellation_id();
     }
     db_ensure_keywords_created_by_column();
+    db_ensure_keywords_unaccent_index();
     $pdo = getDB();
-    // On the duplicate path, LAST_INSERT_ID(id) returns the existing row's id
-    // and created_by stays whatever it was originally (we never overwrite an
-    // earlier creator with a later editor).
+    // On the duplicate path, the no-op DO UPDATE (set created_by to its own current
+    // value) lets RETURNING hand back the existing row's id while leaving the original
+    // creator untouched (we never overwrite an earlier creator with a later editor).
+    // Conflict is the accent+case-insensitive expression unique index.
     $stmt = $pdo->prepare("
         INSERT INTO keywords (keyword, constellation_id, created_by) VALUES (:keyword, :constellation_id, :created_by)
-        ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)
+        ON CONFLICT (lower(immutable_unaccent(keyword)), constellation_id) DO UPDATE SET created_by = keywords.created_by
+        RETURNING id
     ");
     $stmt->execute([
         ':keyword' => $keyword,
         ':constellation_id' => $constellationId,
         ':created_by' => $createdBy,
     ]);
-    return (int)$pdo->lastInsertId();
+    return (int)$stmt->fetchColumn();
 }
 
 function db_get_node_constellation_id(int $nodeId): ?int {
@@ -13030,9 +13030,9 @@ function db_hotglue_page_create(string $title, ?string $ownerUserId): array {
     $owner = ($ownerUserId !== null && $ownerUserId !== '') ? $ownerUserId : null;
     // Insert with a temporary unique slug, then rewrite it from the new id.
     $tmp = 'pending-' . bin2hex(random_bytes(8));
-    $pdo->prepare("INSERT INTO hotglue_pages (slug, title, owner_user_id) VALUES (:slug, :title, :owner)")
-        ->execute([':slug' => $tmp, ':title' => $title, ':owner' => $owner]);
-    $id = (int)$pdo->lastInsertId();
+    $insStmt = $pdo->prepare("INSERT INTO hotglue_pages (slug, title, owner_user_id) VALUES (:slug, :title, :owner) RETURNING id");
+    $insStmt->execute([':slug' => $tmp, ':title' => $title, ':owner' => $owner]);
+    $id = (int)$insStmt->fetchColumn();
     $slug = 'page-' . $id;
     $pdo->prepare("UPDATE hotglue_pages SET slug = :slug WHERE id = :id")->execute([':slug' => $slug, ':id' => $id]);
     return db_hotglue_page_get_by_id($id) ?? ['id' => $id, 'slug' => $slug, 'title' => $title, 'owner_user_id' => $owner, 'node_id' => null];
@@ -13066,9 +13066,9 @@ function db_hotglue_page_get_or_create_for_node(int $nodeId, ?string $ownerUserI
     $node = db_get_node_by_id($nodeId);
     $title = ($node && trim((string)($node['name'] ?? '')) !== '') ? (string)$node['name'] : $slug;
     $owner = ($ownerUserId !== null && $ownerUserId !== '') ? $ownerUserId : null;
-    $pdo->prepare("INSERT INTO hotglue_pages (slug, title, owner_user_id, node_id) VALUES (:s, :t, :o, :n)")
-        ->execute([':s' => $slug, ':t' => $title, ':o' => $owner, ':n' => $nodeId]);
-    return db_hotglue_page_get_by_id((int)$pdo->lastInsertId());
+    $insStmt = $pdo->prepare("INSERT INTO hotglue_pages (slug, title, owner_user_id, node_id) VALUES (:s, :t, :o, :n) RETURNING id");
+    $insStmt->execute([':s' => $slug, ':t' => $title, ':o' => $owner, ':n' => $nodeId]);
+    return db_hotglue_page_get_by_id((int)$insStmt->fetchColumn());
 }
 
 function db_hotglue_page_rename(int $id, string $title): void {
@@ -13377,10 +13377,11 @@ function db_merge_keywords(int $sourceId, int $targetId): void {
     try {
         // 1. Move junction rows.
         $pdo->prepare("
-            INSERT IGNORE INTO node_keywords (node_id, keyword_id, created_by)
+            INSERT INTO node_keywords (node_id, keyword_id, created_by)
             SELECT node_id, :target, created_by
             FROM node_keywords
             WHERE keyword_id = :source
+            ON CONFLICT (node_id, keyword_id) DO NOTHING
         ")->execute([':target' => $targetId, ':source' => $sourceId]);
         $pdo->prepare("DELETE FROM node_keywords WHERE keyword_id = :source")
             ->execute([':source' => $sourceId]);
@@ -13394,9 +13395,10 @@ function db_merge_keywords(int $sourceId, int $targetId): void {
         ");
         $stmt->execute([':source' => $sourceId]);
         $ins = $pdo->prepare("
-            INSERT IGNORE INTO keyword_relations
+            INSERT INTO keyword_relations
                 (keyword_a_id, keyword_b_id, anchor_a, anchor_b, note, created_by, created_at)
             VALUES (:a, :b, :aa, :ab, :n, :c, :ts)
+            ON CONFLICT (keyword_a_id, keyword_b_id) DO NOTHING
         ");
         while ($r = $stmt->fetch()) {
             $aId = (int)$r['keyword_a_id'];
@@ -13516,7 +13518,7 @@ function db_get_connections(?int $constellationId = null, bool $fuzzy = false): 
  */
 function getAllTables(PDO $pdo): array {
     try {
-        $stmt = $pdo->query("SHOW TABLES");
+        $stmt = $pdo->query("SELECT tablename FROM pg_tables WHERE schemaname = 'public'");
         $rows = $stmt->fetchAll(PDO::FETCH_NUM);
         return array_column($rows, 0);
     } catch (PDOException $e) {
@@ -13792,6 +13794,7 @@ function db_create_node_for_restore(int $constellationId, array $node): int {
             :source_facet, :media_type, :source_created_at, :import_slug, :created_by,
             :media_mode, :hotglue_page
         )
+        RETURNING id
     ");
     $stmt->execute([
         ':constellation_id' => $constellationId,
@@ -13821,7 +13824,7 @@ function db_create_node_for_restore(int $constellationId, array $node): int {
         ':media_mode' => $mediaMode,
         ':hotglue_page' => $hotgluePage,
     ]);
-    return (int)$pdo->lastInsertId();
+    return (int)$stmt->fetchColumn();
 }
 
 /**
@@ -13858,22 +13861,18 @@ function db_wipe_all_data(): void {
     if ($pdo->inTransaction()) {
         throw new RuntimeException('db_wipe_all_data: must not run inside a transaction (DDL would implicit-commit).');
     }
-    try {
-        $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
-        $pdo->exec("DELETE FROM node_keywords");
-        $pdo->exec("DELETE FROM nodes");
-        $pdo->exec("DELETE FROM keywords");
-        $pdo->exec("DELETE FROM user_constellations");
-        $pdo->exec("DELETE FROM constellations");
-        $pdo->exec("DELETE FROM users");
-        // Reset auto-increment so restored IDs start fresh
-        $pdo->exec("ALTER TABLE constellations AUTO_INCREMENT = 1");
-        $pdo->exec("ALTER TABLE nodes AUTO_INCREMENT = 1");
-        $pdo->exec("ALTER TABLE keywords AUTO_INCREMENT = 1");
-        $pdo->exec("ALTER TABLE node_keywords AUTO_INCREMENT = 1");
-    } finally {
-        $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
-    }
+    // Child-first delete order satisfies the FK constraints without disabling them.
+    $pdo->exec("DELETE FROM node_keywords");
+    $pdo->exec("DELETE FROM nodes");
+    $pdo->exec("DELETE FROM keywords");
+    $pdo->exec("DELETE FROM user_constellations");
+    $pdo->exec("DELETE FROM constellations");
+    $pdo->exec("DELETE FROM users");
+    // Reset identity sequences so restored IDs start fresh
+    $pdo->exec("ALTER TABLE constellations ALTER COLUMN id RESTART WITH 1");
+    $pdo->exec("ALTER TABLE nodes ALTER COLUMN id RESTART WITH 1");
+    $pdo->exec("ALTER TABLE keywords ALTER COLUMN id RESTART WITH 1");
+    $pdo->exec("ALTER TABLE node_keywords ALTER COLUMN id RESTART WITH 1");
 
     // Wipe the per-galaxy uploads subdirectories. We do this by iterating
     // direct children of UPLOAD_DIR rather than nuking the dir itself,
@@ -13918,31 +13917,31 @@ function db_ensure_peers_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS peers (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 hostname VARCHAR(255) NOT NULL,
                 url VARCHAR(512) NOT NULL,
                 pluriverse_endpoint VARCHAR(512) NOT NULL,
-                public_key VARBINARY(32) NOT NULL,
-                previous_public_key VARBINARY(32) NULL,
+                public_key BYTEA NOT NULL,
+                previous_public_key BYTEA NULL,
                 key_rotated_at TIMESTAMP NULL,
-                rotation_reason ENUM('scheduled','operational','compromise') NULL,
+                rotation_reason VARCHAR(16) NULL CHECK (rotation_reason IN ('scheduled','operational','compromise')),
                 label VARCHAR(255) NOT NULL,
-                bridges JSON NULL,
-                source ENUM('registry','manual') NOT NULL DEFAULT 'manual',
+                bridges JSONB NULL,
+                source VARCHAR(16) NOT NULL DEFAULT 'manual' CHECK (source IN ('registry','manual')),
                 source_detail VARCHAR(255) NULL,
-                trust_state ENUM('discovered','contacted','whitelisted','blocked') NOT NULL DEFAULT 'discovered',
+                trust_state VARCHAR(16) NOT NULL DEFAULT 'discovered' CHECK (trust_state IN ('discovered','contacted','whitelisted','blocked')),
                 has_active_whitelist BOOLEAN NOT NULL DEFAULT FALSE,
                 local_nickname VARCHAR(255) NULL,
                 local_blacklisted_reason TEXT NULL,
                 last_seen_at TIMESTAMP NULL,
-                health_status ENUM('up','degraded','down','unknown') NOT NULL DEFAULT 'unknown',
+                health_status VARCHAR(16) NOT NULL DEFAULT 'unknown' CHECK (health_status IN ('up','degraded','down','unknown')),
                 manual_added_by VARCHAR(255) NULL,
                 manual_added_at TIMESTAMP NULL,
                 manual_reauth_at TIMESTAMP NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY uniq_hostname (hostname)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT uniq_hostname UNIQUE (hostname)
+            );
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_peers_table: ' . $e->getMessage());
@@ -13958,17 +13957,17 @@ function db_ensure_peer_keys_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS peer_keys (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-                peer_id INT UNSIGNED NOT NULL,
-                api_key_hash VARBINARY(32) NOT NULL,
-                direction ENUM('they_call_us','we_call_them') NOT NULL,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                peer_id INT NOT NULL,
+                api_key_hash BYTEA NOT NULL,
+                direction VARCHAR(16) NOT NULL CHECK (direction IN ('they_call_us','we_call_them')),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_used_at TIMESTAMP NULL,
                 is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                UNIQUE KEY uniq_api_key_hash (api_key_hash),
-                INDEX idx_peer_direction (peer_id, direction),
+                CONSTRAINT uniq_api_key_hash UNIQUE (api_key_hash),
                 FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE INDEX IF NOT EXISTS idx_peer_direction ON peer_keys (peer_id, direction);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_peer_keys_table: ' . $e->getMessage());
@@ -13984,14 +13983,14 @@ function db_ensure_galaxy_publish_whitelist_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS galaxy_publish_whitelist (
-                peer_id INT UNSIGNED NOT NULL,
+                peer_id INT NOT NULL,
                 constellation_id INT NOT NULL,
                 added_by VARCHAR(255) NULL,
                 added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (peer_id, constellation_id),
                 FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE,
                 FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_galaxy_publish_whitelist_table: ' . $e->getMessage());
@@ -14017,12 +14016,12 @@ function db_ensure_galaxy_publish_revocations_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS galaxy_publish_revocations (
-                peer_id INT UNSIGNED NOT NULL,
+                peer_id INT NOT NULL,
                 slug VARCHAR(255) NOT NULL,
                 revoked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (peer_id, slug),
                 FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_galaxy_publish_revocations_table: ' . $e->getMessage());
@@ -14038,31 +14037,26 @@ function db_ensure_galaxy_subscriptions_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS galaxy_subscriptions (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-                peer_id INT UNSIGNED NOT NULL,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                peer_id INT NOT NULL,
                 remote_slug VARCHAR(255) NOT NULL,
                 local_constellation_id INT NULL,
                 last_synced_at TIMESTAMP NULL,
                 last_content_hash VARCHAR(128) NULL,
-                last_received_sequence BIGINT UNSIGNED NULL,
-                last_rejected_sequence BIGINT UNSIGNED NULL,
+                last_received_sequence BIGINT NULL,
+                last_rejected_sequence BIGINT NULL,
                 added_by VARCHAR(255) NULL,
                 added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                UNIQUE KEY uniq_peer_remote (peer_id, remote_slug),
+                CONSTRAINT uniq_peer_remote UNIQUE (peer_id, remote_slug),
                 FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE,
                 FOREIGN KEY (local_constellation_id) REFERENCES constellations(id) ON DELETE SET NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
         ");
         // Stage 5d-iv: distinguish "stopped pulling because origin withdrew /
         // was revoked" from "operator-paused" (both have is_active = FALSE).
-        $cols = $pdo->query("SHOW COLUMNS FROM galaxy_subscriptions")->fetchAll(PDO::FETCH_COLUMN);
-        if (!in_array('fossilized_at', $cols, true)) {
-            $pdo->exec("ALTER TABLE galaxy_subscriptions ADD COLUMN fossilized_at TIMESTAMP NULL AFTER is_active");
-        }
-        if (!in_array('fossilized_reason', $cols, true)) {
-            $pdo->exec("ALTER TABLE galaxy_subscriptions ADD COLUMN fossilized_reason VARCHAR(100) NULL AFTER fossilized_at");
-        }
+        $pdo->exec("ALTER TABLE galaxy_subscriptions ADD COLUMN IF NOT EXISTS fossilized_at TIMESTAMP NULL");
+        $pdo->exec("ALTER TABLE galaxy_subscriptions ADD COLUMN IF NOT EXISTS fossilized_reason VARCHAR(100) NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_galaxy_subscriptions_table: ' . $e->getMessage());
     }
@@ -14084,15 +14078,15 @@ function db_ensure_peer_pull_state_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS peer_pull_state (
-                peer_id INT UNSIGNED PRIMARY KEY,
+                peer_id INT PRIMARY KEY,
                 last_pull_started_at TIMESTAMP NULL,
                 last_pull_succeeded_at TIMESTAMP NULL,
                 last_pull_failed_at TIMESTAMP NULL,
                 next_pull_at TIMESTAMP NULL,
-                consecutive_failures INT UNSIGNED NOT NULL DEFAULT 0,
+                consecutive_failures INT NOT NULL DEFAULT 0,
                 last_error VARCHAR(255) NULL,
                 FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_peer_pull_state_table: ' . $e->getMessage());
@@ -14114,16 +14108,16 @@ function db_ensure_remote_retractions_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS remote_retractions (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-                peer_id INT UNSIGNED NOT NULL,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                peer_id INT NOT NULL,
                 remote_slug VARCHAR(255) NOT NULL,
                 retracted_at TIMESTAMP NOT NULL,
                 reason TEXT NULL,
-                retraction_jws MEDIUMTEXT NOT NULL,
+                retraction_jws TEXT NOT NULL,
                 honored_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY uniq_peer_slug (peer_id, remote_slug),
+                CONSTRAINT uniq_peer_slug UNIQUE (peer_id, remote_slug),
                 FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_remote_retractions_table: ' . $e->getMessage());
@@ -14138,22 +14132,19 @@ function db_ensure_retracted_galaxies_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS retracted_galaxies (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 constellation_id INT NULL,
                 slug VARCHAR(255) NOT NULL,
                 retracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 retracted_by VARCHAR(255) NULL,
                 reason TEXT NULL,
-                UNIQUE KEY uniq_slug (slug),
+                CONSTRAINT uniq_retracted_slug UNIQUE (slug),
                 FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE SET NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
         ");
         // Stage 5c: the cached origin-signed retraction envelope (JWS Compact),
         // served verbatim from /galaxies/{slug}.retracted and retracted.json.
-        $col = $pdo->query("SHOW COLUMNS FROM retracted_galaxies LIKE 'retraction_jws'")->fetch();
-        if (!$col) {
-            $pdo->exec("ALTER TABLE retracted_galaxies ADD COLUMN retraction_jws MEDIUMTEXT NULL AFTER reason");
-        }
+        $pdo->exec("ALTER TABLE retracted_galaxies ADD COLUMN IF NOT EXISTS retraction_jws TEXT NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_retracted_galaxies_table: ' . $e->getMessage());
     }
@@ -14173,19 +14164,19 @@ function db_ensure_published_galaxies_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS published_galaxies (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 constellation_id INT NOT NULL,
                 slug VARCHAR(255) NOT NULL,
-                published_sequence BIGINT UNSIGNED NOT NULL DEFAULT 1,
+                published_sequence BIGINT NOT NULL DEFAULT 1,
                 content_hash CHAR(64) NOT NULL,
-                envelope_jws MEDIUMTEXT NOT NULL,
+                envelope_jws TEXT NOT NULL,
                 is_current BOOLEAN NOT NULL DEFAULT TRUE,
                 published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY uniq_slug (slug),
-                INDEX idx_constellation (constellation_id),
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT uniq_published_slug UNIQUE (slug),
                 FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE INDEX IF NOT EXISTS idx_published_constellation ON published_galaxies (constellation_id);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_published_galaxies_table: ' . $e->getMessage());
@@ -14208,10 +14199,10 @@ function db_ensure_media_blobs_table(): void {
                 sha256 CHAR(64) PRIMARY KEY,
                 storage_path VARCHAR(512) NOT NULL,
                 mime VARCHAR(127) NULL,
-                size_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
-                ref_count INT UNSIGNED NOT NULL DEFAULT 0,
+                size_bytes BIGINT NOT NULL DEFAULT 0,
+                ref_count INT NOT NULL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_media_blobs_table: ' . $e->getMessage());
@@ -14227,22 +14218,22 @@ function db_ensure_pluriverse_messages_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS pluriverse_messages (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-                peer_id INT UNSIGNED NOT NULL,
-                direction ENUM('inbound','outbound') NOT NULL,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                peer_id INT NOT NULL,
+                direction VARCHAR(16) NOT NULL CHECK (direction IN ('inbound','outbound')),
                 thread_id VARCHAR(64) NOT NULL,
                 message_type VARCHAR(32) NOT NULL,
                 subject VARCHAR(255) NULL,
-                body MEDIUMTEXT NULL,
-                payload JSON NULL,
-                jws_envelope MEDIUMTEXT NOT NULL,
+                body TEXT NULL,
+                payload JSONB NULL,
+                jws_envelope TEXT NOT NULL,
                 is_read BOOLEAN NOT NULL DEFAULT FALSE,
                 read_at TIMESTAMP NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_peer_thread (peer_id, thread_id),
-                INDEX idx_unread (peer_id, is_read),
                 FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE INDEX IF NOT EXISTS idx_peer_thread ON pluriverse_messages (peer_id, thread_id);
+            CREATE INDEX IF NOT EXISTS idx_unread ON pluriverse_messages (peer_id, is_read);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_pluriverse_messages_table: ' . $e->getMessage());
@@ -14258,11 +14249,11 @@ function db_ensure_seen_nonces_table(): void {
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS seen_nonces (
                 origin_host VARCHAR(255) NOT NULL,
-                nonce VARBINARY(32) NOT NULL,
+                nonce BYTEA NOT NULL,
                 seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (origin_host, nonce),
-                INDEX idx_seen_at (seen_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                PRIMARY KEY (origin_host, nonce)
+            );
+            CREATE INDEX IF NOT EXISTS idx_seen_at ON seen_nonces (seen_at);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_seen_nonces_table: ' . $e->getMessage());
@@ -14277,15 +14268,15 @@ function db_ensure_key_events_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS key_events (
-                id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 origin_host VARCHAR(255) NOT NULL,
-                event_type ENUM('scheduled_rotation','operational_rotation','compromise','revocation') NOT NULL,
+                event_type VARCHAR(32) NOT NULL CHECK (event_type IN ('scheduled_rotation','operational_rotation','compromise','revocation')),
                 occurred_at TIMESTAMP NOT NULL,
-                signed_payload MEDIUMTEXT NOT NULL,
-                received_via ENUM('push','poll') NOT NULL,
-                received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_origin_occurred (origin_host, occurred_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                signed_payload TEXT NOT NULL,
+                received_via VARCHAR(8) NOT NULL CHECK (received_via IN ('push','poll')),
+                received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_origin_occurred ON key_events (origin_host, occurred_at);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_key_events_table: ' . $e->getMessage());
@@ -14305,20 +14296,20 @@ function db_ensure_pluriverse_log_tables(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS pluriverse_log (
-                id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 event_type VARCHAR(64) NOT NULL,
                 actor VARCHAR(255) NULL,
                 target VARCHAR(255) NULL,
-                outcome ENUM('success','failure','warning') NOT NULL,
+                outcome VARCHAR(16) NOT NULL CHECK (outcome IN ('success','failure','warning')),
                 details_summary VARCHAR(1024) NULL,
-                ip_hash VARBINARY(32) NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_event_type (event_type, created_at),
-                INDEX idx_actor (actor, created_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ip_hash BYTEA NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_event_type ON pluriverse_log (event_type, created_at);
+            CREATE INDEX IF NOT EXISTS idx_actor ON pluriverse_log (actor, created_at);
         ");
         // LIKE-copy needs the source table to exist; idempotent via IF NOT EXISTS.
-        $pdo->exec("CREATE TABLE IF NOT EXISTS pluriverse_log_archive LIKE pluriverse_log");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS pluriverse_log_archive (LIKE pluriverse_log INCLUDING ALL)");
     } catch (PDOException $e) {
         error_log('db_ensure_pluriverse_log_tables: ' . $e->getMessage());
     }
@@ -14340,30 +14331,18 @@ function db_ensure_federation_attribution_columns(): void {
     db_ensure_keyword_canvas_tables();
     try {
         $pdo = getDB();
-        $col = function(string $table, string $colName) use ($pdo): bool {
-            $stmt = $pdo->prepare("
-                SELECT 1 FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND COLUMN_NAME = :c
-                LIMIT 1
-            ");
-            $stmt->execute([':t' => $table, ':c' => $colName]);
-            return (bool)$stmt->fetchColumn();
-        };
         $constraint = function(string $table, string $name) use ($pdo): bool {
             $stmt = $pdo->prepare("
                 SELECT 1 FROM information_schema.TABLE_CONSTRAINTS
-                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND CONSTRAINT_NAME = :n
+                WHERE TABLE_SCHEMA = current_schema() AND TABLE_NAME = :t AND CONSTRAINT_NAME = :n
                 LIMIT 1
             ");
             $stmt->execute([':t' => $table, ':n' => $name]);
             return (bool)$stmt->fetchColumn();
         };
 
-        if (!$col('constellations', 'mirrored_from_peer_id')) {
-            $pdo->exec("ALTER TABLE constellations
-                ADD COLUMN mirrored_from_peer_id INT UNSIGNED NULL DEFAULT NULL,
-                ADD INDEX idx_constellations_mirrored_from_peer (mirrored_from_peer_id)");
-        }
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS mirrored_from_peer_id INT NULL DEFAULT NULL");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_constellations_mirrored_from_peer ON constellations (mirrored_from_peer_id)");
         if (!$constraint('constellations', 'fk_constellations_mirrored_from_peer')) {
             try {
                 $pdo->exec("ALTER TABLE constellations
@@ -14373,20 +14352,12 @@ function db_ensure_federation_attribution_columns(): void {
                 error_log('db_ensure_federation_attribution_columns: FK add skipped: ' . $e->getMessage());
             }
         }
-        if (!$col('constellations', 'read_only')) {
-            $pdo->exec("ALTER TABLE constellations
-                ADD COLUMN read_only BOOLEAN NOT NULL DEFAULT FALSE");
-        }
-        if (!$col('constellations', 'source_attribution')) {
-            $pdo->exec("ALTER TABLE constellations
-                ADD COLUMN source_attribution JSON NULL DEFAULT NULL");
-        }
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS read_only BOOLEAN NOT NULL DEFAULT FALSE");
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS source_attribution JSONB NULL DEFAULT NULL");
 
         foreach (['nodes', 'keywords', 'node_keywords', 'keyword_relations'] as $table) {
-            if (!$col($table, 'author_attribution_text')) {
-                $pdo->exec("ALTER TABLE `$table`
-                    ADD COLUMN author_attribution_text VARCHAR(255) NULL DEFAULT NULL");
-            }
+            $pdo->exec("ALTER TABLE \"$table\"
+                ADD COLUMN IF NOT EXISTS author_attribution_text VARCHAR(255) NULL DEFAULT NULL");
         }
     } catch (PDOException $e) {
         error_log('db_ensure_federation_attribution_columns: ' . $e->getMessage());
@@ -14410,20 +14381,20 @@ function db_ensure_pluriverse_blacklist_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS pluriverse_blacklist (
-                id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-                entry_type ENUM('hostname','ip','domain') NOT NULL,
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                entry_type VARCHAR(16) NOT NULL CHECK (entry_type IN ('hostname','ip','domain')),
                 entry_value VARCHAR(255) NOT NULL,
                 reason TEXT NULL,
                 added_by VARCHAR(255) NULL,
                 added_at TIMESTAMP NOT NULL,
                 pulled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY uniq_entry (entry_type, entry_value),
-                INDEX idx_entry_value (entry_value)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                CONSTRAINT uniq_entry UNIQUE (entry_type, entry_value)
+            );
+            CREATE INDEX IF NOT EXISTS idx_entry_value ON pluriverse_blacklist (entry_value);
         ");
         $col = function(string $colName) use ($pdo): bool {
             $s = $pdo->prepare("SELECT 1 FROM information_schema.COLUMNS
-                                WHERE TABLE_SCHEMA = DATABASE()
+                                WHERE TABLE_SCHEMA = current_schema()
                                 AND TABLE_NAME = 'pluriverse_blacklist'
                                 AND COLUMN_NAME = :c LIMIT 1");
             $s->execute([':c' => $colName]);
@@ -14431,47 +14402,35 @@ function db_ensure_pluriverse_blacklist_table(): void {
         };
         if ($col('entity_type')) {
             $pdo->exec("ALTER TABLE pluriverse_blacklist
-                        CHANGE COLUMN entity_type entry_type ENUM('hostname','ip','domain') NOT NULL");
+                        RENAME COLUMN entity_type TO entry_type");
         }
         if ($col('entity_value')) {
             $pdo->exec("ALTER TABLE pluriverse_blacklist
-                        CHANGE COLUMN entity_value entry_value VARCHAR(255) NOT NULL");
+                        RENAME COLUMN entity_value TO entry_value");
         }
-        if (!$col('added_by')) {
-            $pdo->exec("ALTER TABLE pluriverse_blacklist
-                        ADD COLUMN added_by VARCHAR(255) NULL AFTER reason");
-        }
-        $r = $pdo->query("SELECT EXTRA FROM information_schema.COLUMNS
-                          WHERE TABLE_SCHEMA = DATABASE()
-                          AND TABLE_NAME = 'pluriverse_blacklist'
-                          AND COLUMN_NAME = 'id' LIMIT 1");
-        $extra = (string)$r->fetchColumn();
-        if (stripos($extra, 'auto_increment') === false) {
-            $pdo->exec("ALTER TABLE pluriverse_blacklist
-                        MODIFY COLUMN id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT");
-        }
-        $idxOld = $pdo->prepare("SELECT 1 FROM information_schema.STATISTICS
-                                 WHERE TABLE_SCHEMA = DATABASE()
-                                 AND TABLE_NAME = 'pluriverse_blacklist'
-                                 AND INDEX_NAME = 'uniq_entity' LIMIT 1");
+        $pdo->exec("ALTER TABLE pluriverse_blacklist ADD COLUMN IF NOT EXISTS added_by VARCHAR(255) NULL");
+        $idxOld = $pdo->prepare("SELECT 1 FROM pg_indexes
+                                 WHERE schemaname = current_schema()
+                                 AND tablename = 'pluriverse_blacklist'
+                                 AND indexname = 'uniq_entity' LIMIT 1");
         $idxOld->execute();
         if ($idxOld->fetchColumn()) {
             try {
-                $pdo->exec("ALTER TABLE pluriverse_blacklist DROP INDEX uniq_entity");
-                $pdo->exec("ALTER TABLE pluriverse_blacklist ADD UNIQUE KEY uniq_entry (entry_type, entry_value)");
+                $pdo->exec("DROP INDEX IF EXISTS uniq_entity");
+                $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS uniq_entry ON pluriverse_blacklist (entry_type, entry_value)");
             } catch (PDOException $e) {
                 error_log('db_ensure_pluriverse_blacklist_table: uniq index migrate skipped: ' . $e->getMessage());
             }
         }
-        $idxOld2 = $pdo->prepare("SELECT 1 FROM information_schema.STATISTICS
-                                  WHERE TABLE_SCHEMA = DATABASE()
-                                  AND TABLE_NAME = 'pluriverse_blacklist'
-                                  AND INDEX_NAME = 'idx_entity_value' LIMIT 1");
+        $idxOld2 = $pdo->prepare("SELECT 1 FROM pg_indexes
+                                  WHERE schemaname = current_schema()
+                                  AND tablename = 'pluriverse_blacklist'
+                                  AND indexname = 'idx_entity_value' LIMIT 1");
         $idxOld2->execute();
         if ($idxOld2->fetchColumn()) {
             try {
-                $pdo->exec("ALTER TABLE pluriverse_blacklist DROP INDEX idx_entity_value");
-                $pdo->exec("ALTER TABLE pluriverse_blacklist ADD INDEX idx_entry_value (entry_value)");
+                $pdo->exec("DROP INDEX IF EXISTS idx_entity_value");
+                $pdo->exec("CREATE INDEX IF NOT EXISTS idx_entry_value ON pluriverse_blacklist (entry_value)");
             } catch (PDOException $e) {
                 error_log('db_ensure_pluriverse_blacklist_table: idx rename skipped: ' . $e->getMessage());
             }
@@ -14490,34 +14449,20 @@ function db_ensure_pluriverse_pull_state_table(): void {
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS pluriverse_pull_state (
                 endpoint VARCHAR(64) PRIMARY KEY,
-                last_seen_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                last_seen_id BIGINT NOT NULL DEFAULT 0,
                 last_etag VARCHAR(64) NULL,
                 last_modified VARCHAR(64) NULL,
                 last_pull_started_at TIMESTAMP NULL,
                 last_pull_succeeded_at TIMESTAMP NULL,
                 last_pull_failed_at TIMESTAMP NULL,
                 last_error VARCHAR(1024) NULL,
-                consecutive_failures INT UNSIGNED NOT NULL DEFAULT 0,
-                rows_processed_total BIGINT UNSIGNED NOT NULL DEFAULT 0,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                consecutive_failures INT NOT NULL DEFAULT 0,
+                rows_processed_total BIGINT NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         ");
-        $col = function(string $colName) use ($pdo): bool {
-            $s = $pdo->prepare("SELECT 1 FROM information_schema.COLUMNS
-                                WHERE TABLE_SCHEMA = DATABASE()
-                                AND TABLE_NAME = 'pluriverse_pull_state'
-                                AND COLUMN_NAME = :c LIMIT 1");
-            $s->execute([':c' => $colName]);
-            return (bool)$s->fetchColumn();
-        };
-        if (!$col('last_etag')) {
-            $pdo->exec("ALTER TABLE pluriverse_pull_state
-                        ADD COLUMN last_etag VARCHAR(64) NULL AFTER last_seen_id");
-        }
-        if (!$col('last_modified')) {
-            $pdo->exec("ALTER TABLE pluriverse_pull_state
-                        ADD COLUMN last_modified VARCHAR(64) NULL AFTER last_etag");
-        }
+        $pdo->exec("ALTER TABLE pluriverse_pull_state ADD COLUMN IF NOT EXISTS last_etag VARCHAR(64) NULL");
+        $pdo->exec("ALTER TABLE pluriverse_pull_state ADD COLUMN IF NOT EXISTS last_modified VARCHAR(64) NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_pluriverse_pull_state_table: ' . $e->getMessage());
     }
@@ -14601,7 +14546,7 @@ function db_get_authored_galaxies(): array {
     $rows = $pdo->query("
         SELECT id, name, slug
         FROM constellations
-        WHERE `type` = 'galaxy' AND mirrored_from_peer_id IS NULL
+        WHERE type = 'galaxy' AND mirrored_from_peer_id IS NULL
         ORDER BY name
     ")->fetchAll(PDO::FETCH_ASSOC);
     $out = [];
@@ -14725,7 +14670,7 @@ function db_set_peer_publish_whitelist(int $peerId, array $constellationIds, ?st
         $place = implode(',', array_fill(0, count($clean), '?'));
         $stmt = $pdo->prepare("
             SELECT id FROM constellations
-            WHERE id IN ($place) AND `type` = 'galaxy' AND mirrored_from_peer_id IS NULL
+            WHERE id IN ($place) AND type = 'galaxy' AND mirrored_from_peer_id IS NULL
         ");
         $stmt->execute($clean);
         $allowed = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
@@ -14754,7 +14699,7 @@ function db_set_peer_publish_whitelist(int $peerId, array $constellationIds, ?st
             $del->execute(array_merge([$peerId], $toRemove));
         }
         if ($toAdd !== []) {
-            $ins = $pdo->prepare("INSERT IGNORE INTO galaxy_publish_whitelist (peer_id, constellation_id, added_by) VALUES (:p, :c, :a)");
+            $ins = $pdo->prepare("INSERT INTO galaxy_publish_whitelist (peer_id, constellation_id, added_by) VALUES (:p, :c, :a) ON CONFLICT (peer_id, constellation_id) DO NOTHING");
             foreach ($toAdd as $cid) {
                 $ins->execute([':p' => $peerId, ':c' => $cid, ':a' => $adminActor]);
             }
@@ -14769,7 +14714,7 @@ function db_set_peer_publish_whitelist(int $peerId, array $constellationIds, ?st
             $slugStmt = $pdo->prepare("SELECT slug FROM constellations WHERE id IN ($place) AND slug IS NOT NULL AND slug <> ''");
             $slugStmt->execute($toRemove);
             $revoke = $pdo->prepare("INSERT INTO galaxy_publish_revocations (peer_id, slug) VALUES (:p, :s)
-                                     ON DUPLICATE KEY UPDATE revoked_at = CURRENT_TIMESTAMP");
+                                     ON CONFLICT (peer_id, slug) DO UPDATE SET revoked_at = CURRENT_TIMESTAMP");
             foreach ($slugStmt->fetchAll(PDO::FETCH_COLUMN) as $slug) {
                 $revoke->execute([':p' => $peerId, ':s' => (string)$slug]);
             }
@@ -14831,9 +14776,9 @@ function db_add_peer_subscription(int $peerId, string $remoteSlug, ?string $admi
         return ['ok' => true, 'subscription_id' => $subId];
     }
 
-    $ins = $pdo->prepare("INSERT INTO galaxy_subscriptions (peer_id, remote_slug, added_by) VALUES (:p, :s, :a)");
+    $ins = $pdo->prepare("INSERT INTO galaxy_subscriptions (peer_id, remote_slug, added_by) VALUES (:p, :s, :a) RETURNING id");
     $ins->execute([':p' => $peerId, ':s' => $slug, ':a' => $adminActor]);
-    $subId = (int)$pdo->lastInsertId();
+    $subId = (int)$ins->fetchColumn();
     db_recompute_peer_active_whitelist($peerId);
     return ['ok' => true, 'subscription_id' => $subId];
 }
@@ -14904,25 +14849,17 @@ function dropAllTables(PDO $pdo): array {
     $dropped = [];
     $errors = [];
     try {
-        $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
         $tables = getAllTables($pdo);
         foreach ($tables as $table) {
             try {
-                $pdo->exec("DROP TABLE IF EXISTS `$table`");
+                // CASCADE drops dependent FK constraints, so table order does not matter.
+                $pdo->exec("DROP TABLE IF EXISTS \"$table\" CASCADE");
                 $dropped[] = $table;
             } catch (PDOException $e) {
                 $errors[] = "Failed to drop table '$table': " . $e->getMessage();
             }
         }
-        $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
     } catch (PDOException $e) {
-        try {
-            $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
-        } catch (PDOException $e2) {
-            // Best-effort; we are already in an error path. Log so a stuck
-            // FOREIGN_KEY_CHECKS=0 connection state has a breadcrumb.
-            error_log('hard_reset re-enable FK_CHECKS failed: ' . $e2->getMessage());
-        }
         $errors[] = "Database error: " . $e->getMessage();
     }
     return ['dropped' => $dropped, 'errors' => $errors];
@@ -14989,41 +14926,32 @@ function db_ensure_pluriverse_applications_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS pluriverse_applications (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
                 submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 operator_email VARCHAR(254) NOT NULL,
                 label VARCHAR(255) NOT NULL,
-                remote_instance_id INT UNSIGNED NULL,
+                remote_instance_id INT NULL,
                 remote_fingerprint VARCHAR(64) NULL,
                 pluriverse_url VARCHAR(255) NOT NULL,
-                status ENUM('pending','verified','published','rejected','blacklisted','withdrawn','expired','revoked','outdated') NOT NULL DEFAULT 'pending',
+                status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','verified','published','rejected','blacklisted','withdrawn','expired','revoked','outdated')),
                 last_polled_at TIMESTAMP NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_status (status, submitted_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_status ON pluriverse_applications (status, submitted_at);
         ");
-        // 2026-05-25: ENUM grows 'expired', then 'revoked'/'outdated' to cover
-        // every Pluriverse-side admission_status the status-sync poll can
-        // surface back. Probe COLUMN_TYPE to avoid the MODIFY when the table
-        // already has the latest shape.
-        $info = $pdo->query("
-            SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pluriverse_applications' AND COLUMN_NAME = 'status'
-        ")->fetchColumn();
-        if (is_string($info) && (strpos($info, "'expired'") === false
-                                  || strpos($info, "'revoked'") === false
-                                  || strpos($info, "'outdated'") === false)) {
-            $pdo->exec("ALTER TABLE pluriverse_applications MODIFY COLUMN status ENUM('pending','verified','published','rejected','blacklisted','withdrawn','expired','revoked','outdated') NOT NULL DEFAULT 'pending'");
+        // 2026-05-25: the status set grows 'expired', then 'revoked'/'outdated'
+        // to cover every Pluriverse-side admission_status the status-sync poll
+        // can surface back. Refresh the CHECK so older installs accept the new
+        // values. Idempotent: drop-if-exists then re-add.
+        try {
+            $pdo->exec("ALTER TABLE pluriverse_applications DROP CONSTRAINT IF EXISTS pluriverse_applications_status_check");
+            $pdo->exec("ALTER TABLE pluriverse_applications ADD CONSTRAINT pluriverse_applications_status_check CHECK (status IN ('pending','verified','published','rejected','blacklisted','withdrawn','expired','revoked','outdated'))");
+        } catch (PDOException $e) {
+            error_log('db_ensure_pluriverse_applications_table: status check refresh skipped: ' . $e->getMessage());
         }
         // 2026-05-25: last_polled_at tracks the last status-sync round-trip
         // so the admin page can rate-limit polls to once per 5 min.
-        $cols = $pdo->query("
-            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pluriverse_applications'
-        ")->fetchAll(PDO::FETCH_COLUMN);
-        if (!in_array('last_polled_at', array_map('strval', $cols), true)) {
-            $pdo->exec("ALTER TABLE pluriverse_applications ADD COLUMN last_polled_at TIMESTAMP NULL AFTER status");
-        }
+        $pdo->exec("ALTER TABLE pluriverse_applications ADD COLUMN IF NOT EXISTS last_polled_at TIMESTAMP NULL");
     } catch (PDOException $e) {
         error_log('db_ensure_pluriverse_applications_table: ' . $e->getMessage());
     }
@@ -15040,7 +14968,7 @@ function db_expire_stale_pluriverse_applications(): int {
     $stmt = getDB()->prepare("
         UPDATE pluriverse_applications
         SET status = 'expired'
-        WHERE status = 'pending' AND submitted_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        WHERE status = 'pending' AND submitted_at < (NOW() - INTERVAL '24 hour')
     ");
     $stmt->execute();
     return $stmt->rowCount();
@@ -15072,6 +15000,7 @@ function db_record_pluriverse_application(string $email, string $label, string $
     $stmt = $pdo->prepare("
         INSERT INTO pluriverse_applications (operator_email, label, pluriverse_url, remote_instance_id, remote_fingerprint, status)
         VALUES (:email, :label, :url, :rid, :fp, 'pending')
+        RETURNING id
     ");
     $stmt->execute([
         ':email' => $email,
@@ -15080,7 +15009,7 @@ function db_record_pluriverse_application(string $email, string $label, string $
         ':rid' => $remoteId,
         ':fp' => $remoteFingerprint,
     ]);
-    return (int)$pdo->lastInsertId();
+    return (int)$stmt->fetchColumn();
 }
 
 /**
@@ -15241,8 +15170,8 @@ function db_ensure_system_meta_table(): void {
             CREATE TABLE IF NOT EXISTS system_meta (
                 meta_key VARCHAR(64) PRIMARY KEY,
                 meta_value TEXT NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_system_meta_table: ' . $e->getMessage());
@@ -15261,7 +15190,7 @@ function db_system_meta_set(string $key, string $value): void {
     db_ensure_system_meta_table();
     $stmt = getDB()->prepare("
         INSERT INTO system_meta (meta_key, meta_value) VALUES (:k, :v)
-        ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)
+        ON CONFLICT (meta_key) DO UPDATE SET meta_value = EXCLUDED.meta_value
     ");
     $stmt->execute([':k' => $key, ':v' => $value]);
 }
@@ -15434,11 +15363,11 @@ function db_ensure_handshakes_table(): void {
         $pdo = getDB();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS handshakes (
-                id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-                peer_id INT UNSIGNED NULL,
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                peer_id INT NULL,
                 remote_hostname VARCHAR(255) NOT NULL,
-                initiator ENUM('us','them') NOT NULL,
-                status ENUM(
+                initiator VARCHAR(8) NOT NULL CHECK (initiator IN ('us','them')),
+                status VARCHAR(32) NOT NULL CHECK (status IN (
                     'pending_their_response',
                     'pending_our_response',
                     'accepted_awaiting_complete',
@@ -15446,29 +15375,29 @@ function db_ensure_handshakes_table(): void {
                     'rejected',
                     'expired',
                     'cancelled'
-                ) NOT NULL,
-                requested_galaxies_publish JSON NULL,
-                requested_galaxies_subscribe JSON NULL,
+                )),
+                requested_galaxies_publish JSONB NULL,
+                requested_galaxies_subscribe JSONB NULL,
                 thread_id VARCHAR(64) NOT NULL,
-                initial_message_id INT UNSIGNED NULL,
-                response_message_id INT UNSIGNED NULL,
-                complete_message_id INT UNSIGNED NULL,
+                initial_message_id INT NULL,
+                response_message_id INT NULL,
+                complete_message_id INT NULL,
                 reject_reason TEXT NULL,
-                retry_attempts INT UNSIGNED NOT NULL DEFAULT 0,
+                retry_attempts INT NOT NULL DEFAULT 0,
                 next_retry_at TIMESTAMP NULL,
                 last_retry_error TEXT NULL,
                 expires_at TIMESTAMP NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_status_retry (status, next_retry_at),
-                INDEX idx_hostname (remote_hostname),
-                INDEX idx_peer (peer_id),
-                INDEX idx_thread (thread_id),
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (peer_id) REFERENCES peers(id) ON DELETE SET NULL,
                 FOREIGN KEY (initial_message_id) REFERENCES pluriverse_messages(id) ON DELETE SET NULL,
                 FOREIGN KEY (response_message_id) REFERENCES pluriverse_messages(id) ON DELETE SET NULL,
                 FOREIGN KEY (complete_message_id) REFERENCES pluriverse_messages(id) ON DELETE SET NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            );
+            CREATE INDEX IF NOT EXISTS idx_status_retry ON handshakes (status, next_retry_at);
+            CREATE INDEX IF NOT EXISTS idx_hostname ON handshakes (remote_hostname);
+            CREATE INDEX IF NOT EXISTS idx_peer ON handshakes (peer_id);
+            CREATE INDEX IF NOT EXISTS idx_thread ON handshakes (thread_id);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_handshakes_table: ' . $e->getMessage());
@@ -15492,43 +15421,20 @@ function db_ensure_pluriverse_messages_retry_columns(): void {
     db_ensure_pluriverse_messages_table();
     try {
         $pdo = getDB();
-        $cols = $pdo->query("
-            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pluriverse_messages'
-        ")->fetchAll(PDO::FETCH_COLUMN);
-        $cols = array_map('strval', is_array($cols) ? $cols : []);
-        if (!in_array('delivery_status', $cols, true)) {
-            $pdo->exec("ALTER TABLE pluriverse_messages
-                        ADD COLUMN delivery_status
-                        ENUM('not_applicable','pending','delivered','failed','given_up')
-                        NOT NULL DEFAULT 'not_applicable' AFTER read_at");
-        }
-        if (!in_array('attempt_count', $cols, true)) {
-            $pdo->exec("ALTER TABLE pluriverse_messages
-                        ADD COLUMN attempt_count INT UNSIGNED NOT NULL DEFAULT 0 AFTER delivery_status");
-        }
-        if (!in_array('next_attempt_at', $cols, true)) {
-            $pdo->exec("ALTER TABLE pluriverse_messages
-                        ADD COLUMN next_attempt_at TIMESTAMP NULL AFTER attempt_count");
-        }
-        if (!in_array('last_attempt_error', $cols, true)) {
-            $pdo->exec("ALTER TABLE pluriverse_messages
-                        ADD COLUMN last_attempt_error TEXT NULL AFTER next_attempt_at");
-        }
-        $idx = $pdo->prepare("
-            SELECT 1 FROM information_schema.STATISTICS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'pluriverse_messages'
-              AND INDEX_NAME = 'idx_retry' LIMIT 1
-        ");
-        $idx->execute();
-        if (!$idx->fetchColumn()) {
-            try {
-                $pdo->exec("ALTER TABLE pluriverse_messages
-                            ADD INDEX idx_retry (delivery_status, next_attempt_at)");
-            } catch (PDOException $e) {
-                error_log('db_ensure_pluriverse_messages_retry_columns: idx skipped: ' . $e->getMessage());
-            }
+        $pdo->exec("ALTER TABLE pluriverse_messages
+                    ADD COLUMN IF NOT EXISTS delivery_status
+                    VARCHAR(16) NOT NULL DEFAULT 'not_applicable'
+                    CHECK (delivery_status IN ('not_applicable','pending','delivered','failed','given_up'))");
+        $pdo->exec("ALTER TABLE pluriverse_messages
+                    ADD COLUMN IF NOT EXISTS attempt_count INT NOT NULL DEFAULT 0");
+        $pdo->exec("ALTER TABLE pluriverse_messages
+                    ADD COLUMN IF NOT EXISTS next_attempt_at TIMESTAMP NULL");
+        $pdo->exec("ALTER TABLE pluriverse_messages
+                    ADD COLUMN IF NOT EXISTS last_attempt_error TEXT NULL");
+        try {
+            $pdo->exec("CREATE INDEX IF NOT EXISTS idx_retry ON pluriverse_messages (delivery_status, next_attempt_at)");
+        } catch (PDOException $e) {
+            error_log('db_ensure_pluriverse_messages_retry_columns: idx skipped: ' . $e->getMessage());
         }
     } catch (PDOException $e) {
         error_log('db_ensure_pluriverse_messages_retry_columns: ' . $e->getMessage());
