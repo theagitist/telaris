@@ -187,10 +187,8 @@ function bulk_users_apply(array $rows, string $baseUrl): array {
     // contention we return immediately without applying any rows.
     $pdo = getDB();
     $bulkLockKey = 'telaris:bulk_users:' . ($adminUserId ?? 'anon');
-    $bulkLockStmt = $pdo->prepare("SELECT GET_LOCK(:k, 0)");
-    $bulkLockStmt->execute([':k' => $bulkLockKey]);
-    $bulkLockResult = $bulkLockStmt->fetchColumn();
-    if ($bulkLockResult !== 1 && $bulkLockResult !== '1') {
+    $bulkLock = db_advisory_lock_acquire($bulkLockKey, 0);
+    if (empty($bulkLock['acquired'])) {
         return [
             'created' => 0,
             'galaxies_created' => 0,

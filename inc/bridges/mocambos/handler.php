@@ -811,10 +811,8 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
     // in the report; the caller surfaces it via streamMsg.
     $pdo = getDB();
     $lockKey = 'telaris:mocambos_import:' . hash('sha256', (string)$galaxiaSlug);
-    $stmt = $pdo->prepare("SELECT GET_LOCK(:k, 0)");
-    $stmt->execute([':k' => $lockKey]);
-    $lockResult = $stmt->fetchColumn();
-    if ($lockResult !== 1 && $lockResult !== '1') {
+    $importLock = db_advisory_lock_acquire($lockKey, 0);
+    if (empty($importLock['acquired'])) {
         $msg = sprintf(t('mocambos_h_concurrent_import', 'Concurrent import already in progress for galaxy %s; try again later.'), $galaxiaSlug);
         $streamMsg('error', $msg);
         $logger('ERROR', $msg);

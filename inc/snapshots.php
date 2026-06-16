@@ -53,33 +53,24 @@ function snapshot_acquire_lock(): array {
         fclose($fp);
         throw new SnapshotLockHeldException('Another snapshot is in progress (file lock held).');
     }
-    $mysqlKey = 'telaris_snapshot';
     try {
-        $pdo = getDB();
-        $stmt = $pdo->prepare("SELECT GET_LOCK(?, 0)");
-        $stmt->execute([$mysqlKey]);
-        $got = (int)$stmt->fetchColumn();
+        $dbLock = db_advisory_lock_acquire('telaris_snapshot', 0);
     } catch (Throwable $e) {
         flock($fp, LOCK_UN);
         fclose($fp);
         throw $e;
     }
-    if ($got !== 1) {
+    if (empty($dbLock['acquired'])) {
         flock($fp, LOCK_UN);
         fclose($fp);
         throw new SnapshotLockHeldException('Another snapshot is in progress (DB lock held).');
     }
-    return ['fp' => $fp, 'mysql_key' => $mysqlKey];
+    return ['fp' => $fp, 'db_lock' => $dbLock];
 }
 
 function snapshot_release_lock(array $lock): void {
-    if (isset($lock['mysql_key'])) {
-        try {
-            $stmt = getDB()->prepare("SELECT RELEASE_LOCK(?)");
-            $stmt->execute([$lock['mysql_key']]);
-        } catch (Throwable $_) {
-            // Best-effort.
-        }
+    if (isset($lock['db_lock'])) {
+        db_advisory_lock_release($lock['db_lock']);
     }
     if (isset($lock['fp']) && is_resource($lock['fp'])) {
         @flock($lock['fp'], LOCK_UN);

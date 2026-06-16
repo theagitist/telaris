@@ -8638,7 +8638,7 @@ function db_prune_keyword_position_history(int $maxAgeDays = 90): int {
     db_ensure_keyword_canvas_tables();
     $pdo = getDB();
     $age = max(1, (int)$maxAgeDays);
-    $stmt = $pdo->prepare("DELETE FROM keyword_position_history WHERE moved_at < (NOW() - INTERVAL {$age} DAY)");
+    $stmt = $pdo->prepare("DELETE FROM keyword_position_history WHERE moved_at < (NOW() - ({$age} * INTERVAL '1 day'))");
     $stmt->execute();
     return $stmt->rowCount();
 }
@@ -8657,7 +8657,7 @@ function db_prune_auth_attempts(int $maxAgeDays = 30): int {
     db_ensure_auth_attempts_table();
     $pdo = getDB();
     $age = max(1, (int)$maxAgeDays);
-    $stmt = $pdo->prepare("DELETE FROM auth_attempts WHERE created_at < (NOW() - INTERVAL {$age} DAY)");
+    $stmt = $pdo->prepare("DELETE FROM auth_attempts WHERE created_at < (NOW() - ({$age} * INTERVAL '1 day'))");
     $stmt->execute();
     return $stmt->rowCount();
 }
@@ -8673,7 +8673,7 @@ function db_prune_audit_events(?int $maxAgeDays = null): int {
     $keep = $maxAgeDays !== null
         ? max(7, (int)$maxAgeDays)
         : max(7, defined('AUDIT_LOG_KEEP_DAYS') ? (int)AUDIT_LOG_KEEP_DAYS : 365);
-    $stmt = $pdo->prepare("DELETE FROM audit_events WHERE created_at < (NOW() - INTERVAL {$keep} DAY)");
+    $stmt = $pdo->prepare("DELETE FROM audit_events WHERE created_at < (NOW() - ({$keep} * INTERVAL '1 day'))");
     $stmt->execute();
     return $stmt->rowCount();
 }
@@ -9648,45 +9648,64 @@ function db_record_auth_attempt(string $action, ?string $email, string $ip, bool
  * a wedged worker can't pin the node for long. Connection-level lock
  * releases at end-of-request even if PHP fatal-errors before release.
  */
-function db_node_lock_acquire(int $nodeId): array {
+/**
+ * Session-scoped advisory lock: the Postgres analogue of MySQL GET_LOCK/RELEASE_LOCK.
+ * Postgres advisory locks are keyed by a bigint, so the string name is hashed to a
+ * stable signed 64-bit key. pg_try_advisory_lock is non-blocking, so we poll up to
+ * $timeoutSeconds to mirror GET_LOCK's bounded wait. The lock releases on
+ * pg_advisory_unlock or at session (request) end, matching MySQL's connection-scoped
+ * release-on-disconnect semantics. Returns ['key'=>int, 'acquired'=>bool].
+ */
+function db_advisory_key(string $name): int {
+    $bytes = substr(hash('sha256', $name, true), 0, 8);
+    /** @var array{1:int} $u */
+    $u = unpack('q', $bytes);
+    return $u[1];
+}
+
+function db_advisory_lock_acquire(string $name, int $timeoutSeconds): array {
     $pdo = getDB();
-    $key = 'telaris:node:' . $nodeId;
-    $stmt = $pdo->prepare("SELECT GET_LOCK(:k, 5)");
-    $stmt->execute([':k' => $key]);
-    $result = $stmt->fetchColumn();
-    return ['key' => $key, 'acquired' => $result === 1 || $result === '1'];
+    $key = db_advisory_key($name);
+    $stmt = $pdo->prepare("SELECT pg_try_advisory_lock(:k::bigint)");
+    $deadline = microtime(true) + max(0, $timeoutSeconds);
+    $acquired = false;
+    while (true) {
+        $stmt->execute([':k' => $key]);
+        $acquired = (bool)$stmt->fetchColumn();
+        if ($acquired || microtime(true) >= $deadline) break;
+        usleep(100000); // 100ms between attempts
+    }
+    // 'key' keeps the human-readable name (callers/tests inspect it); 'lock_id' is
+    // the numeric advisory key used to release.
+    return ['key' => $name, 'lock_id' => $key, 'acquired' => $acquired];
+}
+
+function db_advisory_lock_release(array $lock): void {
+    if (empty($lock['acquired'])) return;
+    try {
+        getDB()->prepare("SELECT pg_advisory_unlock(:k::bigint)")->execute([':k' => $lock['lock_id']]);
+    } catch (Throwable $_) {
+        // Best-effort. Session close at end-of-request releases the lock anyway.
+    }
+}
+
+function db_node_lock_acquire(int $nodeId): array {
+    return db_advisory_lock_acquire('telaris:node:' . $nodeId, 5);
 }
 
 function db_node_lock_release(array $lock): void {
-    if (empty($lock['acquired'])) return;
-    $pdo = getDB();
-    try {
-        $pdo->prepare("SELECT RELEASE_LOCK(:k)")->execute([':k' => $lock['key']]);
-    } catch (Throwable $_) {
-        // Best-effort. Connection close at end-of-request will release anyway.
-    }
+    db_advisory_lock_release($lock);
 }
 
 function db_auth_throttle_lock_acquire(string $action, string $ip): array {
-    $pdo = getDB();
-    $key = 'telaris:auth_throttle:' . $action . ':' . ($ip !== '' ? $ip : '-');
-    // 5s wait is generous enough for normal serialization but short
-    // enough that a wedged worker can't pin the gate for long. On
-    // contention the caller fails closed (treats as throttled).
-    $stmt = $pdo->prepare("SELECT GET_LOCK(:k, 5)");
-    $stmt->execute([':k' => $key]);
-    $result = $stmt->fetchColumn();
-    return ['key' => $key, 'acquired' => $result === 1 || $result === '1'];
+    // 5s wait is generous enough for normal serialization but short enough that a
+    // wedged worker can't pin the gate for long. On contention the caller fails
+    // closed (treats as throttled).
+    return db_advisory_lock_acquire('telaris:auth_throttle:' . $action . ':' . ($ip !== '' ? $ip : '-'), 5);
 }
 
 function db_auth_throttle_lock_release(array $lock): void {
-    if (empty($lock['acquired'])) return;
-    $pdo = getDB();
-    try {
-        $pdo->prepare("SELECT RELEASE_LOCK(:k)")->execute([':k' => $lock['key']]);
-    } catch (Throwable $_) {
-        // Best-effort. Connection close at end-of-request will release anyway.
-    }
+    db_advisory_lock_release($lock);
 }
 
 /**
@@ -9703,7 +9722,7 @@ function db_count_recent_auth_attempts(
 ): int {
     db_ensure_auth_attempts_table();
     $pdo = getDB();
-    $sql = "SELECT COUNT(*) FROM auth_attempts WHERE action = :action AND created_at >= (NOW() - INTERVAL " . max(1, (int)$windowSeconds) . " SECOND)";
+    $sql = "SELECT COUNT(*) FROM auth_attempts WHERE action = :action AND created_at >= (NOW() - (" . max(1, (int)$windowSeconds) . " * INTERVAL '1 second'))";
     $params = [':action' => $action];
     if ($email !== null && $email !== '') {
         $sql .= " AND email = :email";
