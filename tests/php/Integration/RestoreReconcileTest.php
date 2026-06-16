@@ -78,10 +78,10 @@ final class RestoreReconcileTest extends TestCase
     {
         $pdo = getDB();
         $kp = sodium_crypto_sign_keypair();
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, trust_state)
-                       VALUES (:h, :u, :e, :k, 'q22 test', :ts)")
-            ->execute([':h' => $host, ':u' => "https://$host", ':e' => "https://$host/api/pluriverse", ':k' => sodium_crypto_sign_publickey($kp), ':ts' => $trustState]);
-        $pid = (int)$pdo->lastInsertId();
+        $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, trust_state)
+                       VALUES (:h, :u, :e, :k, 'q22 test', :ts) RETURNING id");
+        $ins->execute([':h' => $host, ':u' => "https://$host", ':e' => "https://$host/api/pluriverse", ':k' => sodium_crypto_sign_publickey($kp), ':ts' => $trustState]);
+        $pid = (int)$ins->fetchColumn();
         $this->peerIds[] = $pid;
         return $pid;
     }

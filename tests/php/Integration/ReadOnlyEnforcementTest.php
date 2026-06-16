@@ -75,9 +75,9 @@ final class ReadOnlyEnforcementTest extends TestCase
         } else { // mirror
             $kp = sodium_crypto_sign_keypair();
             $host = 'ro-origin-' . bin2hex(random_bytes(4)) . '.example.invalid';
-            $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label) VALUES (:h, :u, :e, :k, 'ro test')")
-                ->execute([':h' => $host, ':u' => "https://$host", ':e' => "https://$host/api/pluriverse", ':k' => sodium_crypto_sign_publickey($kp)]);
-            $peerId = (int)$pdo->lastInsertId();
+            $insPeer = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label) VALUES (:h, :u, :e, :k, 'ro test') RETURNING id");
+            $insPeer->execute([':h' => $host, ':u' => "https://$host", ':e' => "https://$host/api/pluriverse", ':k' => sodium_crypto_sign_publickey($kp)]);
+            $peerId = (int)$insPeer->fetchColumn();
             $this->peerIds[] = $peerId;
             $pdo->prepare("UPDATE constellations SET read_only = TRUE, mirrored_from_peer_id = :p WHERE id = :c")
                 ->execute([':p' => $peerId, ':c' => $cid]);

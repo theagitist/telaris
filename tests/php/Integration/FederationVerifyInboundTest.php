@@ -457,7 +457,7 @@ final class FederationVerifyInboundTest extends TestCase
         $pdo->prepare("DELETE FROM peers WHERE hostname = :h")->execute([':h' => self::PEER_HOST]);
         $stmt = $pdo->prepare("
             INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, previous_public_key, label, source, trust_state)
-            VALUES (:h, :u, :p, :pk, :prev, :l, 'manual', 'discovered')
+            VALUES (:h, :u, :p, :pk, :prev, :l, 'manual', 'discovered') RETURNING id
         ");
         $stmt->execute([
             ':h' => self::PEER_HOST,
@@ -467,7 +467,7 @@ final class FederationVerifyInboundTest extends TestCase
             ':prev' => $previousKey,
             ':l' => 'Verify-inbound test peer',
         ]);
-        $this->peerId = (int)$pdo->lastInsertId();
+        $this->peerId = (int)$stmt->fetchColumn();
     }
 
     private function cacheCoordKey(string $current, ?string $previous, ?string $previousExpiresAt): void {

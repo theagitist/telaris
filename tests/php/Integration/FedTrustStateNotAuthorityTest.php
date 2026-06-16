@@ -57,15 +57,15 @@ final class FedTrustStateNotAuthorityTest extends TestCase
         $sfx = bin2hex(random_bytes(4));
         $this->host = "trustlabel-$sfx.example.invalid";
         $pdo = getDB();
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, trust_state)
-                       VALUES (:h, :u, :e, :k, 'trust-label test', 'whitelisted')")
-            ->execute([
+        $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, trust_state)
+                       VALUES (:h, :u, :e, :k, 'trust-label test', 'whitelisted') RETURNING id");
+        $ins->execute([
                 ':h' => $this->host,
                 ':u' => "https://{$this->host}",
                 ':e' => "https://{$this->host}/api/pluriverse",
                 ':k' => sodium_crypto_sign_publickey($kp),
             ]);
-        $this->peerId = (int)$pdo->lastInsertId();
+        $this->peerId = (int)$ins->fetchColumn();
     }
 
     protected function tearDown(): void
@@ -88,10 +88,10 @@ final class FedTrustStateNotAuthorityTest extends TestCase
     {
         $pdo = getDB();
         $slug = 'authored-' . bin2hex(random_bytes(4));
-        $pdo->prepare("INSERT INTO constellations (name, slug, `type`, theme, import_source)
-                       VALUES (:n, :s, 'galaxy', 'cosmic', NULL)")
-            ->execute([':n' => $slug, ':s' => $slug]);
-        $cid = (int)$pdo->lastInsertId();
+        $insC = $pdo->prepare("INSERT INTO constellations (name, slug, type, theme, import_source)
+                       VALUES (:n, :s, 'galaxy', 'cosmic', NULL) RETURNING id");
+        $insC->execute([':n' => $slug, ':s' => $slug]);
+        $cid = (int)$insC->fetchColumn();
         $this->cids[] = $cid;
         $pdo->prepare("INSERT INTO published_galaxies
                 (constellation_id, slug, published_sequence, content_hash, envelope_jws, is_current)

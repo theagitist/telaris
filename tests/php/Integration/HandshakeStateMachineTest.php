@@ -65,17 +65,18 @@ final class HandshakeStateMachineTest extends TestCase
             ->execute([':h' => self::REMOTE_HOST]);
         $pdo->prepare("DELETE FROM peers WHERE hostname = :h")->execute([':h' => self::REMOTE_HOST]);
 
-        $pdo->prepare("
+        $insPeer = $pdo->prepare("
             INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, source, trust_state)
-            VALUES (:h, :u, :p, :k, :l, 'manual', 'contacted')
-        ")->execute([
+            VALUES (:h, :u, :p, :k, :l, 'manual', 'contacted') RETURNING id
+        ");
+        $insPeer->execute([
             ':h' => self::REMOTE_HOST,
             ':u' => 'https://' . self::REMOTE_HOST,
             ':p' => 'https://' . self::REMOTE_HOST . '/api/pluriverse',
             ':k' => sodium_crypto_sign_publickey(sodium_crypto_sign_seed_keypair(str_repeat("\x99", SODIUM_CRYPTO_SIGN_SEEDBYTES))),
             ':l' => 'handshake-test peer',
         ]);
-        $this->peerId = (int)$pdo->lastInsertId();
+        $this->peerId = (int)$insPeer->fetchColumn();
     }
 
     protected function tearDown(): void
@@ -235,12 +236,13 @@ final class HandshakeStateMachineTest extends TestCase
         $pdo = getDB();
         $threadId = handshake_generate_thread_id();
         $expiresAt = date('Y-m-d H:i:s', time() + 86400);
-        $pdo->prepare("
+        $insHs = $pdo->prepare("
             INSERT INTO handshakes
                 (peer_id, remote_hostname, initiator, status, thread_id, expires_at)
-            VALUES (:p, :h, 'them', 'accepted_awaiting_complete', :t, :e)
-        ")->execute([':p' => $this->peerId, ':h' => self::REMOTE_HOST, ':t' => $threadId, ':e' => $expiresAt]);
-        $hsId = (int)$pdo->lastInsertId();
+            VALUES (:p, :h, 'them', 'accepted_awaiting_complete', :t, :e) RETURNING id
+        ");
+        $insHs->execute([':p' => $this->peerId, ':h' => self::REMOTE_HOST, ':t' => $threadId, ':e' => $expiresAt]);
+        $hsId = (int)$insHs->fetchColumn();
 
         $remoteKey = base64_encode(random_bytes(32));
         $r = handshake_apply_inbound_round3($this->peerId, [
@@ -295,12 +297,13 @@ final class HandshakeStateMachineTest extends TestCase
         // Simulate a relay-forwarded handshake_request landing via /messages.
         $pdo = getDB();
         $threadId = handshake_generate_thread_id();
-        $pdo->prepare("
+        $insMsg = $pdo->prepare("
             INSERT INTO pluriverse_messages
                 (peer_id, direction, thread_id, message_type, jws_envelope, delivery_status)
-            VALUES (:p, 'inbound', :t, 'handshake_request', :j, 'not_applicable')
-        ")->execute([':p' => $this->peerId, ':t' => $threadId, ':j' => 'header.payload.sig']);
-        $msgId = (int)$pdo->lastInsertId();
+            VALUES (:p, 'inbound', :t, 'handshake_request', :j, 'not_applicable') RETURNING id
+        ");
+        $insMsg->execute([':p' => $this->peerId, ':t' => $threadId, ':j' => 'header.payload.sig']);
+        $msgId = (int)$insMsg->fetchColumn();
 
         $r = handshake_register_inbound_round1_via_relay(
             self::REMOTE_HOST,
@@ -371,17 +374,18 @@ final class HandshakeStateMachineTest extends TestCase
     {
         $pdo = getDB();
         $threadId = handshake_generate_thread_id();
-        $pdo->prepare("
+        $insHs = $pdo->prepare("
             INSERT INTO handshakes
                 (peer_id, remote_hostname, initiator, status, thread_id, expires_at)
-            VALUES (:p, :h, 'them', 'pending_our_response', :t, :e)
-        ")->execute([
+            VALUES (:p, :h, 'them', 'pending_our_response', :t, :e) RETURNING id
+        ");
+        $insHs->execute([
             ':p' => $this->peerId,
             ':h' => self::REMOTE_HOST,
             ':t' => $threadId,
             ':e' => date('Y-m-d H:i:s', time() + 86400),
         ]);
-        $hsId = (int)$pdo->lastInsertId();
+        $hsId = (int)$insHs->fetchColumn();
 
         $r = handshake_accept_inbound($hsId);
         $this->assertTrue($r['ok'], 'accept failed: ' . ($r['reason'] ?? ''));
@@ -408,16 +412,17 @@ final class HandshakeStateMachineTest extends TestCase
         // Delete the peer row but leave the handshake referencing a nonexistent hostname.
         $pdo->prepare("DELETE FROM peers WHERE id = :p")->execute([':p' => $this->peerId]);
         $threadId = handshake_generate_thread_id();
-        $pdo->prepare("
+        $insHs = $pdo->prepare("
             INSERT INTO handshakes
                 (peer_id, remote_hostname, initiator, status, thread_id, expires_at)
-            VALUES (NULL, :h, 'them', 'pending_our_response', :t, :e)
-        ")->execute([
+            VALUES (NULL, :h, 'them', 'pending_our_response', :t, :e) RETURNING id
+        ");
+        $insHs->execute([
             ':h' => 'totally-not-in-directory.example.invalid',
             ':t' => $threadId,
             ':e' => date('Y-m-d H:i:s', time() + 86400),
         ]);
-        $hsId = (int)$pdo->lastInsertId();
+        $hsId = (int)$insHs->fetchColumn();
         $r = handshake_accept_inbound($hsId);
         $this->assertFalse($r['ok']);
         $this->assertSame('peer_not_in_directory', $r['reason']);
@@ -428,17 +433,18 @@ final class HandshakeStateMachineTest extends TestCase
     {
         $pdo = getDB();
         $threadId = handshake_generate_thread_id();
-        $pdo->prepare("
+        $insHs = $pdo->prepare("
             INSERT INTO handshakes
                 (peer_id, remote_hostname, initiator, status, thread_id, expires_at)
-            VALUES (:p, :h, 'them', 'pending_our_response', :t, :e)
-        ")->execute([
+            VALUES (:p, :h, 'them', 'pending_our_response', :t, :e) RETURNING id
+        ");
+        $insHs->execute([
             ':p' => $this->peerId,
             ':h' => self::REMOTE_HOST,
             ':t' => $threadId,
             ':e' => date('Y-m-d H:i:s', time() + 86400),
         ]);
-        $hsId = (int)$pdo->lastInsertId();
+        $hsId = (int)$insHs->fetchColumn();
 
         $r = handshake_reject_inbound($hsId, 'not federating with you');
         $this->assertTrue($r['ok']);
@@ -478,17 +484,18 @@ final class HandshakeStateMachineTest extends TestCase
     public function testCancelOutboundRefusesInboundHandshake(): void
     {
         $pdo = getDB();
-        $pdo->prepare("
+        $insHs = $pdo->prepare("
             INSERT INTO handshakes
                 (peer_id, remote_hostname, initiator, status, thread_id, expires_at)
-            VALUES (:p, :h, 'them', 'pending_our_response', :t, :e)
-        ")->execute([
+            VALUES (:p, :h, 'them', 'pending_our_response', :t, :e) RETURNING id
+        ");
+        $insHs->execute([
             ':p' => $this->peerId,
             ':h' => self::REMOTE_HOST,
             ':t' => handshake_generate_thread_id(),
             ':e' => date('Y-m-d H:i:s', time() + 86400),
         ]);
-        $hsId = (int)$pdo->lastInsertId();
+        $hsId = (int)$insHs->fetchColumn();
         $r = handshake_cancel_outbound($hsId);
         $this->assertFalse($r['ok']);
         $this->assertSame('cannot_cancel_inbound', $r['reason']);
@@ -497,14 +504,15 @@ final class HandshakeStateMachineTest extends TestCase
     public function testRetryOutboundResetsFailedMessage(): void
     {
         $pdo = getDB();
-        $pdo->prepare("
+        $insMsg = $pdo->prepare("
             INSERT INTO pluriverse_messages
                 (peer_id, direction, thread_id, message_type, jws_envelope,
                  delivery_status, attempt_count, next_attempt_at, last_attempt_error)
             VALUES (:p, 'outbound', :t, 'handshake_request', 'h.p.s',
-                    'failed', 3, DATE_ADD(NOW(), INTERVAL 1 HOUR), 'http_500')
-        ")->execute([':p' => $this->peerId, ':t' => handshake_generate_thread_id()]);
-        $mid = (int)$pdo->lastInsertId();
+                    'failed', 3, NOW() + INTERVAL '1 HOUR', 'http_500') RETURNING id
+        ");
+        $insMsg->execute([':p' => $this->peerId, ':t' => handshake_generate_thread_id()]);
+        $mid = (int)$insMsg->fetchColumn();
 
         $r = handshake_retry_outbound($mid);
         $this->assertTrue($r['ok']);
@@ -518,13 +526,14 @@ final class HandshakeStateMachineTest extends TestCase
     public function testRetryOutboundRefusesNonRetryable(): void
     {
         $pdo = getDB();
-        $pdo->prepare("
+        $insMsg = $pdo->prepare("
             INSERT INTO pluriverse_messages
                 (peer_id, direction, thread_id, message_type, jws_envelope,
                  delivery_status, attempt_count)
-            VALUES (:p, 'outbound', :t, 'handshake_request', 'h.p.s', 'delivered', 1)
-        ")->execute([':p' => $this->peerId, ':t' => handshake_generate_thread_id()]);
-        $mid = (int)$pdo->lastInsertId();
+            VALUES (:p, 'outbound', :t, 'handshake_request', 'h.p.s', 'delivered', 1) RETURNING id
+        ");
+        $insMsg->execute([':p' => $this->peerId, ':t' => handshake_generate_thread_id()]);
+        $mid = (int)$insMsg->fetchColumn();
         $r = handshake_retry_outbound($mid);
         $this->assertFalse($r['ok']);
         $this->assertSame('message_not_retryable', $r['reason']);

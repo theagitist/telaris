@@ -48,10 +48,10 @@ final class GalaxyPublishedAdminViewTest extends TestCase
     private function mkGalaxy(string $slug, ?string $importSource = null): int
     {
         $pdo = getDB();
-        $pdo->prepare("INSERT INTO constellations (name, slug, `type`, theme, import_source)
-                       VALUES (:n, :s, 'galaxy', 'cosmic', :src)")
-            ->execute([':n' => 'Test ' . $slug, ':s' => $slug, ':src' => $importSource]);
-        $cid = (int)$pdo->lastInsertId();
+        $insC = $pdo->prepare("INSERT INTO constellations (name, slug, type, theme, import_source)
+                       VALUES (:n, :s, 'galaxy', 'cosmic', :src) RETURNING id");
+        $insC->execute([':n' => 'Test ' . $slug, ':s' => $slug, ':src' => $importSource]);
+        $cid = (int)$insC->fetchColumn();
         $this->cids[] = $cid;
         return $cid;
     }
@@ -129,9 +129,9 @@ final class GalaxyPublishedAdminViewTest extends TestCase
     public function testSluglessGalaxiesAreExcluded(): void
     {
         $pdo = getDB();
-        $pdo->prepare("INSERT INTO constellations (name, slug, `type`, theme) VALUES ('Slugless', NULL, 'galaxy', 'cosmic')")
-            ->execute();
-        $cid = (int)$pdo->lastInsertId();
+        $insC = $pdo->prepare("INSERT INTO constellations (name, slug, type, theme) VALUES ('Slugless', NULL, 'galaxy', 'cosmic') RETURNING id");
+        $insC->execute();
+        $cid = (int)$insC->fetchColumn();
         $this->cids[] = $cid;
         foreach (federation_published_galaxies_admin_view() as $r) {
             $this->assertNotSame($cid, $r['constellation_id']);

@@ -45,7 +45,7 @@ final class WhitelistEditorTest extends TestCase
 
         $insPeer = $pdo->prepare("
             INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, source, trust_state)
-            VALUES (:h, :u, :p, :k, :l, 'manual', 'contacted')
+            VALUES (:h, :u, :p, :k, :l, 'manual', 'contacted') RETURNING id
         ");
         $insPeer->execute([
             ':h' => self::REMOTE_HOST,
@@ -54,7 +54,7 @@ final class WhitelistEditorTest extends TestCase
             ':k' => sodium_crypto_sign_publickey(sodium_crypto_sign_seed_keypair(str_repeat("\xA1", SODIUM_CRYPTO_SIGN_SEEDBYTES))),
             ':l' => 'wlist-test peer',
         ]);
-        $this->peerId = (int)$pdo->lastInsertId();
+        $this->peerId = (int)$insPeer->fetchColumn();
 
         $insPeer->execute([
             ':h' => self::PEER_HOST_2,
@@ -63,19 +63,19 @@ final class WhitelistEditorTest extends TestCase
             ':k' => sodium_crypto_sign_publickey(sodium_crypto_sign_seed_keypair(str_repeat("\xA2", SODIUM_CRYPTO_SIGN_SEEDBYTES))),
             ':l' => 'wlist-test peer 2',
         ]);
-        $this->otherPeerId = (int)$pdo->lastInsertId();
+        $this->otherPeerId = (int)$insPeer->fetchColumn();
 
         // Authored galaxies (mirrored_from_peer_id IS NULL, type = 'galaxy').
-        $insGx = $pdo->prepare("INSERT INTO constellations (name, slug, theme, `type`) VALUES (:n, :s, 'default', 'galaxy')");
+        $insGx = $pdo->prepare("INSERT INTO constellations (name, slug, theme, type) VALUES (:n, :s, 'default', 'galaxy') RETURNING id");
         $insGx->execute([':n' => 'WList Test A', ':s' => 'wlist-test-a']);
-        $this->galaxyA = (int)$pdo->lastInsertId();
+        $this->galaxyA = (int)$insGx->fetchColumn();
         $insGx->execute([':n' => 'WList Test B', ':s' => 'wlist-test-b']);
-        $this->galaxyB = (int)$pdo->lastInsertId();
+        $this->galaxyB = (int)$insGx->fetchColumn();
 
         // One mirrored galaxy (must be refused by publish-list).
-        $pdo->prepare("INSERT INTO constellations (name, slug, theme, `type`, mirrored_from_peer_id) VALUES (:n, :s, 'default', 'galaxy', :p)")
-            ->execute([':n' => 'WList Test Mirrored', ':s' => 'wlist-test-mirrored', ':p' => $this->otherPeerId]);
-        $this->galaxyMirrored = (int)$pdo->lastInsertId();
+        $insMirror = $pdo->prepare("INSERT INTO constellations (name, slug, theme, type, mirrored_from_peer_id) VALUES (:n, :s, 'default', 'galaxy', :p) RETURNING id");
+        $insMirror->execute([':n' => 'WList Test Mirrored', ':s' => 'wlist-test-mirrored', ':p' => $this->otherPeerId]);
+        $this->galaxyMirrored = (int)$insMirror->fetchColumn();
     }
 
     protected function tearDown(): void

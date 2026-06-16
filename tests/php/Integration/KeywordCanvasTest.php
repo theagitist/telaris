@@ -50,8 +50,8 @@ final class KeywordCanvasTest extends TestCase
         // No exceptions thrown; tables either exist or were created.
         $names = ['keyword_positions', 'keyword_relations', 'keyword_position_history'];
         foreach ($names as $name) {
-            $exists = $this->pdo->query("SHOW TABLES LIKE '$name'")->fetch();
-            $this->assertNotFalse($exists, "Table $name should exist after ensure");
+            $exists = $this->pdo->query("SELECT to_regclass('public.$name')")->fetchColumn();
+            $this->assertNotNull($exists, "Table $name should exist after ensure");
         }
     }
 

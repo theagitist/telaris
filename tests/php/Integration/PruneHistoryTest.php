@@ -41,7 +41,7 @@ final class PruneHistoryTest extends TestCase
             ->execute([$this->keywordId, 10, 20]);
         $this->pdo->prepare("INSERT INTO keyword_position_history (keyword_id, canvas_x, canvas_y) VALUES (?, ?, ?)")
             ->execute([$this->keywordId, 30, 40]);
-        $this->pdo->prepare("UPDATE keyword_position_history SET moved_at = (NOW() - INTERVAL 100 DAY) WHERE keyword_id = ? AND canvas_x = ?")
+        $this->pdo->prepare("UPDATE keyword_position_history SET moved_at = (NOW() - INTERVAL '100 DAY') WHERE keyword_id = ? AND canvas_x = ?")
             ->execute([$this->keywordId, 10]);
 
         db_prune_keyword_position_history(90);
@@ -57,7 +57,7 @@ final class PruneHistoryTest extends TestCase
     {
         $this->pdo->prepare("INSERT INTO keyword_position_history (keyword_id, canvas_x, canvas_y) VALUES (?, ?, ?)")
             ->execute([$this->keywordId, 5, 5]);
-        $this->pdo->prepare("UPDATE keyword_position_history SET moved_at = (NOW() - INTERVAL 10 DAY) WHERE keyword_id = ?")
+        $this->pdo->prepare("UPDATE keyword_position_history SET moved_at = (NOW() - INTERVAL '10 DAY') WHERE keyword_id = ?")
             ->execute([$this->keywordId]);
 
         db_prune_keyword_position_history(30);

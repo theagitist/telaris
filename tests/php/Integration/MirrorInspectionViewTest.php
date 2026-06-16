@@ -35,15 +35,15 @@ final class MirrorInspectionViewTest extends TestCase
         $sfx = bin2hex(random_bytes(4));
         $this->host = "inspect-$sfx.example.invalid";
         $pdo = getDB();
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, 'inspect test')")
-            ->execute([
+        $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
+                       VALUES (:h, :u, :e, :k, 'inspect test') RETURNING id");
+        $ins->execute([
                 ':h' => $this->host,
                 ':u' => "https://{$this->host}",
                 ':e' => "https://{$this->host}/api/pluriverse",
                 ':k' => random_bytes(32),
             ]);
-        $this->peerId = (int)$pdo->lastInsertId();
+        $this->peerId = (int)$ins->fetchColumn();
     }
 
     protected function tearDown(): void

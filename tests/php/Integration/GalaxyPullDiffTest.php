@@ -29,15 +29,15 @@ final class GalaxyPullDiffTest extends TestCase
         db_ensure_galaxy_subscriptions_table();
         $pdo = getDB();
         $sfx = bin2hex(random_bytes(4));
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, 'pull diff peer')")
-            ->execute([
+        $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
+                       VALUES (:h, :u, :e, :k, 'pull diff peer') RETURNING id");
+        $ins->execute([
                 ':h' => "pull-$sfx.example.invalid",
                 ':u' => "https://pull-$sfx.example.invalid",
                 ':e' => "https://pull-$sfx.example.invalid/api/pluriverse",
                 ':k' => random_bytes(32),
             ]);
-        $this->peerId = (int)$pdo->lastInsertId();
+        $this->peerId = (int)$ins->fetchColumn();
     }
 
     protected function tearDown(): void

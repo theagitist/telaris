@@ -34,7 +34,7 @@ final class DropNoticeTest extends TestCase
     public function testUsersLocaleColumnIsEnsured(): void
     {
         db_ensure_users_locale_column();
-        $col = getDB()->query("SHOW COLUMNS FROM users LIKE 'locale'")->fetch();
+        $col = getDB()->query("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'locale'")->fetchColumn();
         $this->assertNotFalse($col, 'users.locale column exists after ensure');
         // Idempotent second call does not throw.
         db_ensure_users_locale_column();

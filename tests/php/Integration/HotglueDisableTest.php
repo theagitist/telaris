@@ -69,7 +69,7 @@ final class HotglueDisableTest extends TestCase
     public function testColumnIsPresent(): void
     {
         db_ensure_disable_hotglue_content_column();
-        $row = getDB()->query("SHOW COLUMNS FROM project_info LIKE 'disable_hotglue_content'")->fetch();
+        $row = getDB()->query("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'project_info' AND column_name = 'disable_hotglue_content'")->fetchColumn();
         $this->assertNotFalse($row, 'disable_hotglue_content column should exist after ensure');
     }
 

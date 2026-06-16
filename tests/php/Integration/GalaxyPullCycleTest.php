@@ -50,15 +50,15 @@ final class GalaxyPullCycleTest extends TestCase
         $kp = sodium_crypto_sign_keypair();
         $pk = sodium_crypto_sign_publickey($kp);
         $pdo = getDB();
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, 'cycle test')")
-            ->execute([
+        $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
+                       VALUES (:h, :u, :e, :k, 'cycle test') RETURNING id");
+        $ins->execute([
                 ':h' => $host,
                 ':u' => "https://{$host}",
                 ':e' => "https://{$host}/api/pluriverse",
                 ':k' => $pk,
             ]);
-        $id = (int)$pdo->lastInsertId();
+        $id = (int)$ins->fetchColumn();
         $this->peerIds[] = $id;
         return $id;
     }
@@ -174,7 +174,7 @@ final class GalaxyPullCycleTest extends TestCase
         $this->assertNotContains($p, federation_galaxy_pull_eligible_peer_ids(), 'cooldown 60s in the future');
 
         // Force next_pull_at into the past: peer is eligible again.
-        getDB()->prepare("UPDATE peer_pull_state SET next_pull_at = DATE_SUB(NOW(), INTERVAL 1 SECOND) WHERE peer_id = :p")
+        getDB()->prepare("UPDATE peer_pull_state SET next_pull_at = NOW() - INTERVAL '1 SECOND' WHERE peer_id = :p")
             ->execute([':p' => $p]);
         $this->assertContains($p, federation_galaxy_pull_eligible_peer_ids());
     }

@@ -46,8 +46,8 @@ final class AuditLogTest extends TestCase
     {
         db_ensure_audit_events_table();
         db_ensure_audit_events_table();
-        $found = $this->pdo->query("SHOW TABLES LIKE 'audit_events'")->fetch();
-        $this->assertNotFalse($found);
+        $found = $this->pdo->query("SELECT to_regclass('public.audit_events')")->fetchColumn();
+        $this->assertNotNull($found);
     }
 
     public function testLogPopulatesColumns(): void

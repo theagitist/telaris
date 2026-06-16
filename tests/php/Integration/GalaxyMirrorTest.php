@@ -47,26 +47,26 @@ final class GalaxyMirrorTest extends TestCase
         $sfx = bin2hex(random_bytes(4));
         $this->host = "origin-$sfx.example.invalid";
         $pdo = getDB();
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, 'mirror test origin')")
-            ->execute([
+        $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
+                       VALUES (:h, :u, :e, :k, 'mirror test origin') RETURNING id");
+        $ins->execute([
                 ':h' => $this->host,
                 ':u' => "https://{$this->host}",
                 ':e' => "https://{$this->host}/api/pluriverse",
                 ':k' => $this->pk,
             ]);
-        $this->peerId = (int)$pdo->lastInsertId();
+        $this->peerId = (int)$ins->fetchColumn();
     }
 
     protected function tearDown(): void
     {
         $pdo = getDB();
         foreach ($this->cids as $cid) {
-            $pdo->prepare("DELETE kr FROM keyword_relations kr
+            $pdo->prepare("DELETE FROM keyword_relations kr
                            WHERE kr.keyword_a_id IN (SELECT id FROM keywords WHERE constellation_id = :c1)
                               OR kr.keyword_b_id IN (SELECT id FROM keywords WHERE constellation_id = :c2)")
                 ->execute([':c1' => $cid, ':c2' => $cid]);
-            $pdo->prepare("DELETE nk FROM node_keywords nk INNER JOIN nodes n ON n.id = nk.node_id WHERE n.constellation_id = :c")->execute([':c' => $cid]);
+            $pdo->prepare("DELETE FROM node_keywords nk USING nodes n WHERE n.id = nk.node_id AND n.constellation_id = :c")->execute([':c' => $cid]);
             $pdo->prepare("DELETE FROM nodes WHERE constellation_id = :c")->execute([':c' => $cid]);
             $pdo->prepare("DELETE FROM keywords WHERE constellation_id = :c")->execute([':c' => $cid]);
             $pdo->prepare("UPDATE galaxy_subscriptions SET local_constellation_id = NULL WHERE local_constellation_id = :c")->execute([':c' => $cid]);

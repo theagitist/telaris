@@ -43,22 +43,22 @@ final class GalaxyUnmirrorTest extends TestCase
         $sfx = bin2hex(random_bytes(4));
         $this->host = "origin-$sfx.example.invalid";
         $pdo = getDB();
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, 'unmirror test origin')")
-            ->execute([
+        $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
+                       VALUES (:h, :u, :e, :k, 'unmirror test origin') RETURNING id");
+        $ins->execute([
                 ':h' => $this->host,
                 ':u' => "https://{$this->host}",
                 ':e' => "https://{$this->host}/api/pluriverse",
                 ':k' => $this->pk,
             ]);
-        $this->peerId = (int)$pdo->lastInsertId();
+        $this->peerId = (int)$ins->fetchColumn();
     }
 
     protected function tearDown(): void
     {
         $pdo = getDB();
         foreach ($this->cids as $cid) {
-            $pdo->prepare("DELETE kr FROM keyword_relations kr
+            $pdo->prepare("DELETE FROM keyword_relations kr
                            WHERE kr.keyword_a_id IN (SELECT id FROM keywords WHERE constellation_id = :c1)
                               OR kr.keyword_b_id IN (SELECT id FROM keywords WHERE constellation_id = :c2)")
                 ->execute([':c1' => $cid, ':c2' => $cid]);
@@ -401,9 +401,9 @@ final class GalaxyUnmirrorTest extends TestCase
         $pdo = getDB();
         $otherKp = sodium_crypto_sign_keypair();
         $otherHost = 'other-' . bin2hex(random_bytes(4)) . '.example.invalid';
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label) VALUES (:h, :u, :e, :k, 'other')")
-            ->execute([':h' => $otherHost, ':u' => "https://$otherHost", ':e' => "https://$otherHost/api/pluriverse", ':k' => sodium_crypto_sign_publickey($otherKp)]);
-        $otherPeerId = (int)$pdo->lastInsertId();
+        $insOther = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label) VALUES (:h, :u, :e, :k, 'other') RETURNING id");
+        $insOther->execute([':h' => $otherHost, ':u' => "https://$otherHost", ':e' => "https://$otherHost/api/pluriverse", ':k' => sodium_crypto_sign_publickey($otherKp)]);
+        $otherPeerId = (int)$insOther->fetchColumn();
         $otherSlug = 'mirror-' . bin2hex(random_bytes(3));
         $otherCid = db_create_constellation('Other mirror', '', $otherSlug, 'cosmic');
         $importSource = json_encode(['kind' => 'federation', 'origin_host' => $otherHost, 'remote_slug' => 'slug-other', 'sequence' => 1, 'content_hash' => str_repeat('b', 64)], JSON_UNESCAPED_SLASHES);

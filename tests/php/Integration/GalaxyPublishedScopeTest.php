@@ -38,16 +38,16 @@ final class GalaxyPublishedScopeTest extends TestCase
         $pdo = getDB();
         $sfx = bin2hex(random_bytes(4));
 
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, :l)")
-            ->execute([
+        $insPeer = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
+                       VALUES (:h, :u, :e, :k, :l) RETURNING id");
+        $insPeer->execute([
                 ':h' => "scope-peer-$sfx.example.invalid",
                 ':u' => "https://scope-peer-$sfx.example.invalid",
                 ':e' => "https://scope-peer-$sfx.example.invalid/api/pluriverse",
                 ':k' => random_bytes(32),
                 ':l' => 'scope test peer',
             ]);
-        $this->peerId = (int)$pdo->lastInsertId();
+        $this->peerId = (int)$insPeer->fetchColumn();
 
         $this->authoredA = $this->mkGalaxy("scope-authored-a-$sfx", null);
         $this->authoredB = $this->mkGalaxy("scope-authored-b-$sfx", null);
@@ -67,10 +67,10 @@ final class GalaxyPublishedScopeTest extends TestCase
     private function mkGalaxy(string $slug, ?string $importSource): int
     {
         $pdo = getDB();
-        $pdo->prepare("INSERT INTO constellations (name, slug, `type`, theme, import_source)
-                       VALUES (:n, :s, 'galaxy', 'cosmic', :src)")
-            ->execute([':n' => $slug, ':s' => $slug, ':src' => $importSource]);
-        return (int)$pdo->lastInsertId();
+        $insC = $pdo->prepare("INSERT INTO constellations (name, slug, type, theme, import_source)
+                       VALUES (:n, :s, 'galaxy', 'cosmic', :src) RETURNING id");
+        $insC->execute([':n' => $slug, ':s' => $slug, ':src' => $importSource]);
+        return (int)$insC->fetchColumn();
     }
 
     private function publishRow(int $cid): void
@@ -158,15 +158,15 @@ final class GalaxyPublishedScopeTest extends TestCase
     {
         $pdo = getDB();
         $sfx = bin2hex(random_bytes(4));
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, 'empty peer')")
-            ->execute([
+        $insEmpty = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
+                       VALUES (:h, :u, :e, :k, 'empty peer') RETURNING id");
+        $insEmpty->execute([
                 ':h' => "scope-empty-$sfx.example.invalid",
                 ':u' => "https://scope-empty-$sfx.example.invalid",
                 ':e' => "https://scope-empty-$sfx.example.invalid/api/pluriverse",
                 ':k' => random_bytes(32),
             ]);
-        $emptyPeer = (int)$pdo->lastInsertId();
+        $emptyPeer = (int)$insEmpty->fetchColumn();
         try {
             $this->assertSame([], federation_published_for_peer($emptyPeer));
         } finally {

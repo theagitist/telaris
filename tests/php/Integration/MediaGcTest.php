@@ -50,9 +50,9 @@ final class MediaGcTest extends TestCase
     private function mkGalaxyWithMedia(string $slug, array $cols): int
     {
         $pdo = getDB();
-        $pdo->prepare("INSERT INTO constellations (name, slug, `type`, theme) VALUES (:n, :s, 'galaxy', 'cosmic')")
-            ->execute([':n' => 'GC ' . $slug, ':s' => $slug]);
-        $cid = (int)$pdo->lastInsertId();
+        $insC = $pdo->prepare("INSERT INTO constellations (name, slug, type, theme) VALUES (:n, :s, 'galaxy', 'cosmic') RETURNING id");
+        $insC->execute([':n' => 'GC ' . $slug, ':s' => $slug]);
+        $cid = (int)$insC->fetchColumn();
         $this->cids[] = $cid;
         $stmt = $pdo->prepare("INSERT INTO nodes (constellation_id, name, animation, image_url, icon_url, audio_url, video_url, pdf_url)
                                 VALUES (:c, :n, '{}', :img, :ico, :aud, :vid, :pdf)");

@@ -42,8 +42,8 @@ final class AuthAttemptsTest extends TestCase
     {
         db_ensure_auth_attempts_table();
         db_ensure_auth_attempts_table();
-        $found = $this->pdo->query("SHOW TABLES LIKE 'auth_attempts'")->fetch();
-        $this->assertNotFalse($found);
+        $found = $this->pdo->query("SELECT to_regclass('public.auth_attempts')")->fetchColumn();
+        $this->assertNotNull($found);
     }
 
     public function testRecordInsertsRow(): void
@@ -97,7 +97,7 @@ final class AuthAttemptsTest extends TestCase
     {
         db_record_auth_attempt('login', $this->email, $this->ip, false);
         // Backdate the row beyond the test window.
-        $this->pdo->prepare("UPDATE auth_attempts SET created_at = (NOW() - INTERVAL 10 MINUTE) WHERE email = ?")
+        $this->pdo->prepare("UPDATE auth_attempts SET created_at = (NOW() - INTERVAL '10 MINUTE') WHERE email = ?")
             ->execute([$this->email]);
         $recent = db_count_recent_auth_attempts('login', $this->email, $this->ip, 60, false);
         $this->assertSame(0, $recent);

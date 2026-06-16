@@ -43,15 +43,15 @@ final class FedPublishRevocationTest extends TestCase
         $sfx = bin2hex(random_bytes(4));
         $this->host = "revoke-$sfx.example.invalid";
         $pdo = getDB();
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, trust_state)
-                       VALUES (:h, :u, :e, :k, 'revocation test', 'whitelisted')")
-            ->execute([
+        $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, trust_state)
+                       VALUES (:h, :u, :e, :k, 'revocation test', 'whitelisted') RETURNING id");
+        $ins->execute([
                 ':h' => $this->host,
                 ':u' => "https://{$this->host}",
                 ':e' => "https://{$this->host}/api/pluriverse",
                 ':k' => random_bytes(32),
             ]);
-        $this->peerId = (int)$pdo->lastInsertId();
+        $this->peerId = (int)$ins->fetchColumn();
     }
 
     protected function tearDown(): void
@@ -70,10 +70,10 @@ final class FedPublishRevocationTest extends TestCase
     {
         $pdo = getDB();
         $slug = 'rev-authored-' . bin2hex(random_bytes(4));
-        $pdo->prepare("INSERT INTO constellations (name, slug, `type`, theme, import_source)
-                       VALUES (:n, :s, 'galaxy', 'cosmic', NULL)")
-            ->execute([':n' => $slug, ':s' => $slug]);
-        $cid = (int)$pdo->lastInsertId();
+        $insC = $pdo->prepare("INSERT INTO constellations (name, slug, type, theme, import_source)
+                       VALUES (:n, :s, 'galaxy', 'cosmic', NULL) RETURNING id");
+        $insC->execute([':n' => $slug, ':s' => $slug]);
+        $cid = (int)$insC->fetchColumn();
         $this->cids[] = $cid;
         return [$cid, $slug];
     }

@@ -38,10 +38,10 @@ final class PeerBlacklistNoticeTest extends TestCase
         $kp = sodium_crypto_sign_keypair();
         $this->host = 'reported-' . bin2hex(random_bytes(4)) . '.example.invalid';
         $pdo = getDB();
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, trust_state)
-                       VALUES (:h, :u, :e, :k, '6e test', 'blocked')")
-            ->execute([':h' => $this->host, ':u' => "https://{$this->host}", ':e' => "https://{$this->host}/api/pluriverse", ':k' => sodium_crypto_sign_publickey($kp)]);
-        $this->peerId = (int)$pdo->lastInsertId();
+        $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, trust_state)
+                       VALUES (:h, :u, :e, :k, '6e test', 'blocked') RETURNING id");
+        $ins->execute([':h' => $this->host, ':u' => "https://{$this->host}", ':e' => "https://{$this->host}/api/pluriverse", ':k' => sodium_crypto_sign_publickey($kp)]);
+        $this->peerId = (int)$ins->fetchColumn();
     }
 
     protected function tearDown(): void

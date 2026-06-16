@@ -67,15 +67,15 @@ final class BlacklistEnforceTest extends TestCase
         $pdo = getDB();
         $kp = sodium_crypto_sign_keypair();
         $pk = sodium_crypto_sign_publickey($kp);
-        $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, 'blacklist-enforce test')")
-            ->execute([
+        $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
+                       VALUES (:h, :u, :e, :k, 'blacklist-enforce test') RETURNING id");
+        $ins->execute([
                 ':h' => $host,
                 ':u' => "https://$host",
                 ':e' => "https://$host/api/pluriverse",
                 ':k' => $pk,
             ]);
-        $pid = (int)$pdo->lastInsertId();
+        $pid = (int)$ins->fetchColumn();
         $this->peerIds[] = $pid;
         return $pid;
     }
@@ -105,7 +105,7 @@ final class BlacklistEnforceTest extends TestCase
     {
         getDB()->prepare("INSERT INTO pluriverse_blacklist (entry_type, entry_value, reason, added_at)
                           VALUES (:t, :v, :r, NOW())
-                          ON DUPLICATE KEY UPDATE reason = VALUES(reason)")
+                          ON CONFLICT (entry_type, entry_value) DO UPDATE SET reason = EXCLUDED.reason")
             ->execute([':t' => $type, ':v' => $value, ':r' => $reason]);
         $this->blEntryValues[] = $value;
     }

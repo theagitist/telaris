@@ -177,7 +177,7 @@ final class EnrollmentFlowTest extends TestCase
         }
         $clusterName = '[' . $sub . ']';
         // Did the cluster already exist? (so teardown only deletes what we made.)
-        $pre = $this->pdo->prepare("SELECT id FROM constellations WHERE name = :n AND `type` = 'cluster' LIMIT 1");
+        $pre = $this->pdo->prepare("SELECT id FROM constellations WHERE name = :n AND type = 'cluster' LIMIT 1");
         $pre->execute([':n' => $clusterName]);
         $preexisting = $pre->fetchColumn();
 
@@ -190,7 +190,7 @@ final class EnrollmentFlowTest extends TestCase
         $this->tempGalaxyIds[] = $res['personal_galaxy_id'];
         $this->assertNotNull($res['personal_galaxy_id']);
 
-        $cidStmt = $this->pdo->prepare("SELECT id FROM constellations WHERE name = :n AND `type` = 'cluster' LIMIT 1");
+        $cidStmt = $this->pdo->prepare("SELECT id FROM constellations WHERE name = :n AND type = 'cluster' LIMIT 1");
         $cidStmt->execute([':n' => $clusterName]);
         $clusterId = $cidStmt->fetchColumn();
         $this->assertNotFalse($clusterId, 'per-installation cluster exists after enrolment');
@@ -204,7 +204,7 @@ final class EnrollmentFlowTest extends TestCase
         $u2 = $this->makeEnrollee('Bo');
         $res2 = enroll_apply_config((string)$u2['id'], (string)$u2['email'], (string)$u2['firstname'], $cfg);
         $this->tempGalaxyIds[] = $res2['personal_galaxy_id'];
-        $dupCount = (int)$this->pdo->query("SELECT COUNT(*) FROM constellations WHERE name = " . $this->pdo->quote($clusterName) . " AND `type` = 'cluster'")->fetchColumn();
+        $dupCount = (int)$this->pdo->query("SELECT COUNT(*) FROM constellations WHERE name = " . $this->pdo->quote($clusterName) . " AND type = 'cluster'")->fetchColumn();
         $this->assertSame(1, $dupCount, 'the per-installation cluster is reused, not duplicated');
         $this->assertContains((int)$res2['personal_galaxy_id'], db_get_cluster_member_ids((int)$clusterId), 'second personal galaxy joins the same cluster');
     }
@@ -240,7 +240,7 @@ final class EnrollmentFlowTest extends TestCase
         $this->assertFalse(db_has_pending_personal_galaxy((string)$u['id']), 'flag consumed by the first galaxy');
 
         if ($sub !== null) {
-            $clusterId = $this->pdo->query("SELECT id FROM constellations WHERE name = " . $this->pdo->quote('[' . $sub . ']') . " AND `type` = 'cluster' LIMIT 1")->fetchColumn();
+            $clusterId = $this->pdo->query("SELECT id FROM constellations WHERE name = " . $this->pdo->quote('[' . $sub . ']') . " AND type = 'cluster' LIMIT 1")->fetchColumn();
             $this->assertNotFalse($clusterId);
             $this->assertContains($g1, db_get_cluster_member_ids((int)$clusterId), 'deferred galaxy joined the cluster');
         }
@@ -257,7 +257,7 @@ final class EnrollmentFlowTest extends TestCase
         $this->assertSame('0', (string)$row2['idle_spotlight_enabled']);
         $this->assertSame('cosmic', (string)$row2['theme'], 'second galaxy keeps its created theme, not forced to Abstract');
         if ($sub !== null) {
-            $clusterId = $this->pdo->query("SELECT id FROM constellations WHERE name = " . $this->pdo->quote('[' . $sub . ']') . " AND `type` = 'cluster' LIMIT 1")->fetchColumn();
+            $clusterId = $this->pdo->query("SELECT id FROM constellations WHERE name = " . $this->pdo->quote('[' . $sub . ']') . " AND type = 'cluster' LIMIT 1")->fetchColumn();
             $this->assertNotContains($g2, db_get_cluster_member_ids((int)$clusterId), 'second galaxy is not gathered into the cluster');
         }
     }
@@ -324,13 +324,13 @@ final class EnrollmentFlowTest extends TestCase
         $sub = enroll_installation_subdomain();
         if ($sub !== null) {
             $name = '[' . $sub . ']';
-            $cid = $this->pdo->prepare("SELECT id FROM constellations WHERE name = :n AND `type` = 'cluster' LIMIT 1");
+            $cid = $this->pdo->prepare("SELECT id FROM constellations WHERE name = :n AND type = 'cluster' LIMIT 1");
             $cid->execute([':n' => $name]);
             $clusterId = $cid->fetchColumn();
             if ($clusterId !== false) {
                 $cnt = (int)$this->pdo->query("SELECT COUNT(*) FROM galaxy_cluster_members WHERE cluster_id = " . (int)$clusterId)->fetchColumn();
                 if ($cnt === 0) {
-                    $this->pdo->prepare("DELETE FROM constellations WHERE id = ? AND `type` = 'cluster'")->execute([(int)$clusterId]);
+                    $this->pdo->prepare("DELETE FROM constellations WHERE id = ? AND type = 'cluster'")->execute([(int)$clusterId]);
                 }
             }
         }

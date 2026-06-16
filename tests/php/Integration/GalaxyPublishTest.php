@@ -35,19 +35,19 @@ final class GalaxyPublishTest extends TestCase
     {
         $pdo = getDB();
         // A mirrored galaxy (import_source set) — must be refused for publish.
-        $pdo->prepare("INSERT INTO constellations (name, slug, `type`, theme, import_source) VALUES (:n, :s, 'galaxy', 'cosmic', :src)")
-            ->execute([
+        $insMirror = $pdo->prepare("INSERT INTO constellations (name, slug, type, theme, import_source) VALUES (:n, :s, 'galaxy', 'cosmic', :src) RETURNING id");
+        $insMirror->execute([
                 ':n' => 'fed publish test mirror',
                 ':s' => 'fed-pub-test-mirror-' . bin2hex(random_bytes(4)),
                 ':src' => json_encode(['peer' => 'origin.example.invalid', 'slug' => 'x']),
             ]);
-        $this->mirrorId = (int)$pdo->lastInsertId();
+        $this->mirrorId = (int)$insMirror->fetchColumn();
 
         // An authored galaxy whose slug is retracted — must be refused.
         $this->retractedSlug = 'fed-pub-test-retracted-' . bin2hex(random_bytes(4));
-        $pdo->prepare("INSERT INTO constellations (name, slug, `type`, theme) VALUES (:n, :s, 'galaxy', 'cosmic')")
-            ->execute([':n' => 'fed publish test retracted', ':s' => $this->retractedSlug]);
-        $this->retractedId = (int)$pdo->lastInsertId();
+        $insRetracted = $pdo->prepare("INSERT INTO constellations (name, slug, type, theme) VALUES (:n, :s, 'galaxy', 'cosmic') RETURNING id");
+        $insRetracted->execute([':n' => 'fed publish test retracted', ':s' => $this->retractedSlug]);
+        $this->retractedId = (int)$insRetracted->fetchColumn();
 
         db_ensure_retracted_galaxies_table();
         $pdo->prepare("INSERT INTO retracted_galaxies (constellation_id, slug, reason) VALUES (:cid, :s, 'test')")

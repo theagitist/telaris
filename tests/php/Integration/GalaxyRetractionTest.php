@@ -114,10 +114,10 @@ final class GalaxyRetractionTest extends TestCase
     {
         $pdo = getDB();
         $sfx = bin2hex(random_bytes(4));
-        $pdo->prepare("INSERT INTO constellations (name, slug, `type`, theme, import_source)
-                       VALUES (:n, :s, 'galaxy', 'cosmic', :src)")
-            ->execute([':n' => "retract-mirror-$sfx", ':s' => "retract-mirror-$sfx", ':src' => json_encode(['peer' => 'x'])]);
-        $cid = (int)$pdo->lastInsertId();
+        $insC = $pdo->prepare("INSERT INTO constellations (name, slug, type, theme, import_source)
+                       VALUES (:n, :s, 'galaxy', 'cosmic', :src) RETURNING id");
+        $insC->execute([':n' => "retract-mirror-$sfx", ':s' => "retract-mirror-$sfx", ':src' => json_encode(['peer' => 'x'])]);
+        $cid = (int)$insC->fetchColumn();
         try {
             $res = federation_galaxy_retract($cid, 'admin@test.invalid');
             $this->assertFalse($res['ok']);

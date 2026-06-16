@@ -87,7 +87,7 @@ final class LoginTokenTest extends TestCase
         $token = bin2hex(random_bytes(32));
         $hash = hash('sha256', $token);
         $this->pdo->prepare(
-            "INSERT INTO login_tokens (token_hash, user_id, purpose, expires_at) VALUES (?, ?, 'magic_login', DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 MINUTE))"
+            "INSERT INTO login_tokens (token_hash, user_id, purpose, expires_at) VALUES (?, ?, 'magic_login', CURRENT_TIMESTAMP - INTERVAL '1 MINUTE')"
         )->execute([$hash, $this->userId]);
         $this->assertNull(db_get_user_for_login_token($token, 'magic_login'));
         $this->assertNull(db_consume_login_token($token, 'magic_login'));

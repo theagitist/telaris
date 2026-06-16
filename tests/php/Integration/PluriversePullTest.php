@@ -169,14 +169,15 @@ final class PluriversePullTest extends TestCase
         // unique to the test so no real handshake gets clobbered.
         $threadId = 'rediscovery-restore-test-' . bin2hex(random_bytes(6));
         $expires = date('Y-m-d H:i:s', time() + 86400 * 30);
-        $pdo->prepare("
+        $insHs = $pdo->prepare("
             INSERT INTO handshakes
                 (peer_id, remote_hostname, initiator, status,
                  requested_galaxies_publish, requested_galaxies_subscribe,
                  thread_id, expires_at)
-            VALUES (NULL, :h, 'us', 'complete', '[]', '[]', :t, :e)
-        ")->execute([':h' => $target, ':t' => $threadId, ':e' => $expires]);
-        $seededHandshakeId = (int)$pdo->lastInsertId();
+            VALUES (NULL, :h, 'us', 'complete', '[]', '[]', :t, :e) RETURNING id
+        ");
+        $insHs->execute([':h' => $target, ':t' => $threadId, ':e' => $expires]);
+        $seededHandshakeId = (int)$insHs->fetchColumn();
 
         // Wipe the peer row so the INSERT branch fires on next pull.
         $pdo->exec("DELETE FROM peers WHERE source = 'registry' AND hostname = " . $pdo->quote($target));
@@ -210,7 +211,7 @@ final class PluriversePullTest extends TestCase
                 "SELECT COUNT(*) FROM pluriverse_log
                  WHERE event_type = 'peer_trust_state_restored'
                    AND target = " . $pdo->quote($target) . "
-                   AND created_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)"
+                   AND created_at > NOW() - INTERVAL '5 MINUTE'"
             )->fetchColumn();
             $this->assertGreaterThan(0, $logCnt, 'restoration should be audited');
         } finally {
