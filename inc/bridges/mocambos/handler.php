@@ -922,7 +922,7 @@ function _mocambos_import_galaxia(array $params, Closure $streamMsg, Closure $lo
     db_ensure_keywords_unaccent_index();
     $insertStmt = $pdo->prepare("
         INSERT INTO nodes (name, description, url, animation, constellation_id, node_type, audio_autoplay, video_autoplay, source_facet, media_type, source_created_at, import_slug)
-        VALUES (:name, :description, :url, :animation, :constellation_id, 'object', 1, 1, :source_facet, :media_type, :source_created_at, :import_slug)
+        VALUES (:name, :description, :url, :animation, :constellation_id, 'object', TRUE, TRUE, :source_facet, :media_type, :source_created_at, :import_slug)
         RETURNING id
     ");
     // get-or-create the keyword id: the no-op DO UPDATE lets RETURNING hand back the

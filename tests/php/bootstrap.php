@@ -45,7 +45,7 @@ if (is_readable($telarisPgKey)) {
             PDO::ATTR_EMULATE_PREPARES => false,
         ]
     );
-    $telarisTestPdo->exec("SET TIME ZONE 'America/Vancouver'");
+    $telarisTestPdo->exec("SET TIME ZONE 'UTC'");
     $telarisTestPdo->exec('SET statement_timeout = 30000');
     resetDB($telarisTestPdo);
 
@@ -55,5 +55,15 @@ if (is_readable($telarisPgKey)) {
     if (function_exists('db_ensure_pg_runtime')) {
         try { db_ensure_pg_runtime(); }
         catch (\Throwable $e) { fwrite(STDERR, 'db_ensure_pg_runtime: ' . $e->getMessage() . "\n"); }
+    }
+
+    // Seed the minimal baseline a fresh test DB lacks but that the live instance
+    // DB the suite used to run against always had: an 'en' project_info row (read
+    // by settings/getters) and the id=0 default constellation. Idempotent.
+    try {
+        $telarisTestPdo->exec("INSERT INTO project_info (locale) VALUES ('en') ON CONFLICT (locale) DO NOTHING");
+        $telarisTestPdo->exec("INSERT INTO constellations (id, name, tagline, theme) VALUES (0, 'Default', '', 'cosmic') ON CONFLICT (id) DO NOTHING");
+    } catch (\Throwable $e) {
+        fwrite(STDERR, 'test baseline seed: ' . $e->getMessage() . "\n");
     }
 }

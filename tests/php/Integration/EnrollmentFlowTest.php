@@ -45,7 +45,7 @@ final class EnrollmentFlowTest extends TestCase
         $row = $this->pdo->query("SELECT vetted, password, type FROM users WHERE id=" . $this->pdo->quote((string)$u['id']))->fetch();
         $this->assertSame('0', (string)$row['vetted'], 'self-enrolled editor is unvetted');
         $this->assertNull($row['password'], 'self-enrolled editor has no password');
-        $this->assertSame('1', (string)$row['type'], 'type is editor');
+        $this->assertSame(1, (int)$row['type'], 'type is editor');
     }
 
     public function testConfirmCreatesPersonalGalaxyByEmailUsername(): void
@@ -158,10 +158,10 @@ final class EnrollmentFlowTest extends TestCase
             . " FROM constellations WHERE id=" . (int)$res['personal_galaxy_id']
         )->fetch(PDO::FETCH_ASSOC);
 
-        $this->assertSame('1', (string)$row['keyword_chips_enabled'], 'keyword chips on');
-        $this->assertSame('1', (string)$row['related_nodes_enabled'], 'related wormholes on');
-        $this->assertSame('1', (string)$row['show_2d_view'], '2D view switch on');
-        $this->assertSame('1', (string)$row['idle_spotlight_enabled'], 'idle spotlight on');
+        $this->assertSame(1, (int)$row['keyword_chips_enabled'], 'keyword chips on');
+        $this->assertSame(1, (int)$row['related_nodes_enabled'], 'related wormholes on');
+        $this->assertSame(1, (int)$row['show_2d_view'], '2D view switch on');
+        $this->assertSame(1, (int)$row['idle_spotlight_enabled'], 'idle spotlight on');
         $this->assertSame('all', (string)$row['idle_spotlight_selection'], 'idle spotlight covers all nodes');
         $this->assertSame('abstract', (string)$row['theme'], 'auto-created personal galaxy defaults to the Abstract theme');
     }
@@ -232,10 +232,10 @@ final class EnrollmentFlowTest extends TestCase
         enroll_bind_deferred_personal_galaxy((string)$u['id'], $g1);
 
         $row = $this->pdo->query("SELECT keyword_chips_enabled, related_nodes_enabled, show_2d_view, idle_spotlight_enabled, theme FROM constellations WHERE id=" . (int)$g1)->fetch(PDO::FETCH_ASSOC);
-        $this->assertSame('1', (string)$row['keyword_chips_enabled']);
-        $this->assertSame('1', (string)$row['related_nodes_enabled']);
-        $this->assertSame('1', (string)$row['show_2d_view']);
-        $this->assertSame('1', (string)$row['idle_spotlight_enabled']);
+        $this->assertSame(1, (int)$row['keyword_chips_enabled']);
+        $this->assertSame(1, (int)$row['related_nodes_enabled']);
+        $this->assertSame(1, (int)$row['show_2d_view']);
+        $this->assertSame(1, (int)$row['idle_spotlight_enabled']);
         $this->assertSame('abstract', (string)$row['theme'], 'deferred personal galaxy is themed Abstract');
         $this->assertFalse(db_has_pending_personal_galaxy((string)$u['id']), 'flag consumed by the first galaxy');
 
@@ -253,8 +253,8 @@ final class EnrollmentFlowTest extends TestCase
         enroll_bind_deferred_personal_galaxy((string)$u['id'], $g2);
 
         $row2 = $this->pdo->query("SELECT keyword_chips_enabled, related_nodes_enabled, show_2d_view, idle_spotlight_enabled, theme FROM constellations WHERE id=" . (int)$g2)->fetch(PDO::FETCH_ASSOC);
-        $this->assertSame('0', (string)$row2['keyword_chips_enabled'], 'second galaxy is left as a plain galaxy');
-        $this->assertSame('0', (string)$row2['idle_spotlight_enabled']);
+        $this->assertSame(0, (int)$row2['keyword_chips_enabled'], 'second galaxy is left as a plain galaxy');
+        $this->assertSame(0, (int)$row2['idle_spotlight_enabled']);
         $this->assertSame('cosmic', (string)$row2['theme'], 'second galaxy keeps its created theme, not forced to Abstract');
         if ($sub !== null) {
             $clusterId = $this->pdo->query("SELECT id FROM constellations WHERE name = " . $this->pdo->quote('[' . $sub . ']') . " AND type = 'cluster' LIMIT 1")->fetchColumn();

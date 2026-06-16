@@ -68,10 +68,12 @@ function getDB(): PDO {
             defined('DB_PASS') ? DB_PASS : '',
             $opts
         );
-        // Pin the session timezone so naive `timestamp` columns round-trip in the
-        // server-local zone (matches the pre-migration MySQL behaviour), and bound
-        // runaway statements. PHP is request-scoped, so a SET per connection is cheap.
-        $tz = defined('DB_TIMEZONE') && DB_TIMEZONE !== '' ? DB_TIMEZONE : 'America/Vancouver';
+        // Pin the session timezone to UTC so CURRENT_TIMESTAMP/NOW() match the UTC
+        // timestamps the app computes in PHP (gmdate, e.g. token expiry: "computed in
+        // PHP (UTC, matches the DB clock)"). The pre-migration MySQL server ran in UTC
+        // (NOW() == UTC_TIMESTAMP()), so this preserves behaviour. Also bounds runaway
+        // statements. PHP is request-scoped, so a SET per connection is cheap.
+        $tz = defined('DB_TIMEZONE') && DB_TIMEZONE !== '' ? DB_TIMEZONE : 'UTC';
         $pdo->exec("SET TIME ZONE '" . str_replace("'", "''", (string)$tz) . "'");
         $pdo->exec('SET statement_timeout = 30000');
         return $pdo;
@@ -11754,10 +11756,10 @@ function db_enable_personal_galaxy_default_features(int $id): void {
     db_ensure_constellations_tour_columns();
     getDB()->prepare("
         UPDATE constellations SET
-            keyword_chips_enabled = 1,
-            related_nodes_enabled = 1,
-            show_2d_view = 1,
-            idle_spotlight_enabled = 1,
+            keyword_chips_enabled = TRUE,
+            related_nodes_enabled = TRUE,
+            show_2d_view = TRUE,
+            idle_spotlight_enabled = TRUE,
             idle_spotlight_selection = 'all'
         WHERE id = :id
     ")->execute([':id' => $id]);
