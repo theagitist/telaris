@@ -9022,7 +9022,7 @@ function db_ensure_project_info_columns(): void {
         'pdf_open_text' => "VARCHAR(200) NOT NULL DEFAULT 'Open in new window'",
         'pdf_download_text' => "VARCHAR(200) NOT NULL DEFAULT 'Download'",
         'pdf_error_load_text' => "VARCHAR(200) NOT NULL DEFAULT 'PDF library failed to load.'",
-        'pdf_error_open_text' => "VARCHAR(200) NOT NULL DEFAULT \"Couldn't open PDF.\"",
+        'pdf_error_open_text' => "VARCHAR(200) NOT NULL DEFAULT 'Couldn''t open PDF.'",
     ];
     try {
         $pdo = getDB();
