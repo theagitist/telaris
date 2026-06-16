@@ -45,13 +45,13 @@ final class WhitelistEditorTest extends TestCase
 
         $insPeer = $pdo->prepare("
             INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, source, trust_state)
-            VALUES (:h, :u, :p, :k, :l, 'manual', 'contacted') RETURNING id
+            VALUES (:h, :u, :p, decode(:k, 'hex'), :l, 'manual', 'contacted') RETURNING id
         ");
         $insPeer->execute([
             ':h' => self::REMOTE_HOST,
             ':u' => 'https://' . self::REMOTE_HOST,
             ':p' => 'https://' . self::REMOTE_HOST . '/api/pluriverse',
-            ':k' => sodium_crypto_sign_publickey(sodium_crypto_sign_seed_keypair(str_repeat("\xA1", SODIUM_CRYPTO_SIGN_SEEDBYTES))),
+            ':k' => bin2hex(sodium_crypto_sign_publickey(sodium_crypto_sign_seed_keypair(str_repeat("\xA1", SODIUM_CRYPTO_SIGN_SEEDBYTES)))),
             ':l' => 'wlist-test peer',
         ]);
         $this->peerId = (int)$insPeer->fetchColumn();
@@ -60,7 +60,7 @@ final class WhitelistEditorTest extends TestCase
             ':h' => self::PEER_HOST_2,
             ':u' => 'https://' . self::PEER_HOST_2,
             ':p' => 'https://' . self::PEER_HOST_2 . '/api/pluriverse',
-            ':k' => sodium_crypto_sign_publickey(sodium_crypto_sign_seed_keypair(str_repeat("\xA2", SODIUM_CRYPTO_SIGN_SEEDBYTES))),
+            ':k' => bin2hex(sodium_crypto_sign_publickey(sodium_crypto_sign_seed_keypair(str_repeat("\xA2", SODIUM_CRYPTO_SIGN_SEEDBYTES)))),
             ':l' => 'wlist-test peer 2',
         ]);
         $this->otherPeerId = (int)$insPeer->fetchColumn();

@@ -39,12 +39,12 @@ final class GalaxyPublishedScopeTest extends TestCase
         $sfx = bin2hex(random_bytes(4));
 
         $insPeer = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, :l) RETURNING id");
+                       VALUES (:h, :u, :e, decode(:k, 'hex'), :l) RETURNING id");
         $insPeer->execute([
                 ':h' => "scope-peer-$sfx.example.invalid",
                 ':u' => "https://scope-peer-$sfx.example.invalid",
                 ':e' => "https://scope-peer-$sfx.example.invalid/api/pluriverse",
-                ':k' => random_bytes(32),
+                ':k' => bin2hex(random_bytes(32)),
                 ':l' => 'scope test peer',
             ]);
         $this->peerId = (int)$insPeer->fetchColumn();
@@ -159,12 +159,12 @@ final class GalaxyPublishedScopeTest extends TestCase
         $pdo = getDB();
         $sfx = bin2hex(random_bytes(4));
         $insEmpty = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, 'empty peer') RETURNING id");
+                       VALUES (:h, :u, :e, decode(:k, 'hex'), 'empty peer') RETURNING id");
         $insEmpty->execute([
                 ':h' => "scope-empty-$sfx.example.invalid",
                 ':u' => "https://scope-empty-$sfx.example.invalid",
                 ':e' => "https://scope-empty-$sfx.example.invalid/api/pluriverse",
-                ':k' => random_bytes(32),
+                ':k' => bin2hex(random_bytes(32)),
             ]);
         $emptyPeer = (int)$insEmpty->fetchColumn();
         try {

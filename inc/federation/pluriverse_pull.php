@@ -331,13 +331,14 @@ function pluriverse_pull_peers(): array {
                      label, bridges, source, source_detail,
                      trust_state, has_active_whitelist, health_status)
                 VALUES
-                    (:h, :u, :pe, :pk, :pp, :kra, :rr, :l, :b, 'registry',
+                    (:h, :u, :pe, decode(:pk, 'hex'), decode(:pp, 'hex'), :kra, :rr, :l, :b, 'registry',
                      'pluriverse-pull', :ts, FALSE, 'unknown')
                 RETURNING id
             ");
             $ins->execute([
                 ':h' => $hostname, ':u' => $url, ':pe' => $url,
-                ':pk' => $publicKey, ':pp' => $previousKey,
+                ':pk' => bin2hex($publicKey),
+                ':pp' => $previousKey === null ? null : bin2hex((string)$previousKey),
                 ':kra' => $keyRotatedAt, ':rr' => $rotationReason,
                 ':l' => $label, ':b' => $bridges,
                 ':ts' => $insertTrust,
@@ -362,17 +363,16 @@ function pluriverse_pull_peers(): array {
                         (event_type, actor, target, outcome, details_summary)
                     VALUES
                         ('peer_trust_state_restored', 'pluriverse-pull',
-                         :h, 'success',
-                         CONCAT('Re-discovered peer; trust_state restored to whitelisted from handshake #', :i))
-                ")->execute([':h' => $hostname, ':i' => (string)$restoredFromHandshakeId]);
+                         :h, 'success', :ds)
+                ")->execute([':h' => $hostname, ':ds' => 'Re-discovered peer; trust_state restored to whitelisted from handshake #' . (string)$restoredFromHandshakeId]);
             }
         } elseif ((string)$row['source'] === 'registry') {
             $upd = $pdo->prepare("
                 UPDATE peers SET
                     url = :u,
                     pluriverse_endpoint = :pe,
-                    public_key = :pk,
-                    previous_public_key = :pp,
+                    public_key = decode(:pk, 'hex'),
+                    previous_public_key = decode(:pp, 'hex'),
                     key_rotated_at = :kra,
                     rotation_reason = :rr,
                     label = :l,
@@ -382,7 +382,8 @@ function pluriverse_pull_peers(): array {
             ");
             $upd->execute([
                 ':u' => $url, ':pe' => $url,
-                ':pk' => $publicKey, ':pp' => $previousKey,
+                ':pk' => bin2hex($publicKey),
+                ':pp' => $previousKey === null ? null : bin2hex((string)$previousKey),
                 ':kra' => $keyRotatedAt, ':rr' => $rotationReason,
                 ':l' => $label, ':b' => $bridges,
                 ':id' => (int)$row['id'],

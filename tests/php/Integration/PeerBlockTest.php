@@ -41,12 +41,12 @@ final class PeerBlockTest extends TestCase
         $this->host = "block-$sfx.example.invalid";
         $pdo = getDB();
         $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, trust_state)
-                       VALUES (:h, :u, :e, :k, '6d test', 'whitelisted') RETURNING id");
+                       VALUES (:h, :u, :e, decode(:k, 'hex'), '6d test', 'whitelisted') RETURNING id");
         $ins->execute([
                 ':h' => $this->host,
                 ':u' => "https://{$this->host}",
                 ':e' => "https://{$this->host}/api/pluriverse",
-                ':k' => sodium_crypto_sign_publickey($kp),
+                ':k' => bin2hex(sodium_crypto_sign_publickey($kp)),
             ]);
         $this->peerId = (int)$ins->fetchColumn();
     }

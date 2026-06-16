@@ -111,9 +111,9 @@ function mocambos_apply_deletions(array $deletions, int $constellationId, PDO $p
     db_bulk_delete_nodes_by_ids($nodeIds, true); // upstream-driven prune of the read-only import
     // Clean up orphan keywords
     $pdo->prepare("
-        DELETE k FROM keywords k
-        LEFT JOIN node_keywords nk ON nk.keyword_id = k.id
-        WHERE k.constellation_id = :cid AND nk.id IS NULL
+        DELETE FROM keywords k
+        WHERE k.constellation_id = :cid
+          AND NOT EXISTS (SELECT 1 FROM node_keywords nk WHERE nk.keyword_id = k.id)
     ")->execute([':cid' => $constellationId]);
 }
 

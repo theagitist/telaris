@@ -268,10 +268,10 @@ final class FederationVerifyInboundTest extends TestCase
     public function testRotationGraceAcceptsPreviousKey(): void
     {
         $pdo = getDB();
-        $pdo->prepare("UPDATE peers SET previous_public_key = :p WHERE hostname = :h")
-            ->execute([':p' => $this->peerPublic, ':h' => self::PEER_HOST]);
-        $pdo->prepare("UPDATE peers SET public_key = :p WHERE hostname = :h")
-            ->execute([':p' => $this->peerPublicRotated, ':h' => self::PEER_HOST]);
+        $pdo->prepare("UPDATE peers SET previous_public_key = decode(:p, 'hex') WHERE hostname = :h")
+            ->execute([':p' => bin2hex($this->peerPublic), ':h' => self::PEER_HOST]);
+        $pdo->prepare("UPDATE peers SET public_key = decode(:p, 'hex') WHERE hostname = :h")
+            ->execute([':p' => bin2hex($this->peerPublicRotated), ':h' => self::PEER_HOST]);
 
         $req = $this->signedRequest(
             method: 'POST',
@@ -428,20 +428,20 @@ final class FederationVerifyInboundTest extends TestCase
             ->execute([':h' => self::PEER_HOST]);
         $old = random_bytes(16);
         $fresh = random_bytes(16);
-        $pdo->prepare("INSERT INTO seen_nonces (origin_host, nonce, seen_at) VALUES (:h, :n, :t)")
+        $pdo->prepare("INSERT INTO seen_nonces (origin_host, nonce, seen_at) VALUES (:h, decode(:n, 'hex'), :t)")
             ->execute([
                 ':h' => self::PEER_HOST,
-                ':n' => $old,
+                ':n' => bin2hex($old),
                 ':t' => date('Y-m-d H:i:s', time() - 86400 * 30),
             ]);
-        $pdo->prepare("INSERT INTO seen_nonces (origin_host, nonce, seen_at) VALUES (:h, :n, NOW())")
-            ->execute([':h' => self::PEER_HOST, ':n' => $fresh]);
+        $pdo->prepare("INSERT INTO seen_nonces (origin_host, nonce, seen_at) VALUES (:h, decode(:n, 'hex'), NOW())")
+            ->execute([':h' => self::PEER_HOST, ':n' => bin2hex($fresh)]);
         $removed = federation_seen_nonces_gc(7);
         $this->assertGreaterThanOrEqual(1, $removed);
-        $remain = $pdo->prepare("SELECT COUNT(*) FROM seen_nonces WHERE origin_host = :h AND nonce = :n");
-        $remain->execute([':h' => self::PEER_HOST, ':n' => $old]);
+        $remain = $pdo->prepare("SELECT COUNT(*) FROM seen_nonces WHERE origin_host = :h AND nonce = decode(:n, 'hex')");
+        $remain->execute([':h' => self::PEER_HOST, ':n' => bin2hex($old)]);
         $this->assertSame(0, (int)$remain->fetchColumn(), 'old nonce should be GCd');
-        $remain->execute([':h' => self::PEER_HOST, ':n' => $fresh]);
+        $remain->execute([':h' => self::PEER_HOST, ':n' => bin2hex($fresh)]);
         $this->assertSame(1, (int)$remain->fetchColumn(), 'fresh nonce should remain');
     }
 
@@ -457,14 +457,14 @@ final class FederationVerifyInboundTest extends TestCase
         $pdo->prepare("DELETE FROM peers WHERE hostname = :h")->execute([':h' => self::PEER_HOST]);
         $stmt = $pdo->prepare("
             INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, previous_public_key, label, source, trust_state)
-            VALUES (:h, :u, :p, :pk, :prev, :l, 'manual', 'discovered') RETURNING id
+            VALUES (:h, :u, :p, decode(:pk, 'hex'), decode(:prev, 'hex'), :l, 'manual', 'discovered') RETURNING id
         ");
         $stmt->execute([
             ':h' => self::PEER_HOST,
             ':u' => 'https://' . self::PEER_HOST,
             ':p' => 'https://' . self::PEER_HOST . '/api/pluriverse',
-            ':pk' => $publicKey,
-            ':prev' => $previousKey,
+            ':pk' => bin2hex($publicKey),
+            ':prev' => $previousKey === null ? null : bin2hex((string)$previousKey),
             ':l' => 'Verify-inbound test peer',
         ]);
         $this->peerId = (int)$stmt->fetchColumn();

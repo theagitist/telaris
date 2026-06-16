@@ -30,12 +30,12 @@ final class GalaxyPullDiffTest extends TestCase
         $pdo = getDB();
         $sfx = bin2hex(random_bytes(4));
         $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, 'pull diff peer') RETURNING id");
+                       VALUES (:h, :u, :e, decode(:k, 'hex'), 'pull diff peer') RETURNING id");
         $ins->execute([
                 ':h' => "pull-$sfx.example.invalid",
                 ':u' => "https://pull-$sfx.example.invalid",
                 ':e' => "https://pull-$sfx.example.invalid/api/pluriverse",
-                ':k' => random_bytes(32),
+                ':k' => bin2hex(random_bytes(32)),
             ]);
         $this->peerId = (int)$ins->fetchColumn();
     }

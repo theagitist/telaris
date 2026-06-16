@@ -79,14 +79,14 @@ function federation_pull_apply_envelope(
 ): array {
     db_ensure_peers_table();
     $pdo = getDB();
-    $keyStmt = $pdo->prepare("SELECT public_key, previous_public_key FROM peers WHERE id = :id LIMIT 1");
+    $keyStmt = $pdo->prepare("SELECT encode(public_key, 'hex') AS public_key, encode(previous_public_key, 'hex') AS previous_public_key FROM peers WHERE id = :id LIMIT 1");
     $keyStmt->execute([':id' => $peerId]);
     $keyRow = $keyStmt->fetch(PDO::FETCH_ASSOC);
     if ($keyRow === false) {
         return ['ok' => false, 'error' => 'unknown_peer'];
     }
-    $currentKey = (string)$keyRow['public_key'];
-    $previousKey = $keyRow['previous_public_key'] !== null ? (string)$keyRow['previous_public_key'] : '';
+    $currentKey = $keyRow['public_key'] !== null && $keyRow['public_key'] !== '' ? hex2bin((string)$keyRow['public_key']) : '';
+    $previousKey = $keyRow['previous_public_key'] !== null && $keyRow['previous_public_key'] !== '' ? hex2bin((string)$keyRow['previous_public_key']) : '';
 
     $verify = federation_galaxy_envelope_verify($jws, $currentKey, $lastSeq);
     if (!$verify['valid'] && $verify['reason'] === 'signature_invalid' && $previousKey !== '') {
@@ -472,7 +472,7 @@ function _federation_mirror_apply_relations(int $cid, array $relations): void {
 function _federation_mirror_clear_keyword_relations(int $cid): void {
     db_ensure_keyword_canvas_tables();
     getDB()->prepare("
-        DELETE kr FROM keyword_relations kr
+        DELETE FROM keyword_relations kr
         WHERE kr.keyword_a_id IN (SELECT id FROM keywords WHERE constellation_id = :c1)
            OR kr.keyword_b_id IN (SELECT id FROM keywords WHERE constellation_id = :c2)
     ")->execute([':c1' => $cid, ':c2' => $cid]);

@@ -228,8 +228,8 @@ function federation_seen_nonce_record(string $host, string $nonceBytes): bool {
     db_ensure_seen_nonces_table();
     try {
         $pdo = getDB();
-        $stmt = $pdo->prepare("INSERT INTO seen_nonces (origin_host, nonce) VALUES (:h, :n) ON CONFLICT (origin_host, nonce) DO NOTHING");
-        $stmt->execute([':h' => $host, ':n' => $nonceBytes]);
+        $stmt = $pdo->prepare("INSERT INTO seen_nonces (origin_host, nonce) VALUES (:h, decode(:n, 'hex')) ON CONFLICT (origin_host, nonce) DO NOTHING");
+        $stmt->execute([':h' => $host, ':n' => bin2hex($nonceBytes)]);
         return $stmt->rowCount() === 1;
     } catch (PDOException $e) {
         error_log('federation_seen_nonce_record: ' . $e->getMessage());
@@ -246,8 +246,8 @@ function federation_seen_nonce_record(string $host, string $nonceBytes): bool {
 function federation_seen_nonce_forget(string $host, string $nonceBytes): void {
     db_ensure_seen_nonces_table();
     try {
-        getDB()->prepare("DELETE FROM seen_nonces WHERE origin_host = :h AND nonce = :n")
-            ->execute([':h' => $host, ':n' => $nonceBytes]);
+        getDB()->prepare("DELETE FROM seen_nonces WHERE origin_host = :h AND nonce = decode(:n, 'hex')")
+            ->execute([':h' => $host, ':n' => bin2hex($nonceBytes)]);
     } catch (PDOException $e) {
         error_log('federation_seen_nonce_forget: ' . $e->getMessage());
     }
@@ -338,14 +338,14 @@ function _federation_resolve_peer_key(string $host, string $fingerprint): ?array
     db_ensure_peers_table();
     try {
         $stmt = getDB()->prepare("
-            SELECT id, public_key, previous_public_key
+            SELECT id, encode(public_key, 'hex') AS public_key, encode(previous_public_key, 'hex') AS previous_public_key
             FROM peers WHERE hostname = :h LIMIT 1
         ");
         $stmt->execute([':h' => $host]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) return null;
-        $publicKey = (string)$row['public_key'];
-        $previousKey = $row['previous_public_key'] !== null ? (string)$row['previous_public_key'] : '';
+        $publicKey = hex2bin((string)$row['public_key']);
+        $previousKey = $row['previous_public_key'] !== null && $row['previous_public_key'] !== '' ? hex2bin((string)$row['previous_public_key']) : '';
 
         if (!_federation_sig_fingerprint_matches($publicKey, $fingerprint)
             && ($previousKey === '' || !_federation_sig_fingerprint_matches($previousKey, $fingerprint))) {

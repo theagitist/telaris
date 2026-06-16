@@ -68,12 +68,12 @@ final class BlacklistEnforceTest extends TestCase
         $kp = sodium_crypto_sign_keypair();
         $pk = sodium_crypto_sign_publickey($kp);
         $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, 'blacklist-enforce test') RETURNING id");
+                       VALUES (:h, :u, :e, decode(:k, 'hex'), 'blacklist-enforce test') RETURNING id");
         $ins->execute([
                 ':h' => $host,
                 ':u' => "https://$host",
                 ':e' => "https://$host/api/pluriverse",
-                ':k' => $pk,
+                ':k' => bin2hex($pk),
             ]);
         $pid = (int)$ins->fetchColumn();
         $this->peerIds[] = $pid;

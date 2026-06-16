@@ -45,12 +45,12 @@ final class KeyEventRevocationDropTest extends TestCase
         $this->host = "revoke-$sfx.example.invalid";
         $pdo = getDB();
         $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label, trust_state)
-                       VALUES (:h, :u, :e, :k, '6c test', 'whitelisted') RETURNING id");
+                       VALUES (:h, :u, :e, decode(:k, 'hex'), '6c test', 'whitelisted') RETURNING id");
         $ins->execute([
                 ':h' => $this->host,
                 ':u' => "https://{$this->host}",
                 ':e' => "https://{$this->host}/api/pluriverse",
-                ':k' => $this->pk,
+                ':k' => bin2hex($this->pk),
             ]);
         $this->peerId = (int)$ins->fetchColumn();
     }
@@ -148,8 +148,8 @@ final class KeyEventRevocationDropTest extends TestCase
         // Trust state untouched by a compromise rotation.
         $this->assertSame('whitelisted', (string)$pdo->query("SELECT trust_state FROM peers WHERE id = {$this->peerId}")->fetchColumn());
         // Key actually swapped, previous cleared (zero grace).
-        $stored = $pdo->query("SELECT public_key, previous_public_key FROM peers WHERE id = {$this->peerId}")->fetch(PDO::FETCH_ASSOC);
-        $this->assertSame($newPub, $stored['public_key']);
+        $stored = $pdo->query("SELECT encode(public_key, 'hex') AS public_key, encode(previous_public_key, 'hex') AS previous_public_key FROM peers WHERE id = {$this->peerId}")->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame($newPub, hex2bin((string)$stored['public_key']));
         $this->assertNull($stored['previous_public_key']);
     }
 

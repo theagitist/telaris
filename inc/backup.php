@@ -872,7 +872,7 @@ function backup_restore_one_galaxy(array $g, array $dump, array $opts): array {
         $targetId = $existingId;
         $pdo = getDB();
         // Wipe nodes & keywords for this galaxy (but leave the row itself)
-        $pdo->prepare("DELETE nk FROM node_keywords nk INNER JOIN nodes n ON n.id = nk.node_id WHERE n.constellation_id = :id")
+        $pdo->prepare("DELETE FROM node_keywords nk USING nodes n WHERE n.id = nk.node_id AND n.constellation_id = :id")
             ->execute([':id' => $targetId]);
         $pdo->prepare("DELETE FROM nodes WHERE constellation_id = :id")->execute([':id' => $targetId]);
         $pdo->prepare("DELETE FROM keywords WHERE constellation_id = :id")->execute([':id' => $targetId]);

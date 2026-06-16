@@ -105,7 +105,10 @@ final class GalaxyRetractionTest extends TestCase
 
     public function testRetractUnknownGalaxy(): void
     {
-        $res = federation_galaxy_retract(0, 'admin@test.invalid');
+        // A truly nonexistent id. (Not 0: id 0 is the default constellation that
+        // setup.php always creates, so it exists with a null slug on every real
+        // instance and would return 'galaxy_has_no_slug', not 'galaxy_not_found'.)
+        $res = federation_galaxy_retract(987654321, 'admin@test.invalid');
         $this->assertFalse($res['ok']);
         $this->assertSame('galaxy_not_found', $res['error']);
     }

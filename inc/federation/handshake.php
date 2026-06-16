@@ -287,16 +287,16 @@ function handshake_apply_inbound_round2(int $peerId, array $body, string $remote
         // to us). Direction = 'they_call_us' from our perspective.
         $pdo->prepare("
             INSERT INTO peer_keys (peer_id, api_key_hash, direction, is_active)
-            VALUES (:p, :h, 'they_call_us', TRUE)
-        ")->execute([':p' => $peerId, ':h' => hash('sha256', $theirKey, true)]);
+            VALUES (:p, decode(:h, 'hex'), 'they_call_us', TRUE)
+        ")->execute([':p' => $peerId, ':h' => bin2hex(hash('sha256', $theirKey, true))]);
 
         // Generate our key for them (the one WE call THEM with) and queue
         // the round-3 outbound message.
         $ourKey = handshake_generate_peer_key();
         $pdo->prepare("
             INSERT INTO peer_keys (peer_id, api_key_hash, direction, is_active)
-            VALUES (:p, :h, 'we_call_them', TRUE)
-        ")->execute([':p' => $peerId, ':h' => hash('sha256', $ourKey, true)]);
+            VALUES (:p, decode(:h, 'hex'), 'we_call_them', TRUE)
+        ")->execute([':p' => $peerId, ':h' => bin2hex(hash('sha256', $ourKey, true))]);
 
         try {
             $secret = federation_load_secret_key();
@@ -437,8 +437,8 @@ function handshake_apply_inbound_round3(int $peerId, array $body, string $remote
 
         $pdo->prepare("
             INSERT INTO peer_keys (peer_id, api_key_hash, direction, is_active)
-            VALUES (:p, :h, 'they_call_us', TRUE)
-        ")->execute([':p' => $peerId, ':h' => hash('sha256', $theirKey, true)]);
+            VALUES (:p, decode(:h, 'hex'), 'they_call_us', TRUE)
+        ")->execute([':p' => $peerId, ':h' => bin2hex(hash('sha256', $theirKey, true))]);
 
         $pdo->prepare("
             UPDATE handshakes
@@ -610,8 +610,8 @@ function handshake_accept_inbound(int $handshakeId): array {
         // Store the key we generated for them (direction = we_call_them).
         $pdo->prepare("
             INSERT INTO peer_keys (peer_id, api_key_hash, direction, is_active)
-            VALUES (:p, :h, 'we_call_them', TRUE)
-        ")->execute([':p' => $peerId, ':h' => hash('sha256', $ourKey, true)]);
+            VALUES (:p, decode(:h, 'hex'), 'we_call_them', TRUE)
+        ")->execute([':p' => $peerId, ':h' => bin2hex(hash('sha256', $ourKey, true))]);
 
         // Queue the round-2 outbound for the dispatcher.
         $msg = $pdo->prepare("

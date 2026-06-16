@@ -291,7 +291,7 @@ function federation_published_for_peer(int $peerId): array {
         JOIN constellations c ON c.id = pg.constellation_id
         WHERE w.peer_id = :peer
           AND pg.is_current = TRUE
-          AND c.`type` = 'galaxy'
+          AND c.type = 'galaxy'
           AND c.import_source IS NULL
           AND c.mirrored_from_peer_id IS NULL
         ORDER BY pg.slug
@@ -331,7 +331,7 @@ function federation_published_envelope_for_peer(int $peerId, string $slug): ?arr
         WHERE w.peer_id = :peer
           AND pg.slug = :slug
           AND pg.is_current = TRUE
-          AND c.`type` = 'galaxy'
+          AND c.type = 'galaxy'
           AND c.import_source IS NULL
           AND c.mirrored_from_peer_id IS NULL
         LIMIT 1

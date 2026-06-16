@@ -48,12 +48,12 @@ final class GalaxyMirrorTest extends TestCase
         $this->host = "origin-$sfx.example.invalid";
         $pdo = getDB();
         $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, 'mirror test origin') RETURNING id");
+                       VALUES (:h, :u, :e, decode(:k, 'hex'), 'mirror test origin') RETURNING id");
         $ins->execute([
                 ':h' => $this->host,
                 ':u' => "https://{$this->host}",
                 ':e' => "https://{$this->host}/api/pluriverse",
-                ':k' => $this->pk,
+                ':k' => bin2hex($this->pk),
             ]);
         $this->peerId = (int)$ins->fetchColumn();
     }

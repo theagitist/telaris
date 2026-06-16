@@ -361,15 +361,15 @@ function federation_pull_fetch_revoked(string $peerHost, ?string $ifNoneMatch = 
  * @return array{public_key:string, previous_public_key:string}
  */
 function federation_pull_peer_keys(int $peerId): array {
-    $stmt = getDB()->prepare("SELECT public_key, previous_public_key FROM peers WHERE id = :p LIMIT 1");
+    $stmt = getDB()->prepare("SELECT encode(public_key, 'hex') AS public_key, encode(previous_public_key, 'hex') AS previous_public_key FROM peers WHERE id = :p LIMIT 1");
     $stmt->execute([':p' => $peerId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($row === false) {
         return ['public_key' => '', 'previous_public_key' => ''];
     }
     return [
-        'public_key' => (string)$row['public_key'],
-        'previous_public_key' => $row['previous_public_key'] !== null ? (string)$row['previous_public_key'] : '',
+        'public_key' => $row['public_key'] !== null && $row['public_key'] !== '' ? hex2bin((string)$row['public_key']) : '',
+        'previous_public_key' => $row['previous_public_key'] !== null && $row['previous_public_key'] !== '' ? hex2bin((string)$row['previous_public_key']) : '',
     ];
 }
 

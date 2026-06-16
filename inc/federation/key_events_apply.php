@@ -52,13 +52,13 @@ function federation_key_events_apply_peer_event(string $eventType, string $origi
             }
             $stmt = $pdo->prepare("
                 UPDATE peers
-                SET public_key = :p,
+                SET public_key = decode(:p, 'hex'),
                     previous_public_key = NULL,
                     key_rotated_at = NOW(),
                     rotation_reason = 'compromise'
                 WHERE hostname = :h
             ");
-            $stmt->execute([':p' => $newPubBytes, ':h' => $originHost]);
+            $stmt->execute([':p' => bin2hex($newPubBytes), ':h' => $originHost]);
             return ['ok' => true, 'updated_rows' => $stmt->rowCount()];
         }
 
@@ -99,13 +99,13 @@ function federation_key_events_apply_peer_event(string $eventType, string $origi
     $stmt = $pdo->prepare("
         UPDATE peers
         SET previous_public_key = public_key,
-            public_key = :p,
+            public_key = decode(:p, 'hex'),
             key_rotated_at = NOW(),
             rotation_reason = :r
         WHERE hostname = :h
     ");
     $stmt->execute([
-        ':p' => $newPubBytes,
+        ':p' => bin2hex($newPubBytes),
         ':r' => $eventType === 'scheduled_rotation' ? 'scheduled' : 'operational',
         ':h' => $originHost,
     ]);

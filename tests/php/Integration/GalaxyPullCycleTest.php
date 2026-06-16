@@ -51,12 +51,12 @@ final class GalaxyPullCycleTest extends TestCase
         $pk = sodium_crypto_sign_publickey($kp);
         $pdo = getDB();
         $ins = $pdo->prepare("INSERT INTO peers (hostname, url, pluriverse_endpoint, public_key, label)
-                       VALUES (:h, :u, :e, :k, 'cycle test') RETURNING id");
+                       VALUES (:h, :u, :e, decode(:k, 'hex'), 'cycle test') RETURNING id");
         $ins->execute([
                 ':h' => $host,
                 ':u' => "https://{$host}",
                 ':e' => "https://{$host}/api/pluriverse",
-                ':k' => $pk,
+                ':k' => bin2hex($pk),
             ]);
         $id = (int)$ins->fetchColumn();
         $this->peerIds[] = $id;

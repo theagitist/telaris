@@ -420,14 +420,14 @@ function federation_remote_retractions_recent(int $limit = 50): array {
 function federation_pull_apply_retracted(int $peerId, string $peerHost, array $items): array {
     db_ensure_peers_table();
     $pdo = getDB();
-    $keyStmt = $pdo->prepare("SELECT public_key, previous_public_key FROM peers WHERE id = :id LIMIT 1");
+    $keyStmt = $pdo->prepare("SELECT encode(public_key, 'hex') AS public_key, encode(previous_public_key, 'hex') AS previous_public_key FROM peers WHERE id = :id LIMIT 1");
     $keyStmt->execute([':id' => $peerId]);
     $keyRow = $keyStmt->fetch(PDO::FETCH_ASSOC);
     if ($keyRow === false) {
         return ['processed' => 0, 'dropped' => [], 'recorded' => [], 'invalid' => [['slug' => '*', 'reason' => 'unknown_peer']]];
     }
-    $currentKey = (string)$keyRow['public_key'];
-    $previousKey = $keyRow['previous_public_key'] !== null ? (string)$keyRow['previous_public_key'] : '';
+    $currentKey = $keyRow['public_key'] !== null && $keyRow['public_key'] !== '' ? hex2bin((string)$keyRow['public_key']) : '';
+    $previousKey = $keyRow['previous_public_key'] !== null && $keyRow['previous_public_key'] !== '' ? hex2bin((string)$keyRow['previous_public_key']) : '';
 
     $processed = 0;
     $dropped = [];
@@ -528,7 +528,7 @@ function _federation_unmirror_delete_constellation_keep_blobs(int $constellation
     $pdo->prepare("DELETE FROM nodes WHERE constellation_id = :c")->execute([':c' => $constellationId]);
     // 3. Keyword relations + keywords for the mirror.
     $pdo->prepare("
-        DELETE kr FROM keyword_relations kr
+        DELETE FROM keyword_relations kr
         WHERE kr.keyword_a_id IN (SELECT id FROM keywords WHERE constellation_id = :c1)
            OR kr.keyword_b_id IN (SELECT id FROM keywords WHERE constellation_id = :c2)
     ")->execute([':c1' => $constellationId, ':c2' => $constellationId]);

@@ -11251,9 +11251,9 @@ function db_clear_constellation_nodes(int $constellationId): void {
     // Delete orphan keywords (keywords with no node_keywords references)
     $pdo = getDB();
     $pdo->prepare("
-        DELETE k FROM keywords k
-        LEFT JOIN node_keywords nk ON nk.keyword_id = k.id
-        WHERE k.constellation_id = :cid AND nk.id IS NULL
+        DELETE FROM keywords k
+        WHERE k.constellation_id = :cid
+          AND NOT EXISTS (SELECT 1 FROM node_keywords nk WHERE nk.keyword_id = k.id)
     ")->execute([':cid' => $constellationId]);
 }
 
@@ -14517,14 +14517,14 @@ function db_get_local_peers(): array {
     $pdo = getDB();
     $rows = $pdo->query("
         SELECT id, hostname, url, label, source, source_detail,
-               public_key, last_seen_at, health_status, trust_state,
+               encode(public_key, 'hex') AS public_key, last_seen_at, health_status, trust_state,
                local_blacklisted_reason, manual_added_by, manual_added_at, bridges
         FROM peers
         ORDER BY (source = 'manual') ASC, label ASC
     ")->fetchAll(PDO::FETCH_ASSOC);
     $out = [];
     foreach ($rows as $r) {
-        $pk = (string)$r['public_key'];
+        $pk = $r['public_key'] !== null && $r['public_key'] !== '' ? hex2bin((string)$r['public_key']) : '';
         $fp = strlen($pk) === SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES
             ? rtrim(strtr(base64_encode(substr(hash('sha256', $pk, true), 0, 16)), '+/', '-_'), '=')
             : '';
