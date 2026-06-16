@@ -624,12 +624,14 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 // cannot embed an attacker domain into bulk-welcome emails.
                 // SITE_BASE_URL override -> TELARIS_HOSTNAME (core per-instance
                 // config) -> logged Host-header last resort. Mirror utils/forgot.php.
-                if (defined('SITE_BASE_URL') && is_string(SITE_BASE_URL) && preg_match('#^https?://#', SITE_BASE_URL)) {
-                    $baseUrl = rtrim(SITE_BASE_URL, '/');
-                } elseif (defined('TELARIS_HOSTNAME') && is_string(TELARIS_HOSTNAME) && TELARIS_HOSTNAME !== '') {
-                    $baseUrl = 'https://' . rtrim(TELARIS_HOSTNAME, '/');
+                $cfgBaseUrl = instance_setting_get('site_base_url');
+                $cfgHostname = instance_setting_get('telaris_hostname');
+                if ($cfgBaseUrl !== '' && preg_match('#^https?://#', $cfgBaseUrl)) {
+                    $baseUrl = rtrim($cfgBaseUrl, '/');
+                } elseif ($cfgHostname !== '') {
+                    $baseUrl = 'https://' . rtrim($cfgHostname, '/');
                 } else {
-                    error_log('admin/index.php bulk_users_commit: neither SITE_BASE_URL nor TELARIS_HOSTNAME is set; falling back to Host header (Host-injection risk).');
+                    error_log('admin/index.php bulk_users_commit: neither site_base_url nor telaris_hostname is set; falling back to Host header (Host-injection risk).');
                     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
                     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
                     $baseUrl = $scheme . '://' . $host;

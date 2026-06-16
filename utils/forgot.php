@@ -54,12 +54,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 // explicit override; TELARIS_HOSTNAME is core per-instance config
                 // present on every instance; the Host header is a logged last
                 // resort only.
-                if (defined('SITE_BASE_URL') && is_string(SITE_BASE_URL) && preg_match('#^https?://#', SITE_BASE_URL)) {
-                    $base = rtrim(SITE_BASE_URL, '/');
-                } elseif (defined('TELARIS_HOSTNAME') && is_string(TELARIS_HOSTNAME) && TELARIS_HOSTNAME !== '') {
-                    $base = 'https://' . rtrim(TELARIS_HOSTNAME, '/');
+                $cfgBaseUrl = instance_setting_get('site_base_url');
+                $cfgHostname = instance_setting_get('telaris_hostname');
+                if ($cfgBaseUrl !== '' && preg_match('#^https?://#', $cfgBaseUrl)) {
+                    $base = rtrim($cfgBaseUrl, '/');
+                } elseif ($cfgHostname !== '') {
+                    $base = 'https://' . rtrim($cfgHostname, '/');
                 } else {
-                    error_log('utils/forgot.php: neither SITE_BASE_URL nor TELARIS_HOSTNAME is set; falling back to Host header (Host-injection risk).');
+                    error_log('utils/forgot.php: neither site_base_url nor telaris_hostname is set; falling back to Host header (Host-injection risk).');
                     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
                     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
                     $base = $scheme . '://' . $host;

@@ -103,8 +103,10 @@ function federation_keyid(string $hostname): string {
  * config edit (config.php is per-site, gitignored, and rewriting it via
  * tooling is error-prone — it can strip the www-data group PHP-FPM needs):
  *
- *   1. TELARIS_HOSTNAME constant — explicit, canonical, preferred for any
- *      instance served under more than one hostname.
+ *   1. Operator-set hostname (admin Global Settings, system_meta
+ *      'setting_telaris_hostname') or the TELARIS_HOSTNAME config.php constant,
+ *      resolved DB-over-constant via instance_setting_get() — explicit,
+ *      canonical, preferred for any instance served under more than one hostname.
  *   2. system_meta 'federation_local_hostname' — the cached value captured
  *      from a prior HTTP request (so CLI/cron tools have it even with no
  *      HTTP_HOST).
@@ -120,7 +122,16 @@ function federation_keyid(string $hostname): string {
  * overwritten by a request arriving under a secondary hostname.
  */
 function federation_local_hostname(): string {
-    if (defined('TELARIS_HOSTNAME') && TELARIS_HOSTNAME !== '') {
+    // 1. Operator-set canonical hostname (admin Global Settings, system_meta
+    //    'setting_telaris_hostname') OR the config.php TELARIS_HOSTNAME constant,
+    //    resolved DB-over-constant through the unified settings layer so moving the
+    //    value into the DB never changes the resolved host (and thus the keyid).
+    if (function_exists('instance_setting_get')) {
+        $explicit = instance_setting_get('telaris_hostname');
+        if ($explicit !== '') {
+            return $explicit;
+        }
+    } elseif (defined('TELARIS_HOSTNAME') && TELARIS_HOSTNAME !== '') {
         return (string)TELARIS_HOSTNAME;
     }
     if (function_exists('db_system_meta_get')) {
