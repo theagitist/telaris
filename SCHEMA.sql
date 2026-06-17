@@ -287,6 +287,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS unique_filename ON snapshots (filename);
 CREATE INDEX IF NOT EXISTS idx_snapshots_created_at ON snapshots (created_at);
+CREATE INDEX IF NOT EXISTS idx_snapshots_created_by ON snapshots (created_by);
 
 -- Schedule for automatic snapshots (single row, id=1).
 -- Excluded from backup dumps (instance-local state).

@@ -8300,6 +8300,8 @@ function db_ensure_keyword_canvas_tables(): void {
                 FOREIGN KEY (moved_by) REFERENCES users(id) ON DELETE SET NULL
             )
         ");
+        // Supporting index for the moved_by FK (Postgres does not auto-index FK columns).
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_keyword_positions_moved_by ON keyword_positions (moved_by)");
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS keyword_relations (
@@ -8322,6 +8324,10 @@ function db_ensure_keyword_canvas_tables(): void {
         // anchor_a/anchor_b columns landed, add them now with sensible defaults.
         $pdo->exec("ALTER TABLE keyword_relations ADD COLUMN IF NOT EXISTS anchor_a VARCHAR(8) NOT NULL DEFAULT 'right'");
         $pdo->exec("ALTER TABLE keyword_relations ADD COLUMN IF NOT EXISTS anchor_b VARCHAR(8) NOT NULL DEFAULT 'left'");
+        // Supporting indexes for FK columns Postgres does not auto-index (keyword_a_id is
+        // already the leading column of uk_pair; keyword_b_id and created_by are not).
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_keyword_relations_keyword_b_id ON keyword_relations (keyword_b_id)");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_keyword_relations_created_by ON keyword_relations (created_by)");
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS keyword_position_history (
@@ -14013,6 +14019,9 @@ function db_ensure_galaxy_publish_whitelist_table(): void {
                 FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE
             );
         ");
+        // Supporting index for the constellation_id FK (peer_id is already the leading
+        // PK column; Postgres does not auto-index FK columns).
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_gpw_constellation_id ON galaxy_publish_whitelist (constellation_id)");
     } catch (PDOException $e) {
         error_log('db_ensure_galaxy_publish_whitelist_table: ' . $e->getMessage());
     }
@@ -14078,6 +14087,9 @@ function db_ensure_galaxy_subscriptions_table(): void {
         // was revoked" from "operator-paused" (both have is_active = FALSE).
         $pdo->exec("ALTER TABLE galaxy_subscriptions ADD COLUMN IF NOT EXISTS fossilized_at TIMESTAMP NULL");
         $pdo->exec("ALTER TABLE galaxy_subscriptions ADD COLUMN IF NOT EXISTS fossilized_reason VARCHAR(100) NULL");
+        // Supporting index for the local_constellation_id FK (peer_id is already the
+        // leading column of uniq_peer_remote; Postgres does not auto-index FK columns).
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_galaxy_subscriptions_local_constellation_id ON galaxy_subscriptions (local_constellation_id)");
     } catch (PDOException $e) {
         error_log('db_ensure_galaxy_subscriptions_table: ' . $e->getMessage());
     }
@@ -14166,6 +14178,8 @@ function db_ensure_retracted_galaxies_table(): void {
         // Stage 5c: the cached origin-signed retraction envelope (JWS Compact),
         // served verbatim from /galaxies/{slug}.retracted and retracted.json.
         $pdo->exec("ALTER TABLE retracted_galaxies ADD COLUMN IF NOT EXISTS retraction_jws TEXT NULL");
+        // Supporting index for the constellation_id FK (Postgres does not auto-index FK columns).
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_retracted_galaxies_constellation_id ON retracted_galaxies (constellation_id)");
     } catch (PDOException $e) {
         error_log('db_ensure_retracted_galaxies_table: ' . $e->getMessage());
     }
@@ -15419,6 +15433,9 @@ function db_ensure_handshakes_table(): void {
             CREATE INDEX IF NOT EXISTS idx_hostname ON handshakes (remote_hostname);
             CREATE INDEX IF NOT EXISTS idx_peer ON handshakes (peer_id);
             CREATE INDEX IF NOT EXISTS idx_thread ON handshakes (thread_id);
+            CREATE INDEX IF NOT EXISTS idx_handshakes_initial_message_id ON handshakes (initial_message_id);
+            CREATE INDEX IF NOT EXISTS idx_handshakes_response_message_id ON handshakes (response_message_id);
+            CREATE INDEX IF NOT EXISTS idx_handshakes_complete_message_id ON handshakes (complete_message_id);
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_handshakes_table: ' . $e->getMessage());
