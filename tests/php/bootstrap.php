@@ -36,8 +36,8 @@ $telarisPgKey = (getenv('HOME') ?: '') . '/apps/keys/telaris-postgres-dev';
 if (is_readable($telarisPgKey)) {
     $telarisPgPass = trim((string)file_get_contents($telarisPgKey));
     $telarisTestPdo = new PDO(
-        'pgsql:host=127.0.0.1;port=5432;dbname=starmaps_pg_test',
-        'starmaps',
+        'pgsql:host=127.0.0.1;port=5432;dbname=telaris_starmaps_test',
+        'telaris_starmaps',
         $telarisPgPass,
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
