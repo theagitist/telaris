@@ -15,13 +15,14 @@ declare(strict_types=1);
 // GENERATED at container start. Do not edit; configure via environment (.env).
 // Values are read from the environment at runtime; this file holds no secrets.
 define('DB_HOST', getenv('DB_HOST') ?: 'db');
-define('DB_PORT', getenv('DB_PORT') ?: '3306');
+define('DB_PORT', getenv('DB_PORT') ?: '5432');
 define('DB_NAME', getenv('DB_NAME') ?: 'telaris');
 define('DB_USER', getenv('DB_USER') ?: 'telaris');
 define('DB_PASS', getenv('DB_PASS') ?: '');
 if (getenv('DB_SSL_CA')) {
-    // External managed DB over TLS: getDB() validates the chain via this CA and
-    // skips hostname verification (managed-cluster cert CN != endpoint host).
+    // External managed DB over TLS: getDB() adds sslmode=verify-ca with this CA
+    // as sslrootcert, validating the chain without hostname verification
+    // (managed-cluster cert CN != endpoint host).
     define('DB_SSL_CA', getenv('DB_SSL_CA'));
 }
 define('UPLOAD_DIR', __DIR__ . '/uploads');

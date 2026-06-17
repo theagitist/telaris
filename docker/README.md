@@ -40,18 +40,16 @@ One line in `.env` (`COMPOSE_PROFILES`) decides everything; the command never ch
 
 ### Using your own external database
 
-If you already run a MySQL 8+ or MariaDB 10.6+ server, point the instance at it instead of the bundled container. Two steps:
+If you already run a PostgreSQL 14+ server, point the instance at it instead of the bundled container. Two steps:
 
-**1. Create a database and a dedicated user on your server** (run once, as an admin):
+**1. Create a database and a dedicated role on your server** (run once, as an admin, e.g. with `psql`):
 
 ```sql
-CREATE DATABASE telaris CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'telaris'@'%' IDENTIFIED BY 'a-strong-password';
-GRANT ALL PRIVILEGES ON telaris.* TO 'telaris'@'%';
-FLUSH PRIVILEGES;
+CREATE ROLE telaris LOGIN PASSWORD 'a-strong-password';
+CREATE DATABASE telaris OWNER telaris;
 ```
 
-The app builds its own schema on first request (no migration step); the user just needs full rights on its own database.
+The app builds its own schema on first request (no migration step); the role just needs to own its own database (which `CREATE DATABASE ... OWNER` grants).
 
 **2. Edit `.env`** to drop the bundled DB and point at your server:
 
@@ -59,7 +57,7 @@ The app builds its own schema on first request (no migration step); the user jus
 # remove bundled-db; keep tls if you want the bundled auto-HTTPS proxy
 COMPOSE_PROFILES=tls
 DB_HOST=db.example.org      # your server's hostname or IP
-DB_PORT=3306
+DB_PORT=5432
 DB_NAME=telaris
 DB_USER=telaris
 DB_PASS=a-strong-password
@@ -84,8 +82,8 @@ The app then validates the chain against that CA and skips hostname verification
 **Moving from bundled to external later:** dump the bundled DB, import it into your server, then flip `.env` (clear `bundled-db` from `COMPOSE_PROFILES`, set `DB_HOST` to your server) and `docker compose up -d`:
 
 ```sh
-docker compose exec db mariadb-dump -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" > telaris-db.sql
-# import telaris-db.sql into your server, edit .env, then:
+docker compose exec -e PGPASSWORD="$DB_PASS" db pg_dump -U "$DB_USER" "$DB_NAME" > telaris-db.sql
+# import telaris-db.sql into your server (psql ... < telaris-db.sql), edit .env, then:
 docker compose up -d
 ```
 
@@ -96,7 +94,7 @@ docker compose up -d
 
 ## Persistence & backups
 
-Data lives in named volumes, not the image: `db_data`, `uploads`, `secrets` (federation keys, back these up), `snapshots`, `logs`. Use the in-app snapshot tools (admin) or `docker compose exec` + `mariadb-dump` for DB backups.
+Data lives in named volumes, not the image: `db_data`, `uploads`, `secrets` (federation keys, back these up), `snapshots`, `logs`. Use the in-app snapshot tools (admin) or `docker compose exec` + `pg_dump` for DB backups.
 
 ## Updating
 

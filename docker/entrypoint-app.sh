@@ -47,11 +47,12 @@ chown www-data:www-data "$HG_USER_CONFIG"
 chmod 640 "$HG_USER_CONFIG"
 
 # Wait for the database (bundled or external) before first-run setup.
-echo "[entrypoint] waiting for database ${DB_HOST:-db}:${DB_PORT:-3306} ..."
+echo "[entrypoint] waiting for database ${DB_HOST:-db}:${DB_PORT:-5432} ..."
 for _ in $(seq 1 60); do
   if php -r '$o=[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION];
-            if(getenv("DB_SSL_CA")){$o[PDO::MYSQL_ATTR_SSL_CA]=getenv("DB_SSL_CA");$o[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT]=false;}
-            new PDO(sprintf("mysql:host=%s;port=%s;dbname=%s",getenv("DB_HOST")?:"db",getenv("DB_PORT")?:"3306",getenv("DB_NAME")),getenv("DB_USER"),getenv("DB_PASS"),$o);' 2>/dev/null; then
+            $dsn=sprintf("pgsql:host=%s;port=%s;dbname=%s",getenv("DB_HOST")?:"db",getenv("DB_PORT")?:"5432",getenv("DB_NAME"));
+            if(getenv("DB_SSL_CA")){$dsn.=";sslmode=verify-ca;sslrootcert=".getenv("DB_SSL_CA");}
+            new PDO($dsn,getenv("DB_USER"),getenv("DB_PASS"),$o);' 2>/dev/null; then
     echo "[entrypoint] database reachable."; break
   fi
   sleep 2

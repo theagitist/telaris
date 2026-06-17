@@ -4,7 +4,7 @@
 #   app    php-fpm 8.3 + Telaris code (the federation node)
 #   web    nginx (static assets + proxies PHP/uploads to app:9000)
 #   cron   the federation schedulers (dispatch / pull / galaxy-pull)
-#   db     MariaDB — ONLY starts under the `bundled-db` profile
+#   db     PostgreSQL — ONLY starts under the `bundled-db` profile
 #   caddy  auto-TLS reverse proxy — ONLY starts under the `tls` profile
 #
 # Which services run is driven by COMPOSE_PROFILES in .env, so switching
@@ -73,17 +73,19 @@ services:
     restart: unless-stopped
 
   db:
-    image: mariadb:11
+    image: postgres:16
     profiles: ["bundled-db"]
     environment:
-      MARIADB_DATABASE: "${DB_NAME:-telaris}"
-      MARIADB_USER: "${DB_USER:-telaris}"
-      MARIADB_PASSWORD: "${DB_PASS:?set DB_PASS in .env}"
-      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
+      # The official postgres image creates role POSTGRES_USER (owning
+      # POSTGRES_DB) with POSTGRES_PASSWORD on first init. For a single-app
+      # bundled DB the app role is also the cluster superuser, which is fine.
+      POSTGRES_DB: "${DB_NAME:-telaris}"
+      POSTGRES_USER: "${DB_USER:-telaris}"
+      POSTGRES_PASSWORD: "${DB_PASS:?set DB_PASS in .env}"
     volumes:
-      - db_data:/var/lib/mysql
+      - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${DB_USER:-telaris}\" -d \"$${DB_NAME:-telaris}\""]
       interval: 10s
       timeout: 5s
       retries: 12

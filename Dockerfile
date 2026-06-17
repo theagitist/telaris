@@ -4,7 +4,7 @@
 #   app  — php-fpm 8.3 + the Telaris code + media tooling (the federation node)
 #   web  — nginx serving the static code and proxying PHP to app:9000
 #
-# The bundled DB (MariaDB) and the auto-TLS proxy (Caddy) are stock images,
+# The bundled DB (PostgreSQL) and the auto-TLS proxy (Caddy) are stock images,
 # wired in docker-compose.yml. See docker/README.md.
 #
 # Status: scaffold for review. Marked TODO where a value needs confirming.
@@ -15,15 +15,17 @@
 FROM php:8.3-fpm AS base
 
 # media-optimize.php calls: convert (ImageMagick), cwebp, ffmpeg, jpegoptim,
-# optipng. gd handles in-process image work; pdo_mysql + apcu + sodium are the
+# optipng. gd handles in-process image work; pdo_pgsql + apcu + sodium are the
 # load-bearing extensions (apcu = rate limiting; sodium = federation signing,
 # bundled+enabled in the official php:8.3 image). cron drives the schedulers.
+# libpq-dev builds pdo_pgsql (and leaves libpq for it at runtime); the
+# postgresql-client gives operators psql / pg_dump inside the container.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libpng-dev libjpeg62-turbo-dev libfreetype6-dev libwebp-dev libzip-dev \
         imagemagick webp ffmpeg jpegoptim optipng \
-        default-mysql-client \
+        libpq-dev postgresql-client \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
-    && docker-php-ext-install -j"$(nproc)" pdo_mysql gd opcache exif zip \
+    && docker-php-ext-install -j"$(nproc)" pdo_pgsql gd opcache exif zip \
     && pecl install apcu \
     && docker-php-ext-enable apcu \
     && printf 'apc.enable_cli=1\n' > /usr/local/etc/php/conf.d/zz-apcu-cli.ini \
