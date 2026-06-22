@@ -1,0 +1,218 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * provision-init: programmatic first-run seeding for a fleet-provisioned instance.
+ *
+ * This is the headless replacement for admin/setup.php (the human first-install
+ * wizard). The wizard is unusable for the self-service fleet: it has no CA field
+ * and rewrites config.php from its form, which would drop define('DB_SSL_CA', ...)
+ * and break the managed-PostgreSQL verify-ca connection. It also assumes a
+ * writable config.php and conflates DB config with first-run seeding.
+ *
+ * Run INSIDE the app container (it needs the app code, the rendered config.php
+ * with DB_* + DB_SSL_CA, and DB connectivity), e.g.:
+ *   podman exec <pod>-<label>-app php bin/provision-init \
+ *     --operator-email=someone@example.org --operator-first=Alex \
+ *     --site-name="My Telaris" --locale=en --password=<plain>
+ *
+ * It faithfully reproduces admin/setup.php executeSchema():
+ *   1. load SCHEMA.sql, skipping tables that already exist (idempotent);
+ *   2. seed the id=0 default constellation;
+ *   3. run db_ensure_pg_runtime() then every db_ensure_* helper (federation
+ *      tables, incremental columns, the unaccent index, the updated_at triggers);
+ *   4. ensure project_info + seed one row per locale;
+ *   5. generate the Default API Key (without it the admin console 401s);
+ *   6. create the operator (admin) account via createUser().
+ *
+ * Idempotent: safe to re-run. An already-seeded instance reports "already
+ * present" for each step and exits 0. Emits a single JSON summary line prefixed
+ * with PROVISION_INIT_RESULT: so the host orchestrator can parse the outcome.
+ *
+ * It does NOT mint the federation keypair: the app entrypoint already does that
+ * on first start (bin/init-identity into the secrets/ bind-mount).
+ */
+
+// ---- arg parsing (--key=value) --------------------------------------------
+$opts = [
+    'operator-email' => '',
+    'operator-first' => 'Operator',
+    'operator-last'  => '',
+    'site-name'      => 'Telaris',
+    'site-tagline'   => 'Weaving memory',
+    'locale'         => 'en',
+    'password'       => '',     // empty => null password (magic-link login)
+];
+foreach (array_slice($argv, 1) as $arg) {
+    if (!preg_match('/^--([a-z-]+)=(.*)$/s', $arg, $m)) {
+        fwrite(STDERR, "Unrecognized argument: $arg\n");
+        exit(2);
+    }
+    if (!array_key_exists($m[1], $opts)) {
+        fwrite(STDERR, "Unknown option: --{$m[1]}\n");
+        exit(2);
+    }
+    $opts[$m[1]] = $m[2];
+}
+
+$operatorEmail = trim($opts['operator-email']);
+if ($operatorEmail === '' || !filter_var($operatorEmail, FILTER_VALIDATE_EMAIL)) {
+    fwrite(STDERR, "ERROR: --operator-email is required and must be a valid email.\n");
+    exit(2);
+}
+$siteName    = trim($opts['site-name']) !== '' ? trim($opts['site-name']) : 'Telaris';
+$siteTagline = trim($opts['site-tagline']);
+$locale      = strtolower(trim($opts['locale']));
+
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/../utils/auth.php';
+
+if (in_array($locale, PROJECT_INFO_LOCALES, true) === false) {
+    fwrite(STDERR, "WARN: --locale '$locale' not in PROJECT_INFO_LOCALES; default_locale not set.\n");
+    $locale = '';
+}
+
+$result = [
+    'ok'                  => false,
+    'tables_created'      => [],
+    'tables_skipped'      => [],
+    'pg_runtime'          => false,
+    'db_ensure_ran'       => 0,
+    'project_info_seeded' => false,
+    'api_key'             => null,
+    'operator'            => null,   // 'created' | 'already_present'
+    'error'               => null,
+];
+
+try {
+    $pdo = getDB();
+
+    // ---- 1. load SCHEMA.sql (skip existing tables) ------------------------
+    // Same cleaned ";"-split loader as admin/setup.php executeSchema(); SCHEMA.sql
+    // is FK-ordered for PostgreSQL and carries no $$-bodied statements.
+    $schemaPath = __DIR__ . '/../SCHEMA.sql';
+    if (!is_readable($schemaPath)) {
+        throw new RuntimeException("SCHEMA.sql not readable at $schemaPath");
+    }
+    $schema = (string)file_get_contents($schemaPath);
+    $cleaned = [];
+    foreach (explode("\n", $schema) as $line) {
+        $line = trim($line);
+        if ($line === '' || preg_match('/^\s*--/', $line)) {
+            continue;
+        }
+        $line = (string)preg_replace('/\s*--.*$/', '', $line);
+        if (trim($line) !== '') {
+            $cleaned[] = $line;
+        }
+    }
+    foreach (explode(';', implode("\n", $cleaned)) as $statement) {
+        $statement = trim($statement);
+        if ($statement === '') {
+            continue;
+        }
+        if (preg_match('/CREATE TABLE IF NOT EXISTS\s+`?(\w+)`?/i', $statement, $m)) {
+            $table = $m[1];
+            $exists = false;
+            try {
+                $exists = $pdo->query("SELECT to_regclass('public." . $table . "')")->fetchColumn() !== null;
+            } catch (PDOException $e) {
+                // treat as not-existing; the CREATE IF NOT EXISTS is safe anyway
+            }
+            if ($exists) {
+                $result['tables_skipped'][] = $table;
+                continue;
+            }
+            $pdo->exec($statement . ';');
+            $result['tables_created'][] = $table;
+        } else {
+            // indexes, unique constraints, etc. (all IF NOT EXISTS)
+            $pdo->exec($statement . ';');
+        }
+    }
+
+    // ---- 2. default constellation (id=0) ----------------------------------
+    $pdo->prepare(
+        "INSERT INTO constellations (id, name, tagline, theme) VALUES (0, :name, :tagline, 'cosmic')
+         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, tagline = EXCLUDED.tagline, theme = EXCLUDED.theme"
+    )->execute([':name' => $siteName, ':tagline' => $siteTagline]);
+
+    // ---- 3. Postgres runtime prerequisites + every db_ensure_* helper -----
+    // db_ensure_pg_runtime() installs the $$-bodied bits SCHEMA.sql cannot carry
+    // (set_updated_at(), immutable_unaccent(), the keyword unaccent index, the
+    // per-table updated_at triggers). Then sweep every other db_ensure_* so the
+    // federation tables and incremental columns exist (a reader hitting e.g.
+    // mirrored_from_peer_id otherwise 500s). Mirrors the manual-instance runbook.
+    db_ensure_pg_runtime();
+    $result['pg_runtime'] = true;
+
+    foreach (get_defined_functions()['user'] as $fn) {
+        if (!str_starts_with($fn, 'db_ensure_')) {
+            continue;
+        }
+        if ($fn === 'db_ensure_pg_runtime') {
+            continue; // already called
+        }
+        try {
+            $ref = new ReflectionFunction($fn);
+            if ($ref->getNumberOfRequiredParameters() !== 0) {
+                continue; // helpers that need arguments are caller-specific; skip
+            }
+            $fn();
+            $result['db_ensure_ran']++;
+        } catch (Throwable $e) {
+            // a single helper failing must not abort provisioning; log and go on
+            fwrite(STDERR, "WARN: $fn() failed: " . $e->getMessage() . "\n");
+        }
+    }
+
+    // ---- 4. project_info: one row per locale ------------------------------
+    db_ensure_project_info_table();
+    db_insert_default_project_info_rows($pdo, $siteName, $siteTagline);
+    $result['project_info_seeded'] = true;
+
+    // ---- 4b. operator default_locale (DB-backed setting, v6.12.26) --------
+    if ($locale !== '' && function_exists('instance_setting_set')) {
+        try {
+            instance_setting_set('default_locale', $locale);
+        } catch (Throwable $e) {
+            fwrite(STDERR, "WARN: could not set default_locale: " . $e->getMessage() . "\n");
+        }
+    }
+
+    // ---- 5. Default API Key ----------------------------------------------
+    $result['api_key'] = generateDefaultApiKey($pdo) !== null ? 'present' : null;
+
+    // ---- 6. operator (admin) account -------------------------------------
+    $existing = db_get_user_by_email($operatorEmail);
+    if ($existing !== null) {
+        $result['operator'] = 'already_present';
+    } else {
+        $plain = $opts['password'];
+        $hashed = ($plain !== '') ? hashPassword($plain) : null;
+        $err = createUser(
+            $pdo,
+            $operatorEmail,
+            $hashed,
+            trim($opts['operator-first']) !== '' ? trim($opts['operator-first']) : 'Operator',
+            trim($opts['operator-last']) !== '' ? trim($opts['operator-last']) : null,
+            USER_TYPE_ADMIN,
+            null,
+            true
+        );
+        if ($err !== null) {
+            throw new RuntimeException("createUser failed: $err");
+        }
+        $result['operator'] = 'created';
+    }
+
+    $result['ok'] = true;
+} catch (Throwable $e) {
+    $result['error'] = $e->getMessage();
+}
+
+// Single machine-parseable summary line for the orchestrator.
+fwrite(STDOUT, "PROVISION_INIT_RESULT:" . json_encode($result) . "\n");
+exit($result['ok'] ? 0 : 1);
