@@ -27,18 +27,22 @@ require_once __DIR__ . '/../../inc/validation.php';
 require_once __DIR__ . '/../../inc/media-optimize.php';
 require_once __DIR__ . '/../../utils/auth.php';
 
-// Point integration tests at the local PostgreSQL test database (NEVER a live
-// instance DB) by injecting a test PDO via resetDB(). Gated on the dev-only
-// password file existing, so the suite falls back to the config.php connection
-// on machines without the local PG test DB. The password lives under ~/apps/keys
-// (not in the webroot). Mirrors getDB()'s own PDO options and timezone.
-$telarisPgKey = (getenv('HOME') ?: '') . '/apps/keys/telaris-postgres-dev';
-if (is_readable($telarisPgKey)) {
-    $telarisPgPass = trim((string)file_get_contents($telarisPgKey));
+// Point integration tests at the isolated `telaris_starmaps_test` database
+// (NEVER a live instance DB) by injecting a test PDO via resetDB(). The
+// connection follows the app config.php DB endpoint (DB_HOST/DB_PORT/DB_SSL_CA,
+// the managed cluster since the Phase 0 migration), reusing DB_USER/DB_PASS but
+// swapping in the `_test` database, so no host or secret is hardcoded here.
+// Mirrors getDB()'s own PDO options and timezone.
+if (defined('DB_HOST')) {
+    $telarisTestPort = defined('DB_PORT') && DB_PORT !== '' ? DB_PORT : '5432';
+    $telarisTestDsn  = sprintf('pgsql:host=%s;port=%s;dbname=%s', DB_HOST, $telarisTestPort, 'telaris_starmaps_test');
+    if (defined('DB_SSL_CA') && DB_SSL_CA !== '') {
+        $telarisTestDsn .= sprintf(';sslmode=verify-ca;sslrootcert=%s', DB_SSL_CA);
+    }
     $telarisTestPdo = new PDO(
-        'pgsql:host=127.0.0.1;port=5432;dbname=telaris_starmaps_test',
-        'telaris_starmaps',
-        $telarisPgPass,
+        $telarisTestDsn,
+        DB_USER,
+        defined('DB_PASS') ? DB_PASS : '',
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
