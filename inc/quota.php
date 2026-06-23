@@ -33,17 +33,29 @@ function quota_dir_size_bytes(string $dir): int
 }
 
 /**
- * Bytes currently used by the instance's uploaded media. We measure UPLOAD_DIR
- * (where every editor-uploaded image/video/audio/pdf/icon lands) against the
- * quota. This deliberately undercounts the full instance tree (snapshots, hg
- * content, logs) the Orrery sees, so the block triggers a little later than the
- * hard total; the Orrery's over-quota flag + operator action cover gross breach.
- * ponytail: full recompute per call; cache or a running DB total only if upload
- * dirs ever get large enough for the walk to bite.
+ * Bytes currently used by the instance's editor-uploaded content: UPLOAD_DIR
+ * (media: image/video/audio/pdf/icon) plus the hotglue content dir (the other
+ * upload surface). Both are gated by quota_would_exceed(), so the two upload
+ * paths share one accounting. This still undercounts the full instance tree
+ * (snapshots, logs) the Orrery sees, so the block triggers a little later than
+ * the hard total; the Orrery's over-quota flag + operator action cover gross
+ * breach. ponytail: full recompute per call; cache or a running DB total only
+ * if these dirs ever get large enough for the walk to bite.
  */
 function quota_usage_bytes(): int
 {
-    return defined('UPLOAD_DIR') ? quota_dir_size_bytes((string)UPLOAD_DIR) : 0;
+    if (!defined('UPLOAD_DIR')) {
+        return 0;
+    }
+    $total = quota_dir_size_bytes((string)UPLOAD_DIR);
+    // Hotglue editor content lives in a sibling dir (<app-root>/hg/content);
+    // count it too. ponytail: layout assumption matching the image + the dev
+    // checkout (UPLOAD_DIR is <app-root>/uploads); an absent dir contributes 0.
+    $hg = dirname((string)UPLOAD_DIR) . '/hg/content';
+    if (is_dir($hg)) {
+        $total += quota_dir_size_bytes($hg);
+    }
+    return $total;
 }
 
 /** Configured quota in bytes (0 = unlimited). */

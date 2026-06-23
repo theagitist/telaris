@@ -611,7 +611,22 @@ function upload_file($fn, $page, $orig_fn = '', &$existed = false)
 		// not sure if we ought to remove the file in /tmp here (probably not)
 		return false;
 	}
-	
+
+	// TELARIS: per-instance storage quota. On the write paths the telaris-auth
+	// bridge has loaded config.php (so QUOTA_BYTES + UPLOAD_DIR are defined), so
+	// refuse over-quota uploads through the same guard the media path uses (it
+	// counts this hotglue content dir too). No-op when the quota is unlimited.
+	if (defined('QUOTA_BYTES') && QUOTA_BYTES > 0) {
+		$telarisQuota = dirname(dirname(CONTENT_DIR)).'/inc/quota.php';
+		if (is_file($telarisQuota)) {
+			require_once $telarisQuota;
+			if (function_exists('quota_would_exceed') && quota_would_exceed((int)@filesize($fn))) {
+				log_msg('error', 'common: upload refused, instance storage quota reached');
+				return false;
+			}
+		}
+	}
+
 	// create shared directory if it doesn't exist yet
 	$d = CONTENT_DIR.'/'.$a[0].'/shared';
 	if (!is_dir($d)) {
