@@ -40,6 +40,25 @@ requireApiKey();
 // Validation constants and functions (shared with tests)
 require_once __DIR__ . '/../inc/validation.php';
 
+// Per-instance storage quota (self-service tier). One choke-point for every
+// upload branch below: if accepting the incoming file(s) would push the upload
+// directory past the instance's quota, refuse before any move_uploaded_file.
+// No-op when the quota is unlimited (QUOTA_BYTES == 0), i.e. dev/standalone.
+require_once __DIR__ . '/../inc/quota.php';
+if (!empty($_FILES)) {
+    $incomingBytes = 0;
+    foreach ($_FILES as $f) {
+        if (isset($f['size']) && is_array($f['size'])) {
+            foreach ($f['size'] as $s) { $incomingBytes += (int)$s; }
+        } else {
+            $incomingBytes += (int)($f['size'] ?? 0);
+        }
+    }
+    if ($incomingBytes > 0 && quota_would_exceed($incomingBytes)) {
+        api_error('413.001', 'Storage quota reached: remove some existing media before uploading more.');
+    }
+}
+
 /**
  * Enforce the primary-visual mutex on the wormhole: at most one of {image, video, pdf}.
  * Priority on conflict: pdf > image > video. Audio is independent of this mutex.

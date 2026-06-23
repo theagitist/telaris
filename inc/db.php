@@ -608,6 +608,7 @@ const PROJECT_INFO_KEYS = [
     'api_error_404_013', 'api_error_404_014',
     'api_error_405_001',
     'api_error_409_001', 'api_error_409_002',
+    'api_error_413_001',
     'api_error_500_001', 'api_error_500_002', 'api_error_500_003', 'api_error_500_004',
     'api_error_500_005', 'api_error_500_006', 'api_error_500_007', 'api_error_500_008',
     'api_error_500_009', 'api_error_500_010', 'api_error_500_011', 'api_error_500_012',
@@ -2438,6 +2439,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_409_001' => 'A keyword with that name already exists.',
             'api_error_409_002' => 'A relation between these keywords already exists.',
 
+            'api_error_413_001' => 'Storage quota reached: remove some existing media before uploading more.',
+
             'api_error_500_001' => 'Internal server error.',
             'api_error_500_002' => 'Database error.',
             'api_error_500_003' => 'Failed to create the upload directory. Check server permissions.',
@@ -4029,6 +4032,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_409_001' => 'Ya existe una palabra clave con ese nombre.',
             'api_error_409_002' => 'Ya existe una relación entre estas palabras clave.',
 
+            'api_error_413_001' => 'Se alcanzó el límite de almacenamiento: elimina parte del contenido existente antes de subir más.',
+
             'api_error_500_001' => 'Error interno del servidor.',
             'api_error_500_002' => 'Error de base de datos.',
             'api_error_500_003' => 'No se pudo crear el directorio de subidas. Revisa los permisos del servidor.',
@@ -5616,6 +5621,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'api_error_409_001' => 'Já existe uma palavra-chave com esse nome.',
             'api_error_409_002' => 'Já existe uma relação entre essas palavras-chave.',
 
+            'api_error_413_001' => 'Limite de armazenamento atingido: remova parte do conteúdo existente antes de enviar mais.',
+
             'api_error_500_001' => 'Erro interno do servidor.',
             'api_error_500_002' => 'Erro de banco de dados.',
             'api_error_500_003' => 'Não foi possível criar o diretório de envios. Verifique as permissões do servidor.',
@@ -7202,6 +7209,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
 
             'api_error_409_001' => 'Un mot-clé avec ce nom existe déjà.',
             'api_error_409_002' => 'Une relation entre ces mots-clés existe déjà.',
+
+            'api_error_413_001' => 'Quota de stockage atteint : retirez du contenu existant avant d\'en téléverser davantage.',
 
             'api_error_500_001' => 'Erreur interne du serveur.',
             'api_error_500_002' => 'Erreur de base de données.',

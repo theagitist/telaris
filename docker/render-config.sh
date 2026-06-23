@@ -28,6 +28,9 @@ if (getenv('DB_SSL_CA')) {
 define('UPLOAD_DIR', __DIR__ . '/uploads');
 define('LOG_DIR', __DIR__ . '/logs');
 define('SNAPSHOTS_DIR', __DIR__ . '/telaris-snapshots');
+// Per-instance storage quota in bytes (0 = unlimited). Set by the Orrery; the
+// app refuses new uploads once UPLOAD_DIR would exceed it.
+define('QUOTA_BYTES', (int)(getenv('TELARIS_QUOTA_BYTES') ?: 0));
 define('TELARIS_HOSTNAME', getenv('TELARIS_HOSTNAME') ?: '');
 define('MAIL_SMTP_HOST', getenv('MAIL_SMTP_HOST') ?: '');
 define('MAIL_SMTP_PORT', (int)(getenv('MAIL_SMTP_PORT') ?: 587));

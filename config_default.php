@@ -10,6 +10,7 @@ define('DB_PASS', '');
 define('UPLOAD_DIR', __DIR__ . '/uploads'); // In production, use an absolute path outside the app directory
 define('LOG_DIR', __DIR__ . '/logs');
 define('SNAPSHOTS_DIR', __DIR__ . '/telaris-snapshots'); // Where local system snapshots are stored. In production, use an absolute path outside the app directory and prefix with the site name (e.g. /var/backups/starmaps-snapshots) so it is not mistaken for another app's backups.
+define('QUOTA_BYTES', 0); // Per-instance storage quota in bytes; 0 = unlimited. Containerized self-service instances set this from TELARIS_QUOTA_BYTES; standalone installs leave it 0.
 
 // Canonical public hostname for this instance (no scheme, no trailing slash),
 // e.g. 'starmaps.polivoxia.ca'. Used to build absolute links in outgoing email
