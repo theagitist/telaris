@@ -1,6 +1,13 @@
 -- Telaris database schema (PostgreSQL 14+).
 -- Used by admin/setup.php. Keep in sync with inc/db.php (project_info, constellations, user_constellations).
 --
+-- SCOPE: this is the core-table bootstrap that admin/setup.php loads with a naive
+-- ";"-splitter; it is intentionally a SUBSET. The full runtime schema (federation,
+-- keyword-canvas, audit, snapshots, system_meta, etc.) is built and reconciled by
+-- the idempotent db_ensure_*() helpers in inc/db.php, which setup.php also calls and
+-- which provision-init runs for containerized instances. Those helpers are the
+-- source of truth; do not assume this file lists every table.
+--
 -- Migration notes (MySQL -> PostgreSQL, ROADMAP ^pg-migration):
 --   * Tables are ordered so every FOREIGN KEY target is created before its referrer
 --     (Postgres requires the referenced table to exist; there is no global
