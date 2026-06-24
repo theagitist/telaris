@@ -965,7 +965,7 @@ foreach ($importantExtensions as $ext => $name) {
     <div class="max-w-6xl mx-auto py-8 px-5">
         <!-- Header -->
         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-            <div class="flex items-center justify-between">
+            <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 class="text-gray-800 text-3xl font-semibold"><?= t_attr('admin_heading_console', 'Admin Console') ?></h1>
                     <p class="text-gray-600 mt-1"><?= sprintf(t('admin_label_welcome', 'Welcome, %s'), htmlspecialchars($_SESSION['admin_user_name'] ?? 'Admin')) ?></p>
@@ -1142,7 +1142,7 @@ foreach ($importantExtensions as $ext => $name) {
             <!-- Users Tab -->
             <div id="content-users" class="p-6 <?php echo $activeTab !== 'users' ? 'hidden' : ''; ?>">
                 <div>
-                    <div class="flex items-center justify-between mb-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <div class="flex items-center gap-3">
                             <h2 class="text-gray-800 text-base font-semibold"><?= t_attr('admin_heading_users', 'Users') ?> (<?php echo count($users); ?>)</h2>
                             <button type="button" onclick="openCreateUser()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_user', 'New User') ?></button>
@@ -1153,7 +1153,7 @@ foreach ($importantExtensions as $ext => $name) {
                         <!-- Top Pagination -->
                         <div id="users-pagination-header" class="flex-1 flex justify-center"></div>
 
-                        <div class="flex items-center gap-2 min-w-[250px]">
+                        <div class="flex items-center gap-2 w-full sm:w-auto sm:min-w-[250px]">
                             <label for="search-users" class="text-sm font-medium text-gray-700"><?= t_attr('admin_label_search', 'Search:') ?></label>
                             <input type="text"
                                    id="search-users"
@@ -1166,8 +1166,8 @@ foreach ($importantExtensions as $ext => $name) {
                     <?php if (empty($users)): ?>
                         <p class="text-gray-600"><?= t_attr('admin_msg_no_users', 'No users found.') ?></p>
                     <?php else: ?>
-                        <div class="border border-gray-300 rounded">
-                            <table id="users-list" class="w-full border-collapse">
+                        <div class="border border-gray-300 rounded overflow-x-auto">
+                            <table id="users-list" class="w-full border-collapse tbl-cards">
                                 <thead>
                                     <tr class="border-b-2 border-gray-400 bg-gray-100">
                                         <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2">
@@ -1237,24 +1237,24 @@ foreach ($importantExtensions as $ext => $name) {
                                             $userJson = htmlspecialchars(json_encode($userData), ENT_QUOTES, 'UTF-8');
                                             $clickEdit = "editUser($userJson)";
                                             ?>
-                                            <td class="py-2 px-2 font-semibold text-gray-800 max-w-[12rem] cursor-pointer" onclick="<?php echo $clickEdit; ?>">
-                                                <span class="block truncate" title="<?php echo $fullName; ?>"><?php echo $fullName; ?><?php if ($isCurrentUser): ?> <span class="ml-1 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded"><?= t_attr('admin_badge_you', 'You') ?></span><?php endif; ?></span>
-                                                <?php if ($userPronouns !== []): ?><span class="block truncate text-xs font-normal text-gray-500" title="<?php echo htmlspecialchars(implode(', ', $userPronouns)); ?>"><?php echo htmlspecialchars(implode(', ', $userPronouns)); ?></span><?php endif; ?>
+                                            <td data-label="<?= t_attr('admin_col_user_name', 'Name') ?>" class="py-2 px-2 font-semibold text-gray-800 md:max-w-[12rem] cursor-pointer" onclick="<?php echo $clickEdit; ?>">
+                                                <span class="block md:truncate" title="<?php echo $fullName; ?>"><?php echo $fullName; ?><?php if ($isCurrentUser): ?> <span class="ml-1 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded"><?= t_attr('admin_badge_you', 'You') ?></span><?php endif; ?></span>
+                                                <?php if ($userPronouns !== []): ?><span class="block md:truncate text-xs font-normal text-gray-500" title="<?php echo htmlspecialchars(implode(', ', $userPronouns)); ?>"><?php echo htmlspecialchars(implode(', ', $userPronouns)); ?></span><?php endif; ?>
                                             </td>
-                                            <td class="py-2 px-2 text-xs text-gray-600 max-w-[14rem] cursor-pointer" onclick="<?php echo $clickEdit; ?>">
-                                                <span class="block truncate" title="<?php echo $email; ?>"><?php echo $email; ?></span>
+                                            <td data-label="<?= t_attr('admin_col_user_email', 'Email') ?>" class="py-2 px-2 text-xs text-gray-600 md:max-w-[14rem] cursor-pointer" onclick="<?php echo $clickEdit; ?>">
+                                                <span class="block md:truncate" title="<?php echo $email; ?>"><?php echo $email; ?></span>
                                             </td>
-                                            <td class="py-2 px-2 cursor-pointer" onclick="<?php echo $clickEdit; ?>">
+                                            <td data-label="<?= t_attr('admin_col_user_type', 'Type') ?>" class="py-2 px-2 cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <span class="text-xs <?php echo $typeColors[$userType]; ?> text-white px-2 py-1 rounded"><?php echo $typeLabels[$userType]; ?></span>
                                                 <?php if ($isUnvetted): ?><span class="ml-1 text-xs bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded" title="<?= t_attr('admin_unvetted_title', 'Self-enrolled; not yet vetted by an admin') ?>"><?= t_attr('admin_badge_unvetted', 'Unvetted') ?></span><?php endif; ?>
                                             </td>
-                                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
+                                            <td data-label="<?= t_attr('admin_col_user_created', 'Created') ?>" class="py-2 px-2 text-xs text-gray-500 md:whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <?php if ($createdIso !== ''): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($createdIso); ?>"><?php echo date('y-m-d H:i', $createdTs); ?></span><?php else: ?>—<?php endif; ?>
                                             </td>
-                                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
+                                            <td data-label="<?= t_attr('admin_col_user_last_login', 'Last Login') ?>" class="py-2 px-2 text-xs text-gray-500 md:whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <?php if ($lastLoginIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($lastLoginIso); ?>"><?php echo date('y-m-d H:i', $lastLoginTs); ?></span><?php else: ?><?= t_attr('admin_label_never', 'Never') ?><?php endif; ?>
                                             </td>
-                                            <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
+                                            <td data-label="<?= t_attr('admin_col_user_last_updated', 'Last Updated') ?>" class="py-2 px-2 text-xs text-gray-500 md:whitespace-nowrap cursor-pointer" onclick="<?php echo $clickEdit; ?>">
                                                 <?php if ($updatedIso !== null): ?><span class="local-datetime" data-datetime-iso="<?php echo htmlspecialchars($updatedIso); ?>"><?php echo date('y-m-d H:i', $updatedTs); ?></span><?php else: ?>—<?php endif; ?>
                                             </td>
                                             <td class="py-2 px-2 text-right">
@@ -1423,7 +1423,7 @@ foreach ($importantExtensions as $ext => $name) {
             <!-- Constellations Tab -->
             <div id="content-constellations" class="p-6 <?php echo $activeTab !== 'constellations' ? 'hidden' : ''; ?>">
                 <div>
-                    <div class="flex items-center justify-between mb-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <div class="flex items-center gap-3">
                             <h2 class="text-gray-800 text-base font-semibold"><?= t_attr('admin_heading_galaxies', 'Galaxies') ?> (<span id="constellations-count">...</span>)</h2>
                             <button type="button" onclick="openCreateConstellation()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_galaxy', 'New Galaxy') ?></button>
@@ -1433,7 +1433,7 @@ foreach ($importantExtensions as $ext => $name) {
                         <!-- Top Pagination -->
                         <div id="constellations-pagination-header" class="flex-1 flex justify-center"></div>
 
-                        <div class="flex items-center gap-2 min-w-[250px]">
+                        <div class="flex items-center gap-2 w-full sm:w-auto sm:min-w-[250px]">
                             <label for="search-constellations" class="text-sm font-medium text-gray-700"><?= t_attr('admin_label_search', 'Search:') ?></label>
                             <input type="text"
                                    id="search-constellations"
@@ -1463,7 +1463,7 @@ foreach ($importantExtensions as $ext => $name) {
             <!-- ========== Clusters Tab (Idea 2) ========== -->
             <div id="content-clusters" class="p-6 <?php echo $activeTab !== 'clusters' ? 'hidden' : ''; ?>">
                 <div>
-                    <div class="flex items-center justify-between mb-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <div class="flex items-center gap-3">
                             <h2 class="text-gray-800 text-base font-semibold"><?= t_attr('admin_heading_clusters', 'Galaxy Clusters') ?> (<span id="clusters-count">...</span>)</h2>
                             <button type="button" onclick="openClusterCreate()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_cluster', 'New Cluster') ?></button>
@@ -1472,7 +1472,7 @@ foreach ($importantExtensions as $ext => $name) {
                         <!-- Top Pagination -->
                         <div id="clusters-pagination-header" class="flex-1 flex justify-center"></div>
 
-                        <div class="flex items-center gap-2 min-w-[250px]">
+                        <div class="flex items-center gap-2 w-full sm:w-auto sm:min-w-[250px]">
                             <label for="search-clusters" class="text-sm font-medium text-gray-700"><?= t_attr('admin_label_search', 'Search:') ?></label>
                             <input type="text"
                                    id="search-clusters"
@@ -4165,8 +4165,8 @@ foreach ($importantExtensions as $ext => $name) {
                     return;
                 }
 
-                let html = `<div class="border border-gray-300 rounded">
-                    <table class="w-full border-collapse">
+                let html = `<div class="border border-gray-300 rounded overflow-x-auto">
+                    <table class="w-full border-collapse tbl-cards">
                         <thead>
                             <tr class="border-b-2 border-gray-400 bg-gray-100">
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
@@ -4213,20 +4213,20 @@ foreach ($importantExtensions as $ext => $name) {
                     const cNameJson = JSON.stringify(c.name);
 
                     html += `<tr class="constellation-row border-b border-gray-300${hoverClass}"${bgStyle}>
-                        <td class="py-2 px-2 font-mono text-gray-800 cursor-pointer whitespace-nowrap" onclick="${clickEdit}">${c.id}</td>
-                        <td class="py-2 px-2 font-semibold text-gray-800 cursor-pointer" onclick="${clickEdit}">
+                        <td data-label="${escapeHtmlAdmin(ADM.colId || 'ID')}" class="py-2 px-2 font-mono text-gray-800 cursor-pointer md:whitespace-nowrap" onclick="${clickEdit}">${c.id}</td>
+                        <td data-label="${escapeHtmlAdmin(ADM.colGalaxyName || 'Name')}" class="py-2 px-2 font-semibold text-gray-800 cursor-pointer" onclick="${clickEdit}">
                             ${escapeHtmlAdmin(c.name)}
                             ${c.is_default ? '<span class="ml-2 text-xs bg-green-400 text-white px-1.5 py-0.5 rounded">' + escapeHtmlAdmin(ADM.badgeDefault || 'Default') + '</span>' : ''}
                             ${c.import_source ? '<span class="ml-2 text-xs bg-purple-400 text-white px-1.5 py-0.5 rounded">' + escapeHtmlAdmin(ADM.badgeImported || 'Imported') + '</span>' : ''}
                             ${c.tour_enabled ? '<span class="ml-2 inline-flex items-center text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded" title="' + escapeHtmlAdmin(ADM.titleTourEnabled || 'Auto-tour enabled') + '"><svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>' : ''}
                         </td>
-                        <td class="py-2 px-2 font-mono text-xs text-blue-600 cursor-pointer" onclick="${clickEdit}">${escapeHtmlAdmin(slug)}</td>
-                        <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="${clickEdit}" title="${escapeHtmlAdmin(c.tagline)}">${escapeHtmlAdmin(c.tagline)}</td>
-                        <td class="py-2 px-2 text-right whitespace-nowrap">
+                        <td data-label="${escapeHtmlAdmin(ADM.colSlug || 'Slug')}" class="py-2 px-2 font-mono text-xs text-blue-600 cursor-pointer" onclick="${clickEdit}">${escapeHtmlAdmin(slug)}</td>
+                        <td data-label="${escapeHtmlAdmin(ADM.colTagline || 'Tagline')}" class="py-2 px-2 text-gray-600 text-sm md:max-w-xs md:truncate cursor-pointer" onclick="${clickEdit}" title="${escapeHtmlAdmin(c.tagline)}">${escapeHtmlAdmin(c.tagline)}</td>
+                        <td data-label="${escapeHtmlAdmin(ADM.colWormholes || 'Wormholes')}" class="py-2 px-2 text-right md:whitespace-nowrap">
                             <a href="../edit/?${slug ? 'slug=' + encodeURIComponent(slug) : 'constellation_id=' + c.id}" class="text-blue-600 hover:text-blue-800 hover:underline text-sm font-medium">${c.node_count}</a>
                         </td>
-                        <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(createdAt)}</td>
-                        <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(updatedAt)}</td>
+                        <td data-label="${escapeHtmlAdmin(ADM.colCreated || 'Created')}" class="py-2 px-2 text-xs text-gray-500 md:whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(createdAt)}</td>
+                        <td data-label="${escapeHtmlAdmin(ADM.colLastUpdated || 'Last Updated')}" class="py-2 px-2 text-xs text-gray-500 md:whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(updatedAt)}</td>
                         <td class="py-2 px-2 text-right">
                             <div class="flex justify-end">
                                 <div class="dropdown dropdown-end">
@@ -4392,8 +4392,8 @@ foreach ($importantExtensions as $ext => $name) {
                     return;
                 }
 
-                let html = `<div class="border border-gray-300 rounded">
-                    <table class="w-full border-collapse">
+                let html = `<div class="border border-gray-300 rounded overflow-x-auto">
+                    <table class="w-full border-collapse tbl-cards">
                         <thead>
                             <tr class="border-b-2 border-gray-400 bg-gray-100">
                                 <th class="text-left text-xs font-semibold text-gray-700 py-2 px-2 whitespace-nowrap">
@@ -4458,19 +4458,19 @@ foreach ($importantExtensions as $ext => $name) {
                         : '';
 
                     html += `<tr class="cluster-row border-b border-gray-300${hoverClass}"${bgStyle}>
-                        <td class="py-2 px-2 font-mono text-gray-800 cursor-pointer whitespace-nowrap" onclick="${clickEdit}">${cl.id}</td>
-                        <td class="py-2 px-2 font-semibold text-gray-800 cursor-pointer" onclick="${clickEdit}">
+                        <td data-label="${escapeHtmlAdmin(ADM.colId || 'ID')}" class="py-2 px-2 font-mono text-gray-800 cursor-pointer md:whitespace-nowrap" onclick="${clickEdit}">${cl.id}</td>
+                        <td data-label="${escapeHtmlAdmin(ADM.colGalaxyName || 'Name')}" class="py-2 px-2 font-semibold text-gray-800 cursor-pointer" onclick="${clickEdit}">
                             ${escapeHtmlAdmin(cl.name)}
                             ${tourBadge}
                             ${idleBadge}
                             ${galaxyListBadge}
                         </td>
-                        <td class="py-2 px-2 font-mono text-xs"><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" class="text-blue-600 hover:underline">${escapeHtmlAdmin(slug)}</a></td>
-                        <td class="py-2 px-2 text-gray-600 text-sm max-w-xs truncate cursor-pointer" onclick="${clickEdit}" title="${escapeHtmlAdmin(cl.tagline)}">${escapeHtmlAdmin(cl.tagline)}</td>
-                        <td class="py-2 px-2 font-mono text-xs text-gray-700 cursor-pointer" onclick="${clickEdit}">${escapeHtmlAdmin(cl.theme)}</td>
-                        <td class="py-2 px-2 text-right whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${cl.member_count}</td>
-                        <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(createdAt)}</td>
-                        <td class="py-2 px-2 text-xs text-gray-500 whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(updatedAt)}</td>
+                        <td data-label="${escapeHtmlAdmin(ADM.colSlug || 'Slug')}" class="py-2 px-2 font-mono text-xs"><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" class="text-blue-600 hover:underline">${escapeHtmlAdmin(slug)}</a></td>
+                        <td data-label="${escapeHtmlAdmin(ADM.colTagline || 'Tagline')}" class="py-2 px-2 text-gray-600 text-sm md:max-w-xs md:truncate cursor-pointer" onclick="${clickEdit}" title="${escapeHtmlAdmin(cl.tagline)}">${escapeHtmlAdmin(cl.tagline)}</td>
+                        <td data-label="${escapeHtmlAdmin(ADM.colTheme || 'Theme')}" class="py-2 px-2 font-mono text-xs text-gray-700 cursor-pointer" onclick="${clickEdit}">${escapeHtmlAdmin(cl.theme)}</td>
+                        <td data-label="${escapeHtmlAdmin(ADM.colMembers || 'Members')}" class="py-2 px-2 text-right md:whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${cl.member_count}</td>
+                        <td data-label="${escapeHtmlAdmin(ADM.colCreated || 'Created')}" class="py-2 px-2 text-xs text-gray-500 md:whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(createdAt)}</td>
+                        <td data-label="${escapeHtmlAdmin(ADM.colLastUpdated || 'Last Updated')}" class="py-2 px-2 text-xs text-gray-500 md:whitespace-nowrap cursor-pointer" onclick="${clickEdit}">${fmtDate(updatedAt)}</td>
                         <td class="py-2 px-2 text-right">
                             <div class="flex justify-end">
                                 <div class="dropdown dropdown-end">

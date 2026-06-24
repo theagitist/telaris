@@ -164,4 +164,36 @@ body.font-sans {
 .tel-kw-14 { color: #f0abfc !important; background-color: rgba(240, 171, 252, 0.16) !important; }
 .tel-kw-15 { color: #f9a8d4 !important; background-color: rgba(249, 168, 212, 0.16) !important; }
 .tel-kw-16 { color: #fda4af !important; background-color: rgba(253, 164, 175, 0.16) !important; }
+
+/* =========================================================================
+   Touch targets: these operator surfaces lean on btn-xs / btn-sm / xs controls
+   that are fine with a mouse but too small to tap reliably. On coarse pointers
+   (phones, tablets) give the dense controls a usable hit height. Height only,
+   not width, so toolbar .join groups don't overflow narrow screens.
+   ========================================================================= */
+@media (pointer: coarse) {
+  .btn-xs, .btn-sm, .tab { min-height: 2.25rem; }
+  .checkbox-xs, .toggle-xs { width: 1.25rem; height: 1.25rem; }
+}
+
+/* =========================================================================
+   Tables -> cards on phones. A .tbl-cards table renders normally on desktop;
+   below the md breakpoint each row becomes a stacked card with the column name
+   (from each cell's data-label) shown inline as a label. Cells with no
+   data-label (checkboxes, action menus) keep no label; empty cells collapse.
+   ========================================================================= */
+@media (max-width: 767px) {
+  .tbl-cards thead { display: none; }
+  .tbl-cards, .tbl-cards tbody, .tbl-cards tr, .tbl-cards td { display: block; width: 100%; }
+  .tbl-cards tr { border-bottom: 2px solid var(--tel-border); padding: 0.4rem 0; }
+  .tbl-cards td {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+    padding: 0.2rem 0.6rem; border: 0; text-align: right; overflow-wrap: anywhere; min-width: 0;
+  }
+  .tbl-cards td::before {
+    content: attr(data-label); font-weight: 600; text-align: left;
+    color: var(--tel-fg-60); white-space: nowrap;
+  }
+  .tbl-cards td:empty { display: none; }
+}
 </style>

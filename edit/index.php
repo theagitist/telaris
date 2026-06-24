@@ -177,7 +177,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <div class="join">
                         <select id="current-constellation" 
                                 onchange="switchConstellation(this.value)"
-                                class="select select-bordered select-sm min-w-[180px] bg-white join-item">
+                                class="select select-bordered select-sm w-32 sm:w-auto sm:min-w-[180px] max-w-full bg-white join-item">
                             <?php
                             // Resolve current galaxy from ?constellation_id=N or ?slug=foo (slug takes precedence).
                             $currentConstellationParam = 'all';
@@ -273,7 +273,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <div id="editor-tab-wormholes" class="editor-view-panel">
 
         <!-- Bulk Actions Bar -->
-        <div id="bulk-actions-bar" class="hidden sticky top-4 z-[30] bg-neutral text-neutral-content p-4 rounded-lg shadow-xl mb-6 flex items-center justify-between transition-all">
+        <div id="bulk-actions-bar" class="hidden sticky top-4 z-[30] bg-neutral text-neutral-content p-4 rounded-lg shadow-xl mb-6 flex flex-wrap items-center justify-between gap-3 transition-all">
             <div class="flex items-center gap-4">
                 <span class="font-bold"><span id="selected-count">0</span> <?= t_attr('editor_bulk_selected_suffix', 'wormholes selected') ?></span>
                 <div class="h-6 w-px bg-neutral-content/30"></div>
@@ -304,7 +304,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         </div>
         <div class="bg-white rounded-lg shadow-md mb-6">
             <div class="p-6 border-b border-gray-200">
-                <div class="flex items-center justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="flex items-center gap-3">
                         <h2 class="text-gray-800 text-xl font-semibold"><?= t_attr('editor_heading_wormholes', 'Wormholes') ?> (<span id="tab-list-count">0</span>)</h2>
                         <button type="button" onclick="openCreateNodeModal()" class="node-edit-action text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('editor_btn_new_wormhole', 'New Wormhole') ?></button>
@@ -316,7 +316,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <!-- Top Pagination Container -->
                     <div id="nodes-pagination-header" class="flex-1 flex justify-center"></div>
 
-                    <div class="flex items-center gap-2 min-w-[300px]">
+                    <div class="flex items-center gap-2 w-full sm:w-auto sm:min-w-[300px]">
                         <label for="search-nodes" class="text-sm font-medium text-gray-700"><?= t_attr('editor_label_search', 'Search:') ?></label>
                         <input type="text"
                                id="search-nodes"
@@ -331,7 +331,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             <div id="content-list" class="custom-tab-panel p-6">
                 <div id="nodes-list" class="space-y-0">
                     <!-- Header row -->
-                    <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
+                    <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10 hidden md:block">
                         <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700">
                             <div class="col-span-2 cursor-pointer hover:bg-gray-200 px-2 py-1 rounded flex items-center gap-1" onclick="sortByColumn('name')">
                                 <?= t_attr('editor_col_name', 'Name') ?><span id="sort-indicator-name"></span>
@@ -364,7 +364,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         <div id="editor-tab-hotglue" class="editor-view-panel hidden">
 
             <!-- Bulk actions bar (multiselect) -->
-            <div id="hg-bulk-bar" class="hidden sticky top-4 z-[30] bg-neutral text-neutral-content p-4 rounded-lg shadow-xl mb-4 flex items-center justify-between transition-all">
+            <div id="hg-bulk-bar" class="hidden sticky top-4 z-[30] bg-neutral text-neutral-content p-4 rounded-lg shadow-xl mb-4 flex flex-wrap items-center justify-between gap-3 transition-all">
                 <div class="flex items-center gap-4">
                     <span class="font-bold"><span id="hg-selected-count">0</span> <?= t_attr('editor_hg_selected_suffix', 'pages selected') ?></span>
                     <div class="h-6 w-px bg-neutral-content/30"></div>
@@ -378,12 +378,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
             <div class="bg-white rounded-lg shadow-md mb-6">
                 <div class="p-6 border-b border-gray-200">
-                    <div class="flex items-center justify-between">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
                         <div class="flex items-center gap-3">
                             <h2 class="text-gray-800 text-xl font-semibold"><?= t_attr('editor_hg_heading', 'Hotglue content') ?> (<span id="hg-list-count">0</span>)</h2>
                             <button type="button" onclick="hgCreatePage()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('editor_hg_btn_new', 'New page') ?></button>
                         </div>
-                        <div class="flex items-center gap-2 min-w-[300px]">
+                        <div class="flex items-center gap-2 w-full sm:w-auto sm:min-w-[300px]">
                             <label for="hg-search" class="text-sm font-medium text-gray-700"><?= t_attr('editor_label_search', 'Search:') ?></label>
                             <input type="text" id="hg-search" oninput="hgRenderList()" placeholder="<?= t_attr('editor_hg_search_placeholder', 'Search pages...') ?>" class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         </div>
@@ -391,7 +391,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div>
                 <div class="p-6">
                     <div id="hg-pages-list" class="space-y-0">
-                        <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1">
+                        <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 hidden md:block">
                             <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700 items-center">
                                 <div class="col-span-1 px-2 py-1"><input type="checkbox" id="hg-select-all" onclick="hgToggleSelectAll(this)" class="checkbox checkbox-xs border-gray-400"></div>
                                 <div class="col-span-4 px-2 py-1"><?= t_attr('editor_hg_col_title', 'Title') ?></div>
@@ -465,6 +465,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             'errReadOnly'    => t('editor_hg_err_read_only', 'That galaxy is read-only.'),
             'errGeneric'     => t('editor_hg_err_generic', 'Something went wrong. Please try again.'),
             'inGalaxy'       => t('editor_hg_in_galaxy', 'in %s'),
+            'colAssigned'    => t('editor_hg_col_assigned', 'Assigned wormhole'),
+            'colUpdated'     => t('editor_col_updated', 'Updated'),
         ], JSON_THROW_ON_ERROR); ?>;
 
         // Localized strings consumed by inline JS. Mirrors the visitor-side
@@ -1318,7 +1320,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
             try {
                 const headerHTML = `
-                    <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10">
+                    <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 sticky top-0 z-10 hidden md:block">
                         <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700 items-center">
                             <div class="col-span-1 flex justify-center">
                                 <input type="checkbox" id="select-all-nodes" onclick="toggleSelectAll(this)" class="checkbox checkbox-xs border-gray-400">
@@ -1369,13 +1371,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         ? `<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeBadgeClass}" title="${escapeHtml(TELARIS_EDIT.labelTargetPrefix)} ${escapeHtml(targetConstellationName)}">${escapeHtml(typeLabel)}</span> <span class="text-xs text-gray-500 truncate block" title="${escapeHtml(targetConstellationName)}">→ ${escapeHtml(targetConstellationName)}</span>`
                         : `<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium ${typeBadgeClass}">${escapeHtml(typeLabel)}</span>`;
                     return `
-                <div class="border-b border-gray-300 hover:bg-gray-50 py-2 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50/50' : ''}" onclick="toggleNodeSelection(${node.id}, event)">
-                    <div class="grid grid-cols-12 gap-3 items-center text-sm">
-                        <div class="col-span-1 flex justify-center" onclick="event.stopPropagation()">
+                <div class="border-b border-gray-300 hover:bg-gray-50 py-3 md:py-2 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50/50' : ''}" onclick="toggleNodeSelection(${node.id}, event)">
+                    <div class="flex flex-col gap-1.5 md:grid md:grid-cols-12 md:gap-3 md:items-center text-sm">
+                        <div class="md:col-span-1 flex justify-start md:justify-center ${rowReadOnly ? 'hidden md:block' : ''}" onclick="event.stopPropagation()">
                             ${rowReadOnly ? '' : `<input type="checkbox" class="node-checkbox checkbox checkbox-xs" data-id="${node.id}" ${isSelected ? 'checked' : ''} onclick="toggleNodeSelection(${node.id}, event)">`}
                         </div>
-                        <div class="col-span-2 min-w-0" onclick="${rowReadOnly ? `viewNode(${node.id})` : `editNode(${node.id})`}; event.stopPropagation();">
-                            <div class="font-semibold text-gray-800 truncate" title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</div>
+                        <div class="md:col-span-2 min-w-0" onclick="${rowReadOnly ? `viewNode(${node.id})` : `editNode(${node.id})`}; event.stopPropagation();">
+                            <div class="font-semibold text-gray-800 md:truncate" title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</div>
                             <div class="flex flex-wrap gap-1 mt-1">
                                 ${node.is_accentuated ? `<span class="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded border border-yellow-200 font-bold" title="${escapeHtml(TELARIS_EDIT.badgeAccTitle)}">${escapeHtml(TELARIS_EDIT.badgeAcc)}</span>` : ''}
                                 ${node.url ? `<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded" title="${escapeHtml(TELARIS_EDIT.badgeUrlTitle)}">${escapeHtml(TELARIS_EDIT.badgeUrl)}</span>` : ''}
@@ -1386,23 +1388,23 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 ${node.video_url ? `<span class="text-[10px] bg-cyan-100 text-cyan-700 px-1 rounded" title="${escapeHtml(TELARIS_EDIT.badgeVidTitle)}">${escapeHtml(TELARIS_EDIT.badgeVid)}</span>` : ''}
                             </div>
                         </div>
-                        <div class="col-span-1 text-xs">
-                            ${typeDisplay}
+                        <div class="md:col-span-1 text-xs">
+                            <span class="md:hidden font-semibold text-gray-500 mr-1">${escapeHtml(TELARIS_EDIT.colType)}:</span>${typeDisplay}
                         </div>
-                        <div class="col-span-2 text-xs text-gray-600 truncate" title="${escapeHtml(constellationName)}">${escapeHtml(constellationName)}</div>
-                        <div class="col-span-2">
-                            <div class="flex flex-wrap gap-1">${keywordsDisplay}</div>
+                        <div class="md:col-span-2 text-xs text-gray-600 md:truncate" title="${escapeHtml(constellationName)}"><span class="md:hidden font-semibold text-gray-500 mr-1">${escapeHtml(TELARIS_EDIT.colGalaxy)}:</span>${escapeHtml(constellationName)}</div>
+                        <div class="md:col-span-2">
+                            <div class="flex flex-wrap gap-1 items-center"><span class="md:hidden font-semibold text-gray-500 mr-1">${escapeHtml(TELARIS_EDIT.colKeywords)}:</span>${keywordsDisplay}</div>
                         </div>
-                        <div class="col-span-1 text-center">
-                            ${node.is_accentuated ? `<span class="text-yellow-600 font-bold" title="${escapeHtml(TELARIS_EDIT.titleAccentuated)}">✓</span>` : '<span class="text-gray-300">—</span>'}
+                        <div class="md:col-span-1 text-xs md:text-center">
+                            <span class="md:hidden font-semibold text-gray-500 mr-1">${escapeHtml(TELARIS_EDIT.colAcc)}:</span>${node.is_accentuated ? `<span class="text-yellow-600 font-bold" title="${escapeHtml(TELARIS_EDIT.titleAccentuated)}">✓</span>` : '<span class="text-gray-300">—</span>'}
                         </div>
-                        <div class="col-span-1 text-xs text-gray-500 whitespace-nowrap">
-                            ${createdDate}
+                        <div class="md:col-span-1 text-xs text-gray-500 md:whitespace-nowrap">
+                            <span class="md:hidden font-semibold text-gray-500 mr-1">${escapeHtml(TELARIS_EDIT.colCreated)}:</span>${createdDate}
                         </div>
-                        <div class="col-span-1 text-xs text-gray-500 whitespace-nowrap">
-                            ${updatedDate}
+                        <div class="md:col-span-1 text-xs text-gray-500 md:whitespace-nowrap">
+                            <span class="md:hidden font-semibold text-gray-500 mr-1">${escapeHtml(TELARIS_EDIT.colUpdated)}:</span>${updatedDate}
                         </div>
-                        <div class="col-span-1 flex justify-end pr-2">
+                        <div class="md:col-span-1 flex justify-end pr-2">
                             <div class="dropdown dropdown-end">
                                 <label tabindex="0" onclick="event.stopPropagation(); closeAllDropdowns(this)" class="btn btn-ghost btn-xs px-1.5">
                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>
@@ -4080,12 +4082,12 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         ? '<li><a onclick="event.stopPropagation(); hgViewInWormhole(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionViewInWormhole || 'View in wormhole') + '</a></li>'
                         + '<li><a onclick="event.stopPropagation(); hgViewInGalaxy(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionViewInGalaxy || 'View in galaxy') + '</a></li>'
                         : '');
-                    html += '<div class="grid grid-cols-12 gap-3 items-center py-2 border-b border-gray-100 hover:bg-gray-50">'
-                        + '<div class="col-span-1 px-2"><input type="checkbox" class="hg-checkbox checkbox checkbox-xs" data-id="' + p.id + '"' + checked + ' onclick="hgToggleSelect(' + p.id + ')"></div>'
-                        + '<div class="col-span-4 px-2"><button type="button" class="text-blue-600 hover:text-blue-800 font-medium text-left" onclick="hgOpenEditorById(' + p.id + ')">' + title + '</button></div>'
-                        + '<div class="col-span-4 px-2 text-sm text-gray-700">' + assigned + '</div>'
-                        + '<div class="col-span-2 px-2 text-xs text-gray-500">' + updated + '</div>'
-                        + '<div class="col-span-1 px-2 flex justify-end">'
+                    html += '<div class="flex flex-col gap-1.5 md:grid md:grid-cols-12 md:gap-3 md:items-center py-3 md:py-2 border-b border-gray-100 hover:bg-gray-50">'
+                        + '<div class="md:col-span-1 px-2"><input type="checkbox" class="hg-checkbox checkbox checkbox-xs" data-id="' + p.id + '"' + checked + ' onclick="hgToggleSelect(' + p.id + ')"></div>'
+                        + '<div class="md:col-span-4 px-2"><button type="button" class="text-blue-600 hover:text-blue-800 font-medium text-left" onclick="hgOpenEditorById(' + p.id + ')">' + title + '</button></div>'
+                        + '<div class="md:col-span-4 px-2 text-sm text-gray-700"><span class="md:hidden font-semibold text-gray-500 mr-1">' + esc(HG.colAssigned || 'Assigned wormhole') + ':</span>' + assigned + '</div>'
+                        + '<div class="md:col-span-2 px-2 text-xs text-gray-500"><span class="md:hidden font-semibold text-gray-500 mr-1">' + esc(HG.colUpdated || 'Updated') + ':</span>' + updated + '</div>'
+                        + '<div class="md:col-span-1 px-2 flex justify-end">'
                         + '<div class="dropdown dropdown-end">'
                         + '<label tabindex="0" onclick="event.stopPropagation(); if(typeof closeAllDropdowns===\'function\')closeAllDropdowns(this)" class="btn btn-ghost btn-xs px-1.5"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg></label>'
                         + '<ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-48">'
