@@ -7,6 +7,9 @@
  *	Copyright Gottfried Haider, Danja Vasiliev 2010.
  *	This source code is licensed under the GNU General Public License.
  *	See the file COPYING for more details.
+ *
+ *	Modified 2026-06-25 by the theagitist/hotglue2 fork: accept WebP page
+ *	background uploads.
  */
 
 @require_once('config.inc.php');
@@ -245,10 +248,10 @@ function page_upload($args)
 		return false;
 	}
 	// check if supported file
-	if (!in_array($args['mime'], array('image/jpeg', 'image/png', 'image/gif')) || ($args['mime'] == '' && !in_array(filext($args['file']), array('jpg', 'jpeg', 'png', 'gif')))) {
+	if (!in_array($args['mime'], array('image/jpeg', 'image/png', 'image/gif', 'image/webp')) || ($args['mime'] == '' && !in_array(filext($args['file']), array('jpg', 'jpeg', 'png', 'gif', 'webp')))) {
 		return false;
 	}
-	
+
 	// check if there is already a background-image and delete it
 	$obj = load_object(array('name'=>$args['page'].'.page'));
 	if (!$obj['#error']) {

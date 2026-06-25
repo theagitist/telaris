@@ -1,10 +1,17 @@
 Vendored from github.com/theagitist/hotglue2 (fork of k0a1a/hotglue2)
-branch telaris @ dbc7c350 (bumped from 8cf3e6a)
+branch telaris @ 309eeb7 (bumped from dbc7c350)
 GPL-3.0; see hg/COPYING and hg/UPSTREAM.md
 
-Note: this is a curated vendor, not a full mirror. From the 8cf3e6a -> dbc7c35
-bump only module_mobile.inc.php (mobile scale-to-fit) was taken; the branch's
-docs (MOBILE-SCALING.md, TELARIS-PORT-HANDOFF.md), tests/, docker/ and doc/ are
-intentionally not vendored, and local Telaris patches (telaris-auth.inc.php and
-the modified config.inc.php / index.php / controller.inc.php / common.inc.php /
-json.php / js/edit.js / js/glue.js) are retained.
+Note: this is a curated vendor, not a full mirror. Local Telaris patches
+(telaris-auth.inc.php and the modified config.inc.php / index.php /
+controller.inc.php / common.inc.php / json.php / js/edit.js / js/glue.js) are
+retained, and the branch's docs, tests/, docker/ and doc/ are intentionally not
+vendored.
+
+Vendor history:
+- dbc7c350: module_mobile.inc.php (mobile scale-to-fit).
+- 309eeb7: WebP support (module_image.inc.php, module_page.inc.php, plus the
+  IMAGE_WEBP_QUAL define applied surgically into the patched config.inc.php) and
+  PeerTube webvideo provider (module_webvideo.inc.php,
+  modules/webvideo/webvideo-edit{.js,.min.js}). The accompanying
+  tests/ (webp-roundtrip.test.php, peertube-url.test.js) were not vendored.

@@ -7,6 +7,9 @@
  *	Copyright Gottfried Haider, Danja Vasiliev 2010.
  *	This source code is licensed under the GNU General Public License.
  *	See the file COPYING for more details.
+ *
+ *	Modified 2026-06-25 by the theagitist/hotglue2 fork: added WebP support
+ *	(upload acceptance, GD resize via imagecreatefromwebp/imagewebp, serving).
  */
 
 @require_once('config.inc.php');
@@ -451,6 +454,12 @@ function image_resize($args)
 		// save gifs as png
 		// TODO (later): check for animated gif (see php.net/manual/en/function.imagecreatefromgif.php)
 		$dest_ext = 'png';
+	} elseif ($obj['image-file-mime'] == 'image/webp' || $ext == 'webp') {
+		$orig = @imagecreatefromwebp($fn);
+		// keep webp on resize (preserves alpha and small size)
+		// ponytail: animated webp is not detected by is_ani() (gif-only), so it
+		// would be resized to its first frame; acceptable until anyone hits it
+		$dest_ext = 'webp';
 	} else {
 		return response('Unsupported source file format '.quot($obj['image-file']), 500);
 	}
@@ -489,6 +498,11 @@ function image_resize($args)
 		@imagealphablending($resized, false);
 		@imagesavealpha($resized, true);
 		$ret = @imagepng($resized, $fn, IMAGE_PNG_QUAL);
+	} else if ($dest_ext == 'webp') {
+		// preserve any alpha channel
+		@imagealphablending($resized, false);
+		@imagesavealpha($resized, true);
+		$ret = @imagewebp($resized, $fn, IMAGE_WEBP_QUAL);
 	}
 	umask($m);
 	// destroy images again
@@ -581,6 +595,8 @@ function image_serve_resource($args)
 			serve_file($fn, false, 'image/jpeg');
 		} else if ($ext == 'png') {
 			serve_file($fn, false, 'image/png');
+		} else if ($ext == 'webp') {
+			serve_file($fn, false, 'image/webp');
 		} else {
 			log_msg('warn', 'image_serve_resource: unsupported image-resized-file '.quot($fn));
 		}
@@ -683,10 +699,10 @@ function image_snapshot_symlink($args)
 function image_upload($args)
 {
 	// check if supported file
-	if (!in_array($args['mime'], array('image/jpeg', 'image/png', 'image/gif')) || ($args['mime'] == '' && !in_array(filext($args['file']), array('jpg', 'jpeg', 'png', 'gif')))) {
+	if (!in_array($args['mime'], array('image/jpeg', 'image/png', 'image/gif', 'image/webp')) || ($args['mime'] == '' && !in_array(filext($args['file']), array('jpg', 'jpeg', 'png', 'gif', 'webp')))) {
 		return false;
 	}
-	
+
 	load_modules('glue');
 	// create new object
 	$obj = create_object($args);

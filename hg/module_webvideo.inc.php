@@ -2,11 +2,15 @@
 
 /*
  *	module_webvideo.inc.php
- *	Module for embedding youtube and vimeo videos
+ *	Module for embedding youtube, vimeo and peertube videos
  *
  *	Copyright Gottfried Haider, Danja Vasiliev 2010.
  *	This source code is licensed under the GNU General Public License.
  *	See the file COPYING for more details.
+ *
+ *	Modified 2026-06-25 by the theagitist/hotglue2 fork: added PeerTube
+ *	provider support (federated, so the instance host is stored per-object
+ *	in the webvideo-host attribute).
  */
 
 @require_once('config.inc.php');
@@ -65,6 +69,25 @@ function webvideo_alter_render_early($args)
 			$src .= '&loop=1';
 		}
 		elem_attr($i, 'src', $src);
+	} elseif ($obj['webvideo-provider'] == 'peertube') {
+		// PeerTube is federated: the instance host is stored per-object
+		if (empty($obj['webvideo-host'])) {
+			return false;
+		}
+		// use protocol relative url
+		$src = '//';
+		$src .= $obj['webvideo-host'].'/videos/embed/'.$obj['webvideo-id'];
+		// embed url has no query of its own, so the first param uses '?'
+		$sep = '?';
+		if (isset($obj['webvideo-autoplay']) && $obj['webvideo-autoplay'] == 'autoplay') {
+			$src .= $sep.'autoplay=1';
+			$sep = '&';
+		}
+		if (isset($obj['webvideo-loop']) && $obj['webvideo-loop'] == 'loop') {
+			$src .= $sep.'loop=1';
+		}
+		elem_attr($i, 'src', $src);
+		elem_add_class($i, 'peertube-player');
 	}
 	// frameborder is not valid html
 	//elem_attr($i, 'frameborder', '0');

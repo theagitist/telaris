@@ -11,7 +11,7 @@ $(document).ready(function() {
 	//
 	// menu items
 	//
-	var elem = $('<img src="'+$.glue.base_url+'modules/webvideo/webvideo.png" alt="btn" title="embed a youtube or vimeo video" width="32" height="32">');
+	var elem = $('<img src="'+$.glue.base_url+'modules/webvideo/webvideo.png" alt="btn" title="embed a youtube, vimeo or peertube video" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		var url = prompt('Enter the video URL (e.g. http://www.youtube.com/watch?v=_mdVHEus0T8)');
 		if (!url) {
@@ -41,8 +41,19 @@ $(document).ready(function() {
 				provider = 'vimeo';
 				var id = String(parseInt(url.slice(start)));
 			}
+		} else if (url.indexOf('/videos/watch/') != -1 || url.indexOf('/videos/embed/') != -1 || url.indexOf('/w/') != -1) {
+			// PeerTube is federated, so detect by path (any instance host).
+			// Capture host + id; the char class blocks quote/angle injection.
+			var m = url.match(/^(?:https?:)?\/\/([^\/?#"'<>]+)\/(?:videos\/(?:watch|embed)|w)\/([^\/?#"'<>]+)/);
+			if (!m) {
+				$.glue.error('Error understanding the PeerTube link');
+			} else {
+				provider = 'peertube';
+				var host = m[1];
+				var id = m[2];
+			}
 		} else {
-			$.glue.error('Only youtube and vimeo videos are supported at the moment.');
+			$.glue.error('Only youtube, vimeo and peertube videos are supported at the moment.');
 		}
 		
 		if (provider) {
@@ -65,6 +76,9 @@ $(document).ready(function() {
 				} else if (provider == 'vimeo') {
 					var src = '//';
 					var child = $('<iframe src="'+src+'player.vimeo.com/video/'+id+'?title=0&amp;byline=0&amp;portrait=0&amp;color=ffffff" style="border-width: 0px; height: 100%; position: absolute; width: 100%;"></iframe>');
+				} else if (provider == 'peertube') {
+					var src = '//';
+					var child = $('<iframe src="'+src+host+'/videos/embed/'+id+'" style="border-width: 0px; height: 100%; position: absolute; width: 100%;"></iframe>');
 				}
 				$(elem).append(child);
 				// put the iframe behind some shield for editing
@@ -79,7 +93,12 @@ $(document).ready(function() {
 				$(elem).css('top', (e.pageY-$(elem).outerHeight()/2)+'px');
 				$.glue.object.register(elem);
 				// set the provider and the id in the object file
-				$.glue.backend({ method: 'glue.update_object', name: $(elem).attr('id'), 'webvideo-provider': provider, 'webvideo-id': id });
+				var attrs = { method: 'glue.update_object', name: $(elem).attr('id'), 'webvideo-provider': provider, 'webvideo-id': id };
+				if (provider == 'peertube') {
+					// federated: persist the instance host too
+					attrs['webvideo-host'] = host;
+				}
+				$.glue.backend(attrs);
 				// and save the element
 				$.glue.object.save(elem);
 			});

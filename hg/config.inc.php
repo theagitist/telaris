@@ -51,6 +51,7 @@ error_reporting(E_ALL & ~E_STRICT);						// see php documentation
 // default modules
 @define('IMAGE_JPEG_QUAL', 90);				// quality for jpeg resizing (0 < 100)
 @define('IMAGE_PNG_QUAL', 7);				// quality for png resizing (9 < 0)
+@define('IMAGE_WEBP_QUAL', 80);				// quality for webp resizing (0 < 100)
 @define('IMAGE_RESIZING', true);			// resize uploaded images on the server (needs gd installed)
 @define('IMAGE_UPLOAD_RESIZE_LARGER', '120%');	// automatically resize uploaded image when larger than n% of window width or height (set to 0% to disable)
 @define('IMAGE_UPLOAD_RESIZE_TO', '80%');		// target size in n% of window width or height
