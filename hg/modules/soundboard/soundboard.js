@@ -1,34 +1,38 @@
 /**
  *	modules/soundboard/soundboard.js
- *	Soundboard runtime: tap a tile to (re)trigger its clip; several can play at
- *	once. Handles two kinds of tile:
+ *	Soundboard runtime for self-hosted <video> tiles: tap a tile to (re)trigger
+ *	its clip, with all clips mixed through one Web Audio AudioContext so several
+ *	can sound at once, including on iOS (which is unreliable mixing multiple
+ *	<video> elements' own audio).
  *
- *	  1. Self-hosted <video> (.video video): mixed through one Web Audio
- *	     AudioContext, so multiple clips sound at once reliably, including on iOS
- *	     (which is unreliable mixing several media elements' own audio).
- *
- *	  2. Embeds (.webvideo iframe), YouTube for now: driven through the YouTube
- *	     IFrame Player API. A transparent overlay turns each tile into a one-tap
- *	     trigger (tap = restart + play + unmute). NOTE embeds are cross-origin
- *	     iframes, so they cannot be routed through Web Audio; simultaneous audio
- *	     from several embeds is therefore a browser matter (fine on desktop,
- *	     limited on iOS, which tends to allow one audio source). If you need
- *	     reliable multi-audio on mobile, use self-hosted clips (mode 1).
+ *	Embeds (.webvideo iframes: YouTube, PeerTube, Vimeo) are NOT handled here:
+ *	they are cross-origin, so they cannot be routed through Web Audio, and we
+ *	deliberately ship no provider control scripts. Embeds play through their own
+ *	native player controls (tap the player's play button); several can play in
+ *	parallel. Note simultaneous audio from multiple embeds is desktop-solid and
+ *	limited on iOS (a cross-origin browser constraint). For reliable multi-audio
+ *	on mobile, use self-hosted clips.
  *
  *	Enqueued by module_soundboard.inc.php only on the published view of a page
- *	flagged page-soundboard.
+ *	flagged page-soundboard. Web Audio needs same-origin media to produce sound;
+ *	hotglue serves uploads same-origin, so this holds.
  *
  *	This source code is licensed under the GNU General Public License.
  *	See the file COPYING for more details.
  */
 
 (function () {
+	function init() {
+		var videos = [].slice.call(document.querySelectorAll('.video video'));
+		if (!videos.length) {
+			return;
+		}
 
-	// --- mode 1: self-hosted clips, mixed via Web Audio ---------------------
-	function wireSelfHosted(videos) {
 		var AC = window.AudioContext || window.webkitAudioContext;
 		var ctx = null;
 
+		// prepare each tile: inline playback, no autostart, no native controls;
+		// we drive playback on tap. Clips are one-shot (re-tap restarts).
 		videos.forEach(function (v) {
 			v.setAttribute('playsinline', '');
 			v.removeAttribute('autoplay');
@@ -42,8 +46,8 @@
 			try { v.pause(); } catch (e) {}
 		});
 
-		// Must start the AudioContext inside a user gesture (esp. iOS), so wire
-		// the mixer lazily on the first tap.
+		// Wire every tile into one mixer. Must run inside a user gesture for the
+		// AudioContext to start (esp. iOS), so we do it lazily on the first tap.
 		function ensureMixer() {
 			if (ctx || !AC) {
 				return;
@@ -53,7 +57,7 @@
 				try {
 					ctx.createMediaElementSource(v).connect(ctx.destination);
 				} catch (e) {
-					// already wired or not permitted; element keeps its own audio
+					// already wired or not permitted; the element keeps its own audio
 				}
 			});
 		}
@@ -71,80 +75,6 @@
 				}
 			});
 		});
-	}
-
-	// --- mode 2: YouTube embeds, driven via the IFrame Player API -----------
-	function isYouTube(f) {
-		return (f.getAttribute('src') || '').indexOf('youtube.com/embed/') !== -1;
-	}
-
-	function addTriggerOverlay(frame, onTap) {
-		var tile = frame.parentNode; // the .webvideo object div
-		if (!tile) {
-			return;
-		}
-		if (getComputedStyle(tile).position === 'static') {
-			tile.style.position = 'absolute';
-		}
-		var ov = document.createElement('div');
-		ov.className = 'soundboard-trigger';
-		ov.style.cssText = 'position:absolute;left:0;top:0;right:0;bottom:0;z-index:5;cursor:pointer;background:transparent;';
-		ov.addEventListener('click', function (e) {
-			e.preventDefault();
-			onTap();
-		});
-		tile.appendChild(ov);
-	}
-
-	function wireYouTubeEmbeds(frames) {
-		// the API needs enablejsapi=1 in the src and an id to attach to
-		frames.forEach(function (f, i) {
-			var s = f.getAttribute('src') || '';
-			if (s.indexOf('enablejsapi=1') === -1) {
-				f.setAttribute('src', s + (s.indexOf('?') > -1 ? '&' : '?') + 'enablejsapi=1');
-			}
-			if (!f.id) {
-				f.id = 'sb-yt-' + i;
-			}
-		});
-
-		var players = {};
-		// global callback the IFrame API calls once loaded
-		window.onYouTubeIframeAPIReady = function () {
-			frames.forEach(function (f) {
-				players[f.id] = new YT.Player(f.id);
-			});
-			// add tap overlays only now that players exist; if the API never
-			// loads we add none, so the embeds keep their native play controls
-			frames.forEach(function (f) {
-				addTriggerOverlay(f, function () {
-					var p = players[f.id];
-					if (!p || !p.playVideo) {
-						return;
-					}
-					try {
-						p.unMute();
-						p.seekTo(0);
-						p.playVideo();
-					} catch (e) {}
-				});
-			});
-		};
-
-		var tag = document.createElement('script');
-		tag.src = 'https://www.youtube.com/iframe_api';
-		(document.head || document.body).appendChild(tag);
-	}
-
-	function init() {
-		var videos = [].slice.call(document.querySelectorAll('.video video'));
-		if (videos.length) {
-			wireSelfHosted(videos);
-		}
-		var frames = [].slice.call(document.querySelectorAll('.webvideo iframe')).filter(isYouTube);
-		if (frames.length) {
-			wireYouTubeEmbeds(frames);
-		}
 	}
 
 	if (document.readyState === 'loading') {

@@ -6,15 +6,16 @@
  *
  *	THE IDEA
  *	Turn a page of video tiles into a sound board: tap a tile to (re)trigger its
- *	clip, and let several clips sound at once. Two kinds of tile are supported by
- *	the runtime (modules/soundboard/soundboard.js):
- *	  - self-hosted <video>: routed through a single Web Audio AudioContext, so
- *	    multiple clips mix reliably, including on iOS (which is unreliable mixing
- *	    several media elements' own audio);
- *	  - embeds (.webvideo iframe), YouTube for now: driven through the YouTube
- *	    IFrame Player API with a tap overlay per tile. Embeds are cross-origin,
- *	    so they cannot be routed through Web Audio; simultaneous audio from
- *	    several embeds is a browser matter (fine on desktop, limited on iOS).
+ *	clip, and let several clips sound at once. Two kinds of tile:
+ *	  - self-hosted <video>: the runtime (modules/soundboard/soundboard.js)
+ *	    routes them through a single Web Audio AudioContext, so multiple clips mix
+ *	    reliably, including on iOS (which is unreliable mixing several media
+ *	    elements' own audio). Tap a tile to (re)trigger.
+ *	  - embeds (.webvideo iframe: YouTube, PeerTube, Vimeo): cross-origin, so
+ *	    they cannot be routed through Web Audio. They play through their own
+ *	    native player controls (no provider control scripts are shipped); several
+ *	    can play in parallel. Simultaneous embed audio is desktop-solid and
+ *	    limited on iOS. For reliable mobile multi-audio, use self-hosted clips.
  *
  *	OPT-IN (per page)
  *	A page is a soundboard only when its page object carries page-soundboard. The

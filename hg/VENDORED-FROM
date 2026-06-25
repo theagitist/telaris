@@ -1,12 +1,14 @@
 Vendored from github.com/theagitist/hotglue2 (fork of k0a1a/hotglue2)
-branch telaris @ 7416e8d (bumped from e1314db)
+branch telaris @ 9aaf491 (bumped from 7416e8d)
 GPL-3.0; see hg/COPYING and hg/UPSTREAM.md
 
 Note: this is a curated vendor, not a full mirror. Local Telaris patches
 (telaris-auth.inc.php and the modified config.inc.php / index.php /
 controller.inc.php / common.inc.php / json.php / js/edit.js / js/glue.js) are
-retained, and the branch's docs, tests/, docker/ and doc/ are intentionally not
-vendored.
+retained, and the branch's docs, tests/, docker/, doc/ and tools/ (icon-render
+build tooling) are intentionally not vendored. The code and user_code modules
+(arbitrary-code injection) are also intentionally NOT vendored into the
+auth-gated embed, so their assets are skipped on every bump.
 
 Vendor history:
 - dbc7c350: module_mobile.inc.php (mobile scale-to-fit).
@@ -21,3 +23,12 @@ Vendor history:
 - 7416e8d: soundboard YouTube-embed support (module_soundboard.inc.php,
   modules/soundboard/soundboard.js) via the YouTube IFrame Player API for
   cross-origin embeds, alongside the unchanged self-hosted Web Audio path.
+- 9aaf491: editor theme/skin + modern icon set + soundboard simplification.
+  New module_theme.inc.php (loads css/theme.css in edit mode via render_page_early,
+  no core edits) + css/theme.css carrying the Telaris brand skin (Aurora glyphs on
+  translucent HUD chips, mint focus signal). Modernised editor icon PNGs across
+  img/ and modules/*/ (Lucide glyphs; SVG sources + render.sh live under tools/,
+  not vendored). Soundboard embeds now use native controls (provider-agnostic),
+  simplifying module_soundboard.inc.php + modules/soundboard/soundboard.js. The
+  code/user_code module icon PNGs from this commit were skipped (those modules are
+  not vendored).
