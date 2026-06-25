@@ -1,3 +1,10 @@
 Vendored from github.com/theagitist/hotglue2 (fork of k0a1a/hotglue2)
-branch telaris @ 8cf3e6ab5e526bb0bf67704895ce3dd4caa4ca35
+branch telaris @ dbc7c350 (bumped from 8cf3e6a)
 GPL-3.0; see hg/COPYING and hg/UPSTREAM.md
+
+Note: this is a curated vendor, not a full mirror. From the 8cf3e6a -> dbc7c35
+bump only module_mobile.inc.php (mobile scale-to-fit) was taken; the branch's
+docs (MOBILE-SCALING.md, TELARIS-PORT-HANDOFF.md), tests/, docker/ and doc/ are
+intentionally not vendored, and local Telaris patches (telaris-auth.inc.php and
+the modified config.inc.php / index.php / controller.inc.php / common.inc.php /
+json.php / js/edit.js / js/glue.js) are retained.
