@@ -5,13 +5,16 @@
  *	Parallel-video "soundboard" for VIEW mode (theagitist/hotglue2 fork).
  *
  *	THE IDEA
- *	Turn a page of self-hosted video objects into a sound board: tap a tile to
- *	(re)trigger its clip, and let several clips sound at once. The catch is
- *	mobile: iOS Safari is unreliable at playing audio from multiple <video>
- *	elements simultaneously. So instead of relying on each element's own audio,
- *	the runtime (modules/soundboard/soundboard.js) routes every clip through a
- *	single Web Audio AudioContext, which mixes arbitrarily many sources reliably,
- *	including on iOS, while the video stays visible.
+ *	Turn a page of video tiles into a sound board: tap a tile to (re)trigger its
+ *	clip, and let several clips sound at once. Two kinds of tile are supported by
+ *	the runtime (modules/soundboard/soundboard.js):
+ *	  - self-hosted <video>: routed through a single Web Audio AudioContext, so
+ *	    multiple clips mix reliably, including on iOS (which is unreliable mixing
+ *	    several media elements' own audio);
+ *	  - embeds (.webvideo iframe), YouTube for now: driven through the YouTube
+ *	    IFrame Player API with a tap overlay per tile. Embeds are cross-origin,
+ *	    so they cannot be routed through Web Audio; simultaneous audio from
+ *	    several embeds is a browser matter (fine on desktop, limited on iOS).
  *
  *	OPT-IN (per page)
  *	A page is a soundboard only when its page object carries page-soundboard. The

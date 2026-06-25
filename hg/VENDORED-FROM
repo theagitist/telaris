@@ -1,5 +1,5 @@
 Vendored from github.com/theagitist/hotglue2 (fork of k0a1a/hotglue2)
-branch telaris @ e1314db (bumped from 309eeb7)
+branch telaris @ 7416e8d (bumped from e1314db)
 GPL-3.0; see hg/COPYING and hg/UPSTREAM.md
 
 Note: this is a curated vendor, not a full mirror. Local Telaris patches
@@ -18,3 +18,6 @@ Vendor history:
 - e1314db: soundboard module (module_soundboard.inc.php + modules/soundboard/),
   a per-page opt-in that mixes parallel video clips through one Web Audio
   AudioContext. All-new files, no core edits.
+- 7416e8d: soundboard YouTube-embed support (module_soundboard.inc.php,
+  modules/soundboard/soundboard.js) via the YouTube IFrame Player API for
+  cross-origin embeds, alongside the unchanged self-hosted Web Audio path.
