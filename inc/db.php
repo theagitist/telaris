@@ -213,8 +213,8 @@ const PROJECT_INFO_KEYS = [
     'editor_toast_url_copied', 'editor_title_url_copied', 'editor_toast_galaxy_created', 'editor_toast_error_creating_galaxy', 'editor_prompt_new_galaxy_name',
     'editor_modal_heading_add_wormhole', 'editor_modal_heading_edit_wormhole', 'editor_label_name_required', 'editor_error_name_exists', 'editor_help_name', 'editor_label_galaxy', 'editor_help_constellation', 'editor_label_wormhole_type', 'editor_help_node_type', 'editor_label_keywords', 'editor_placeholder_add_keyword', 'editor_help_keywords_add', 'editor_label_accentuate_wormhole', 'editor_help_accentuate', 'editor_label_show_keywords', 'editor_help_show_keywords', 'editor_label_target_galaxy', 'editor_help_target_galaxy', 'editor_btn_create_new_galaxy', 'editor_label_description', 'editor_help_description', 'editor_label_url', 'editor_placeholder_url', 'editor_help_url', 'editor_label_primary_visual', 'editor_tab_image', 'editor_tab_video', 'editor_tab_pdf', 'editor_help_visual_mutex', 'editor_label_image_url_file', 'editor_label_use_as_icon', 'editor_placeholder_image_url', 'editor_placeholder_video_url', 'editor_label_autoplay_video', 'editor_placeholder_pdf_url', 'editor_help_pdf', 'editor_placeholder_credit', 'editor_help_credit', 'editor_label_icon_url_file', 'editor_placeholder_icon_url', 'editor_help_icon', 'editor_label_audio_url_file', 'editor_placeholder_audio_url', 'editor_label_autoplay', 'editor_label_loop', 'editor_help_audio',
     'editor_text_uploading', 'editor_btn_add_wormhole', 'editor_btn_cancel', 'editor_divider_media', 'editor_btn_delete_file', 'editor_btn_update_wormhole',
-    'editor_tab_classic', 'editor_tab_media', 'editor_tab_hotglue', 'editor_btn_edit_hotglue', 'editor_help_hotglue', 'editor_hotglue_create_note', 'editor_hotglue_modal_heading', 'editor_btn_hotglue_done',
-    'editor_viewtab_wormholes', 'editor_viewtab_hotglue', 'editor_hg_heading', 'editor_hg_btn_new', 'editor_hg_search_placeholder', 'editor_hg_col_title', 'editor_hg_col_assigned', 'editor_hg_loading', 'editor_hg_title_placeholder', 'editor_hg_title_hint', 'editor_hg_assign_label', 'editor_hg_assign_none', 'editor_hg_untitled', 'editor_hg_empty', 'editor_hg_no_match', 'editor_hg_unassigned', 'editor_hg_save_failed', 'editor_hg_confirm_replace', 'editor_hg_confirm_delete', 'editor_hg_err_not_authorized', 'editor_hg_err_read_only', 'editor_hg_err_generic', 'editor_hg_in_galaxy', 'editor_hg_name_label', 'editor_hg_selected_suffix', 'editor_hg_bulk_unassign', 'editor_hg_bulk_delete', 'editor_hg_confirm_bulk_delete', 'editor_hg_galaxy_empty', 'editor_hg_create_link', 'editor_hg_copy_suffix', 'editor_hg_dup_notice', 'editor_hg_action_view_in_wormhole', 'editor_hg_action_view_in_galaxy', 'editor_hg_action_view_directly',
+    'editor_tab_classic', 'editor_tab_media', 'editor_tab_hotglue', 'editor_btn_edit_hotglue', 'editor_help_hotglue', 'editor_hotglue_create_note', 'editor_untitled_wormhole', 'editor_hotglue_modal_heading', 'editor_btn_hotglue_done',
+    'editor_viewtab_wormholes', 'editor_viewtab_hotglue', 'editor_hg_heading', 'editor_hg_btn_new', 'editor_hg_search_placeholder', 'editor_hg_col_title', 'editor_hg_col_assigned', 'editor_hg_loading', 'editor_hg_title_placeholder', 'editor_hg_title_hint', 'editor_hg_assign_label', 'editor_hg_assign_none', 'editor_hg_untitled', 'editor_hg_empty', 'editor_hg_no_match', 'editor_hg_unassigned', 'editor_hg_save_failed', 'editor_hg_confirm_replace', 'editor_hg_confirm_delete', 'editor_hg_err_not_authorized', 'editor_hg_err_read_only', 'editor_hg_err_generic', 'editor_hg_in_galaxy', 'editor_hg_name_label', 'editor_hg_selected_suffix', 'editor_hg_bulk_unassign', 'editor_hg_bulk_delete', 'editor_hg_confirm_bulk_delete', 'editor_hg_galaxy_empty', 'editor_hg_create_link', 'editor_hg_copy_suffix', 'editor_hg_dup_notice', 'editor_hg_action_view_in_wormhole', 'editor_hg_action_view_in_galaxy', 'editor_hg_action_view_directly', 'editor_hg_btn_revisions',
     'editor_modal_heading_confirm_delete', 'editor_btn_delete',
     'editor_modal_heading_move_wormholes', 'editor_text_move_count_wormholes', 'editor_label_destination_galaxy', 'editor_btn_move_wormholes',
     'editor_modal_heading_duplicate_wormhole', 'editor_text_duplicate_to', 'editor_btn_duplicate',
@@ -253,7 +253,6 @@ const PROJECT_INFO_KEYS = [
     'admin_label_instance_name', 'admin_help_instance_name',
     'admin_label_pdf_max', 'admin_help_pdf_max', 'admin_btn_save_settings',
     'admin_label_fuzzy_keywords', 'admin_help_fuzzy_keywords',
-    'admin_label_disable_hotglue', 'admin_help_disable_hotglue', 'editor_error_hotglue_disabled',
     // Pluriverse tab (admin/index.php?tab=pluriverse + admin/pluriverse-apply.php).
     'admin_pluriverse_heading', 'admin_pluriverse_subheading',
     'admin_pluriverse_status_heading', 'admin_pluriverse_status_status', 'admin_pluriverse_status_submitted', 'admin_pluriverse_status_name', 'admin_pluriverse_status_email', 'admin_pluriverse_status_fingerprint', 'admin_pluriverse_status_help',
@@ -1003,49 +1002,6 @@ function db_set_fuzzy_keyword_matching(bool $enabled): void {
     $stmt->execute([':v' => $enabled ? 1 : 0]);
 }
 
-/**
- * Ensure project_info.disable_hotglue_content exists. Installation-level switch
- * (stored on the 'en' row only). 0 = hotglue supported (the default, so every
- * installation behaves as before), 1 = no new hotglue content may be created.
- */
-function db_ensure_disable_hotglue_content_column(): void {
-    static $checked = false;
-    if ($checked) return;
-    $checked = true;
-    try {
-        $pdo = getDB();
-        $pdo->exec("ALTER TABLE project_info ADD COLUMN IF NOT EXISTS disable_hotglue_content SMALLINT NOT NULL DEFAULT 0");
-    } catch (PDOException $e) {
-        error_log('db_ensure_disable_hotglue_content_column: ' . $e->getMessage());
-    }
-}
-
-/**
- * Installation-level "Disable Hotglue content" switch. When true, no new hotglue
- * content may be created (new/classic wormholes only offer Classic Media, the
- * editor's Hotglue controls hide); wormholes that already have hotglue content
- * keep showing and editing it, and visitor rendering is unaffected. Off by default.
- */
-function db_get_disable_hotglue_content(): bool {
-    db_ensure_disable_hotglue_content_column();
-    try {
-        $pdo = getDB();
-        $stmt = $pdo->query("SELECT disable_hotglue_content FROM project_info WHERE locale = 'en' LIMIT 1");
-        $row = $stmt->fetch();
-        return $row ? ((int)$row['disable_hotglue_content'] === 1) : false;
-    } catch (PDOException $e) {
-        error_log('db_get_disable_hotglue_content: ' . $e->getMessage());
-        return false;
-    }
-}
-
-function db_set_disable_hotglue_content(bool $enabled): void {
-    db_ensure_disable_hotglue_content_column();
-    $pdo = getDB();
-    $stmt = $pdo->prepare("UPDATE project_info SET disable_hotglue_content = :v WHERE locale = 'en'");
-    $stmt->execute([':v' => $enabled ? 1 : 0]);
-}
-
 function db_get_default_constellation_id(): int {
     try {
         $pdo = getDB();
@@ -1265,6 +1221,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_edit_hotglue' => 'Edit hotglue content',
             'editor_help_hotglue' => 'Compose this wormhole\'s media as a freeform hotglue page. Whichever tab is selected when you save is what visitors see.',
             'editor_hotglue_create_note' => 'Enter a name above to create the wormhole, then compose its hotglue page here.',
+            'editor_untitled_wormhole' => 'Untitled wormhole',
             'editor_hotglue_modal_heading' => 'Edit hotglue content',
             'editor_btn_hotglue_done' => 'Done',
             'editor_viewtab_wormholes' => 'Wormholes',
@@ -1288,6 +1245,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_hg_action_view_in_wormhole' => 'View in wormhole',
             'editor_hg_action_view_in_galaxy' => 'View in galaxy',
             'editor_hg_action_view_directly' => 'View in browser',
+            'editor_hg_btn_revisions' => 'Revisions',
             'editor_hg_no_match' => 'No pages match your search.',
             'editor_hg_unassigned' => 'Not assigned',
             'editor_hg_save_failed' => 'Save failed',
@@ -1488,9 +1446,6 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_pdf_max' => 'PDF max size (MB)',
             'admin_label_fuzzy_keywords' => 'Fuzzy keyword matching',
             'admin_help_fuzzy_keywords' => 'When on, multi-galaxy views connect wormholes whose keywords name the same idea even when the words differ (for example colonial, colonialism, and typos). Off draws lines only between exact keyword matches. Each cluster can override this default.',
-            'admin_label_disable_hotglue' => 'Disable Hotglue content',
-            'admin_help_disable_hotglue' => 'When on, no new hotglue content can be created on this installation. Wormholes that already have hotglue content keep showing and editing it; new wormholes only offer Classic Media. Off by default (hotglue is available).',
-            'editor_error_hotglue_disabled' => 'Hotglue content is disabled on this installation. New hotglue content cannot be created.',
             'admin_help_pdf_max' => "Largest PDF a wormhole can carry. Default 25 MB. Editors uploading bigger files will get a 'File exceeds maximum allowed size' error.",
             'admin_btn_save_settings' => 'Save settings',
             // Pluriverse tab.
@@ -2858,6 +2813,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_edit_hotglue' => 'Editar contenido hotglue',
             'editor_help_hotglue' => 'Compón el contenido de este agujero de gusano como una página hotglue de formato libre. La pestaña seleccionada al guardar es lo que se mostrará a quien visite.',
             'editor_hotglue_create_note' => 'Escribe un nombre arriba para crear el agujero de gusano, luego compón aquí su página hotglue.',
+            'editor_untitled_wormhole' => 'Agujero de gusano sin título',
             'editor_hotglue_modal_heading' => 'Editar contenido hotglue',
             'editor_btn_hotglue_done' => 'Listo',
             'editor_viewtab_wormholes' => 'Agujeros de gusano',
@@ -2881,6 +2837,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_hg_action_view_in_wormhole' => 'Ver en el agujero de gusano',
             'editor_hg_action_view_in_galaxy' => 'Ver en la galaxia',
             'editor_hg_action_view_directly' => 'Ver en el navegador',
+            'editor_hg_btn_revisions' => 'Revisiones',
             'editor_hg_no_match' => 'Ninguna página coincide con tu búsqueda.',
             'editor_hg_unassigned' => 'Sin asignar',
             'editor_hg_save_failed' => 'No se pudo guardar',
@@ -3081,9 +3038,6 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_pdf_max' => 'Tamaño máximo de PDF (MB)',
             'admin_label_fuzzy_keywords' => 'Coincidencia aproximada de palabras clave',
             'admin_help_fuzzy_keywords' => 'Cuando se activa, las vistas multigalaxia conectan agujeros de gusano cuyas palabras clave nombran la misma idea aunque las palabras difieran (por ejemplo colonial, colonialismo y erratas). Desactivado, solo traza líneas entre coincidencias exactas. Cada cúmulo puede anular esta opción.',
-            'admin_label_disable_hotglue' => 'Desactivar el contenido hotglue',
-            'admin_help_disable_hotglue' => 'Cuando se activa, no se puede crear contenido hotglue nuevo en esta instalación. Los agujeros de gusano que ya tienen contenido hotglue siguen mostrándolo y permitiendo editarlo; los agujeros de gusano nuevos solo ofrecen Medios clásicos. Desactivado de forma predeterminada (el contenido hotglue está disponible).',
-            'editor_error_hotglue_disabled' => 'El contenido hotglue está desactivado en esta instalación. No se puede crear contenido hotglue nuevo.',
             'admin_help_pdf_max' => "PDF más grande que puede contener un agujero de gusano. Por defecto 25 MB. Al subir archivos más grandes aparece el error 'El archivo supera el tamaño máximo permitido'.",
             'admin_btn_save_settings' => 'Guardar ajustes',
             // Pluriverse tab.
@@ -4447,6 +4401,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_edit_hotglue' => 'Editar conteúdo hotglue',
             'editor_help_hotglue' => 'Componha o conteúdo deste buraco de minhoca como uma página hotglue de formato livre. A aba selecionada ao salvar é o que será exibido a quem visitar.',
             'editor_hotglue_create_note' => 'Digite um nome acima para criar o buraco de minhoca, depois componha aqui sua página hotglue.',
+            'editor_untitled_wormhole' => 'Buraco de minhoca sem título',
             'editor_hotglue_modal_heading' => 'Editar conteúdo hotglue',
             'editor_btn_hotglue_done' => 'Concluído',
             'editor_viewtab_wormholes' => 'Buracos de minhoca',
@@ -4470,6 +4425,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_hg_action_view_in_wormhole' => 'Ver no buraco de minhoca',
             'editor_hg_action_view_in_galaxy' => 'Ver na galáxia',
             'editor_hg_action_view_directly' => 'Ver no navegador',
+            'editor_hg_btn_revisions' => 'Revisões',
             'editor_hg_no_match' => 'Nenhuma página corresponde à sua busca.',
             'editor_hg_unassigned' => 'Sem atribuição',
             'editor_hg_save_failed' => 'Falha ao salvar',
@@ -4670,9 +4626,6 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_pdf_max' => 'Tamanho máximo de PDF (MB)',
             'admin_label_fuzzy_keywords' => 'Correspondência aproximada de palavras-chave',
             'admin_help_fuzzy_keywords' => 'Quando ativado, as vistas multigaláxia conectam buracos de minhoca cujas palavras-chave nomeiam a mesma ideia mesmo quando as palavras diferem (por exemplo colonial, colonialismo e erros de digitação). Desativado, traça linhas apenas entre correspondências exatas. Cada aglomerado pode substituir esta opção.',
-            'admin_label_disable_hotglue' => 'Desativar o conteúdo hotglue',
-            'admin_help_disable_hotglue' => 'Quando ativado, não é possível criar conteúdo hotglue novo nesta instalação. Os buracos de minhoca que já têm conteúdo hotglue continuam a mostrá-lo e a permitir editá-lo; os buracos de minhoca novos só oferecem Mídia clássica. Desativado por padrão (o conteúdo hotglue está disponível).',
-            'editor_error_hotglue_disabled' => 'O conteúdo hotglue está desativado nesta instalação. Não é possível criar conteúdo hotglue novo.',
             'admin_help_pdf_max' => "Maior PDF que um buraco de minhoca pode conter. Padrão 25 MB. Ao enviar arquivos maiores aparece o erro 'O arquivo excede o tamanho máximo permitido'.",
             'admin_btn_save_settings' => 'Salvar configurações',
             // Pluriverse tab.
@@ -6036,6 +5989,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_edit_hotglue' => 'Modifier le contenu hotglue',
             'editor_help_hotglue' => 'Composez le contenu de ce trou de ver comme une page hotglue en forme libre. L\'onglet sélectionné lors de l\'enregistrement est ce qui sera montré aux personnes qui visitent.',
             'editor_hotglue_create_note' => 'Saisis un nom ci-dessus pour créer le trou de ver, puis compose ici sa page hotglue.',
+            'editor_untitled_wormhole' => 'Trou de ver sans titre',
             'editor_hotglue_modal_heading' => 'Modifier le contenu hotglue',
             'editor_btn_hotglue_done' => 'Terminé',
             'editor_viewtab_wormholes' => 'Trous de ver',
@@ -6059,6 +6013,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_hg_action_view_in_wormhole' => 'Voir dans le trou de ver',
             'editor_hg_action_view_in_galaxy' => 'Voir dans la galaxie',
             'editor_hg_action_view_directly' => 'Voir dans le navigateur',
+            'editor_hg_btn_revisions' => 'Révisions',
             'editor_hg_no_match' => 'Aucune page ne correspond à ta recherche.',
             'editor_hg_unassigned' => 'Aucune attribution',
             'editor_hg_save_failed' => 'Échec de l\'enregistrement',
@@ -6259,9 +6214,6 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_label_pdf_max' => 'Taille maximale du PDF (Mo)',
             'admin_label_fuzzy_keywords' => 'Correspondance approximative des mots-clés',
             'admin_help_fuzzy_keywords' => 'Lorsque activée, les vues multigalaxie relient les trous de ver dont les mots-clés nomment la même idée même quand les mots diffèrent (par exemple colonial, colonialisme et fautes de frappe). Désactivée, elle ne trace des lignes qu\'entre des correspondances exactes. Chaque amas peut remplacer ce réglage.',
-            'admin_label_disable_hotglue' => 'Désactiver le contenu hotglue',
-            'admin_help_disable_hotglue' => 'Lorsque activée, aucun nouveau contenu hotglue ne peut être créé sur cette instance. Les trous de ver qui ont déjà du contenu hotglue continuent de l\'afficher et de permettre sa modification ; les nouveaux trous de ver n\'offrent que les Médias classiques. Désactivée par défaut (le contenu hotglue est disponible).',
-            'editor_error_hotglue_disabled' => 'Le contenu hotglue est désactivé sur cette instance. Aucun nouveau contenu hotglue ne peut être créé.',
             'admin_help_pdf_max' => "Plus grand PDF qu\'un trou de ver peut contenir. Par défaut 25 Mo. En téléversant des fichiers plus gros, l\'erreur « Le fichier dépasse la taille maximale autorisée » apparaît.",
             'admin_btn_save_settings' => 'Enregistrer les paramètres',
             // Pluriverse tab.
@@ -12995,32 +12947,6 @@ function db_set_node_media_mode(int $nodeId, string $mode, bool $allowReadOnly =
     $pdo = getDB();
     $stmt = $pdo->prepare("UPDATE nodes SET media_mode = :m WHERE id = :id");
     $stmt->execute([':m' => $mode, ':id' => $nodeId]);
-}
-
-/**
- * Whether a wormhole already has hotglue content: its media_mode is 'hotglue', or
- * a hotglue_pages row is assigned to it. Used to decide whether the "Disable
- * Hotglue content" switch should still allow editing existing content (it does)
- * without permitting new content. Read-only: no rows are created.
- */
-function db_node_has_hotglue_content(int $nodeId): bool {
-    db_ensure_nodes_hotglue_columns();
-    db_ensure_hotglue_pages_table();
-    try {
-        $pdo = getDB();
-        $stmt = $pdo->prepare("SELECT media_mode FROM nodes WHERE id = :id LIMIT 1");
-        $stmt->execute([':id' => $nodeId]);
-        $mode = $stmt->fetchColumn();
-        if (is_string($mode) && $mode === 'hotglue') {
-            return true;
-        }
-        $stmt = $pdo->prepare("SELECT 1 FROM hotglue_pages WHERE node_id = :n LIMIT 1");
-        $stmt->execute([':n' => $nodeId]);
-        return (bool)$stmt->fetchColumn();
-    } catch (PDOException $e) {
-        error_log('db_node_has_hotglue_content: ' . $e->getMessage());
-        return false;
-    }
 }
 
 // ---------------------------------------------------------------------------

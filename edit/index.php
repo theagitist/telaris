@@ -86,13 +86,6 @@ if (!$isAdmin && !db_editor_login_allowed($currentUserId !== null ? (string)$cur
 }
 $constellations = db_get_constellations_for_user($currentUserId, $isAdmin);
 
-// "Disable Hotglue content" installation switch. When on, the editor hides the
-// per-wormhole Hotglue tab for wormholes that don't already have hotglue content,
-// and the editor-home "Hotglue content" tab is hidden unless this user already has
-// hotglue pages to manage. Existing content stays fully editable.
-$hotglueDisabled = db_get_disable_hotglue_content();
-$hotglueUserHasPages = count(db_hotglue_pages_list_for_user($currentUserId, $isAdmin)) > 0;
-
 // Per-user seat access levels, so the editor UI can render read-only seats
 // without edit affordances. Admins always have full write access; the server
 // (api_require_writable_constellation -> api_require_user_writable_constellation)
@@ -266,7 +259,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
              (standalone hotglue pages, optionally assigned to a wormhole). -->
         <div role="tablist" class="tabs tabs-boxed bg-white shadow-md mb-6 p-2 inline-flex gap-1">
             <a id="etab-wormholes" role="tab" class="tab tab-active font-medium" onclick="switchEditorTab('wormholes')"><?= t_attr('editor_viewtab_wormholes', 'Wormholes') ?></a>
-            <a id="etab-hotglue" role="tab" class="tab font-medium <?= ($hotglueDisabled && !$hotglueUserHasPages) ? 'hidden' : '' ?>" onclick="switchEditorTab('hotglue')"><?= t_attr('editor_viewtab_hotglue', 'Hotglue content') ?></a>
+            <a id="etab-hotglue" role="tab" class="tab font-medium" onclick="switchEditorTab('hotglue')"><?= t_attr('editor_viewtab_hotglue', 'Hotglue content') ?></a>
         </div>
 
         <!-- Wormholes tab -->
@@ -473,9 +466,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // window.TELARIS_* pattern; bundled in one object to avoid declaring
         // ~80 PHP variables for every key.
         window.TELARIS_EDIT = <?= json_encode([
-            // Installation switches
-            'hotglueDisabled' => $hotglueDisabled,
-            'errorHotglueDisabled' => t('editor_error_hotglue_disabled', 'Hotglue content is disabled on this installation. New hotglue content cannot be created.'),
             // Media-section tab labels. When the Hotglue tab is hidden, the lone
             // remaining tab reads "Media" (not "Classic", which only makes sense
             // when there is a Hotglue alternative beside it).
@@ -559,6 +549,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             'toastCreatedSuccess' => t('editor_toast_created_successfully', 'Wormhole created successfully'),
             'errorFailedUpdate' => t('editor_error_failed_update', 'Failed to update wormhole'),
             'errorFailedCreate' => t('editor_error_failed_create', 'Failed to create wormhole'),
+            'untitledWormhole' => t('editor_untitled_wormhole', 'Untitled wormhole'),
             'errorNetworkUpload' => t('editor_error_network_upload', 'Network error occurred during upload'),
             'errorNameRequired' => t('editor_error_name_required', 'Wormhole name is required'),
             'autosaveSaving' => t('editor_autosave_saving', 'Saving…'),
@@ -1649,9 +1640,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Reuse the ONE hotglue editor overlay (#hg_editor_overlay) for the
         // per-wormhole flow too. In wormhole mode the Page Name + Assigned
         // wormhole controls are hidden (the page is inherently this node's).
-        function openHotglueEditor() {
-            const id = document.getElementById('edit-id').value;
-            if (!id) return;
+        async function openHotglueEditor() {
+            let id = document.getElementById('edit-id').value;
+            if (!id) {
+                // Brand-new wormhole: create it now (default name if none) so its
+                // node-<id> hotglue page can be composed, then open the editor.
+                const newId = await createNodeForHotglue();
+                if (!newId) return;
+                id = newId;
+            }
             if (typeof window.hgOpenForWormhole === 'function') window.hgOpenForWormhole(parseInt(id, 10));
         }
 
@@ -2592,7 +2589,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // flag decides its chrome: 'create' shows an explicit Add button (a new wormhole
         // has no id to autosave against yet); 'edit' shows the live autosave chip.
         let wormholeModalMode = 'edit';
-        let pendingHotglueCreate = false;  // create mode: Hotglue picked but the name was still empty
         let creatingHotglueNode = false;   // guard against a double create
 
         // "Disable Hotglue content" switch: hide the per-wormhole Hotglue media tab for
@@ -2600,16 +2596,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // mode keeps the tab so its existing content stays editable. When the tab is hidden
         // we force Classic, so only the Classic Media subsection shows.
         function applyHotglueTabVisibility(node) {
+            // Hotglue content is always available; the per-wormhole Hotglue tab
+            // always shows alongside Classic.
             const tab = document.getElementById('edit-media-hotglue-tab');
             if (!tab) return;
-            const alreadyHotglue = !!(node && node.media_mode === 'hotglue');
-            const showTab = !TELARIS_EDIT.hotglueDisabled || alreadyHotglue;
-            tab.classList.toggle('hidden', !showTab);
-            // With no Hotglue alternative beside it, the lone media tab reads "Media";
-            // when both tabs show, it stays "Classic".
+            tab.classList.remove('hidden');
             const classicTab = document.getElementById('edit-media-classic-tab');
-            if (classicTab) { classicTab.textContent = showTab ? TELARIS_EDIT.tabClassic : TELARIS_EDIT.tabMedia; }
-            if (!showTab) { switchMediaMode('classic', 'edit'); }
+            if (classicTab) { classicTab.textContent = TELARIS_EDIT.tabClassic; }
         }
 
         function setWormholeMode(mode) {
@@ -2620,12 +2613,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             show('wm-heading-edit', !isCreate);
             show('edit-submit-btn', isCreate);          // create: explicit Add button
             show('edit-autosave-status', !isCreate);    // edit: live autosave chip
-            // Hotglue tab body: in create mode show a short name prompt (a new wormhole is
-            // created the instant a name exists, so the live editor never appears here);
-            // in edit mode show the help line + the live "Edit hotglue content" button.
-            show('edit-hotglue-help', !isCreate);
-            show('edit-hotglue-create-note', isCreate);
-            show('edit-hotglue-edit-wrap', !isCreate);
+            // Hotglue tab body: help line + "Edit hotglue content" button in both modes.
+            // For a brand-new wormhole the button creates the record lazily (default name
+            // if none) before opening the editor, so there is no save-first step.
+            show('edit-hotglue-help', true);
+            show('edit-hotglue-edit-wrap', true);
         }
 
         // The unified form's submit handler. Create mode: Add a new wormhole. Edit mode:
@@ -2635,32 +2627,26 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             else { saveNodeEdit(event); }
         }
 
-        // Media tab clicks. In edit mode they just switch the visible block. In create
-        // mode, picking Hotglue CREATES the wormhole immediately (so its node-<id> page can
-        // be composed at once) instead of asking the editor to save first.
+        // Media tab clicks just reveal the matching block. For a brand-new wormhole the
+        // record is created lazily when the editor clicks "Edit hotglue content", not on
+        // mere tab selection, so picking the tab never persists anything.
         function onClassicTabClick() {
-            pendingHotglueCreate = false;
             switchMediaMode('classic', 'edit');
         }
         function onHotglueTabClick() {
-            if (wormholeModalMode !== 'create') { switchMediaMode('hotglue', 'edit'); return; }
-            // Create mode: show the Hotglue body, then create as soon as we have a name.
             switchMediaMode('hotglue', 'edit');
-            const name = document.getElementById('edit-name').value.trim();
-            if (name) { createNodeForHotglue(); }
-            else { pendingHotglueCreate = true; document.getElementById('edit-name').focus(); }
         }
 
         // Create the wormhole NOW (create mode, Hotglue chosen), persist media_mode=hotglue,
         // then flip the same modal into edit mode for the new node so the live "Edit hotglue
         // content" button is available and everything autosaves from here.
         async function createNodeForHotglue() {
-            if (creatingHotglueNode) return;
-            const name = document.getElementById('edit-name').value.trim();
-            if (!name) { pendingHotglueCreate = true; document.getElementById('edit-name').focus(); return; }
-            if (!API_KEY) { showMessage(TELARIS_EDIT.errorApiKeyMissing, 'error'); return; }
+            if (creatingHotglueNode) return null;
+            const nameField = document.getElementById('edit-name');
+            let name = nameField.value.trim();
+            if (!name) { name = TELARIS_EDIT.untitledWormhole; nameField.value = name; }
+            if (!API_KEY) { showMessage(TELARIS_EDIT.errorApiKeyMissing, 'error'); return null; }
             creatingHotglueNode = true;
-            pendingHotglueCreate = false;
             const submitBtn = document.getElementById('edit-submit-btn');
             if (submitBtn) submitBtn.disabled = true;
             try {
@@ -2680,9 +2666,11 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 showMessage(TELARIS_EDIT.toastCreatedSuccess);
                 await loadNodes();              // bring the new node into allNodes
                 if (newId) { editNode(newId); } // flip this modal into edit mode for it
+                return newId || null;
             } catch (err) {
                 showMessage('Error: ' + err.message, 'error');
                 if (submitBtn) submitBtn.disabled = false;
+                return null;
             } finally {
                 creatingHotglueNode = false;
             }
@@ -3137,13 +3125,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const validateEdit = debounce(() => validateNode(editName, editCid, editErr, editId), 500);
                 editName.addEventListener('input', validateEdit);
                 editCid.addEventListener('change', validateEdit);
-                // Create-on-Hotglue, deferred case: the editor picked Hotglue before naming
-                // the wormhole, so create the moment a name is committed (on blur).
-                editName.addEventListener('change', () => {
-                    if (wormholeModalMode === 'create' && pendingHotglueCreate && editName.value.trim()) {
-                        createNodeForHotglue();
-                    }
-                });
             }
         }
 
@@ -3366,8 +3347,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <?= t_attr('editor_btn_edit_hotglue', 'Edit hotglue content') ?>
                         </button>
                     </div>
-                    <!-- Create mode: the page is node-<id>, created from the saved wormhole, so it can't be composed until the wormhole exists. -->
-                    <p id="edit-hotglue-create-note" class="hidden text-xs text-gray-500 text-center py-2 px-4"><?= t_attr('editor_hotglue_create_note', 'Save the wormhole first, then reopen it to compose the hotglue page. Add it with this tab selected to start in Hotglue mode.') ?></p>
                 </div>
                 <div id="edit-progress-wrap" class="hidden space-y-2">
                     <div class="flex justify-between text-xs font-medium">
@@ -3424,6 +3403,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </div>
                     </div>
                     <span id="hg-edit-status" class="text-xs opacity-80" aria-live="polite"></span>
+                    <button type="button" class="btn btn-sm" onclick="hgOpenRevisions()"><?= t_attr('editor_hg_btn_revisions', 'Revisions') ?></button>
                     <button type="button" class="btn btn-sm" onclick="hgCloseEditor()"><?= t_attr('editor_btn_close', 'Close') ?></button>
                 </div>
             </div>
@@ -4238,6 +4218,15 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     if (typeof showMessage === 'function') showMessage(HG.toastUrlCopied || 'URL copied to clipboard');
                 }).catch(() => {});
             }
+        };
+        // "Revisions": open the current page's hotglue revision history in a new
+        // tab. Mirrors hgViewDirectly but uses the live overlay slug and the
+        // /revisions route (same Telaris auth gate as /edit).
+        window.hgOpenRevisions = function () {
+            if (!hgCurrent || !hgCurrent.slug) return;
+            const relativeUrl = '../hg/?' + encodeURIComponent(hgCurrent.slug) + '/revisions';
+            const absoluteUrl = new URL(relativeUrl, window.location.origin + window.location.pathname).href;
+            window.open(absoluteUrl, '_blank', 'noopener');
         };
         window.hgDuplicate = async function (id) {
             const p = hgPages.find(x => x.id === id);

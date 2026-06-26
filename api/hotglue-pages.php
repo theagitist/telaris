@@ -96,22 +96,6 @@ $userId  = isset($_SESSION['admin_user_id']) ? (string)$_SESSION['admin_user_id'
 $isAdmin = isAdminLoggedIn();
 $action  = (string)($_POST['action'] ?? '');
 
-/**
- * Backstop for the "Disable Hotglue content" installation switch: deny any action
- * that would create NEW hotglue content while the switch is on. The editor UI
- * already hides these affordances; this guards a hand-crafted POST. Editing
- * content that already exists is allowed (callers pass through when it does).
- */
-function hgp_block_if_hotglue_disabled(): void {
-    if (db_get_disable_hotglue_content()) {
-        hgp_out([
-            'ok'      => false,
-            'error'   => 'hotglue_disabled',
-            'message' => t('editor_error_hotglue_disabled', 'Hotglue content is disabled on this installation. New hotglue content cannot be created.'),
-        ], 403);
-    }
-}
-
 /** Load a page row by posted id or deny. */
 function hgp_require_page(): array {
     $id = (int)($_POST['id'] ?? 0);
@@ -162,7 +146,6 @@ try {
         }
 
         case 'create': {
-            hgp_block_if_hotglue_disabled();
             $title = trim((string)($_POST['title'] ?? ''));
             if (mb_strlen($title) > 255) {
                 $title = mb_substr($title, 0, 255);
@@ -189,7 +172,6 @@ try {
         }
 
         case 'assign': {
-            hgp_block_if_hotglue_disabled();
             $page = hgp_require_page();
             if (!db_hotglue_page_user_can_edit($page, $userId, $isAdmin)) {
                 hgp_out(['ok' => false, 'error' => 'not_authorized'], 403);
@@ -267,12 +249,6 @@ try {
             if (!$isAdmin && !db_user_can_write_constellation($userId, (int)$cid)) {
                 hgp_out(['ok' => false, 'error' => 'read_only'], 403);
             }
-            // When hotglue is disabled installation-wide, only allow resolving (and
-            // thereby creating) the page for a wormhole that ALREADY has hotglue
-            // content; a wormhole without it cannot gain new hotglue content.
-            if (!db_node_has_hotglue_content($nodeId)) {
-                hgp_block_if_hotglue_disabled();
-            }
             $page = db_hotglue_page_get_or_create_for_node($nodeId, $userId);
             if (!$page) {
                 hgp_out(['ok' => false, 'error' => 'server_error'], 500);
@@ -286,7 +262,6 @@ try {
         }
 
         case 'duplicate': {
-            hgp_block_if_hotglue_disabled();
             $src = hgp_require_page();
             if (!db_hotglue_page_user_can_edit($src, $userId, $isAdmin)) {
                 hgp_out(['ok' => false, 'error' => 'not_authorized'], 403);

@@ -550,9 +550,7 @@ try {
             // Honor an explicit media_mode on create, so a wormhole created directly in
             // Hotglue mode (the editor creates the node the moment the Hotglue tab is
             // picked) starts in hotglue mode. Absent/unknown defaults to classic.
-            // Backstop for the "Disable Hotglue content" switch: a brand-new node can
-            // never start in hotglue mode while disabled, so it stays classic.
-            if (($data['media_mode'] ?? 'classic') === 'hotglue' && !db_get_disable_hotglue_content()) {
+            if (($data['media_mode'] ?? 'classic') === 'hotglue') {
                 db_set_node_media_mode($nodeId, 'hotglue', true);
             }
 
@@ -1016,16 +1014,8 @@ try {
             db_update_node((int)$id, $data['name'], $data['description'] ?? null, $url, $animation, $constellationId, $nodeType, $targetConstellationId, $imageUrl, $embedCode, $audioUrl, $audioAutoplay, $isAccentuated, $videoUrl, $videoAutoplay, $audioLoop, $showKeywords, $iconUrl, $imageAttribution, $useImageAsNode, $pdfUrl);
             // Media mode (Classic vs Hotglue). The constellation was already
             // asserted writable above; the setter re-checks the read-only guard.
-            // Backstop for the "Disable Hotglue content" switch: switching a wormhole
-            // INTO hotglue is blocked while disabled unless it already has hotglue
-            // content (then it is an edit of existing content); switching back to
-            // classic is always allowed.
             if (isset($data['media_mode'])) {
                 $targetMode = (string)$data['media_mode'];
-                if ($targetMode === 'hotglue' && db_get_disable_hotglue_content() && !db_node_has_hotglue_content((int)$id)) {
-                    api_error('403.040', 'Hotglue content is disabled on this installation.');
-                    return;
-                }
                 db_set_node_media_mode((int)$id, $targetMode);
             }
             if (isset($data['keywords'])) {
