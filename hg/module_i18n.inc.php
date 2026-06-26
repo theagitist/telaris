@@ -203,7 +203,13 @@ function i18n_render_page_early($args)
 	html_add_js_var('$.glue.i18n', i18n_catalog($locale));
 	html_add_js_var('$.glue.conf.show_lang_selector', SHOW_LANG_SELECTOR ? true : false);
 	html_add_js_var('$.glue.conf.locales', $names);
-	html_add_js(base_url().'modules/i18n/i18n-edit.js');
+	// Priority 3 (alongside glue.js, before edit.js at prio 4): edit.js and the
+	// module *-edit.js files call $.glue.t() at load time (e.g. the colorpicker
+	// IIFE in edit.js), so the helper must be defined before they run. At the
+	// default prio 5 it loaded after edit.js, which threw "$.glue.t is not a
+	// function" and aborted editor init (no menus). usort is stable on PHP 8, so
+	// glue.js (inserted earlier at prio 3) still loads before this.
+	html_add_js(base_url().'modules/i18n/i18n-edit.js', 3);
 	html_add_css(base_url().'modules/i18n/i18n-edit.css');
 	return true;
 }

@@ -1,5 +1,5 @@
 Vendored from github.com/theagitist/hotglue2 (fork of k0a1a/hotglue2)
-branch telaris @ 03181f9 (bumped from 83925d5)
+branch telaris @ 6ae4973 (bumped from 03181f9)
 GPL-3.0; see hg/COPYING and hg/UPSTREAM.md
 
 Note: this is a curated vendor, not a full mirror. Local Telaris patches
@@ -59,3 +59,15 @@ Vendor history:
   JS layer ($.glue.t + the injected dict, which do not use t()), but hotglue's
   PHP-side server-error strings fall back to their catalog keys. Low impact
   (error paths only); revisit only if those messages need localizing.
+- 6ae4973: editor-init regression fix (load order) + server-message i18n.
+  REGRESSION FIX (module_i18n.inc.php): the 03181f9 vendor added i18n-edit.js at
+  the default prio 5, AFTER edit.js (prio 4). edit.js calls $.glue.t() at load
+  time (the colorpicker IIFE), so $.glue.t was undefined: edit.js threw
+  "$.glue.t is not a function" and aborted editor init, leaving $.glue.menu
+  undefined (no NEW/PAGE menus, no object tools = the embedded editor was
+  unusable). Fix loads i18n-edit.js at prio 3 (with glue.js, before edit.js).
+  SERVER MESSAGES (fork 375af33, merged as bea696a): module_page.inc.php wraps
+  its 4 remaining response() literals in t(), and lang/{en,es,fr,pt}.json each
+  gain page.arg_x_invalid / page.arg_y_invalid / page.grid_save_error. Copied
+  wholesale (no local patches in those files). The PHP t()-shadow limitation
+  above still applies in the embed; this mainly helps the standalone site.

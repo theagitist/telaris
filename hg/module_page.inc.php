@@ -10,8 +10,7 @@
  *
  *	Modified 2026-06-25 by the theagitist/hotglue2 fork: accept WebP page
  *	background uploads; and wrap user-facing response() messages in t()
- *	(module_i18n) for UI localization (English catalog values byte-identical;
- *	wrapping is incremental).
+ *	(module_i18n) for UI localization (English catalog values byte-identical).
  */
 
 @require_once('config.inc.php');
@@ -34,7 +33,7 @@ require_once('util.inc.php');
 function page_clear_background_img($args)
 {
 	if (!isset($args['page'])) {
-		return response('Required argument "page" missing', 400);
+		return response(t('errors.arg_page_missing'), 400);
 	}
 	if (!page_exists($args['page'])) {
 		return response(t('page.not_exist', quot($args['page'])), 400);
@@ -224,16 +223,16 @@ function page_serve_resource($args)
 function page_set_grid($args)
 {
 	if (($x = @intval($args['x'])) == 0) {
-		return response('Required argument "x" missing or invalid', 400);
+		return response(t('page.arg_x_invalid'), 400);
 	}
 	if (($y = @intval($args['y'])) == 0) {
-		return response('Required argument "y" missing or invalid', 400);
+		return response(t('page.arg_y_invalid'), 400);
 	}
 	
 	$m = umask(0111);
 	if (!@file_put_contents(CONTENT_DIR.'/grid', $x.' '.$y)) {
 		umask($m);
-		return response('Error saving to global grid file', 500);
+		return response(t('page.grid_save_error'), 500);
 	} else {
 		umask($m);
 		return response(true);
