@@ -9,7 +9,9 @@
  *	See the file COPYING for more details.
  *
  *	Modified 2026-06-25 by the theagitist/hotglue2 fork: accept WebP page
- *	background uploads.
+ *	background uploads; and wrap user-facing response() messages in t()
+ *	(module_i18n) for UI localization (English catalog values byte-identical;
+ *	wrapping is incremental).
  */
 
 @require_once('config.inc.php');
@@ -35,7 +37,7 @@ function page_clear_background_img($args)
 		return response('Required argument "page" missing', 400);
 	}
 	if (!page_exists($args['page'])) {
-		return response('Page '.quot($args['page']).' does not exist', 400);
+		return response(t('page.not_exist', quot($args['page'])), 400);
 	}
 	
 	load_modules('glue');

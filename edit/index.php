@@ -430,6 +430,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Hotglue content tab: API endpoint + localized strings (self-contained
         // so the tab's script block needs only window globals).
         const HOTGLUE_PAGES_API = '../api/hotglue-pages.php';
+        // The running Telaris locale, passed to the embedded hotglue editor as
+        // ?lang= so /hg/ (which has no /es/ URL prefix) renders its UI in the
+        // same language as the rest of Telaris.
+        const HG_LOCALE = <?= json_encode((function_exists('locale_init_strings') ? (locale_init_strings()['__locale'] ?? 'en') : 'en')) ?>;
         window.TELARIS_HG = <?= json_encode([
             'untitled'       => t('editor_hg_untitled', 'Untitled page'),
             'loading'        => t('editor_hg_loading', 'Loading pages...'),
@@ -4165,7 +4169,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             hgStatus('');
             if (mode !== 'wormhole') { await hgLoadWormholes(); hgSetAssignLabel(); }
             const iframe = document.getElementById('hg-editor-iframe');
-            iframe.src = '../hg/?' + encodeURIComponent(page.slug) + '/edit';
+            iframe.src = '../hg/?' + encodeURIComponent(page.slug) + '/edit&lang=' + encodeURIComponent(HG_LOCALE);
             document.getElementById('hg_editor_overlay').showModal();
         }
         // Entry point for the per-wormhole "Edit hotglue content" flow. Reuses the
@@ -4224,7 +4228,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // /revisions route (same Telaris auth gate as /edit).
         window.hgOpenRevisions = function () {
             if (!hgCurrent || !hgCurrent.slug) return;
-            const relativeUrl = '../hg/?' + encodeURIComponent(hgCurrent.slug) + '/revisions';
+            const relativeUrl = '../hg/?' + encodeURIComponent(hgCurrent.slug) + '/revisions&lang=' + encodeURIComponent(HG_LOCALE);
             const absoluteUrl = new URL(relativeUrl, window.location.origin + window.location.pathname).href;
             window.open(absoluteUrl, '_blank', 'noopener');
         };

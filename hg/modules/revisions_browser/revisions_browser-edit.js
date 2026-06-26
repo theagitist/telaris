@@ -9,7 +9,7 @@
  */
 
 $(document).ready(function() {
-	elem = $('<img src="'+$.glue.base_url+'modules/revisions_browser/revisions_browser.png" alt="btn" title="compare revisions of this page" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/revisions_browser/revisions_browser.png" alt="btn" title="'+$.glue.t('revisions.compare_revisions_of_this_page')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		$.glue.menu.hide();
 		window.location = $.glue.base_url+'?'+$.glue.page+'/revisions';

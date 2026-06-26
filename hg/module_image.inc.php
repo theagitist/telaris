@@ -9,7 +9,7 @@
  *	See the file COPYING for more details.
  *
  *	Modified 2026-06-25 by the theagitist/hotglue2 fork: added WebP support
- *	(upload acceptance, GD resize via imagecreatefromwebp/imagewebp, serving).
+ *	(upload acceptance, GD resize via imagecreatefromwebp/imagewebp, serving); wrap user-facing response() messages in t() (module_i18n) for UI localization (English byte-identical).
  */
 
 @require_once('config.inc.php');
@@ -364,14 +364,14 @@ function image_resize($args)
 {
 	// check for gd
 	if (!_gd_available()) {
-		return response('Host does not have gd', 500);
+		return response(t('image.no_gd'), 500);
 	}
 	// set requested width & height
 	if (($width = @intval($args['width'])) == 0) {
-		return response('Required argument "width" is zero or does not exist', 400);
+		return response(t('image.width_zero'), 400);
 	}
 	if (($height = @intval($args['height'])) == 0) {
-		return response('Required argument "height" is zero or does not exist', 400);
+		return response(t('image.height_zero'), 400);
 	}
 	load_modules('glue');
 	// resolve symlinks
@@ -390,7 +390,7 @@ function image_resize($args)
 		$obj = $obj['#data'];
 	}
 	if (@intval($obj['image-file-width']) == 0 || @intval($obj['image-file-height']) == 0) {
-		return response('Original dimensions are not available', 500);
+		return response(t('image.no_orig_dims'), 500);
 	}
 	// set pagename
 	$pn = get_first_item(expl('.', $obj['name']));
@@ -461,17 +461,17 @@ function image_resize($args)
 		// would be resized to its first frame; acceptable until anyone hits it
 		$dest_ext = 'webp';
 	} else {
-		return response('Unsupported source file format '.quot($obj['image-file']), 500);
+		return response(t('image.unsupported_format', quot($obj['image-file'])), 500);
 	}
 	if ($orig === false) {
-		return response('Error loading source file '.quot($obj['image-file']), 500);
+		return response(t('image.load_error', quot($obj['image-file'])), 500);
 	}
 	// get source file dimensions
 	$orig_size = @getimagesize($fn);
 	// create resized image
 	if (($resized = @imagecreatetruecolor($width, $height)) === false) {
 		@imagedestroy($orig);
-		return response('Error creating the resized image', 500);
+		return response(t('image.create_error'), 500);
 	}
 	// preserve any alpha channel
 	@imagealphablending($resized, false);
@@ -480,7 +480,7 @@ function image_resize($args)
 	if (!@imagecopyresampled($resized, $orig, 0, 0, 0, 0, $width, $height, $orig_size[0], $orig_size[1])) {
 		@imagedestroy($resized);
 		@imagedestroy($orig);
-		return response('Error resizing the source image', 500);
+		return response(t('image.resize_error'), 500);
 	}
 	// setup destination filename
 	$a = expl('.', $obj['image-file']);
@@ -509,7 +509,7 @@ function image_resize($args)
 	@imagedestroy($resized);
 	@imagedestroy($orig);
 	if (!$ret) {
-		return response('Error saving the resized image', 500);
+		return response(t('image.save_error'), 500);
 	} else {
 		log_msg('info', 'image_resize: created a resized image of '.quot($obj['name']).' -> '.quot(basename($fn)));
 	}

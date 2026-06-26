@@ -8,7 +8,7 @@
  */
 
 $(document).ready(function() {
-	elem = $('<img src="'+$.glue.base_url+'modules/page_browser/page_browser.png" alt="list all pages" title="list all pages" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/page_browser/page_browser.png" alt="'+$.glue.t('page_browser.list_all_pages')+'" title="'+$.glue.t('page_browser.list_all_pages')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		$.glue.menu.hide();
 		window.location = $.glue.base_url+'?pages';

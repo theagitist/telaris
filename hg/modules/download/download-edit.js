@@ -34,7 +34,7 @@ $(document).ready(function() {
 	// register menu items
 	//
 	var elem;
-	elem = $('<img src="'+$.glue.base_url+'img/download.png" alt="btn" title="download file" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'img/download.png" alt="btn" title="'+$.glue.t('download.download_file')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		// initite download
@@ -51,11 +51,11 @@ $(document).ready(function() {
 			if (data['download-public'] == 'public') {
 				$(that).addClass('glue-menu-enabled');
 				$(that).removeClass('glue-menu-disabled');
-				$(that).attr('title', 'this object is shown to everyone - click to make it private');
+				$(that).attr('title', $.glue.t('download.shown_everyone'));
 			} else {
 				$(that).removeClass('glue-menu-enabled');
 				$(that).addClass('glue-menu-disabled');
-				$(that).attr('title', 'this object is only shown while editing - click to make it public');
+				$(that).attr('title', $.glue.t('download.shown_editing'));
 			}
 		});
 	});
@@ -65,13 +65,13 @@ $(document).ready(function() {
 		if ($(this).hasClass('glue-menu-enabled')) {
 			$(this).removeClass('glue-menu-enabled');
 			$(this).addClass('glue-menu-disabled');
-			$(this).attr('title', 'this object is only shown while editing - click to make it public');
+			$(this).attr('title', $.glue.t('download.shown_editing'));
 			// clear public attribute
 			$.glue.backend({ method: 'glue.object_remove_attr', name: $(obj).attr('id'), attr: 'download-public' });
 		} else if ($(this).hasClass('glue-menu-disabled')) {
 			$(this).addClass('glue-menu-enabled');
 			$(this).removeClass('glue-menu-disabled');
-			$(this).attr('title', 'this object is shown to everyone - click to make it private');
+			$(this).attr('title', $.glue.t('download.shown_everyone'));
 			// set public attribute
 			$.glue.backend({ method: 'glue.update_object', name: $(obj).attr('id'), 'download-public': 'public' });
 		}

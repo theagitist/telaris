@@ -174,7 +174,7 @@ $(document).ready(function() {
 	//
 	// register menu items
 	//
-	var elem = $('<img src="'+$.glue.base_url+'modules/image/image-tile.png" alt="btn" title="toggle image tiling" width="32" height="32">');
+	var elem = $('<img src="'+$.glue.base_url+'modules/image/image-tile.png" alt="btn" title="'+$.glue.t('image.toggle_tiling')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		if ($(obj).css('background-repeat') != 'no-repeat') {
@@ -192,7 +192,7 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('image', 'image-tile', elem);
 	
-	elem = $('<img src="'+$.glue.base_url+'modules/image/image-ratio.png" alt="btn" title="reset image size" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/image/image-ratio.png" alt="btn" title="'+$.glue.t('image.reset_size')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		// get original-{width,height} from backend
@@ -222,7 +222,7 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('image', 'image-ratio', elem);
 	
-	elem = $('<img src="'+$.glue.base_url+'modules/image/image-pos.png" alt="btn" title="adjust image selection" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/image/image-pos.png" alt="btn" title="'+$.glue.t('image.adjust_selection')+'" width="32" height="32">');
 	$(elem).bind('mousedown', function(e) {
 		var obj = $(this).data('owner');
 		var a = $(obj).css('background-position').split(' ');
@@ -260,7 +260,7 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('image', 'image-pos', elem);
 	
-	elem = $('<img src="'+$.glue.base_url+'img/download.png" alt="btn" title="download original file" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'img/download.png" alt="btn" title="'+$.glue.t('image.download_original')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		// initiate download

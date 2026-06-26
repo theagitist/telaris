@@ -1,5 +1,5 @@
 Vendored from github.com/theagitist/hotglue2 (fork of k0a1a/hotglue2)
-branch telaris @ 83925d5 (bumped from 9aaf491)
+branch telaris @ 03181f9 (bumped from 83925d5)
 GPL-3.0; see hg/COPYING and hg/UPSTREAM.md
 
 Note: this is a curated vendor, not a full mirror. Local Telaris patches
@@ -39,3 +39,23 @@ Vendor history:
   embedded json.php is a Telaris-auth-patched file that already carries the
   equivalent PHP-8 fix. (The icon/theme churn seen in the wider main..telaris
   diff netted to no change in the embedded; only the draw module is new.)
+- 03181f9: editor UI localization (i18n, EN/ES/PT/FR). New module_i18n.inc.php
+  + lang/{en,es,fr,pt}.json + modules/i18n/i18n-edit.{js,css}, and the
+  telaris-only module_telaris_locale.inc.php (reads TELARIS_LOCALE, hides the
+  language selector). Many files gained t()/$.glue.t() wraps (module_glue,
+  module_image, module_page, module_welcome, modules.inc.php, and most
+  modules/*/...-edit.js) copied wholesale; miniPaint follows the locale via
+  ?lang=. The three patched files (js/edit.js, js/glue.js, json.php) were taken
+  from the fork and the local patches re-applied surgically (CSRF upload header,
+  CSRF ajaxSetup header, telaris-auth require + telaris_hg_authorize_json).
+  user_code module + tests/ skipped as usual.
+  Telaris-side wiring (not in hg/): the bridge (telaris-auth.inc.php) defines
+  TELARIS_LOCALE from locale_init_strings()['__locale']; edit/index.php opens the
+  editor/revisions iframes with &lang=<locale>; each instance's
+  user-config.inc.php already has USE_MIN_FILES=false (so the wrapped .js
+  sources load, not the stale .min.js twins).
+  KNOWN LIMITATION: the embed loads the Telaris instance (for auth), whose own
+  t() helper shadows hotglue's guarded t(). So the editor UI localizes via the
+  JS layer ($.glue.t + the injected dict, which do not use t()), but hotglue's
+  PHP-side server-error strings fall back to their catalog keys. Low impact
+  (error paths only); revisit only if those messages need localizing.

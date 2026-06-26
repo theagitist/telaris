@@ -7,6 +7,8 @@
  *	Copyright Gottfried Haider, Danja Vasiliev 2010.
  *	This source code is licensed under the GNU General Public License.
  *	See the file COPYING for more details.
+ *
+ *	theagitist/hotglue2 fork, 2026-06-25: user-facing response() messages wrapped in t() (module_i18n) for editor UI localization; English catalog values byte-identical.
  */
 
 @require_once('config.inc.php');
@@ -321,14 +323,14 @@ function run_service($service, $args = array())
 	global $services;
 	
 	if (!isset($services[$service])) {
-		return response('Unknown service '.quot($service), 400);
+		return response(t('service.unknown', quot($service)), 400);
 	}
 	
 	// check arguments
 	foreach ($services[$service]['args'] as $key=>$val) {
 		if (!isset($args[$key])) {
 			if (isset($val['req']) && $val['req']) {
-				return response('Required argument '.quot($key).' missing', 400);
+				return response(t('service.arg_missing', quot($key)), 400);
 			} elseif (isset($val['def'])) {
 				$args[$key] = $val['def'];
 			}
@@ -341,7 +343,7 @@ function run_service($service, $args = array())
 					// convert to array
 					$args[$key] = (array)$args[$key];
 				} else {
-					return response('Invalid type of argument '.quot($key).', expected array', 400);
+					return response(t('service.arg_type_array', quot($key)), 400);
 				}
 			} elseif ($val['type'] == 'bool') {
 				if (is_bool($args[$key])) {
@@ -351,17 +353,17 @@ function run_service($service, $args = array())
 				} elseif (intval($args[$key]) === 0) {
 					$args[$key] = false;
 				} else {
-					return response('Invalid type of argument '.quot($key).', expected bool', 400);
+					return response(t('service.arg_type_bool', quot($key)), 400);
 				}
 			} elseif ($val['type'] == 'float') {
 				if (!is_numeric($args[$key])) {
-					return response('Invalid type of argument '.quot($key).', expected float', 400);
+					return response(t('service.arg_type_float', quot($key)), 400);
 				} else {
 					$args[$key] = floatval($args[$key]);
 				}
 			} elseif ($val['type'] == 'int') {
 				if (!is_numeric($args[$key])) {
-					return response('Invalid type of argument '.quot($key).', expected int', 400);
+					return response(t('service.arg_type_int', quot($key)), 400);
 				} else {
 					$args[$key] = intval($args[$key]);
 				}

@@ -50,7 +50,7 @@ $.glue.colorpicker = function()
 	var shown = false;
 	
 	// setup element
-	var elem = $('<div id="glue-colorpicker" class="glue-ui" style="z-index: 202;"><div id="glue-colorpicker-transparent" class="glue-ui"></div><div id="glue-colorpicker-wheel" style="height: 195px; width: 195px;" title="set transparent"></div></div>');
+	var elem = $('<div id="glue-colorpicker" class="glue-ui" style="z-index: 202;"><div id="glue-colorpicker-transparent" class="glue-ui"></div><div id="glue-colorpicker-wheel" style="height: 195px; width: 195px;" title="'+$.glue.t('edit.set_transparent')+'"></div></div>');
 	$(elem).children('#glue-colorpicker-wheel').farbtastic(function(col) {
 		if (col !== color) {
 			// update tooltip
@@ -886,7 +886,7 @@ $.glue.object = function()
 		resizable_update_tooltip: function(obj) {
 			var p = $(obj).position();
 			// don't include any border in the calculation
-			$(obj).children('.ui-resizable-handle').attr('title', $(obj).innerWidth()+'x'+$(obj).innerHeight()+' at '+p.left+'x'+p.top);
+			$(obj).children('.ui-resizable-handle').attr('title', $(obj).innerWidth()+'x'+$(obj).innerHeight()+$.glue.t('edit.at')+p.left+'x'+p.top);
 		},
 		save: function(obj) {
 			var elem = $(obj).clone();
@@ -1521,9 +1521,9 @@ $.glue.upload = function()
 				// e.target.status suggested in 
 				// http://developer.mozilla.org/en/XMLHttpRequest/Using_XMLHttpRequest
 				if (e && e.target && e.target.status) {
-					$.glue.error('There was a problem uploading a file (status '+e.target.status+')');
+					$.glue.error($.glue.t('edit.upload_problem_status', e.target.status));
 				} else {
-					$.glue.error('There was a problem uploading a file. Make sure you are not exceeding the file size limits set in the server configuration.');
+					$.glue.error($.glue.t('edit.upload_problem'));
 					// DEBUG
 					console.error(e);
 				}
@@ -1612,7 +1612,7 @@ $.glue.upload = function()
 				options = {};
 			}
 			if (!options.tooltip) {
-				options.tooltip = 'upload a file';
+				options.tooltip = $.glue.t('edit.upload_file');
 			}
 			$(elem).prepend('<input type="file" title="'+options.tooltip+'" style="height: 100%; opacity: 0; position: absolute; width: 100%; z-index: 300;">');
 			if (options.multiple) {
@@ -1731,7 +1731,7 @@ $.glue.upload = function()
 				}
 				return true;
 			} else {
-				$.glue.error('Your browser is not supported. Update to a recent version of Firefox or Chrome.');
+				$.glue.error($.glue.t('edit.browser_unsupported'));
 				if (typeof options.abort == 'function') {
 					options.abort();
 				}
@@ -1740,14 +1740,14 @@ $.glue.upload = function()
 		},
 		handle_response: function(data, x, y) {
 			if (!data) {
-				$.glue.error('There was a problem communicating with the server');
+				$.glue.error($.glue.t('edit.server_communication'));
 			} else if (data['#error']) {
-				$.glue.error('There was a problem uploading the file ('+data['#data']+')');
+				$.glue.error($.glue.t('edit.upload_problem_data', data['#data']));
 			} else {
 				// add new elements to the dom and register them
 				if (data['#data'].length == 0) {
 					// special case for no new elements
-					$.glue.error('The server did not reply with any object. The file type you were uploading could either not be supported (look around for more modules!) or there could be an internal problem. Check the log file to be sure!');
+					$.glue.error($.glue.t('edit.no_object'));
 					return;
 				}
 				// we're not selecting the new objects but at least clear the current selection
@@ -1905,7 +1905,7 @@ $(document).ready(function() {
 			return false;
 		} else if (e.ctrlKey && e.which == 90) {
 			// ctrl+z: show revisions browser to suggest using revisions in place of undo
-			if (confirm('Looking for an "undo" option?\nHOTGLUE keeps record of your recent edits - it\'s called "revisions".\nWould you like to browse through the revisions of this page?')) {
+			if (confirm($.glue.t('edit.undo_revisions_confirm'))) {
 				window.location = $.glue.base_url+'?'+$.glue.page+'/revisions';
 				return false;
 			}

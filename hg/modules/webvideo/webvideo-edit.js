@@ -11,9 +11,9 @@ $(document).ready(function() {
 	//
 	// menu items
 	//
-	var elem = $('<img src="'+$.glue.base_url+'modules/webvideo/webvideo.png" alt="btn" title="embed a youtube, vimeo or peertube video" width="32" height="32">');
+	var elem = $('<img src="'+$.glue.base_url+'modules/webvideo/webvideo.png" alt="btn" title="'+$.glue.t('webvideo.menu_embed_title')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
-		var url = prompt('Enter the video URL (e.g. http://www.youtube.com/watch?v=_mdVHEus0T8)');
+		var url = prompt($.glue.t('webvideo.prompt_video_url'));
 		if (!url) {
 			return;
 		}
@@ -22,7 +22,7 @@ $(document).ready(function() {
 		if (url.indexOf('youtube') != -1) {
 			var start = url.indexOf('v=');
 			if (start == -1) {
-				$.glue.error('Error understanding the youtube link');
+				$.glue.error($.glue.t('webvideo.error_youtube_link'));
 			} else {
 				start += 2;
 				var end = url.indexOf('&', start);
@@ -35,7 +35,7 @@ $(document).ready(function() {
 		} else if (url.indexOf('vimeo') != -1) {
 			var start = url.indexOf('.com/');
 			if (start == -1) {
-				$.glue.error('Error understanding the vimeo link');
+				$.glue.error($.glue.t('webvideo.error_vimeo_link'));
 			} else {
 				start += 5;
 				provider = 'vimeo';
@@ -46,14 +46,14 @@ $(document).ready(function() {
 			// Capture host + id; the char class blocks quote/angle injection.
 			var m = url.match(/^(?:https?:)?\/\/([^\/?#"'<>]+)\/(?:videos\/(?:watch|embed)|w)\/([^\/?#"'<>]+)/);
 			if (!m) {
-				$.glue.error('Error understanding the PeerTube link');
+				$.glue.error($.glue.t('webvideo.error_peertube_link'));
 			} else {
 				provider = 'peertube';
 				var host = m[1];
 				var id = m[2];
 			}
 		} else {
-			$.glue.error('Only youtube, vimeo and peertube videos are supported at the moment.');
+			$.glue.error($.glue.t('webvideo.error_unsupported_provider'));
 		}
 		
 		if (provider) {
@@ -82,7 +82,7 @@ $(document).ready(function() {
 				}
 				$(elem).append(child);
 				// put the iframe behind some shield for editing
-				child = $('<div class="glue-webvideo-handle glue-ui" title="drag here"></div>');
+				child = $('<div class="glue-webvideo-handle glue-ui" title="'+$.glue.t('webvideo.drag_here')+'"></div>');
 				$(elem).append(child);
 				$('body').append(elem);				
 				// make width and height explicit
@@ -110,7 +110,7 @@ $(document).ready(function() {
 	//
 	// context menu items
 	//
-	var elem = $('<div style="height: 32px; width: 32px;" title="toggle automatic playback of video (takes effect after a reload)">');
+	var elem = $('<div style="height: 32px; width: 32px;" title="'+$.glue.t('webvideo.toggle_autoplay_title')+'">');
 	$(elem).bind('glue-menu-activate', function(e) {
 		var obj = $(this).data('owner');
 		if ($(obj).data('webvideo-autoplay') === undefined) {
@@ -152,7 +152,7 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('webvideo', 'webvideo-autoplay', elem);
 	
-	elem = $('<div style="height: 32px; width: 32px;" title="toggle looping of video (takes effect after a reload)">');
+	elem = $('<div style="height: 32px; width: 32px;" title="'+$.glue.t('webvideo.toggle_loop_title')+'">');
 	$(elem).bind('glue-menu-activate', function(e) {
 		var obj = $(this).data('owner');
 		if ($(obj).data('webvideo-loop') === undefined) {

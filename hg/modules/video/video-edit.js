@@ -46,7 +46,7 @@ $(document).ready(function() {
 	//
 	// context menu items
 	//
-	var elem = $('<div style="height: 32px; width: 32px;" title="toggle automatic playback of video">');
+	var elem = $('<div style="height: 32px; width: 32px;" title="'+$.glue.t('video.toggle_autoplay')+'">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		var video = $(obj).children('video').first();
@@ -76,7 +76,7 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('video', 'video-autoplay', elem);
 	
-	elem = $('<div style="height: 32px; width: 32px;" title="toggle looping of video">');
+	elem = $('<div style="height: 32px; width: 32px;" title="'+$.glue.t('video.toggle_loop')+'">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		var video = $(obj).children('video').first();
@@ -104,7 +104,7 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('video', 'video-loop', elem);
 	
-	elem = $('<div style="height: 32px; width: 32px;" title="show or hide control elements">');
+	elem = $('<div style="height: 32px; width: 32px;" title="'+$.glue.t('video.toggle_controls')+'">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		var video = $(obj).children('video').first();
@@ -132,7 +132,7 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('video', 'video-controls', elem);
 	
-	elem = $('<div style="height: 32px; width: 32px;" title="mute or unmute video">');
+	elem = $('<div style="height: 32px; width: 32px;" title="'+$.glue.t('video.toggle_mute')+'">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		var video = $(obj).children('video').first();
@@ -160,7 +160,7 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('video', 'video-mute', elem);
 	
-	elem = $('<img src="'+$.glue.base_url+'modules/video/video-ratio.png" alt="btn" title="reset video size" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/video/video-ratio.png" alt="btn" title="'+$.glue.t('video.reset_size')+'" width="32" height="32">');
 	$(elem).bind('glue-menu-activate', function(e) {
 		var obj = $(this).data('owner');
 		var video = $(obj).children('video').first();
@@ -195,7 +195,7 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('video', 'video-ratio', elem);
 	
-	elem = $('<img src="'+$.glue.base_url+'img/download.png" alt="btn" title="download original file" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'img/download.png" alt="btn" title="'+$.glue.t('video.download_original')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		// initiate download

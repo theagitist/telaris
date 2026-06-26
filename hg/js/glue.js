@@ -71,7 +71,11 @@ $.glue.error = function()
 {
 	return function(s) {
 		if ($.glue.conf.show_frontend_errors) {
-			alert('The glue gun manufacturer says: '+s);
+			// theagitist/hotglue2 fork, 2026-06-25: localized prefix via i18n
+			// (module_i18n). $.glue.t is only defined in edit mode, so guard it
+			// for view mode and keep the English literal as the fallback.
+			var prefix = ($.glue.t) ? $.glue.t('errors.prefix') : 'The glue gun manufacturer says: ';
+			alert(prefix+s);
 		}
 	};
 }();

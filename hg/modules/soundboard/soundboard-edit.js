@@ -11,7 +11,8 @@
  */
 
 $(document).ready(function() {
-	var elem = $('<div id="glue-menu-page-soundboard" alt="btn" style="height: 32px; width: 32px;" title="toggle soundboard mode: on the published page, tap video tiles to trigger clips with mixed audio (takes effect after a reload of the published page)">');
+	var elem = $('<div id="glue-menu-page-soundboard" alt="btn" style="height: 32px; width: 32px;">');
+	$(elem).attr('title', $.glue.t('soundboard.mode_toggle_tooltip'));
 
 	// reflect the current state when the page menu opens
 	$(elem).bind('glue-menu-activate', function(e) {

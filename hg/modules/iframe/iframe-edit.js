@@ -11,9 +11,9 @@ $(document).ready(function() {
 	//
 	// menu items
 	//
-	var elem = $('<img src="'+$.glue.base_url+'modules/iframe/iframe.png" alt="btn" title="embed another webpage" width="32" height="32">');
+	var elem = $('<img src="'+$.glue.base_url+'modules/iframe/iframe.png" alt="btn" title="'+$.glue.t('iframe.embed_another_webpage')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
-		var url = prompt('Enter the URL to show');
+		var url = prompt($.glue.t('iframe.enter_url_to_show'));
 		if (!url) {
 			return;
 		}
@@ -29,7 +29,7 @@ $(document).ready(function() {
 			$(child).attr('src', url);
 			$(elem).append(child);
 			// put the iframe behind some shield for editing
-			child = $('<div class="glue-iframe-shield glue-ui" style="height: 100%; position: absolute; width: 100%;" title="visitors will be able to interact with the webpage below"></div>');
+			child = $('<div class="glue-iframe-shield glue-ui" style="height: 100%; position: absolute; width: 100%;" title="'+$.glue.t('iframe.visitors_can_interact')+'"></div>');
 			$(elem).append(child);
 			$('body').append(elem);
 			// make width and height explicit
@@ -48,11 +48,11 @@ $(document).ready(function() {
 	//
 	// context menu items
 	//
-	elem = $('<img src="'+$.glue.base_url+'modules/iframe/iframe-url.png" alt="btn" title="change webpage url" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/iframe/iframe-url.png" alt="btn" title="'+$.glue.t('iframe.change_webpage_url')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		var child = $(obj).children('iframe').first();
-		var url = prompt('Enter the URL to show', window.location.protocol + $(child).attr('src'));
+		var url = prompt($.glue.t('iframe.enter_url_to_show'), window.location.protocol + $(child).attr('src'));
 		if (!url) {
 			return;
 		}
@@ -63,7 +63,7 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('iframe', 'iframe-url', elem);
 	
-	elem = $('<div style="height: 32px; width: 32px;" title="toggle scrollbars on and off">');
+	elem = $('<div style="height: 32px; width: 32px;" title="'+$.glue.t('iframe.toggle_scrollbars')+'">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		var child = $(obj).children('iframe').first();

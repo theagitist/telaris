@@ -36,18 +36,26 @@
 
 	var MP_URL_SUFFIX = 'modules/draw/minipaint/index.html';
 
+	// miniPaint reads ?lang=<code> at boot (Helper.get_url_parameters -> AppConfig.LANG)
+	// and bundles these languages. Map our active locale to one it has, else 'en'.
+	var MP_LANGS = { en: 1, es: 1, fr: 1, pt: 1, de: 1, it: 1, ja: 1, ko: 1, nl: 1, ru: 1, tr: 1, uk: 1, zh: 1 };
+	function mp_lang() {
+		var l = String($.glue.locale || 'en').toLowerCase().replace(/[^a-z]/g, '');
+		return MP_LANGS[l] ? l : 'en';
+	}
+
 	function build_modal() {
 		modal = $(
 			'<div class="glue-ui glue-draw-overlay" style="display: none;">' +
 			'  <div class="glue-draw-panel">' +
 			'    <div class="glue-draw-bar">' +
-			'      <span class="glue-draw-title">image editor</span>' +
+			'      <span class="glue-draw-title">' + $.glue.t('draw.title') + '</span>' +
 			'      <span class="glue-draw-actions">' +
-			'        <button type="button" class="glue-draw-cancel">cancel</button>' +
-			'        <button type="button" class="glue-draw-place">place on page</button>' +
+			'        <button type="button" class="glue-draw-cancel">' + $.glue.t('draw.cancel') + '</button>' +
+			'        <button type="button" class="glue-draw-place">' + $.glue.t('draw.place') + '</button>' +
 			'      </span>' +
 			'    </div>' +
-			'    <iframe class="glue-draw-frame" title="image editor"></iframe>' +
+			'    <iframe class="glue-draw-frame" title="' + $.glue.t('draw.title') + '"></iframe>' +
 			'  </div>' +
 			'</div>'
 		);
@@ -78,7 +86,7 @@
 	function open_modal(load_url) {
 		if (!modal) { build_modal(); }
 		ready_token++;                       // invalidate any prior poll
-		frame.src = $.glue.base_url + MP_URL_SUFFIX;  // reload => clean session
+		frame.src = $.glue.base_url + MP_URL_SUFFIX + '?lang=' + mp_lang();  // reload => clean session, in the active language
 		modal.css('display', 'block');
 		if (load_url) {
 			when_ready(function (win) {
@@ -90,7 +98,7 @@
 							width: img.naturalWidth, height: img.naturalHeight,
 							width_original: img.naturalWidth, height_original: img.naturalHeight
 						});
-					} catch (e) { $.glue.error('Could not load the image into the editor.'); }
+					} catch (e) { $.glue.error($.glue.t('draw.load_error')); }
 				};
 				img.src = load_url;
 			});
@@ -118,7 +126,7 @@
 	function place_drawing() {
 		var win = frame ? frame.contentWindow : null;
 		if (!win || !win.Layers || typeof win.Layers.convert_layers_to_canvas !== 'function') {
-			$.glue.error('The image editor is still loading. Give it a moment and try again.');
+			$.glue.error($.glue.t('draw.still_loading'));
 			return;
 		}
 		var L = win.Layers;
@@ -132,7 +140,7 @@
 		var was_edit = edit;  // capture; close_modal() clears it
 
 		var finish_up = function (blob) {
-			if (!blob) { $.glue.error('Could not read the drawing from the editor.'); return; }
+			if (!blob) { $.glue.error($.glue.t('draw.read_error')); return; }
 			var file;
 			try {
 				file = new File([blob], 'drawing-' + (new Date()).getTime() + '.png', { type: 'image/png' });
@@ -163,7 +171,7 @@
 						}, 800);
 					}
 				},
-				error: function () { $.glue.error('There was a problem placing the image.'); }
+				error: function () { $.glue.error($.glue.t('draw.place_error')); }
 			});
 			close_modal();
 		};
@@ -181,7 +189,7 @@
 
 	$(document).ready(function () {
 		// NEW-image button in the "new" menu (background click)
-		var add = $('<img src="' + $.glue.base_url + 'modules/draw/draw.png" alt="btn" title="draw a new image" width="32" height="32">');
+		var add = $('<img src="' + $.glue.base_url + 'modules/draw/draw.png" alt="btn" title="' + $.glue.t('draw.new_title') + '" width="32" height="32">');
 		$(add).bind('click', function () {
 			var p = $.glue.menu.spawn_coords();
 			place_x = p ? p.x : $(document).scrollLeft() + 200;
@@ -193,7 +201,7 @@
 		$.glue.menu.register('new', add);
 
 		// EDIT-image button in an image object's context menu
-		var ed = $('<img src="' + $.glue.base_url + 'modules/draw/draw.png" alt="btn" title="edit this image in the drawing editor" width="32" height="32">');
+		var ed = $('<img src="' + $.glue.base_url + 'modules/draw/draw.png" alt="btn" title="' + $.glue.t('draw.edit_title') + '" width="32" height="32">');
 		$(ed).bind('click', function () {
 			var obj = $(this).data('owner');
 			if (!obj) { return; }

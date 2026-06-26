@@ -45,15 +45,19 @@ switch ($_SERVER['REQUEST_METHOD']) {
 	//	break;
 	case 'POST':
 		foreach ($_POST as $key=>$val) {
-			// Telaris/PHP 8 fix: the original stripslashes() here undid PHP's
-			// magic_quotes_gpc (removed in PHP 5.4+, gone entirely in PHP 8).
-			// On PHP 8.3 the POST values are raw, so stripslashes() instead
-			// corrupted JSON-encoded values containing escaped quotes (e.g. the
-			// `html` argument of save_state, full of class=\"...\" id=\"...\"),
-			// breaking every object position/state save. Decode the raw value.
+			// theagitist/hotglue2 fork, 2026-06-25: removed an unconditional
+			// stripslashes($val) that ran here. It was for legacy magic_quotes_gpc
+			// (cf. the commented GET branch above, guarded by get_magic_quotes_gpc()),
+			// but magic_quotes is gone in PHP 7+/8 so incoming POST is NOT
+			// slash-escaped. Stripping unconditionally removed the backslashes that
+			// escape quotes inside JSON-encoded args (e.g. an object's 'html' on
+			// save), so json_decode() returned NULL and saves failed with
+			// "Error decoding the argument". The guard can't be reinstated either:
+			// get_magic_quotes_gpc() is removed in PHP 8 (calling it is fatal).
+			// Also wraps user-facing response() messages in t() (module_i18n) for UI localization (English byte-identical).
 			$dec = @json_decode($val, true);
 			if ($dec === NULL) {
-				$err = response('Error decoding the argument '.quot($key).' => '.var_dump_inl($val), 400);
+				$err = response(t('request.decode_error', quot($key), var_dump_inl($val)), 400);
 				echo json_encode($err);
 				log_msg('warn', 'json: '.$err['#data']);
 				die();
@@ -64,7 +68,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
 		break;
 	default:
 		//$err = response('Only HTTP GET and POST requests supported', 400);
-		$err = response('Only HTTP POST requests supported', 400);
+		$err = response(t('request.post_only'), 400);
 		echo json_encode($err);
 		log_msg('warn', 'json: '.$err['#data']);
 		die();
@@ -80,7 +84,7 @@ if (!empty($args['method'])) {
 } else {
 	// this can also be caused by an upload exceeding the limits 
 	// set in php.ini
-	$err = response('Required argument "method" missing', 400);
+	$err = response(t('request.method_missing'), 400);
 	echo json_encode($err);
 	log_msg('warn', 'json: '.$err['#data']);
 	die();
@@ -89,7 +93,7 @@ if (!empty($args['method'])) {
 load_modules($method);
 
 if (!($m = get_service($method))) {
-	$err = response('Unknown method '.quot($method), 400);
+	$err = response(t('request.unknown_method', quot($method)), 400);
 	echo json_encode($err);
 	log_msg('warn', 'json: '.$err['#data']);
 	die();
@@ -108,7 +112,7 @@ if (isset($m['cross-origin']) && $m['cross-origin']) {
 	if (!empty($_SERVER['HTTP_REFERER'])) {
 		$bu = base_url();
 		if (substr($_SERVER['HTTP_REFERER'], 0, strlen($bu)) != $bu) {
-			echo json_encode(response('Cross-origin requests not supported for this method', 400));
+			echo json_encode(response(t('request.cross_origin'), 400));
 			log_msg('warn', 'json: possible xsrf detected, referer is '.quot($_SERVER['HTTP_REFERER']).', arguments '.var_dump_inl($args));
 			die();
 		}

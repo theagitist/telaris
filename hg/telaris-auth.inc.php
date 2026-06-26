@@ -34,6 +34,18 @@ if (!defined('TELARIS_HG_BRIDGE')) {
 	require_once $telarisRoot . '/utils/auth.php';
 	require_once $telarisRoot . '/config.php';
 
+	// i18n: render the embedded hotglue editor in the running Telaris locale.
+	// module_telaris_locale (hotglue telaris branch) reads TELARIS_LOCALE and
+	// falls back to en when unset/unsupported. locale_init_strings()['__locale']
+	// is the instance's own resolved locale (operator default + ?lang +
+	// Accept-Language), so the editor follows whatever language Telaris is in.
+	if (!defined('TELARIS_LOCALE') && function_exists('locale_init_strings')) {
+		$hg = locale_init_strings();
+		if (!empty($hg['__locale'])) {
+			define('TELARIS_LOCALE', $hg['__locale']);
+		}
+	}
+
 	// Mirror edit/index.php: ensure a per-session CSRF token exists so the edit
 	// page can hand it to hotglue's AJAX layer.
 	if (empty($_SESSION['csrf_token'])) {

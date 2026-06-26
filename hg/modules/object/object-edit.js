@@ -12,7 +12,7 @@ $(document).ready(function() {
 	// register menu items
 	//
 	var elem;
-	elem = $('<img src="'+$.glue.base_url+'modules/object/object-clone.png" alt="btn" title="clone object" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/object/object-clone.png" alt="btn" title="'+$.glue.t('object.clone')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		$.glue.backend({ method: 'glue.clone_object', name: $(obj).attr('id') }, function(data) {
@@ -35,11 +35,11 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('object', 'object-clone', elem, 1);
 	
-	elem = $('<img src="'+$.glue.base_url+'modules/object/object-transparency.png" alt="btn" title="change transparency" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/object/object-transparency.png" alt="btn" title="'+$.glue.t('object.transparency')+'" width="32" height="32">');
 	$(elem).bind('glue-menu-activate', function(e) {
 		var obj = $(this).data('owner');
 		var opacity = parseFloat($(obj).css('opacity'))*100;
-		var tip = 'change transparency ('+opacity.toFixed(0)+'%)';
+		var tip = $.glue.t('object.transparency_pct', opacity.toFixed(0));
 		$(this).attr('title', tip);
 	});
 	$(elem).bind('mousedown', function(e) {
@@ -67,7 +67,7 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('object', 'object-transparency', elem, 2);
 	
-	elem = $('<img src="'+$.glue.base_url+'modules/object/object-zindex.png" alt="btn" title="bring object to foreground or background" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/object/object-zindex.png" alt="btn" title="'+$.glue.t('object.zindex')+'" width="32" height="32">');
 	$(elem).bind('mousedown', function(e) {
 		var obj = $(this).data('owner');
 		var old_z = parseInt($(obj).css('z-index'));
@@ -97,7 +97,7 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('object', 'object-zindex', elem, 3);
 	
-	elem = $('<img src="'+$.glue.base_url+'modules/object/object-link.png" alt="btn" title="make the object a link" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/object/object-link.png" alt="btn" title="'+$.glue.t('object.make_link')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		// get link
@@ -114,7 +114,7 @@ $(document).ready(function() {
 					old_target = data['#data']['object-target'];
 				}
 				old_linkdata = (old_target == '') ? old_link : old_link + ' ' + old_target;
-				var linkdata = prompt('Enter link (e.g. http://hotglue.me or pagename or anchor name).\nTo add target specify its name after a space (e.g. http://hotglue.me _blank)', old_linkdata);
+				var linkdata = prompt($.glue.t('object.link_prompt'), old_linkdata);
 				if (linkdata === null || linkdata == old_link + ' ' + old_target) {
 					return;
 				}
@@ -141,22 +141,22 @@ $(document).ready(function() {
 	});
 	$.glue.contextmenu.register('object', 'object-link', elem);
 
-	elem = $('<img src="'+$.glue.base_url+'modules/object/object-target.png" alt="btn" title="get the name of this object (for linking to it)" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/object/object-target.png" alt="btn" title="'+$.glue.t('object.get_name')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		var name = $(obj).attr('id').split('.').pop();
-		prompt('You can link to this object by copying and pasting this string', $.glue.page+'.'+name);
+		prompt($.glue.t('object.target_prompt'), $.glue.page+'.'+name);
 	});
 	$.glue.contextmenu.register('object', 'object-target', elem);
 	
-	elem = $('<img src="'+$.glue.base_url+'modules/object/object-symlink.png" alt="btn" title="make this object appear on all pages" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/object/object-symlink.png" alt="btn" title="'+$.glue.t('object.symlink')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		$.glue.backend({ method: 'glue.object_make_symlink', name: $(obj).attr('id') });
 	});
 	$.glue.contextmenu.register('object', 'object-symlink', elem);
 	
-	elem = $('<img src="'+$.glue.base_url+'modules/object/object-delete.png" alt="btn" title="delete object" width="32" height="32">');
+	elem = $('<img src="'+$.glue.base_url+'modules/object/object-delete.png" alt="btn" title="'+$.glue.t('object.delete')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
 		var obj = $(this).data('owner');
 		var id = $(obj).attr('id');

@@ -1,0 +1,23 @@
+/*
+ *	modules/i18n/i18n-edit.css
+ *	Standalone editor language selector (theagitist/hotglue2 fork).
+ *	Suppressed inside telaris (the <select> is never rendered there).
+ *
+ *	This source code is licensed under the GNU General Public License.
+ *	See the file COPYING for more details.
+ */
+
+.glue-lang-select {
+	position: fixed;
+	bottom: 8px;
+	left: 8px;
+	z-index: 90000;
+	font-size: 12px;
+	padding: 2px 4px;
+	opacity: 0.6;
+}
+
+.glue-lang-select:hover,
+.glue-lang-select:focus {
+	opacity: 1;
+}
