@@ -37,9 +37,10 @@ WORKDIR /var/www/html
 
 # Install PHP deps first for layer caching. composer.lock is gitignored in this
 # repo, so this resolves fresh; --no-scripts since there are no build scripts.
+# Fail the build if deps do not install: a half-built image (missing PHPMailer,
+# swagger-php) would only break at runtime, which is worse than failing here.
 COPY composer.json ./
-RUN composer install --no-dev --no-interaction --no-progress --optimize-autoloader --no-scripts \
-    || echo "WARNING: composer install failed; check composer.json"
+RUN composer install --no-dev --no-interaction --no-progress --optimize-autoloader --no-scripts
 
 # App code (vendor/, config.php, secrets/, uploads/, etc. excluded via .dockerignore).
 COPY . /var/www/html

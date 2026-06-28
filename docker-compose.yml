@@ -96,6 +96,9 @@ services:
     profiles: ["tls"]
     environment:
       TELARIS_HOSTNAME: "${TELARIS_HOSTNAME:?set TELARIS_HOSTNAME in .env}"
+      # The Caddyfile reads {$ACME_EMAIL} for the Let's Encrypt account; pass it
+      # through (optional; Caddy still issues certs with no account email).
+      ACME_EMAIL: "${ACME_EMAIL:-}"
     ports:
       - "80:80"
       - "443:443"

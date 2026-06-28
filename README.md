@@ -59,11 +59,11 @@ The code uses the internal identifiers (`constellation`, `node`, `portal`); user
 
 ## Current state
 
-Latest version: **v6.11.0** on the deployed instances.
+Latest version: **v6.12.26** on the deployed instances.
 
-Active design and implementation threads (May 2026):
+Active design and implementation threads:
 
-- **Federation, peer-to-peer.** Implementation-ready design (the "Pluriverse" coordination layer). Bilateral, consent-based federation between independent operators; cryptographic identity per peer; consent withdrawal honoured network-wide. The Pluriverse is the central coordination layer that hosts operator registry, key rotation, and consent-withdrawal propagation; the application proper lands at <https://www.telaris.ca> when federation ships. Next active code thread; v6.11.0 is the stabilization checkpoint before stage 1 begins.
+- **Federation, peer-to-peer (shipped).** Bilateral, consent-based federation between independent operators; cryptographic identity per peer; consent withdrawal honoured network-wide. The "Pluriverse" coordination layer (operator registry, key rotation, consent-withdrawal propagation) runs at <https://www.telaris.ca>. The handshake, galaxy publish/pull, and trust-revocation stages are all live; instances peer directly once trust is established.
 - **Security audit thread (closed).** Five adversarial passes between 2026-05-22 and 2026-05-24 surfaced 91 findings (2 CRITICAL, 18 HIGH, the rest MEDIUM/LOW). 84 shipped across v6.10.0–v6.10.18; the 7 remaining are architectural items gated on schema work or federation rollout, tracked at the project's BACKLOG. Test suite at 197/197.
 - **Bridges framework v1.** Generalized importer plug-in architecture; first provider is Mocambos (Brazilian quilombola Baobáxia archive). Off by default; enable per-instance.
 - **Localization.** Every user-facing surface (visitor, editor, admin) speaks four locales (EN/ES/PT/FR); 1084 keys per locale.
@@ -76,25 +76,37 @@ Active deployed instances are listed at <https://www.telaris.ca/instances/>.
 
 For operators who want to run a Telaris instance. The Admin Manual will carry the depth; this section is enough to get a development install running.
 
-### Docker (recommended for self-hosting)
+### Docker (recommended)
 
-The fastest way to run a production instance is the published Docker images. One `docker compose up -d` brings up the app, web server, federation schedulers, and (optionally) a bundled database and automatic HTTPS. You can also point it at an external database server you already run. Full instructions, including the external-database setup, are in **[docker/README.md](docker/README.md)**.
+One `docker compose` brings up everything an instance needs: the app (php-fpm), nginx, the bundled PostgreSQL database, the federation schedulers, and automatic HTTPS (Caddy plus Let's Encrypt). The bundled database and the TLS proxy are optional compose profiles, so the same command also drives an external-database or bring-your-own-proxy deployment. Full instructions, including external databases and managed-TLS databases, are in **[docker/README.md](docker/README.md)**.
+
+Every instance runs on its own stable, dedicated DNS name: it is the federation identity (peer key-ids are `<hostname>:<fingerprint>`) and the subject of the TLS certificate. Set that DNS record **first**, because the auto-TLS proxy needs the name resolving to this host (with ports 80 and 443 reachable) before it can obtain a certificate.
 
 ```sh
+# 1. Point an A/AAAA record for your hostname at this server. Do this first.
+# 2. Clone and configure.
+git clone https://github.com/theagitist/telaris.git
+cd telaris
 cp .env.example .env
-# edit .env: set TELARIS_HOSTNAME (your dedicated DNS name), ACME_EMAIL, a strong DB_PASS
+# Edit .env: set TELARIS_HOSTNAME (your DNS name), ACME_EMAIL, and a strong DB_PASS.
+# COMPOSE_PROFILES=bundled-db,tls (the default) is the full turnkey mode.
+# 3. Build the images from this checkout, then start.
+docker compose build
 docker compose up -d
-# then open https://<your-hostname>/admin/setup.php
+# 4. Open https://<your-hostname>/admin/setup.php to create the first operator account.
 ```
 
-Every instance needs its own stable, dedicated DNS name (it is the federation identity and the TLS certificate subject). The manual setup below remains available for development or non-container deployments.
+`docker compose build` builds the images from the code you just cloned, so the running instance always matches the checkout. (The published images on GHCR, pulled when you skip the build step, can lag the current release; pin `TELARIS_TAG` to a published version in `.env` if you rely on them instead of building.) The schema builds itself on first request and first start mints this instance's federation keys, so there is no separate migration or key-generation step. The manual setup below remains available for development or non-container deployments.
 
 ### Requirements
 
-- **PHP 8.3+** with PDO MySQL extension
-- **MySQL 8+**
-- **Nginx** (or Apache with mod_rewrite)
-- Web server with SSL (recommended for any non-development use)
+The Docker path bundles all of these; this list is for a manual (non-container) install.
+
+- **PHP 8.3+** with the `pdo_pgsql`, `gd`, `apcu`, `sodium`, `exif`, and `zip` extensions
+- **PostgreSQL 14+**
+- **Nginx** (or Apache with mod_rewrite) with PHP-FPM
+- TLS (required for any federated or non-development use)
+- The media tools that `inc/media-optimize.php` shells out to: ImageMagick (`convert`), `cwebp`, `ffmpeg`, `jpegoptim`, `optipng`
 
 ### Setup
 
@@ -222,7 +234,7 @@ node --test tests/js/*.test.js    # JS only (Node 22+, no npm deps)
 
 PHP unit tests validate pure functions in `inc/validation.php`, `inc/media-optimize.php`, and `utils/auth.php`: URL validation, embed-code sanitization, wormhole-type handling, password hashing, slug generation, media optimization, API output format. The CSP compatibility test scans public-facing HTML templates for inline event handlers that break the nonce-based Content Security Policy.
 
-PHP integration tests exercise runtime database migrations against a real MySQL connection using temporary tables suffixed `_aitest` / `_test`. The critical test reproduces the `AUTO_INCREMENT` migration that must drop and re-add foreign keys (the scenario that broke production once).
+PHP integration tests exercise the runtime database helpers against a real PostgreSQL connection using temporary tables suffixed `_aitest` / `_test`. They assert the core data-layer contract through the `db_*` helper layer (node and galaxy CRUD, keyword save/read, transactional cascade deletes), which keeps the engine-agnostic behaviour honest.
 
 JS tests validate the theme registry and the `NetworkManager`'s focus / opacity / visibility behaviour. They use Node's built-in test runner; no `npm install` is needed.
 
@@ -257,14 +269,14 @@ The application carries the following editor-facing and visitor-facing surfaces.
 - `/admin/` console with paginated galaxy list, theme management, user management, bulk user creation
 - Backup and restore: `.telaris-backup` portable archive (gzipped JSON, optional embedded media), per-galaxy conflict resolution
 - Snapshot system: local on-disk full-system backups with daily scheduler, age-based retention, manual + scheduled triggers
-- Outbound mail via SMTP (Mailgun + PHPMailer): password reset, bulk-user welcome emails
+- Outbound mail via any SMTP relay (PHPMailer): password reset, bulk-user welcome emails. SMTP settings live in `config.php` or the admin Global Settings page (which stores them in the database and takes precedence)
 
 ## License
 
 Telaris is released under a tiered license per the manifest's sixth principle.
 
 - **The Telaris instance software in this repository** is licensed under **GPL v3**. See `LICENSE` for the full text.
-- **The Pluriverse coordination layer** (when the [`telaris-portal`](https://github.com/theagitist/telaris) repository is published) will be licensed under **AGPL v3**. The stronger license reflects the network-coordination role of the Pluriverse: source modifications served over the network must be made available to users.
+- **The Pluriverse coordination layer** ([`telaris_website`](https://github.com/theagitist/telaris_website), the software behind <https://www.telaris.ca>) is licensed under **AGPL v3**. The stronger license reflects the network-coordination role of the Pluriverse: source modifications served over the network must be made available to users.
 - **Editorial content** carried by Telaris instances (wormholes, descriptions, media, keyword relations, tours) is licensed by the editor or source community who publishes it, attached to each piece of content. The software is given away; the content is not annexed to give-away.
 
 This split is load-bearing. It is part of how Telaris refuses the platform pattern: the means of presenting knowledge is open, the knowledge itself stays with its editors and source communities.
@@ -276,7 +288,7 @@ This split is load-bearing. It is part of how Telaris refuses the platform patte
 - [Editor Quick Start (PDF)](https://www.telaris.ca/docs/editor-quick-start.pdf): five-step walkthrough
 - [theagitist/telaris-documentation](https://github.com/theagitist/telaris-documentation): canonical home for all Telaris documentation that ships as a PDF, including the brand book and the documentation source markdown
 - [theagitist/telaris_website](https://github.com/theagitist/telaris_website): source for <https://www.telaris.ca>
-- Federation design lives in the documentation working notes (private until v1 ships); the implementation-ready version is plan v10, around 1800 lines of OpenAPI 3.1 + RFC 9421 HTTP Signatures + RFC 7515 JWS + libsodium + push-and-pull key-event propagation.
+- Federation is built on OpenAPI 3.1 + RFC 9421 HTTP Signatures + RFC 7515 JWS + libsodium, with push-and-pull key-event propagation. The design notes live in the documentation working notes.
 
 ---
 

@@ -7,7 +7,7 @@ Published images (multi-arch, linux/amd64 + linux/arm64):
 - `ghcr.io/theagitist/telaris-app` (php-fpm + the Telaris code)
 - `ghcr.io/theagitist/telaris-web` (nginx)
 
-Pin a released version with `TELARIS_TAG` in `.env` (e.g. `TELARIS_TAG=6.11.30`); `latest` tracks the newest published build.
+You can **build the images from a checkout** (`docker compose build`, recommended: the running instance then matches the code you cloned) or **pull the published images**. The published `latest` can lag the current release, so if you pull, pin `TELARIS_TAG` in `.env` to a version actually published to GHCR rather than relying on `latest`.
 
 ## Requirements
 
@@ -18,8 +18,13 @@ Pin a released version with `TELARIS_TAG` in `.env` (e.g. `TELARIS_TAG=6.11.30`)
 ## Quick start
 
 ```sh
+# 1. Point an A/AAAA record for your TELARIS_HOSTNAME at this host FIRST. The
+#    auto-TLS proxy needs the name resolving here (ports 80 + 443 reachable)
+#    before it can obtain a certificate.
+git clone https://github.com/theagitist/telaris.git && cd telaris
 cp .env.example .env
-# edit .env: set TELARIS_HOSTNAME (your DNS name), ACME_EMAIL, and a strong DB_PASS
+# 2. edit .env: set TELARIS_HOSTNAME (your DNS name), ACME_EMAIL, and a strong DB_PASS
+docker compose build      # build from this checkout (or skip to pull GHCR images)
 docker compose up -d
 ```
 
@@ -121,7 +126,7 @@ docker compose up -d
 Images publish to GHCR via `.github/workflows/docker-publish.yml` when a version tag is pushed:
 
 ```sh
-git tag v6.11.29 && git push origin v6.11.29
+git tag v6.12.26 && git push origin v6.12.26
 ```
 
 After the first publish, set the `telaris-app` and `telaris-web` packages to **Public** once in GitHub (Packages → Package settings → visibility) so operators can pull anonymously.

@@ -1,10 +1,16 @@
 # CLAUDE.md
 
+> **Installing Telaris on a new host?** Do not follow this file. Read `README.md`
+> (the Docker quick start) and `docker/README.md`. This file documents the
+> maintainer's existing development workspace and assumes host-specific details
+> (paths, a shared managed database, the Orrery provisioner) that do not apply to
+> a fresh install.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What This Is
 
-**Telaris** — a 3D interactive node network visualization application. The PHP/MySQL backend serves data through a REST API; the frontend renders a Three.js 3D scene with nodes, connections, and themes directly in the browser.
+**Telaris** — a 3D interactive node network visualization application. The PHP/PostgreSQL backend serves data through a REST API; the frontend renders a Three.js 3D scene with nodes, connections, and themes directly in the browser.
 
 Current version: **6.11.16** (tracked in `VERSION` file). v6.11.0 was the stabilization checkpoint at the close of the five-pass security-audit thread (2026-05-22 to 2026-05-24). v6.11.1 (2026-05-24) shipped the PHPUnit protective quartet (197 → 217 tests) before federation stage 1 began. **Federation stage 1 closed 2026-05-24** across v6.11.2 → v6.11.6 (schema + identity keys + identity endpoint + OpenAPI + HTTP-Sig helper). **Federation stage 2 closed 2026-05-25** with the instance-side surface landing across v6.11.10 → v6.11.16: admin Pluriverse tab carrying the Join flow (signed POST to `/api/pluriverse/operators/apply`), the expired-application card with a single-click Re-join button (24h verification window), the Instance Name field in Global Settings (server-side facts URL/Name/email locked in the form), and the status-sync poll that pulls live admission_status from the Pluriverse on tab render. Tests at 251/251. The Pluriverse-side chunks (verify, /dashboard, /admin + actions, peers.json/blacklist.json/key-events.json, signed /operators/status) live on the separate `telaris_website` repo at `/var/www/www.telaris.ca/`. See `Architecture/P2P federation/P2P federation plan v10.md` in the project vault.
 

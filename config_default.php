@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 // Database configuration
-define('DB_HOST', '');
-define('DB_PORT', '');
+define('DB_HOST', '');      // e.g. 127.0.0.1
+define('DB_PORT', '');      // PostgreSQL default is 5432
 define('DB_NAME', '');
 define('DB_USER', '');
 define('DB_PASS', '');
