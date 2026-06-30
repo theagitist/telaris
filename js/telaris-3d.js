@@ -686,7 +686,20 @@ class TelarisNetwork {
             this.soundEnabled = !this.soundEnabled;
             toggleBtn.innerText = this.soundEnabled ? (toggleBtn.dataset.on || 'ON') : (toggleBtn.dataset.off || 'OFF');
 
-            const soundscape = this._getSoundscape();
+            let soundscape = this._getSoundscape();
+            // This click IS a user gesture, but its stopPropagation keeps the
+            // document-level first-gesture starter from ever firing, so a visitor
+            // whose first action is the sound button would otherwise never hear
+            // anything. Lazily create + start the soundscape here when turning on.
+            if (!soundscape && this.soundEnabled && window.TelarisSoundscape) {
+                try {
+                    soundscape = new window.TelarisSoundscape({ volume: 0.65, fadeTime: 4.0 });
+                    window._telarisSoundscapeInstance = soundscape;
+                    soundscape.start().catch(err => console.warn('Soundscape start failed:', err));
+                } catch (err) {
+                    console.warn('Failed to create soundscape:', err);
+                }
+            }
             if (soundscape) {
                 soundscape.setVolume(this.soundEnabled ? 0.65 : 0);
             }
