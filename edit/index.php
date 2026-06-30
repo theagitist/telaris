@@ -387,9 +387,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 hidden md:block">
                             <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700 items-center">
                                 <div class="col-span-1 px-2 py-1"><input type="checkbox" id="hg-select-all" onclick="hgToggleSelectAll(this)" class="checkbox checkbox-xs border-gray-400"></div>
-                                <div class="col-span-4 px-2 py-1"><?= t_attr('editor_hg_col_title', 'Title') ?></div>
-                                <div class="col-span-4 px-2 py-1"><?= t_attr('editor_hg_col_assigned', 'Assigned wormhole') ?></div>
-                                <div class="col-span-2 px-2 py-1"><?= t_attr('editor_col_updated', 'Updated') ?></div>
+                                <div class="col-span-4 px-2 py-1 cursor-pointer hover:bg-gray-200 rounded flex items-center gap-1" onclick="hgSortByColumn('title')"><?= t_attr('editor_hg_col_title', 'Title') ?><span id="hg-sort-indicator-title"></span></div>
+                                <div class="col-span-4 px-2 py-1 cursor-pointer hover:bg-gray-200 rounded flex items-center gap-1" onclick="hgSortByColumn('assigned')"><?= t_attr('editor_hg_col_assigned', 'Assigned wormhole') ?><span id="hg-sort-indicator-assigned"></span></div>
+                                <div class="col-span-2 px-2 py-1 cursor-pointer hover:bg-gray-200 rounded flex items-center gap-1" onclick="hgSortByColumn('updated_at')"><?= t_attr('editor_col_updated', 'Updated') ?><span id="hg-sort-indicator-updated_at"></span></div>
                                 <div class="col-span-1 text-right px-2 py-1"><?= t_attr('editor_col_actions', 'Actions') ?></div>
                             </div>
                         </div>
@@ -446,6 +446,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             'actionViewInWormhole' => t('editor_hg_action_view_in_wormhole', 'View in wormhole'),
             'actionViewInGalaxy' => t('editor_hg_action_view_in_galaxy', 'View in galaxy'),
             'actionViewDirectly' => t('editor_hg_action_view_directly', 'View in browser'),
+            'actionCopyUrl'  => t('editor_hg_action_copy_url', 'Copy direct URL'),
             'toastUrlCopied' => t('editor_toast_url_copied', 'URL copied to clipboard'),
             'actionDuplicate' => t('editor_action_duplicate', 'Duplicate'),
             'unassigned'     => t('editor_hg_unassigned', 'Not assigned'),
@@ -3953,6 +3954,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         const HG_API = '../api/hotglue-pages.php';
         const HG = window.TELARIS_HG || {};
         let hgPages = [];
+        let hgSortColumn = null;      // 'title' | 'assigned' | 'updated_at'; null = server order (updated desc)
+        let hgSortOrder = 'asc';      // 'asc' | 'desc'
         let hgWormholes = {};         // id -> {name, galaxy_name, media_mode}
         let hgCurrent = null;         // the page open in the overlay
         let hgListDirty = false;
@@ -4035,6 +4038,20 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const hay = (p.title + ' ' + (p.node_name || '') + ' ' + (p.galaxy_name || '')).toLowerCase();
                 return hay.indexOf(q) !== -1;
             });
+            // Column sort (client-side, like the other editor lists). Null column
+            // keeps the server order (updated_at desc).
+            if (hgSortColumn) {
+                const dir = hgSortOrder === 'asc' ? 1 : -1;
+                rows.sort((a, b) => {
+                    let va, vb;
+                    if (hgSortColumn === 'title') { va = (a.title || '').toLowerCase(); vb = (b.title || '').toLowerCase(); }
+                    else if (hgSortColumn === 'assigned') { va = (a.node_name || '').toLowerCase(); vb = (b.node_name || '').toLowerCase(); }
+                    else { va = String(a.updated_at || ''); vb = String(b.updated_at || ''); }
+                    if (va < vb) return -dir;
+                    if (va > vb) return dir;
+                    return 0;
+                });
+            }
             // Keep the selection to what is currently visible.
             const visibleIds = new Set(rows.map(p => p.id));
             for (const id of Array.from(hgSelected)) { if (!visibleIds.has(id)) hgSelected.delete(id); }
@@ -4072,6 +4089,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         ? '<li><a onclick="event.stopPropagation(); hgViewInWormhole(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionViewInWormhole || 'View in wormhole') + '</a></li>'
                         + '<li><a onclick="event.stopPropagation(); hgViewInGalaxy(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionViewInGalaxy || 'View in galaxy') + '</a></li>'
                         : '');
+                    // "Copy direct URL" copies the bare hotglue page URL to the clipboard
+                    // without opening a tab; available for every page, assigned or not.
+                    const copyUrlItem = '<li><a onclick="event.stopPropagation(); hgCopyDirectUrl(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionCopyUrl || 'Copy direct URL') + '</a></li>';
                     html += '<div class="flex flex-col gap-1.5 md:grid md:grid-cols-12 md:gap-3 md:items-center py-3 md:py-2 border-b border-gray-100 hover:bg-gray-50">'
                         + '<div class="md:col-span-1 px-2"><input type="checkbox" class="hg-checkbox checkbox checkbox-xs" data-id="' + p.id + '"' + checked + ' onclick="hgToggleSelect(' + p.id + ')"></div>'
                         + '<div class="md:col-span-4 px-2"><button type="button" class="text-blue-600 hover:text-blue-800 font-medium text-left" onclick="hgOpenEditorById(' + p.id + ')">' + title + '</button></div>'
@@ -4082,6 +4102,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         + '<label tabindex="0" onclick="event.stopPropagation(); if(typeof closeAllDropdowns===\'function\')closeAllDropdowns(this)" class="btn btn-ghost btn-xs px-1.5"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg></label>'
                         + '<ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-48">'
                         + viewItem
+                        + copyUrlItem
                         + '<li><a onclick="event.stopPropagation(); hgOpenEditorById(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.btnEdit || 'Edit') + '</a></li>'
                         + '<li><a onclick="event.stopPropagation(); hgDuplicate(' + p.id + ')" class="text-gray-700 text-xs">' + esc(HG.actionDuplicate || 'Duplicate') + '</a></li>'
                         + '<li class="border-t border-gray-100 mt-1 pt-1"><a onclick="event.stopPropagation(); hgDeletePage(' + p.id + ')" class="text-red-600 text-xs">' + esc(HG.btnDelete || 'Delete') + '</a></li>'
@@ -4094,6 +4115,41 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             wrap.innerHTML = html;
             while (wrap.firstChild) list.appendChild(wrap.firstChild);
             hgUpdateBulkBar();
+        };
+
+        // ---- Column sort (client-side) ------------------------------------
+        window.hgSortByColumn = function (column) {
+            if (hgSortColumn === column) {
+                hgSortOrder = hgSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                hgSortColumn = column;
+                hgSortOrder = 'asc';
+            }
+            hgUpdateSortIndicators();
+            hgRenderList();
+        };
+        function hgUpdateSortIndicators() {
+            ['title', 'assigned', 'updated_at'].forEach(col => {
+                const ind = document.getElementById('hg-sort-indicator-' + col);
+                if (ind) ind.innerHTML = '';
+            });
+            if (hgSortColumn) {
+                const ind = document.getElementById('hg-sort-indicator-' + hgSortColumn);
+                if (ind) ind.innerHTML = hgSortOrder === 'asc' ? ' ↑' : ' ↓';
+            }
+        }
+
+        // Copy the bare hotglue page URL to the clipboard (no new tab).
+        window.hgCopyDirectUrl = function (pageId) {
+            const p = hgPages.find(x => x.id === pageId);
+            if (!p || !p.slug) return;
+            const relativeUrl = '../hg/?' + encodeURIComponent(p.slug);
+            const absoluteUrl = new URL(relativeUrl, window.location.origin + window.location.pathname).href;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(absoluteUrl).then(() => {
+                    if (typeof showMessage === 'function') showMessage(HG.toastUrlCopied || 'URL copied to clipboard');
+                }).catch(() => {});
+            }
         };
 
         // ---- Multiselect --------------------------------------------------
