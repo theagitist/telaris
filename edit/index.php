@@ -4024,7 +4024,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const galaxy = hgSelectedGalaxy();
             const filtered = galaxy === 'all';   // when a galaxy is chosen, drop the "in galaxy" suffix
             const rows = hgPages.filter(p => {
-                if (galaxy !== 'all' && String(p.galaxy_id || '') !== String(galaxy)) return false;
+                // Unassigned pages (no galaxy) are shown under every galaxy filter: they
+                // do not belong to any one galaxy, so a specific-galaxy filter only hides
+                // pages assigned to a DIFFERENT galaxy, never the unassigned ones.
+                if (galaxy !== 'all') {
+                    const pg = String(p.galaxy_id || '');
+                    if (pg !== '' && pg !== String(galaxy)) return false;
+                }
                 if (!q) return true;
                 const hay = (p.title + ' ' + (p.node_name || '') + ' ' + (p.galaxy_name || '')).toLowerCase();
                 return hay.indexOf(q) !== -1;
