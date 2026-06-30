@@ -259,6 +259,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
              (standalone hotglue pages, optionally assigned to a wormhole). -->
         <div role="tablist" class="tabs tabs-boxed bg-white shadow-md mb-6 p-2 inline-flex gap-1">
             <a id="etab-wormholes" role="tab" class="tab tab-active font-medium" onclick="switchEditorTab('wormholes')"><?= t_attr('editor_viewtab_wormholes', 'Wormholes') ?></a>
+            <a id="etab-templates" role="tab" class="tab font-medium" onclick="switchEditorTab('templates')"><?= t_attr('editor_viewtab_templates', 'Templates') ?></a>
             <a id="etab-hotglue" role="tab" class="tab font-medium" onclick="switchEditorTab('hotglue')"><?= t_attr('editor_viewtab_hotglue', 'Hotglue content') ?></a>
         </div>
 
@@ -301,8 +302,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <div class="flex items-center gap-3">
                         <h2 class="text-gray-800 text-xl font-semibold"><?= t_attr('editor_heading_wormholes', 'Wormholes') ?> (<span id="tab-list-count">0</span>)</h2>
                         <button type="button" onclick="openCreateNodeModal()" class="node-edit-action text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('editor_btn_new_wormhole', 'New Wormhole') ?></button>
-                        <button type="button" id="filter-touched-today-btn" onclick="toggleTouchedTodayFilter()" class="text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-500 transition" title="<?= t_attr('editor_btn_touched_today_title', 'Show only wormholes touched today') ?>"><?= t_attr('editor_btn_touched_today', 'Touched today') ?></button>
-                        <button type="button" onclick="openBulkByKeywordModal()" id="bulk-by-keyword-btn" class="text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-500 transition" title="<?= t_attr('editor_btn_bulk_keyword_title', 'Bulk delete or move every wormhole in this galaxy carrying a chosen keyword') ?>"><?= t_attr('editor_btn_bulk_by_keyword', 'Bulk by keyword…') ?></button>
+                        <select id="template-selector" class="node-edit-action select select-bordered select-sm bg-white text-gray-700" title="<?= t_attr('editor_tpl_selector_title', 'Base the next new wormhole on a template') ?>" aria-label="<?= t_attr('editor_tpl_selector_title', 'Base the next new wormhole on a template') ?>">
+                            <option value=""><?= t_attr('editor_tpl_selector_blank', 'No template') ?></option>
+                        </select>
                         <button type="button" onclick="document.getElementById('shortcuts_modal').showModal()" class="text-xs px-2.5 py-1 rounded-full border border-gray-300 text-gray-600 hover:border-gray-500 transition" title="<?= t_attr('editor_btn_shortcuts_title', 'Keyboard shortcuts (? to open)') ?>">?</button>
                     </div>
 
@@ -398,20 +400,49 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 </div>
             </div>
         </div><!-- /#editor-tab-hotglue -->
+
+        <!-- Templates tab: the editor's reusable wormhole templates. -->
+        <div id="editor-tab-templates" class="editor-view-panel hidden">
+            <div class="bg-white rounded-lg shadow-md mb-6">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <h2 class="text-gray-800 text-xl font-semibold"><?= t_attr('editor_tpl_heading', 'Templates') ?> (<span id="tpl-list-count">0</span>)</h2>
+                        </div>
+                        <div class="flex items-center gap-2 w-full sm:w-auto sm:min-w-[300px]">
+                            <label for="tpl-search" class="text-sm font-medium text-gray-700"><?= t_attr('editor_label_search', 'Search:') ?></label>
+                            <input type="text" id="tpl-search" oninput="tplRenderList()" placeholder="<?= t_attr('editor_tpl_search_placeholder', 'Search templates...') ?>" class="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <div id="tpl-list" class="space-y-0">
+                        <div class="border-b-2 border-gray-400 bg-gray-100 py-2 mb-1 hidden md:block">
+                            <div class="grid grid-cols-12 gap-3 text-xs font-semibold text-gray-700 items-center">
+                                <div class="col-span-6 px-2 py-1 cursor-pointer hover:bg-gray-200 rounded flex items-center gap-1" onclick="tplSortByColumn('name')"><?= t_attr('editor_tpl_col_name', 'Name') ?><span id="tpl-sort-indicator-name"></span></div>
+                                <div class="col-span-2 px-2 py-1 cursor-pointer hover:bg-gray-200 rounded flex items-center gap-1" onclick="tplSortByColumn('has_hotglue')"><?= t_attr('editor_tpl_col_hotglue', 'Hotglue') ?><span id="tpl-sort-indicator-has_hotglue"></span></div>
+                                <div class="col-span-3 px-2 py-1 cursor-pointer hover:bg-gray-200 rounded flex items-center gap-1" onclick="tplSortByColumn('updated_at')"><?= t_attr('editor_col_updated', 'Updated') ?><span id="tpl-sort-indicator-updated_at"></span></div>
+                                <div class="col-span-1 text-right px-2 py-1"><?= t_attr('editor_col_actions', 'Actions') ?></div>
+                            </div>
+                        </div>
+                        <p class="text-gray-500 p-4" id="tpl-loading"><?= t_attr('editor_tpl_loading', 'Loading templates...') ?></p>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /#editor-tab-templates -->
         <script>
         // Pre-paint tab restore: if the URL hash asks for the Hotglue tab, set the
         // visible panel synchronously here (runs during parse, before first paint)
         // so there is no flash of the Wormholes tab before the module restores it.
         (function () {
-            if (location.hash !== '#hotglue') return;
-            var wp = document.getElementById('editor-tab-wormholes'),
-                hp = document.getElementById('editor-tab-hotglue'),
-                wt = document.getElementById('etab-wormholes'),
-                ht = document.getElementById('etab-hotglue');
-            if (wp) wp.classList.add('hidden');
-            if (hp) hp.classList.remove('hidden');
-            if (wt) wt.classList.remove('tab-active');
-            if (ht) ht.classList.add('tab-active');
+            var hash = (location.hash || '').replace('#', '');
+            if (hash !== 'hotglue' && hash !== 'templates') return;
+            ['wormholes', 'hotglue', 'templates'].forEach(function (t) {
+                var panel = document.getElementById('editor-tab-' + t);
+                var btn = document.getElementById('etab-' + t);
+                if (panel) panel.classList.toggle('hidden', t !== hash);
+                if (btn) btn.classList.toggle('tab-active', t === hash);
+            });
         })();
         </script>
     </div>
@@ -465,6 +496,38 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             'inGalaxy'       => t('editor_hg_in_galaxy', 'in %s'),
             'colAssigned'    => t('editor_hg_col_assigned', 'Assigned wormhole'),
             'colUpdated'     => t('editor_col_updated', 'Updated'),
+        ], JSON_THROW_ON_ERROR); ?>;
+
+        // Templates tab + New Wormhole selector: API endpoint, the editor's
+        // templates (full captured data, used to pre-fill the create modal), and
+        // localized strings.
+        const TEMPLATES_API = '../api/templates.php';
+        window.TELARIS_TEMPLATES_DATA = <?= json_encode(array_map(static function (array $t) use ($currentUserId): array {
+            return [
+                'id'          => (int)$t['id'],
+                'name'        => (string)$t['name'],
+                'has_hotglue' => (bool)$t['has_hotglue'],
+                'updated_at'  => (string)$t['updated_at'],
+                'data'        => is_array($t['data']) ? $t['data'] : [],
+            ];
+        }, db_templates_list_for_user($currentUserId !== null ? (string)$currentUserId : null, $isAdmin)), JSON_THROW_ON_ERROR); ?>;
+        window.TELARIS_TPL = <?= json_encode([
+            'selectorBlank'  => t('editor_tpl_selector_blank', 'No template'),
+            'heading'        => t('editor_tpl_heading', 'Templates'),
+            'colName'        => t('editor_tpl_col_name', 'Name'),
+            'colHotglue'     => t('editor_tpl_col_hotglue', 'Hotglue'),
+            'colUpdated'     => t('editor_col_updated', 'Updated'),
+            'untitled'       => t('editor_tpl_untitled', 'Untitled template'),
+            'emptyHint'      => t('editor_tpl_empty_hint', 'No templates yet. Open a wormhole\'s Actions menu and choose "Create Template" to make one.'),
+            'noMatch'        => t('editor_tpl_no_match', 'No templates match your search.'),
+            'hotglueYes'     => t('editor_tpl_hotglue_yes', 'Includes hotglue content'),
+            'actionRename'   => t('editor_tpl_action_rename', 'Rename'),
+            'actionDelete'   => t('editor_action_delete', 'Delete'),
+            'renamePrompt'   => t('editor_tpl_rename_prompt', 'New name for this template:'),
+            'confirmDelete'  => t('editor_tpl_confirm_delete', 'Delete this template? This cannot be undone. Wormholes already created from it are not affected.'),
+            'createdToast'   => t('editor_tpl_created_toast', 'Template created'),
+            'deletedToast'   => t('editor_tpl_deleted_toast', 'Template deleted'),
+            'errGeneric'     => t('editor_hg_err_generic', 'Something went wrong. Please try again.'),
         ], JSON_THROW_ON_ERROR); ?>;
 
         // Localized strings consumed by inline JS. Mirrors the visitor-side
@@ -522,6 +585,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             'actionViewGalaxy' => t('editor_action_view_galaxy', 'View Galaxy'),
             'actionEdit' => t('editor_action_edit', 'Edit'),
             'actionDuplicate' => t('editor_action_duplicate', 'Duplicate'),
+            'actionCreateTemplate' => t('editor_action_create_template', 'Create Template'),
             'actionDelete' => t('editor_action_delete', 'Delete'),
             // Bulk action toasts (use %d as placeholder)
             'toastBulkMoveSuccess' => t('editor_toast_bulk_move_success', 'Successfully moved %d wormholes.'),
@@ -1233,9 +1297,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 if (currentFilter) {
                     params.set('filter', currentFilter);
                 }
-                if (touchedTodayFilter) {
-                    params.set('touched_today', '1');
-                }
 
                 const response = await fetch(API_BASE + '?' + params.toString(), {
                     headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN }
@@ -1411,6 +1472,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                     ${rowReadOnly ? '' : `
                                     <li class="border-t border-gray-100 mt-1 pt-1"><a onclick="event.stopPropagation(); editNode(${node.id})" class="text-gray-700 text-xs">${escapeHtml(TELARIS_EDIT.actionEdit)}</a></li>
                                     <li><a onclick="event.stopPropagation(); openDuplicateModal(${node.id})" class="text-gray-700 text-xs">${escapeHtml(TELARIS_EDIT.actionDuplicate)}</a></li>
+                                    <li><a onclick="event.stopPropagation(); tplCreateFromNode(${node.id})" class="text-gray-700 text-xs">${escapeHtml(TELARIS_EDIT.actionCreateTemplate)}</a></li>
                                     <li class="node-edit-action"><a onclick="event.stopPropagation(); deleteNode(${node.id}, '${escapeHtml(node.name)}')" class="text-red-600 text-xs">${escapeHtml(TELARIS_EDIT.actionDelete)}</a></li>`}
                                 </ul>
                             </div>
@@ -1475,22 +1537,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
         // Filter state
         let currentFilter = '';
-        let touchedTodayFilter = false;
-        function toggleTouchedTodayFilter() {
-            touchedTodayFilter = !touchedTodayFilter;
-            const btn = document.getElementById('filter-touched-today-btn');
-            if (btn) {
-                if (touchedTodayFilter) {
-                    btn.classList.remove('border-gray-300', 'text-gray-600', 'hover:border-gray-500');
-                    btn.classList.add('bg-neutral', 'text-neutral-content', 'border-neutral');
-                } else {
-                    btn.classList.add('border-gray-300', 'text-gray-600', 'hover:border-gray-500');
-                    btn.classList.remove('bg-neutral', 'text-neutral-content', 'border-neutral');
-                }
-            }
-            currentPage = 1;
-            loadNodes();
-        }
 
         // Debounced search
         const debouncedSearch = (() => {
@@ -2441,7 +2487,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // Submit a NEW wormhole (one-shot POST) from the unified modal in create mode.
         // Editing an existing wormhole autosaves instead (editAutosave), so this path is
         // create-only and targets the unified modal's create-mode submit + progress.
-        function handleNodeSubmit(formData, context, method = 'POST') {
+        function handleNodeSubmit(formData, context, method = 'POST', onCreated = null) {
             const submitBtn = document.getElementById('edit-submit-btn');
             const loader = document.getElementById('edit-submit-loader');
             const progressWrap = document.getElementById('edit-progress-wrap');
@@ -2488,6 +2534,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     } catch (e) {}
                     showMessage(successMsg);
                     loadNodes();
+                    if (context === 'create' && typeof onCreated === 'function') {
+                        try { onCreated(JSON.parse(xhr.responseText)); } catch (e) {}
+                    }
                 } else {
                     let errorMsg = context === 'edit' ? TELARIS_EDIT.errorFailedUpdate : TELARIS_EDIT.errorFailedCreate;
                     try {
@@ -2727,6 +2776,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             switchMediaMode('classic', 'edit');
             applyHotglueTabVisibility(null);
 
+            // If the New Wormhole template selector has a template chosen, pre-fill
+            // the modal from it (overrides the blank defaults set just above).
+            if (window.tplApplySelectedToModal) window.tplApplySelectedToModal();
+
             setWormholeMode('create');
             document.getElementById('edit_modal').showModal();
         }
@@ -2807,8 +2860,212 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 showMessage(TELARIS_EDIT.errorApiKeyMissing, 'error');
                 return;
             }
-            handleNodeSubmit(buildCreateFormData(), 'create', 'POST');
+            handleNodeSubmit(buildCreateFormData(), 'create', 'POST', (resp) => {
+                // If the New Wormhole was based on a hotglue template, clone the
+                // template's content into the freshly-created wormhole.
+                const tid = tplConsumePendingTemplate();
+                if (tid && resp && resp.id) { window.tplCloneHotglueInto(tid, resp.id); }
+            });
         }
+
+        // ===================================================================
+        // Wormhole templates: the New Wormhole template selector + the Templates
+        // tab. Lives in the main editor scope so it can reuse escapeHtml,
+        // showMessage, keywordState, updateKeywordTags, switchVisualTab,
+        // toggleTargetConstellation, loadNodes, and CSRF_TOKEN directly.
+        // ===================================================================
+        const TPL = window.TELARIS_TPL || {};
+        let tplData = Array.isArray(window.TELARIS_TEMPLATES_DATA) ? window.TELARIS_TEMPLATES_DATA : [];
+        let tplSortColumn = null, tplSortOrder = 'asc';
+        let tplPendingTemplateId = null;   // hotglue template awaiting clone after node create
+        let tplLoadedOnce = false;
+
+        async function tplPost(action, params) {
+            const fd = new FormData();
+            fd.set('action', action);
+            fd.set('csrf_token', CSRF_TOKEN || '');
+            for (const k in (params || {})) fd.set(k, params[k]);
+            const r = await fetch(TEMPLATES_API, {
+                method: 'POST', body: fd, credentials: 'same-origin',
+                headers: { 'X-CSRF-Token': CSRF_TOKEN || '', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            let data = {};
+            try { data = await r.json(); } catch (e) { /* non-JSON */ }
+            return data;
+        }
+        async function tplReload() {
+            tplLoadedOnce = true;
+            const data = await tplPost('list', {});
+            tplData = (data && data.ok) ? (data.templates || []) : [];
+            window.TELARIS_TEMPLATES_DATA = tplData;
+            renderTemplateSelector();
+            tplRenderList();
+        }
+        window.tplOnTabShow = function () {
+            if (!tplLoadedOnce) { tplReload(); }
+            else { tplRenderList(); }
+        };
+
+        // ---- New Wormhole template selector --------------------------------
+        function renderTemplateSelector() {
+            const sel = document.getElementById('template-selector');
+            if (!sel) return;
+            const prev = sel.value;
+            let html = '<option value="">' + escapeHtml(TPL.selectorBlank || 'No template') + '</option>';
+            for (const t of tplData) {
+                html += '<option value="' + t.id + '">' + escapeHtml(t.name || TPL.untitled || '') + '</option>';
+            }
+            sel.innerHTML = html;
+            sel.value = tplData.some(t => String(t.id) === String(prev)) ? prev : '';
+        }
+
+        // Apply the selected template to the (already reset) create modal. Called
+        // from openCreateNodeModal. Sets tplPendingTemplateId for hotglue
+        // templates so saveNewNode clones their content after the node is created.
+        window.tplApplySelectedToModal = function () {
+            tplPendingTemplateId = null;
+            const sel = document.getElementById('template-selector');
+            if (!sel || !sel.value) return;
+            const t = tplData.find(x => String(x.id) === String(sel.value));
+            if (!t) return;
+            const d = t.data || {};
+            const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v == null ? '' : v); };
+            const setChk = (id, v) => { const el = document.getElementById(id); if (el) el.checked = !!v; };
+            setVal('edit-name', d.name);
+            setVal('edit-description', d.description);
+            setVal('edit-url', d.url);
+            setVal('edit-embed-code', d.embed_code);
+            setVal('edit-icon-url', d.icon_url);
+            setVal('edit-image-attribution', d.image_attribution);
+            setVal('edit-image-url', d.image_url);
+            setVal('edit-video-url', d.video_url);
+            setVal('edit-pdf-url', d.pdf_url);
+            setVal('edit-audio-url', d.audio_url);
+            setChk('edit-accentuated', d.is_accentuated);
+            setChk('edit-show-keywords', d.show_keywords);
+            setChk('edit-use-image-as-node', d.use_image_as_node);
+            setChk('edit-audio-autoplay', d.audio_autoplay !== false);
+            setChk('edit-audio-loop', d.audio_loop);
+            setChk('edit-video-autoplay', d.video_autoplay !== false);
+            // ponytail: portal target is intentionally not captured; the user re-picks it.
+            const nt = (d.node_type === 'portal') ? 'portal' : 'object';
+            setVal('edit-node-type', nt);
+            toggleTargetConstellation(nt, 'modal');
+            // Pick the visual tab the template actually carries.
+            let visual = 'image';
+            if (!d.image_url && d.video_url) visual = 'video';
+            else if (!d.image_url && !d.video_url && d.pdf_url) visual = 'pdf';
+            switchVisualTab(visual, 'edit');
+            keywordState['modal'] = Array.isArray(d.keywords) ? d.keywords.slice() : [];
+            updateKeywordTags('modal');
+            // The modal cannot host hotglue content; keep the modal on classic and
+            // clone the template's hotglue snapshot server-side after node create.
+            if (t.has_hotglue) tplPendingTemplateId = t.id;
+        };
+
+        function tplConsumePendingTemplate() {
+            const id = tplPendingTemplateId;
+            tplPendingTemplateId = null;
+            const sel = document.getElementById('template-selector');
+            if (sel) sel.value = '';
+            return id;
+        }
+
+        // Create a template from a wormhole (the Actions menu item).
+        window.tplCreateFromNode = async function (nodeId) {
+            const data = await tplPost('create_from_node', { node_id: nodeId });
+            if (data && data.ok) { await tplReload(); showMessage(TPL.createdToast || 'Template created'); }
+            else { showMessage(TPL.errGeneric || 'Error', 'error'); }
+        };
+
+        // After a wormhole is created from a hotglue template, clone the snapshot.
+        window.tplCloneHotglueInto = async function (templateId, nodeId) {
+            if (!templateId || !nodeId) return;
+            await tplPost('clone_hotglue', { template_id: templateId, node_id: nodeId });
+            loadNodes();   // refresh so the new wormhole's hotglue state is reflected
+        };
+
+        // ---- Templates tab list --------------------------------------------
+        window.tplRenderList = function () {
+            const list = document.getElementById('tpl-list');
+            if (!list) return;
+            const header = list.querySelector('.border-b-2');
+            const q = (document.getElementById('tpl-search')?.value || '').trim().toLowerCase();
+            let rows = tplData.filter(t => !q || (t.name || '').toLowerCase().indexOf(q) !== -1);
+            if (tplSortColumn) {
+                const dir = tplSortOrder === 'asc' ? 1 : -1;
+                rows = rows.slice().sort((a, b) => {
+                    let va, vb;
+                    if (tplSortColumn === 'name') { va = (a.name || '').toLowerCase(); vb = (b.name || '').toLowerCase(); }
+                    else if (tplSortColumn === 'has_hotglue') { va = a.has_hotglue ? 1 : 0; vb = b.has_hotglue ? 1 : 0; }
+                    else { va = String(a.updated_at || ''); vb = String(b.updated_at || ''); }
+                    if (va < vb) return -dir;
+                    if (va > vb) return dir;
+                    return 0;
+                });
+            }
+            const countEl = document.getElementById('tpl-list-count');
+            if (countEl) countEl.textContent = String(rows.length);
+            let html = '';
+            if (rows.length === 0) {
+                html = '<div class="text-center text-gray-500 py-10 px-4">' + escapeHtml(q ? (TPL.noMatch || '') : (TPL.emptyHint || '')) + '</div>';
+            } else {
+                for (const t of rows) {
+                    const name = escapeHtml(t.name || TPL.untitled || '');
+                    const hg = t.has_hotglue
+                        ? '<span class="text-emerald-600 font-bold" title="' + escapeHtml(TPL.hotglueYes || '') + '">✓</span>'
+                        : '<span class="text-gray-300">—</span>';
+                    const updated = escapeHtml(String(t.updated_at || '').slice(0, 16));
+                    html += '<div class="flex flex-col gap-1.5 md:grid md:grid-cols-12 md:gap-3 md:items-center py-3 md:py-2 border-b border-gray-100 hover:bg-gray-50">'
+                        + '<div class="md:col-span-6 px-2"><span class="font-medium text-gray-800">' + name + '</span></div>'
+                        + '<div class="md:col-span-2 px-2 text-sm"><span class="md:hidden font-semibold text-gray-500 mr-1">' + escapeHtml(TPL.colHotglue || 'Hotglue') + ':</span>' + hg + '</div>'
+                        + '<div class="md:col-span-3 px-2 text-xs text-gray-500"><span class="md:hidden font-semibold text-gray-500 mr-1">' + escapeHtml(TPL.colUpdated || 'Updated') + ':</span>' + updated + '</div>'
+                        + '<div class="md:col-span-1 px-2 flex justify-end">'
+                        + '<div class="dropdown dropdown-end">'
+                        + '<label tabindex="0" onclick="event.stopPropagation(); if(typeof closeAllDropdowns===\'function\')closeAllDropdowns(this)" class="btn btn-ghost btn-xs px-1.5"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg></label>'
+                        + '<ul tabindex="0" class="dropdown-content z-[50] menu menu-sm p-1 shadow-lg bg-white rounded-lg border border-gray-200 w-44">'
+                        + '<li><a onclick="event.stopPropagation(); tplRename(' + t.id + ')" class="text-gray-700 text-xs">' + escapeHtml(TPL.actionRename || 'Rename') + '</a></li>'
+                        + '<li class="border-t border-gray-100 mt-1 pt-1"><a onclick="event.stopPropagation(); tplDelete(' + t.id + ')" class="text-red-600 text-xs">' + escapeHtml(TPL.actionDelete || 'Delete') + '</a></li>'
+                        + '</ul></div></div></div>';
+                }
+            }
+            list.innerHTML = '';
+            if (header) list.appendChild(header);
+            const wrap = document.createElement('div');
+            wrap.innerHTML = html;
+            while (wrap.firstChild) list.appendChild(wrap.firstChild);
+        };
+        window.tplSortByColumn = function (column) {
+            if (tplSortColumn === column) { tplSortOrder = tplSortOrder === 'asc' ? 'desc' : 'asc'; }
+            else { tplSortColumn = column; tplSortOrder = 'asc'; }
+            ['name', 'has_hotglue', 'updated_at'].forEach(col => {
+                const ind = document.getElementById('tpl-sort-indicator-' + col);
+                if (ind) ind.innerHTML = '';
+            });
+            const ind = document.getElementById('tpl-sort-indicator-' + tplSortColumn);
+            if (ind) ind.innerHTML = tplSortOrder === 'asc' ? ' ↑' : ' ↓';
+            tplRenderList();
+        };
+        window.tplRename = async function (id) {
+            const t = tplData.find(x => String(x.id) === String(id));
+            if (!t) return;
+            const name = window.prompt(TPL.renamePrompt || 'New name:', t.name || '');
+            if (name === null) return;
+            const trimmed = name.trim();
+            if (trimmed === '') return;
+            const data = await tplPost('rename', { id: id, name: trimmed });
+            if (data && data.ok) { await tplReload(); }
+            else { showMessage(TPL.errGeneric || 'Error', 'error'); }
+        };
+        window.tplDelete = async function (id) {
+            if (!confirm(TPL.confirmDelete || '')) return;
+            const data = await tplPost('delete', { id: id });
+            if (data && data.ok) { await tplReload(); showMessage(TPL.deletedToast || 'Template deleted'); }
+            else { showMessage(TPL.errGeneric || 'Error', 'error'); }
+        };
+
+        // Populate the New Wormhole selector at load (list renders lazily on tab open).
+        renderTemplateSelector();
 
         // Wait for DOM to be ready
         document.addEventListener('DOMContentLoaded', () => {
@@ -3622,197 +3879,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
     <?php require __DIR__ . '/../inc/partials/galaxy-edit-modal.php'; ?>
 
-    <!-- Bulk by keyword modal -->
-    <dialog id="bulk_by_keyword_modal" class="modal">
-        <div class="modal-box bg-white !pt-0 max-w-lg">
-            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
-                <h3 class="font-bold text-xl"><?= t_attr('editor_modal_heading_bulk_keyword', 'Bulk action by keyword') ?></h3>
-            </div>
-            <p class="text-sm text-gray-600 mt-4">
-                <?= t_attr('editor_text_bulk_keyword_help', 'Pick a keyword in the current galaxy. Then choose to delete every wormhole carrying it, or move them all to another galaxy.') ?>
-            </p>
-
-            <div class="mt-4">
-                <label for="bulk-kw-keyword" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_keyword', 'Keyword') ?></label>
-                <select id="bulk-kw-keyword" class="select select-bordered select-sm w-full bg-white">
-                    <option value=""><?= t_attr('editor_option_loading', 'Loading…') ?></option>
-                </select>
-            </div>
-
-            <div class="mt-4">
-                <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_action', 'Action') ?></label>
-                <div class="space-y-1">
-                    <label class="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="radio" name="bulk-kw-op" value="delete" class="radio radio-neutral radio-sm" checked>
-                        <span><?= t_attr('editor_option_delete_matching', 'Delete the matching wormholes') ?></span>
-                    </label>
-                    <label class="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="radio" name="bulk-kw-op" value="move" class="radio radio-neutral radio-sm">
-                        <span><?= t_attr('editor_option_move_matching', 'Move them to another galaxy') ?></span>
-                    </label>
-                </div>
-            </div>
-
-            <div id="bulk-kw-target-row" class="mt-4 hidden">
-                <label for="bulk-kw-target" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_target_galaxy', 'Target galaxy') ?></label>
-                <select id="bulk-kw-target" class="select select-bordered select-sm w-full bg-white"></select>
-            </div>
-
-            <p id="bulk-kw-preview" class="text-xs text-gray-600 mt-4"><?= t_attr('editor_text_pick_keyword', 'Pick a keyword to see the count.') ?></p>
-
-            <div class="modal-action">
-                <button type="button" id="bulk-kw-apply" class="btn btn-neutral" disabled><?= t_attr('editor_btn_apply', 'Apply') ?></button>
-                <button type="button" class="btn" onclick="document.getElementById('bulk_by_keyword_modal').close()"><?= t_attr('editor_btn_cancel', 'Cancel') ?></button>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop"><button>close</button></form>
-    </dialog>
-
-    <script>
-        let bulkKwAvailable = []; // [{id, keyword, usage_count}]
-
-        async function openBulkByKeywordModal() {
-            const sel = document.getElementById('current-constellation');
-            const cid = parseInt(sel?.value, 10);
-            if (!cid || isNaN(cid)) {
-                showMessage(TELARIS_EDIT.errorPickSpecificGalaxy, 'error');
-                return;
-            }
-
-            const kwSelect = document.getElementById('bulk-kw-keyword');
-            const targetSelect = document.getElementById('bulk-kw-target');
-            const preview = document.getElementById('bulk-kw-preview');
-            const applyBtn = document.getElementById('bulk-kw-apply');
-            kwSelect.innerHTML = `<option value="">${escapeHtmlEdit(TELARIS_EDIT.optionLoading)}</option>`;
-            targetSelect.innerHTML = '';
-            preview.textContent = TELARIS_EDIT.textPickKeyword;
-            preview.style.color = '';
-            applyBtn.disabled = true;
-            document.querySelector('input[name="bulk-kw-op"][value="delete"]').checked = true;
-            document.getElementById('bulk-kw-target-row').classList.add('hidden');
-
-            // Load keyword list for the current galaxy.
-            try {
-                const r = await fetch(`../api/keywords.php?constellation_id=${cid}`, { headers: { 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN } });
-                if (!r.ok) throw new Error('Failed to load keywords');
-                bulkKwAvailable = await r.json();
-                if (!Array.isArray(bulkKwAvailable) || bulkKwAvailable.length === 0) {
-                    kwSelect.innerHTML = `<option value="">${escapeHtmlEdit(TELARIS_EDIT.optionNoKeywords)}</option>`;
-                } else {
-                    kwSelect.innerHTML = `<option value="">${escapeHtmlEdit(TELARIS_EDIT.optionPickOne)}</option>` + bulkKwAvailable
-                        .sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0) || String(a.keyword).localeCompare(String(b.keyword)))
-                        .map(k => `<option value="${k.id}">${escapeHtmlEdit(k.keyword)} (${k.usage_count || 0})</option>`)
-                        .join('');
-                }
-            } catch (e) {
-                kwSelect.innerHTML = `<option value="">${escapeHtmlEdit(TELARIS_EDIT.optionErrorKeywords)}</option>`;
-            }
-
-            // Target galaxy list (excludes current galaxy itself).
-            if (Array.isArray(window.TELARIS_GALAXIES)) {
-                targetSelect.innerHTML = `<option value="">${escapeHtmlEdit(TELARIS_EDIT.optionPickGalaxy)}</option>` + window.TELARIS_GALAXIES
-                    .filter(g => g.id !== cid)
-                    .map(g => `<option value="${g.id}">${escapeHtmlEdit(g.name)}</option>`)
-                    .join('');
-            }
-
-            document.getElementById('bulk_by_keyword_modal').showModal();
-        }
-
-        function escapeHtmlEdit(s) {
-            return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const kwSelect = document.getElementById('bulk-kw-keyword');
-            const opRadios = document.querySelectorAll('input[name="bulk-kw-op"]');
-            const targetSelect = document.getElementById('bulk-kw-target');
-            const targetRow = document.getElementById('bulk-kw-target-row');
-            const preview = document.getElementById('bulk-kw-preview');
-            const applyBtn = document.getElementById('bulk-kw-apply');
-
-            const refreshPreview = () => {
-                const kid = parseInt(kwSelect.value, 10);
-                if (!kid || isNaN(kid)) {
-                    preview.textContent = TELARIS_EDIT.textPickKeyword;
-                    applyBtn.disabled = true;
-                    return;
-                }
-                const entry = bulkKwAvailable.find(k => k.id === kid);
-                const count = entry ? (entry.usage_count || 0) : 0;
-                const op = (document.querySelector('input[name="bulk-kw-op"]:checked') || {}).value || 'delete';
-                if (op === 'move') {
-                    const tid = parseInt(targetSelect.value, 10);
-                    if (tid && !isNaN(tid)) {
-                        preview.textContent = count === 1 ? TELARIS_EDIT.previewMoveOne : tFmt(TELARIS_EDIT.previewMoveMany, count);
-                    } else {
-                        preview.textContent = count === 1 ? TELARIS_EDIT.previewMovePickTargetOne : tFmt(TELARIS_EDIT.previewMovePickTargetMany, count);
-                    }
-                    applyBtn.disabled = !(tid && !isNaN(tid)) || count === 0;
-                } else {
-                    preview.textContent = count === 1 ? TELARIS_EDIT.previewDeleteOne : tFmt(TELARIS_EDIT.previewDeleteMany, count);
-                    applyBtn.disabled = count === 0;
-                }
-            };
-
-            kwSelect && kwSelect.addEventListener('change', refreshPreview);
-            opRadios.forEach(r => r.addEventListener('change', () => {
-                targetRow.classList.toggle('hidden', (document.querySelector('input[name="bulk-kw-op"]:checked') || {}).value !== 'move');
-                refreshPreview();
-            }));
-            targetSelect && targetSelect.addEventListener('change', refreshPreview);
-
-            applyBtn && applyBtn.addEventListener('click', async () => {
-                const sel = document.getElementById('current-constellation');
-                const cid = parseInt(sel?.value, 10);
-                const kid = parseInt(kwSelect.value, 10);
-                const op = (document.querySelector('input[name="bulk-kw-op"]:checked') || {}).value;
-                const tid = op === 'move' ? parseInt(targetSelect.value, 10) : null;
-                if (!cid || !kid || !op) return;
-                const entry = bulkKwAvailable.find(k => k.id === kid);
-                const count = entry ? (entry.usage_count || 0) : 0;
-                const kw = entry?.keyword || '';
-                let msg;
-                if (op === 'delete') {
-                    msg = count === 1
-                        ? tFmt(TELARIS_EDIT.confirmBulkDeleteKeywordOne, kw)
-                        : tFmt(TELARIS_EDIT.confirmBulkDeleteKeywordMany, count, kw);
-                } else {
-                    msg = count === 1
-                        ? tFmt(TELARIS_EDIT.confirmBulkMoveKeywordOne, kw)
-                        : tFmt(TELARIS_EDIT.confirmBulkMoveKeywordMany, count, kw);
-                }
-                if (!window.confirm(msg)) return;
-
-                applyBtn.disabled = true;
-                try {
-                    const body = { action: 'bulk_by_keyword', constellation_id: cid, keyword_id: kid, op };
-                    if (op === 'move') body.target_constellation_id = tid;
-                    const r = await fetch(API_BASE, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY, 'X-CSRF-Token': CSRF_TOKEN },
-                        body: JSON.stringify(body),
-                    });
-                    const json = await r.json();
-                    if (!r.ok) throw new Error(json?.error || 'Bulk action failed');
-                    const n = json.affected;
-                    let okMsg;
-                    if (op === 'delete') {
-                        okMsg = n === 1 ? TELARIS_EDIT.toastBulkDeletedOne : tFmt(TELARIS_EDIT.toastBulkDeletedMany, n);
-                    } else {
-                        okMsg = n === 1 ? TELARIS_EDIT.toastBulkMovedOne : tFmt(TELARIS_EDIT.toastBulkMovedMany, n);
-                    }
-                    showMessage(okMsg);
-                    document.getElementById('bulk_by_keyword_modal').close();
-                    loadNodes();
-                } catch (e) {
-                    showMessage(tFmt(TELARIS_EDIT.toastBulkActionFailed, e.message), 'error');
-                } finally {
-                    applyBtn.disabled = false;
-                }
-            });
-        });
-    </script>
 
     <!-- Keyboard shortcuts modal -->
     <dialog id="shortcuts_modal" class="modal">
@@ -3824,7 +3890,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 <tbody class="divide-y divide-gray-200">
                     <tr><td class="py-2"><kbd class="kbd kbd-sm">N</kbd></td><td class="text-gray-700"><?= t_attr('editor_shortcut_new_wormhole', 'New wormhole') ?></td></tr>
                     <tr><td class="py-2"><kbd class="kbd kbd-sm">/</kbd></td><td class="text-gray-700"><?= t_attr('editor_shortcut_focus_search', 'Focus the search box') ?></td></tr>
-                    <tr><td class="py-2"><kbd class="kbd kbd-sm">T</kbd></td><td class="text-gray-700"><?= t_attr('editor_shortcut_toggle_touched', 'Toggle "Touched today" filter') ?></td></tr>
                     <tr><td class="py-2"><kbd class="kbd kbd-sm">G</kbd></td><td class="text-gray-700"><?= t_attr('editor_shortcut_galaxy_settings', 'Open galaxy settings (current galaxy)') ?></td></tr>
                     <tr><td class="py-2"><kbd class="kbd kbd-sm">Esc</kbd></td><td class="text-gray-700"><?= t_attr('editor_shortcut_close_modal', 'Close any open modal') ?></td></tr>
                     <tr><td class="py-2"><kbd class="kbd kbd-sm">?</kbd></td><td class="text-gray-700"><?= t_attr('editor_shortcut_open_help', 'Open this help') ?></td></tr>
@@ -3860,9 +3925,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             } else if (key === 'n') {
                 e.preventDefault();
                 if (typeof openCreateNodeModal === 'function') openCreateNodeModal();
-            } else if (key === 't') {
-                e.preventDefault();
-                if (typeof toggleTouchedTodayFilter === 'function') toggleTouchedTodayFilter();
             } else if (key === 'g') {
                 e.preventDefault();
                 if (typeof openCurrentGalaxySettings === 'function') openCurrentGalaxySettings();
@@ -3992,25 +4054,25 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         // ---- Tab switching (persisted in the URL hash so a Refresh or a
         //      galaxy switch keeps you on the same tab) -----------------------
         window.switchEditorTab = function (tab, fromHash) {
-            const isHg = (tab === 'hotglue');
+            const TABS = ['wormholes', 'hotglue', 'templates'];
+            if (!TABS.includes(tab)) tab = 'wormholes';
             // When "Disable Hotglue content" is on and this user has no hotglue pages,
             // the tab is rendered hidden; don't let a #hotglue hash force it open.
-            if (isHg) {
+            if (tab === 'hotglue') {
                 const ht0 = document.getElementById('etab-hotglue');
                 if (ht0 && ht0.classList.contains('hidden')) { return; }
             }
-            const wp = document.getElementById('editor-tab-wormholes');
-            const hp = document.getElementById('editor-tab-hotglue');
-            if (wp) wp.classList.toggle('hidden', isHg);
-            if (hp) hp.classList.toggle('hidden', !isHg);
-            const wt = document.getElementById('etab-wormholes');
-            const ht = document.getElementById('etab-hotglue');
-            if (wt) wt.classList.toggle('tab-active', !isHg);
-            if (ht) ht.classList.toggle('tab-active', isHg);
+            TABS.forEach(t => {
+                const panel = document.getElementById('editor-tab-' + t);
+                const btn = document.getElementById('etab-' + t);
+                if (panel) panel.classList.toggle('hidden', t !== tab);
+                if (btn) btn.classList.toggle('tab-active', t === tab);
+            });
             if (!fromHash) {
-                try { history.replaceState(null, '', isHg ? '#hotglue' : '#wormholes'); } catch (e) {}
+                try { history.replaceState(null, '', '#' + tab); } catch (e) {}
             }
-            if (isHg && !hgLoadedOnce) { hgLoadedOnce = true; hgLoadPages(); }
+            if (tab === 'hotglue' && !hgLoadedOnce) { hgLoadedOnce = true; hgLoadPages(); }
+            if (tab === 'templates' && window.tplOnTabShow) { window.tplOnTabShow(); }
         };
 
         // ---- Pages list ---------------------------------------------------
@@ -4409,6 +4471,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (window.location.hash === '#hotglue') {
                 switchEditorTab('hotglue', true);
                 hgLoadedOnce = true; hgLoadPages();
+            } else if (window.location.hash === '#templates') {
+                switchEditorTab('templates', true);
             }
         });
 

@@ -215,6 +215,7 @@ const PROJECT_INFO_KEYS = [
     'editor_text_uploading', 'editor_btn_add_wormhole', 'editor_btn_cancel', 'editor_divider_media', 'editor_btn_delete_file', 'editor_btn_update_wormhole',
     'editor_tab_classic', 'editor_tab_media', 'editor_tab_hotglue', 'editor_btn_edit_hotglue', 'editor_help_hotglue', 'editor_hotglue_create_note', 'editor_untitled_wormhole', 'editor_hotglue_modal_heading', 'editor_btn_hotglue_done',
     'editor_viewtab_wormholes', 'editor_viewtab_hotglue', 'editor_hg_heading', 'editor_hg_btn_new', 'editor_hg_search_placeholder', 'editor_hg_col_title', 'editor_hg_col_assigned', 'editor_hg_loading', 'editor_hg_title_placeholder', 'editor_hg_title_hint', 'editor_hg_assign_label', 'editor_hg_assign_none', 'editor_hg_untitled', 'editor_hg_empty', 'editor_hg_no_match', 'editor_hg_unassigned', 'editor_hg_save_failed', 'editor_hg_confirm_replace', 'editor_hg_confirm_delete', 'editor_hg_err_not_authorized', 'editor_hg_err_read_only', 'editor_hg_err_generic', 'editor_hg_in_galaxy', 'editor_hg_name_label', 'editor_hg_selected_suffix', 'editor_hg_bulk_unassign', 'editor_hg_bulk_delete', 'editor_hg_confirm_bulk_delete', 'editor_hg_galaxy_empty', 'editor_hg_create_link', 'editor_hg_copy_suffix', 'editor_hg_dup_notice', 'editor_hg_action_view_in_wormhole', 'editor_hg_action_view_in_galaxy', 'editor_hg_action_view_directly', 'editor_hg_action_copy_url', 'editor_hg_btn_revisions',
+    'editor_viewtab_templates', 'editor_action_create_template', 'editor_tpl_heading', 'editor_tpl_search_placeholder', 'editor_tpl_col_name', 'editor_tpl_col_hotglue', 'editor_tpl_loading', 'editor_tpl_selector_title', 'editor_tpl_selector_blank', 'editor_tpl_untitled', 'editor_tpl_empty_hint', 'editor_tpl_no_match', 'editor_tpl_hotglue_yes', 'editor_tpl_action_rename', 'editor_tpl_rename_prompt', 'editor_tpl_confirm_delete', 'editor_tpl_created_toast', 'editor_tpl_deleted_toast',
     'editor_modal_heading_confirm_delete', 'editor_btn_delete',
     'editor_modal_heading_move_wormholes', 'editor_text_move_count_wormholes', 'editor_label_destination_galaxy', 'editor_btn_move_wormholes',
     'editor_modal_heading_duplicate_wormhole', 'editor_text_duplicate_to', 'editor_btn_duplicate',
@@ -1226,6 +1227,24 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_hotglue_done' => 'Done',
             'editor_viewtab_wormholes' => 'Wormholes',
             'editor_viewtab_hotglue' => 'Hotglue content',
+            'editor_viewtab_templates' => 'Templates',
+            'editor_action_create_template' => 'Create Template',
+            'editor_tpl_heading' => 'Templates',
+            'editor_tpl_search_placeholder' => 'Search templates...',
+            'editor_tpl_col_name' => 'Name',
+            'editor_tpl_col_hotglue' => 'Hotglue',
+            'editor_tpl_loading' => 'Loading templates...',
+            'editor_tpl_selector_title' => 'Base the next new wormhole on a template',
+            'editor_tpl_selector_blank' => 'No template',
+            'editor_tpl_untitled' => 'Untitled template',
+            'editor_tpl_empty_hint' => 'No templates yet. Open a wormhole\'s Actions menu and choose "Create Template" to make one.',
+            'editor_tpl_no_match' => 'No templates match your search.',
+            'editor_tpl_hotglue_yes' => 'Includes hotglue content',
+            'editor_tpl_action_rename' => 'Rename',
+            'editor_tpl_rename_prompt' => 'New name for this template:',
+            'editor_tpl_confirm_delete' => 'Delete this template? This cannot be undone. Wormholes already created from it are not affected.',
+            'editor_tpl_created_toast' => 'Template created',
+            'editor_tpl_deleted_toast' => 'Template deleted',
             'editor_hg_heading' => 'Hotglue content',
             'editor_hg_btn_new' => 'New page',
             'editor_hg_search_placeholder' => 'Search pages...',
@@ -2819,6 +2838,24 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_hotglue_done' => 'Listo',
             'editor_viewtab_wormholes' => 'Agujeros de gusano',
             'editor_viewtab_hotglue' => 'Contenido hotglue',
+            'editor_viewtab_templates' => 'Plantillas',
+            'editor_action_create_template' => 'Crear plantilla',
+            'editor_tpl_heading' => 'Plantillas',
+            'editor_tpl_search_placeholder' => 'Buscar plantillas...',
+            'editor_tpl_col_name' => 'Nombre',
+            'editor_tpl_col_hotglue' => 'Hotglue',
+            'editor_tpl_loading' => 'Cargando plantillas...',
+            'editor_tpl_selector_title' => 'Basa el próximo agujero de gusano en una plantilla',
+            'editor_tpl_selector_blank' => 'Sin plantilla',
+            'editor_tpl_untitled' => 'Plantilla sin título',
+            'editor_tpl_empty_hint' => 'Todavía no hay plantillas. Abre el menú Acciones de un agujero de gusano y elige "Crear plantilla" para crear una.',
+            'editor_tpl_no_match' => 'Ninguna plantilla coincide con tu búsqueda.',
+            'editor_tpl_hotglue_yes' => 'Incluye contenido de Hotglue',
+            'editor_tpl_action_rename' => 'Cambiar nombre',
+            'editor_tpl_rename_prompt' => 'Nuevo nombre para esta plantilla:',
+            'editor_tpl_confirm_delete' => '¿Eliminar esta plantilla? Esta acción no se puede deshacer. Los agujeros de gusano ya creados a partir de ella no se ven afectados.',
+            'editor_tpl_created_toast' => 'Plantilla creada',
+            'editor_tpl_deleted_toast' => 'Plantilla eliminada',
             'editor_hg_heading' => 'Contenido hotglue',
             'editor_hg_btn_new' => 'Nueva página',
             'editor_hg_search_placeholder' => 'Buscar páginas...',
@@ -4408,6 +4445,24 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_hotglue_done' => 'Concluído',
             'editor_viewtab_wormholes' => 'Buracos de minhoca',
             'editor_viewtab_hotglue' => 'Conteúdo hotglue',
+            'editor_viewtab_templates' => 'Modelos',
+            'editor_action_create_template' => 'Criar modelo',
+            'editor_tpl_heading' => 'Modelos',
+            'editor_tpl_search_placeholder' => 'Buscar modelos...',
+            'editor_tpl_col_name' => 'Nome',
+            'editor_tpl_col_hotglue' => 'Hotglue',
+            'editor_tpl_loading' => 'Carregando modelos...',
+            'editor_tpl_selector_title' => 'Baseie o próximo buraco de minhoca em um modelo',
+            'editor_tpl_selector_blank' => 'Sem modelo',
+            'editor_tpl_untitled' => 'Modelo sem título',
+            'editor_tpl_empty_hint' => 'Ainda não há modelos. Abra o menu Ações de um buraco de minhoca e escolha "Criar modelo" para criar um.',
+            'editor_tpl_no_match' => 'Nenhum modelo corresponde à sua busca.',
+            'editor_tpl_hotglue_yes' => 'Inclui conteúdo do Hotglue',
+            'editor_tpl_action_rename' => 'Renomear',
+            'editor_tpl_rename_prompt' => 'Novo nome para este modelo:',
+            'editor_tpl_confirm_delete' => 'Excluir este modelo? Esta ação não pode ser desfeita. Os buracos de minhoca já criados a partir dele não são afetados.',
+            'editor_tpl_created_toast' => 'Modelo criado',
+            'editor_tpl_deleted_toast' => 'Modelo excluído',
             'editor_hg_heading' => 'Conteúdo hotglue',
             'editor_hg_btn_new' => 'Nova página',
             'editor_hg_search_placeholder' => 'Buscar páginas...',
@@ -5997,6 +6052,24 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_hotglue_done' => 'Terminé',
             'editor_viewtab_wormholes' => 'Trous de ver',
             'editor_viewtab_hotglue' => 'Contenu hotglue',
+            'editor_viewtab_templates' => 'Modèles',
+            'editor_action_create_template' => 'Créer un modèle',
+            'editor_tpl_heading' => 'Modèles',
+            'editor_tpl_search_placeholder' => 'Rechercher des modèles...',
+            'editor_tpl_col_name' => 'Nom',
+            'editor_tpl_col_hotglue' => 'Hotglue',
+            'editor_tpl_loading' => 'Chargement des modèles...',
+            'editor_tpl_selector_title' => 'Baser le prochain trou de ver sur un modèle',
+            'editor_tpl_selector_blank' => 'Aucun modèle',
+            'editor_tpl_untitled' => 'Modèle sans titre',
+            'editor_tpl_empty_hint' => 'Aucun modèle pour le moment. Ouvre le menu Actions d\'un trou de ver et choisis "Créer un modèle" pour en créer un.',
+            'editor_tpl_no_match' => 'Aucun modèle ne correspond à ta recherche.',
+            'editor_tpl_hotglue_yes' => 'Inclut du contenu Hotglue',
+            'editor_tpl_action_rename' => 'Renommer',
+            'editor_tpl_rename_prompt' => 'Nouveau nom pour ce modèle :',
+            'editor_tpl_confirm_delete' => 'Supprimer ce modèle ? Cette action est irréversible. Les trous de ver déjà créés à partir de ce modèle ne sont pas affectés.',
+            'editor_tpl_created_toast' => 'Modèle créé',
+            'editor_tpl_deleted_toast' => 'Modèle supprimé',
             'editor_hg_heading' => 'Contenu hotglue',
             'editor_hg_btn_new' => 'Nouvelle page',
             'editor_hg_search_placeholder' => 'Rechercher des pages...',
@@ -7469,6 +7542,29 @@ function db_ensure_hotglue_pages_table(): void {
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_hotglue_pages_table: ' . $e->getMessage());
+    }
+}
+
+function db_ensure_templates_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS templates (
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                name VARCHAR(255) NOT NULL DEFAULT '',
+                owner_user_id VARCHAR(255) NULL DEFAULT NULL,
+                data JSONB NOT NULL DEFAULT '{}',
+                has_hotglue BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_templates_owner ON templates (owner_user_id);
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_templates_table: ' . $e->getMessage());
     }
 }
 
@@ -13224,6 +13320,98 @@ function db_hotglue_page_user_can_edit(array $page, ?string $userId, bool $isAdm
         }
     }
     return false;
+}
+
+// ---------------------------------------------------------------------------
+// Wormhole templates (templates registry).
+//
+// A template captures the content/identity of a wormhole (the JSONB `data`
+// column) so an editor can spin up new wormholes pre-filled from it. Templates
+// are private per editor (owner_user_id); admins see all. When the source
+// wormhole was hotglue, has_hotglue is set and a snapshot of its content dir
+// lives at hg/content/template-<id> (the API layer owns the on-disk copy/clean,
+// exactly like the hotglue_pages duplicate flow).
+// ---------------------------------------------------------------------------
+
+function db_template_get_by_id(int $id): ?array {
+    db_ensure_templates_table();
+    $pdo = getDB();
+    $st = $pdo->prepare("SELECT * FROM templates WHERE id = :id LIMIT 1");
+    $st->execute([':id' => $id]);
+    $r = $st->fetch();
+    if (!$r) return null;
+    $r['data'] = json_decode((string)($r['data'] ?? '{}'), true) ?: [];
+    $r['has_hotglue'] = (bool)$r['has_hotglue'];
+    return $r;
+}
+
+/**
+ * Create a template. $data is the captured node field set (see api/templates.php
+ * create_from_node); it is stored verbatim as JSONB. Returns the created row.
+ */
+function db_template_create(string $name, ?string $ownerUserId, array $data, bool $hasHotglue): array {
+    db_ensure_templates_table();
+    $pdo = getDB();
+    $name = trim($name);
+    if ($name === '') {
+        $name = 'Untitled';
+    }
+    if (mb_strlen($name) > 255) {
+        $name = mb_substr($name, 0, 255);
+    }
+    $owner = ($ownerUserId !== null && $ownerUserId !== '') ? $ownerUserId : null;
+    $st = $pdo->prepare("INSERT INTO templates (name, owner_user_id, data, has_hotglue) VALUES (:n, :o, :d, :h) RETURNING id");
+    $st->execute([
+        ':n' => $name,
+        ':o' => $owner,
+        ':d' => json_encode($data, JSON_UNESCAPED_UNICODE),
+        ':h' => $hasHotglue ? 'true' : 'false',
+    ]);
+    $id = (int)$st->fetchColumn();
+    return db_template_get_by_id($id) ?? ['id' => $id, 'name' => $name, 'owner_user_id' => $owner, 'data' => $data, 'has_hotglue' => $hasHotglue];
+}
+
+function db_template_rename(int $id, string $name): void {
+    db_ensure_templates_table();
+    $name = trim($name);
+    if (mb_strlen($name) > 255) {
+        $name = mb_substr($name, 0, 255);
+    }
+    getDB()->prepare("UPDATE templates SET name = :n, updated_at = CURRENT_TIMESTAMP WHERE id = :id")
+        ->execute([':n' => $name, ':id' => $id]);
+}
+
+/** Delete a template row. The caller removes hg/content/template-<id> on disk. */
+function db_template_delete(int $id): void {
+    db_ensure_templates_table();
+    getDB()->prepare("DELETE FROM templates WHERE id = :id")->execute([':id' => $id]);
+}
+
+/** Templates visible to a user: an admin sees all; an editor sees their own. */
+function db_templates_list_for_user(?string $userId, bool $isAdmin): array {
+    db_ensure_templates_table();
+    $pdo = getDB();
+    if ($isAdmin) {
+        $rows = $pdo->query("SELECT * FROM templates ORDER BY updated_at DESC")->fetchAll() ?: [];
+    } else {
+        $st = $pdo->prepare("SELECT * FROM templates WHERE owner_user_id = :uid ORDER BY updated_at DESC");
+        $st->execute([':uid' => $userId]);
+        $rows = $st->fetchAll() ?: [];
+    }
+    foreach ($rows as &$r) {
+        $r['data'] = json_decode((string)($r['data'] ?? '{}'), true) ?: [];
+        $r['has_hotglue'] = (bool)$r['has_hotglue'];
+    }
+    unset($r);
+    return $rows;
+}
+
+/** Single source of truth for "may this user edit this template": owner or admin. */
+function db_template_user_can_edit(array $tpl, ?string $userId, bool $isAdmin): bool {
+    if ($isAdmin) {
+        return true;
+    }
+    return $userId !== null && $userId !== '' && (string)($tpl['owner_user_id'] ?? '') === (string)$userId;
 }
 
 /**
