@@ -107,8 +107,14 @@
 
 	function close_modal() {
 		ready_token++;                       // abandon any pending insert
-		if (modal) { modal.css('display', 'none'); }
-		if (frame) { frame.src = 'about:blank'; }  // free the editor / its memory
+		// Detach the iframe instead of navigating it (frame.src='about:blank'):
+		// miniPaint registers a `beforeunload` "unsaved changes" guard, so navigating
+		// it away pops a "Leave site?" dialog on every place/cancel. Removing the
+		// iframe from the DOM frees its memory WITHOUT triggering that guard. The
+		// modal is rebuilt fresh on the next open (open_modal -> build_modal).
+		if (modal) { modal.remove(); }
+		modal = null;
+		frame = null;
 		edit = null;
 	}
 
