@@ -134,7 +134,7 @@ class TelarisNetwork {
      */
     smartOpenUrl(node, url) {
         const d = node && node.userData;
-        if (d && (d.description || d.image_url || d.embed_code || d.audio_url)) {
+        if (d && (d.media_mode === 'hotglue' || d.description || d.image_url || d.video_url || d.pdf_url || d.embed_code || d.audio_url)) {
             this.showRichMediaWindow(node);
         } else {
             this.openInFrame(node, url);
@@ -2668,7 +2668,10 @@ class TelarisNetwork {
                     event.preventDefault();
                     event.stopPropagation();
 
-                    const hasMedia = !!(data.image_url || data.embed_code || data.audio_url);
+                    // URL is optional: a wormhole opens its media modal if it has a
+                    // hotglue page or any classic media (image/video/pdf/embed/audio).
+                    // Only a node with nothing but an external URL falls back to openInFrame.
+                    const hasMedia = !!(data.media_mode === 'hotglue' || data.image_url || data.video_url || data.pdf_url || data.embed_code || data.audio_url);
                     const hasDesc = !!(data.description && data.description.trim() !== '');
 
                     if (hasMedia) {
@@ -2767,7 +2770,7 @@ class TelarisNetwork {
                             }
                             this.networkManager.setFocusedNode(null);
                         } else if (nodeData.node_type === 'object') {
-                            const hasMedia = !!(nodeData.image_url || nodeData.embed_code || nodeData.audio_url);
+                            const hasMedia = !!(nodeData.media_mode === 'hotglue' || nodeData.image_url || nodeData.video_url || nodeData.pdf_url || nodeData.embed_code || nodeData.audio_url);
                             const hasDesc = !!(nodeData.description && nodeData.description.trim() !== '');
 
                             if (hasMedia) {
@@ -3721,9 +3724,12 @@ class TelarisNetwork {
                 
                 const isPortal = hoveredNode && hoveredNode.userData.node_type === 'portal' && hoveredNode.userData.target_constellation_id != null;
                 const isCluster = hoveredNode && hoveredNode.userData.node_type === 'cluster' && hoveredNode.userData.cluster_key;
-                const isObjectWithLink = hoveredNode.userData.node_type === 'object' && hoveredNode.userData.url;
+                // URL optional: any wormhole with a hotglue page, classic media, a URL,
+                // or a description is openable, so show the pointer (mirrors the click handler).
+                const od = hoveredNode.userData;
+                const isOpenableObject = od.node_type === 'object' && (od.media_mode === 'hotglue' || od.image_url || od.video_url || od.pdf_url || od.embed_code || od.audio_url || od.url || (od.description && String(od.description).trim() !== ''));
 
-                this.renderer.domElement.style.cursor = (isPortal || isCluster || isObjectWithLink) ? 'pointer' : 'default';
+                this.renderer.domElement.style.cursor = (isPortal || isCluster || isOpenableObject) ? 'pointer' : 'default';
 
                 if (this.tooltip && hoveredNode.userData.name) {
                     if (this.tooltipHideTimeout) {
