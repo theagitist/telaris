@@ -76,3 +76,11 @@ docs/planning/
 !js/vendor/**
 !css/vendor/
 !css/vendor/**
+
+# Vendored miniPaint prebuilt bundle (see hg/modules/draw/minipaint/VENDOR.md) is
+# part of the deliverable, not app build output. The blanket `dist/` above would
+# otherwise drop it from fresh clones and the Docker image, leaving the in-editor
+# image editor unstyled and broken. Re-include the dir first, then the files.
+!hg/modules/draw/minipaint/dist/
+!hg/modules/draw/minipaint/dist/bundle.js
+!hg/modules/draw/minipaint/dist/bundle.js.LICENSE.txt
