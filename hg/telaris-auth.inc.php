@@ -187,6 +187,20 @@ function telaris_hg_authorize_token(string $token, callable $deny): void
 {
 	$nodeId = telaris_hg_node_id($token);
 	if ($nodeId !== null) {
+		// A per-wormhole page whose wormhole was deleted survives in the registry
+		// as an orphan: its node-<id> slug and content remain, but node_id is
+		// NULL and the node is gone. enforce_node_access would 404.001 on the
+		// missing node. Authorize such orphans through the page registry
+		// (owner/admin), exactly like an unassigned standalone page, so the
+		// editor can still open and recover their content. A live node still
+		// enforces the galaxy seat below.
+		if (db_get_node_constellation_id($nodeId) === null) {
+			$page = db_hotglue_page_get_by_slug($token);
+			if ($page !== null && $page['node_id'] === null) {
+				telaris_hg_authorize_page_slug($token, $deny);
+				return;
+			}
+		}
 		telaris_hg_enforce_node_access($nodeId, $deny);
 		return;
 	}
