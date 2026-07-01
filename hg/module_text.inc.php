@@ -257,7 +257,13 @@ function text_alter_save($args)
 	} else {
 		unset($obj['text-word-spacing']);
 	}
-	
+	// scrolling: keep the box size, show a vertical scrollbar on overflow
+	if (elem_css($elem, 'overflow-y') == 'auto') {
+		$obj['text-scroll'] = 'scroll';
+	} else {
+		unset($obj['text-scroll']);
+	}
+
 	return true;
 }
 
@@ -273,6 +279,13 @@ function text_alter_render_early($args)
 	// background-color
 	if (!empty($obj['text-background-color'])) {
 		elem_css($elem, 'background-color', $obj['text-background-color']);
+	}
+	// scrolling: keep the box size; wrap to width; vertical scrollbar on overflow.
+	// Applied in both edit and show so the editor preview matches the visitor view.
+	if (isset($obj['text-scroll']) && $obj['text-scroll'] == 'scroll') {
+		elem_css($elem, 'overflow-y', 'auto');
+		elem_css($elem, 'overflow-x', 'hidden');
+		elem_css($elem, 'overflow-wrap', 'break-word');
 	}
 	// content
 	if (!isset($obj['content'])) {

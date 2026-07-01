@@ -145,6 +145,7 @@
     "text.enter_font_color": "Introduce el color de la fuente (p. ej. #ff0000 o rgb(255, 0, 0))",
     "text.link_disabled": "este enlace está deshabilitado para la edición",
     "text.make_background_transparent": "hacer el fondo transparente",
+    "text.toggle_scroll": "activar o desactivar el desplazamiento (mantener el tamaño de la caja y desplazar cuando el texto es más largo)",
     "text.woff_web_font": "esta es una fuente web WOFF (%s) - aunque solo es compatible con las versiones más recientes de los navegadores, este texto debería verse similar en distintos navegadores y sistemas operativos que admitan WOFF",
     "upload.delete_error": "Error al eliminar %s",
     "user_code.body_missing": "Falta el argumento requerido \"body\"",

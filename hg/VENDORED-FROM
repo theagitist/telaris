@@ -1,5 +1,5 @@
 Vendored from github.com/theagitist/hotglue2 (fork of k0a1a/hotglue2)
-branch telaris @ 6ae4973 (bumped from 03181f9)
+branch telaris @ 65c301e (bumped from 6ae4973)
 GPL-3.0; see hg/COPYING and hg/UPSTREAM.md
 
 Note: this is a curated vendor, not a full mirror. Local Telaris patches
@@ -11,6 +11,12 @@ build tooling) are intentionally not vendored. The code and user_code modules
 auth-gated embed, so their assets are skipped on every bump.
 
 Vendor history:
+- 65c301e: text module per-box scroll toggle. A context-menu toggle on text
+  objects that keeps the box at its set size and shows a vertical scrollbar when
+  the text overflows (default off = spill, unchanged). module_text.inc.php
+  (text-scroll:scroll persist + render), modules/text/text-edit.js (the toggle,
+  modeled on the iframe one), lang/{en,es,pt,fr}.json (text.toggle_scroll). Reuses
+  the already-shipped text-scroll-on/off.png icons; no core edits.
 - dbc7c350: module_mobile.inc.php (mobile scale-to-fit).
 - 309eeb7: WebP support (module_image.inc.php, module_page.inc.php, plus the
   IMAGE_WEBP_QUAL define applied surgically into the patched config.inc.php) and

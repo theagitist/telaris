@@ -145,6 +145,7 @@
     "text.enter_font_color": "Introduza a cor do tipo de letra (ex.: #ff0000 ou rgb(255, 0, 0))",
     "text.link_disabled": "esta ligação está desativada para edição",
     "text.make_background_transparent": "tornar o fundo transparente",
+    "text.toggle_scroll": "ativar ou desativar a rolagem (manter o tamanho da caixa e rolar quando o texto for maior)",
     "text.woff_web_font": "este é um tipo de letra web WOFF (%s) - embora só seja suportado nas versões mais recentes dos navegadores, este texto deverá ter um aspeto semelhante nos diferentes navegadores e sistemas operativos que suportam WOFF",
     "upload.delete_error": "Erro ao eliminar %s",
     "user_code.body_missing": "Argumento obrigatório \"body\" em falta",

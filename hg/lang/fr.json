@@ -145,6 +145,7 @@
     "text.enter_font_color": "Saisissez la couleur de la police (ex. #ff0000 ou rgb(255, 0, 0))",
     "text.link_disabled": "ce lien est désactivé pour l'édition",
     "text.make_background_transparent": "rendre l'arrière-plan transparent",
+    "text.toggle_scroll": "activer ou désactiver le défilement (garder la taille de la boîte et faire défiler quand le texte est plus long)",
     "text.woff_web_font": "ceci est une police web WOFF (%s) - bien qu'elle ne soit prise en charge que par les versions les plus récentes des navigateurs, ce texte devrait s'afficher de façon similaire sur les différents navigateurs et systèmes d'exploitation prenant en charge WOFF",
     "upload.delete_error": "Erreur lors de la suppression de %s",
     "user_code.body_missing": "Argument requis « body » manquant",

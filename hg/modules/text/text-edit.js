@@ -752,7 +752,39 @@ $(document).ready(function() {
 		return false;
 	});
 	$.glue.contextmenu.register('text', 'text-text-padding', elem);
-	
+
+	// scroll toggle: keep the box at its set size and show a vertical scrollbar
+	// when the text is taller than the box (default off = the text spills out,
+	// unchanged). Modeled on the iframe scrollbar toggle.
+	elem = $('<img src="'+$.glue.base_url+'modules/text/text-scroll-off.png" alt="btn" title="'+$.glue.t('text.toggle_scroll')+'" width="32" height="32">');
+	$(elem).bind('click', function(e) {
+		var obj = $(this).data('owner');
+		if ($(obj).css('overflow-y') == 'auto') {
+			// scrolling off: back to the default spill
+			$(obj).css('overflow-y', 'visible');
+			$(obj).css('overflow-x', 'visible');
+			$(obj).css('overflow-wrap', '');
+			$(this).attr('src', $.glue.base_url+'modules/text/text-scroll-off.png');
+		} else {
+			// scrolling on: keep the box size, wrap to width, scroll vertically
+			$(obj).css('overflow-y', 'auto');
+			$(obj).css('overflow-x', 'hidden');
+			$(obj).css('overflow-wrap', 'break-word');
+			$(this).attr('src', $.glue.base_url+'modules/text/text-scroll-on.png');
+		}
+		$.glue.object.save(obj);
+	});
+	$(elem).bind('glue-menu-activate', function(e) {
+		// reflect the current state on the icon when the menu opens
+		var obj = $(this).data('owner');
+		if ($(obj).css('overflow-y') == 'auto') {
+			$(this).attr('src', $.glue.base_url+'modules/text/text-scroll-on.png');
+		} else {
+			$(this).attr('src', $.glue.base_url+'modules/text/text-scroll-off.png');
+		}
+	});
+	$.glue.contextmenu.register('text', 'text-scroll', elem);
+
 	// make sure we don't send to much over the wire for every save
 	$.glue.object.register_alter_pre_save('text', function(obj, orig) {
 		// clear the textarea's background-image that Chrome sends along

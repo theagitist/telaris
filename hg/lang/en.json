@@ -145,6 +145,7 @@
     "text.enter_font_color": "Enter font color (e.g. #ff0000 or rgb(255, 0, 0))",
     "text.link_disabled": "this link is disabled for editing",
     "text.make_background_transparent": "make background transparent",
+    "text.toggle_scroll": "toggle scrolling (keep the box size and scroll when the text is longer)",
     "text.woff_web_font": "this is a WOFF web-font (%s) - while only supported on the latest browser versions, this text should look similar across different browsers and operating systems supporting WOFF",
     "upload.delete_error": "Error deleting %s",
     "user_code.body_missing": "Required argument \"body\" missing",
