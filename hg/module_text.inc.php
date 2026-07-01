@@ -403,12 +403,16 @@ function text_render_object($args)
 function text_render_page_early($args)
 {
 	if ($args['edit']) {
-		if (USE_MIN_FILES) {
-			html_add_js(base_url().'modules/text/text-edit.min.js');
-		} else {
-			html_add_js(base_url().'modules/text/text-edit.js');
-		}
-		html_add_css(base_url().'modules/text/text-edit.css');
+		// Cache-buster: append the file's mtime so browsers (and any CDN in
+		// front of the origin) refetch the script/style when it changes. The
+		// hotglue asset URLs are otherwise unversioned, so an edited module JS
+		// stays hidden behind a stale cached copy.
+		$dir = dirname(__FILE__).'/modules/text/';
+		$js = USE_MIN_FILES ? 'text-edit.min.js' : 'text-edit.js';
+		$jsv = @filemtime($dir.$js);
+		html_add_js(base_url().'modules/text/'.$js.($jsv ? '?v='.$jsv : ''));
+		$cssv = @filemtime($dir.'text-edit.css');
+		html_add_css(base_url().'modules/text/text-edit.css'.($cssv ? '?v='.$cssv : ''));
 		html_add_js_var('$.glue.conf.text.auto_br', TEXT_AUTO_BR);
 		
 		if (TEXT_USE_WOFF_FONTS) {

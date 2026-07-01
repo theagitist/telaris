@@ -67,3 +67,16 @@
 .glue-font5 {
 	font-family: 'Times New Roman', Times, serif;
 }
+
+/* Scroll toggle: a clean move-vertical glyph like the iframe scroll toggle.
+   Off (default) matches the other text tools; On gets a subtle highlight
+   instead of a badge, in keeping with the toolbar's flat style. */
+#glue-contextmenu-text-scroll {
+	/* drop the framework's default greenish enabled hue */
+	background-color: transparent;
+}
+
+#glue-contextmenu-text-scroll.glue-menu-enabled {
+	background-color: rgba(255, 255, 255, 0.18);
+	border-radius: 6px;
+}
