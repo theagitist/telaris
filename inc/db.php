@@ -213,6 +213,7 @@ const PROJECT_INFO_KEYS = [
     'editor_toast_url_copied', 'editor_title_url_copied', 'editor_toast_galaxy_created', 'editor_toast_error_creating_galaxy', 'editor_prompt_new_galaxy_name',
     'editor_modal_heading_add_wormhole', 'editor_modal_heading_edit_wormhole', 'editor_label_name_required', 'editor_error_name_exists', 'editor_help_name', 'editor_label_galaxy', 'editor_help_constellation', 'editor_label_wormhole_type', 'editor_help_node_type', 'editor_label_keywords', 'editor_placeholder_add_keyword', 'editor_help_keywords_add', 'editor_label_accentuate_wormhole', 'editor_help_accentuate', 'editor_label_show_keywords', 'editor_help_show_keywords', 'editor_label_target_galaxy', 'editor_help_target_galaxy', 'editor_btn_create_new_galaxy', 'editor_label_description', 'editor_help_description', 'editor_label_url', 'editor_placeholder_url', 'editor_help_url', 'editor_label_primary_visual', 'editor_tab_image', 'editor_tab_video', 'editor_tab_pdf', 'editor_help_visual_mutex', 'editor_label_image_url_file', 'editor_label_use_as_icon', 'editor_placeholder_image_url', 'editor_placeholder_video_url', 'editor_label_autoplay_video', 'editor_placeholder_pdf_url', 'editor_help_pdf', 'editor_placeholder_credit', 'editor_help_credit', 'editor_label_icon_url_file', 'editor_placeholder_icon_url', 'editor_help_icon', 'editor_label_audio_url_file', 'editor_placeholder_audio_url', 'editor_label_autoplay', 'editor_label_loop', 'editor_help_audio',
     'editor_text_uploading', 'editor_btn_add_wormhole', 'editor_btn_cancel', 'editor_divider_media', 'editor_btn_delete_file', 'editor_btn_update_wormhole',
+    'editor_view_basic', 'editor_view_advanced', 'editor_view_toggle_label',
     'editor_tab_classic', 'editor_tab_media', 'editor_tab_hotglue', 'editor_btn_edit_hotglue', 'editor_help_hotglue', 'editor_hotglue_create_note', 'editor_untitled_wormhole', 'editor_hotglue_modal_heading', 'editor_btn_hotglue_done',
     'editor_viewtab_wormholes', 'editor_viewtab_hotglue', 'editor_hg_heading', 'editor_hg_btn_new', 'editor_hg_search_placeholder', 'editor_hg_col_title', 'editor_hg_col_assigned', 'editor_hg_loading', 'editor_hg_title_placeholder', 'editor_hg_title_hint', 'editor_hg_assign_label', 'editor_hg_assign_none', 'editor_hg_untitled', 'editor_hg_empty', 'editor_hg_no_match', 'editor_hg_unassigned', 'editor_hg_save_failed', 'editor_hg_confirm_replace', 'editor_hg_confirm_delete', 'editor_hg_err_not_authorized', 'editor_hg_err_read_only', 'editor_hg_err_generic', 'editor_hg_in_galaxy', 'editor_hg_name_label', 'editor_hg_selected_suffix', 'editor_hg_bulk_unassign', 'editor_hg_bulk_delete', 'editor_hg_confirm_bulk_delete', 'editor_hg_galaxy_empty', 'editor_hg_create_link', 'editor_hg_copy_suffix', 'editor_hg_dup_notice', 'editor_hg_action_view_in_wormhole', 'editor_hg_action_view_in_galaxy', 'editor_hg_action_view_directly', 'editor_hg_action_copy_url', 'editor_hg_btn_revisions',
     'editor_viewtab_templates', 'editor_action_create_template', 'editor_tpl_heading', 'editor_tpl_search_placeholder', 'editor_tpl_col_name', 'editor_tpl_col_hotglue', 'editor_tpl_loading', 'editor_tpl_selector_title', 'editor_tpl_selector_blank', 'editor_tpl_untitled', 'editor_tpl_empty_hint', 'editor_tpl_no_match', 'editor_tpl_hotglue_yes', 'editor_tpl_action_rename', 'editor_tpl_rename_prompt', 'editor_tpl_confirm_delete', 'editor_tpl_created_toast', 'editor_tpl_deleted_toast',
@@ -737,6 +738,7 @@ const PROJECT_INFO_KEYS = [
     'visitor_nginx_warning_heading', 'visitor_nginx_warning_intro',
     'visitor_nginx_warning_reload', 'visitor_nginx_warning_footer',
     'viewer_maximize_text', 'viewer_restore_text', 'viewer_close_text',
+    'viewer_open_hotglue_newtab_text',
 
     // Stage 3 follow-up: shared CSRF-failure flash message (used by every admin
     // POST handler that checks the synchronizer token).
@@ -1210,6 +1212,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_add_wormhole' => 'Add Wormhole',
             'editor_btn_cancel' => 'Cancel',
             'editor_divider_media' => 'Media',
+            'editor_view_basic' => 'Basic view',
+            'editor_view_advanced' => 'Advanced view',
+            'editor_view_toggle_label' => 'Editor detail level',
             'editor_btn_delete_file' => 'Delete',
             'editor_btn_update_wormhole' => 'Update Wormhole',
             'editor_tab_classic' => 'Classic',
@@ -2606,6 +2611,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'viewer_maximize_text' => 'Maximize',
             'viewer_restore_text' => 'Restore',
             'viewer_close_text' => 'Close',
+            'viewer_open_hotglue_newtab_text' => 'View Content Full Screen',
         ],
         'es' => [
             'name' => 'Telaris', 'description' => 'Tejiendo memoria', 'iframe_back_text' => 'Volver', 
@@ -2788,6 +2794,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_add_wormhole' => 'Agregar agujero de gusano',
             'editor_btn_cancel' => 'Cancelar',
             'editor_divider_media' => 'Multimedia',
+            'editor_view_basic' => 'Vista básica',
+            'editor_view_advanced' => 'Vista avanzada',
+            'editor_view_toggle_label' => 'Nivel de detalle del editor',
             'editor_btn_delete_file' => 'Eliminar',
             'editor_btn_update_wormhole' => 'Actualizar agujero de gusano',
             'editor_tab_classic' => 'Clásico',
@@ -4180,6 +4189,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'viewer_maximize_text' => 'Maximizar',
             'viewer_restore_text' => 'Restaurar',
             'viewer_close_text' => 'Cerrar',
+            'viewer_open_hotglue_newtab_text' => 'Ver el contenido en pantalla completa',
         ],
         'pt' => [
             'name' => 'Telaris', 'description' => 'Tecendo memória', 'iframe_back_text' => 'Voltar', 
@@ -4362,6 +4372,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_add_wormhole' => 'Adicionar buraco de minhoca',
             'editor_btn_cancel' => 'Cancelar',
             'editor_divider_media' => 'Mídia',
+            'editor_view_basic' => 'Visão básica',
+            'editor_view_advanced' => 'Visão avançada',
+            'editor_view_toggle_label' => 'Nível de detalhe do editor',
             'editor_btn_delete_file' => 'Excluir',
             'editor_btn_update_wormhole' => 'Atualizar buraco de minhoca',
             'editor_tab_classic' => 'Clássico',
@@ -5754,6 +5767,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'viewer_maximize_text' => 'Maximizar',
             'viewer_restore_text' => 'Restaurar',
             'viewer_close_text' => 'Fechar',
+            'viewer_open_hotglue_newtab_text' => 'Ver o conteúdo em tela cheia',
         ],
         'fr' => [
             'name' => 'Telaris', 'description' => 'Tisser la mémoire', 'iframe_back_text' => 'Retour',
@@ -5936,6 +5950,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_btn_add_wormhole' => 'Ajouter le trou de ver',
             'editor_btn_cancel' => 'Annuler',
             'editor_divider_media' => 'Média',
+            'editor_view_basic' => 'Vue simple',
+            'editor_view_advanced' => 'Vue avancée',
+            'editor_view_toggle_label' => 'Niveau de détail de l\'éditeur',
             'editor_btn_delete_file' => 'Supprimer',
             'editor_btn_update_wormhole' => 'Mettre à jour le trou de ver',
             'editor_tab_classic' => 'Classique',
@@ -7328,6 +7345,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'viewer_maximize_text' => 'Agrandir',
             'viewer_restore_text' => 'Rétablir',
             'viewer_close_text' => 'Fermer',
+            'viewer_open_hotglue_newtab_text' => 'Voir le contenu en plein écran',
         ],
     ];
 }

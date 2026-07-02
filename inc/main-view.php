@@ -443,6 +443,14 @@ header("X-Content-Type-Options: nosniff");
                         <!-- Description -->
                         <div id="rm-description" class="text-gray-300 leading-relaxed text-sm md:text-base whitespace-pre-wrap max-h-[40vh] overflow-y-auto pr-1" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent;"></div>
 
+                        <!-- Open the hotglue page full screen in a new browser tab (hotglue nodes only) -->
+                        <div id="rm-hotglue-open-wrap" class="hidden pt-4">
+                            <button id="rm-hotglue-open-button" type="button" class="w-full py-3 bg-transparent border text-xs font-bold uppercase tracking-[0.22em] transition-all hover:bg-white/10"
+                                    style="border-color: var(--node-accent-muted); color: var(--node-accent);">
+                                <?php echo htmlspecialchars(t('viewer_open_hotglue_newtab_text', 'View Content Full Screen')); ?>
+                            </button>
+                        </div>
+
                         <!-- Keywords -->
                         <div id="rm-keywords-wrap" class="hidden">
                             <div id="rm-keywords" class="flex flex-wrap gap-2"></div>

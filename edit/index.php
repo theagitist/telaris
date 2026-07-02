@@ -2097,6 +2097,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             }
 
             setWormholeMode('edit');
+            applyInitialWormholeView(node);
             // showModal() throws if the dialog is already open (the create-on-Hotglue path
             // calls editNode() to flip the open modal into edit mode in place).
             const wmModal = document.getElementById('edit_modal');
@@ -2651,6 +2652,35 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             show('edit-hotglue-edit-wrap', true);
         }
 
+        // Basic / Advanced detail level for the wormhole modal. Basic shows only Name,
+        // Keywords, Description, and the Edit hotglue content button (CSS-filtered via the
+        // .wm-basic class on the modal-box); Advanced is the full form. persist=true only
+        // when the editor clicks the toggle, so an auto-forced Advanced (below) is not stored.
+        function setWormholeView(view) {
+            const box = document.querySelector('#edit_modal .modal-box');
+            if (!box) return;
+            const isBasic = (view === 'basic');
+            box.classList.toggle('wm-basic', isBasic);
+            // Highlight the active view with the primary (green) fill so the selection is
+            // unmistakable; btn-active alone is nearly invisible in this dark theme.
+            const bb = document.getElementById('wm-view-basic-btn');
+            const ab = document.getElementById('wm-view-advanced-btn');
+            if (bb) bb.classList.toggle('btn-primary', isBasic);
+            if (ab) ab.classList.toggle('btn-primary', !isBasic);
+        }
+
+        // Decide the initial view when the modal opens. Default is Basic. A node with
+        // Classic media (image/video/pdf/audio/embed) or a Portal opens in Advanced, since
+        // Basic cannot show or edit those. New Node (node null) has neither, so it is Basic.
+        function applyInitialWormholeView(node) {
+            let view = 'basic';
+            if (node) {
+                const hasClassicMedia = !!(node.image_url || node.video_url || node.pdf_url || node.audio_url || node.embed_code);
+                if (node.node_type === 'portal' || hasClassicMedia) view = 'advanced';
+            }
+            setWormholeView(view);
+        }
+
         // The unified form's submit handler. Create mode: Add a new wormhole. Edit mode:
         // the modal autosaves, so a stray Enter just flushes any pending change.
         function onWormholeFormSubmit(event) {
@@ -2739,9 +2769,18 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 const existing = document.getElementById(`edit-${t}-existing`); if (existing) existing.classList.add('hidden');
             });
 
-            // Default the galaxy to the currently-selected one.
+            // Default the galaxy to the currently-selected one. When the header is on
+            // "All galaxies" (or the value is not a real option), fall back to the first
+            // galaxy available to this editor, so a new wormhole always has a valid galaxy,
+            // even in Basic view where the galaxy selector is hidden (avoids a create with
+            // constellation_id=0, which the server rejects).
             const current = document.getElementById('current-constellation');
-            if (current) { const v = current.value; setVal('edit-constellation', v === 'all' ? '0' : v); }
+            const editCon = document.getElementById('edit-constellation');
+            if (current && editCon) {
+                const v = current.value;
+                editCon.value = (v && v !== 'all') ? v : '';
+                if (!editCon.value && editCon.options.length) editCon.value = editCon.options[0].value;
+            }
 
             setVal('edit-node-type', 'object');
             keywordState['modal'] = [];
@@ -2758,6 +2797,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             if (window.tplApplySelectedToModal) window.tplApplySelectedToModal();
 
             setWormholeMode('create');
+            applyInitialWormholeView(null);
             document.getElementById('edit_modal').showModal();
         }
 
@@ -3379,11 +3419,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     </script>
     <dialog id="edit_modal" class="modal">
         <div class="modal-box max-w-4xl bg-white !pt-0">
-            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between">
-                <h3 class="font-bold text-xl">
-                    <span id="wm-heading-edit"><?= t_attr('editor_modal_heading_edit_wormhole', 'Edit Wormhole') ?></span>
-                    <span id="wm-heading-create" class="hidden"><?= t_attr('editor_modal_heading_add_wormhole', 'Add New Wormhole') ?></span>
-                </h3>
+            <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl flex items-center justify-between gap-4">
+                <div class="flex items-center gap-4 flex-wrap">
+                    <h3 class="font-bold text-xl">
+                        <span id="wm-heading-edit"><?= t_attr('editor_modal_heading_edit_wormhole', 'Edit Wormhole') ?></span>
+                        <span id="wm-heading-create" class="hidden"><?= t_attr('editor_modal_heading_add_wormhole', 'Add New Wormhole') ?></span>
+                    </h3>
+                    <div class="join" role="group" aria-label="<?= t_attr('editor_view_toggle_label', 'Editor detail level') ?>">
+                        <button type="button" id="wm-view-basic-btn" class="btn btn-xs join-item"><?= t_attr('editor_view_basic', 'Basic view') ?></button>
+                        <button type="button" id="wm-view-advanced-btn" class="btn btn-xs join-item"><?= t_attr('editor_view_advanced', 'Advanced view') ?></button>
+                    </div>
+                </div>
                 <span id="edit-node-constellation-badge" class="text-xs opacity-70 font-mono"></span>
             </div>
             <form id="edit-node-form" class="space-y-4 mt-4" onsubmit="onWormholeFormSubmit(event)">
@@ -3394,7 +3440,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <input type="text" id="edit-name" name="name" required class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
                         <span id="edit-name-error" class="text-xs text-red-600 mt-1 hidden"><?= t_attr('editor_error_name_exists', 'This wormhole name already exists in this galaxy.') ?></span>
                     </div>
-                    <div>
+                    <div class="wm-advanced-only">
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_galaxy', 'Galaxy') ?></label>
                         <select id="edit-constellation" name="constellation_id" class="select select-bordered select-sm w-full bg-white">
                             <?php foreach ($constellations as $c): ?>
@@ -3402,7 +3448,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div>
+                    <div class="wm-advanced-only">
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_wormhole_type', 'Wormhole type') ?></label>
                         <select id="edit-node-type" name="node_type" onchange="toggleTargetConstellation(this.value, 'modal')" class="select select-bordered select-sm w-full bg-white">
                             <option value="object"><?= t_attr('editor_label_node_type_object', 'Object') ?></option>
@@ -3423,14 +3469,14 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <input type="hidden" id="edit-keywords-hidden" name="keywords">
                         <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_keywords_add', 'Type and press Enter or comma to add keywords. Suggestions surface keywords already used in this galaxy and in sibling galaxies sharing your `[XX]` prefix.') ?></span>
                     </div>
-                    <div class="flex flex-col justify-center">
+                    <div class="flex flex-col justify-center wm-advanced-only">
                         <label class="label cursor-pointer justify-start gap-4">
                             <input type="checkbox" id="edit-accentuated" name="is_accentuated" class="toggle toggle-neutral">
                             <span class="label-text font-medium text-gray-800"><?= t_attr('editor_label_accentuate_wormhole', 'Accentuate Wormhole') ?></span>
                         </label>
                         <span class="text-xs text-gray-500 block ml-1"><?= t_attr('editor_help_accentuate', 'Make this wormhole larger and more prominent in the network.') ?></span>
                     </div>
-                    <div class="flex flex-col justify-center">
+                    <div class="flex flex-col justify-center wm-advanced-only">
                         <label class="label cursor-pointer justify-start gap-4">
                             <input type="checkbox" id="edit-show-keywords" name="show_keywords" class="toggle toggle-neutral">
                             <span class="label-text font-medium text-gray-800"><?= t_attr('editor_label_show_keywords', 'Show Keywords') ?></span>
@@ -3438,7 +3484,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <span class="text-xs text-gray-500 block ml-1"><?= t_attr('editor_help_show_keywords', "Display this wormhole's keywords in its info window.") ?></span>
                     </div>
                 </div>
-                <div id="edit-target-constellation-wrap-modal" class="hidden">
+                <div id="edit-target-constellation-wrap-modal" class="hidden wm-advanced-only">
                     <div class="flex flex-wrap items-end gap-2 mb-2">
                         <div class="min-w-[200px] flex-1">
                             <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_target_galaxy', 'Target Galaxy') ?></label>
@@ -3451,7 +3497,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_description', 'Description') ?></label>
                     <textarea id="edit-description" name="description" rows="3" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"></textarea>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 wm-advanced-only">
                     <div>
                         <label class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('editor_label_url', 'URL') ?></label>
                         <input type="url" id="edit-url" name="url" placeholder="<?= t_attr('editor_placeholder_url', 'https://example.com') ?>" class="w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500">
@@ -3470,16 +3516,16 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <span class="text-xs text-gray-500 mt-1 block"><?= t_attr('editor_help_icon', 'Custom icon displayed in the 3D scene (overrides theme icon).') ?></span>
                     </div>
                 </div>
-                <div class="divider text-gray-400 text-xs"><?= t_attr('editor_divider_media', 'Media') ?></div>
+                <div class="divider text-gray-400 text-xs wm-advanced-only"><?= t_attr('editor_divider_media', 'Media') ?></div>
                 <!-- Media is either the Classic block (image/video/pdf/audio/embed) or a Hotglue page.
                      Whichever tab is active on save is persisted to nodes.media_mode (phase 5). -->
-                <div class="tabs tabs-bordered mb-2">
+                <div class="tabs tabs-bordered mb-2 wm-advanced-only">
                     <button type="button" id="edit-media-classic-tab" onclick="onClassicTabClick()" class="tab tab-sm tab-active"><?= t_attr('editor_tab_classic', 'Classic') ?></button>
                     <button type="button" id="edit-media-hotglue-tab" onclick="onHotglueTabClick()" class="tab tab-sm"><?= t_attr('editor_tab_hotglue', 'Hotglue') ?></button>
                 </div>
                 <input type="hidden" id="edit-media-mode" name="media_mode" value="classic">
                 <input type="hidden" id="edit-hotglue-page" value="">
-                <div id="edit-media-classic-content">
+                <div id="edit-media-classic-content" class="wm-advanced-only">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Left column: Primary visual (Image / Video / PDF, mutually exclusive). -->
                     <div class="flex flex-col">
@@ -3761,7 +3807,28 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
     /* The Close link (beside Restore, under the iframe) appears only when maximized. */
     #vnm-hotglue-close-link { display: none; }
     #view-node-box.vnm-maximized #vnm-hotglue-close-link { display: inline-block; }
+    /* Basic view of the wormhole editor: show only Name, Keywords, Description, and the
+       Edit hotglue content button. Advanced-only fields are hidden; the hotglue button is
+       force-shown even when the (hidden) Classic tab is the active media tab. */
+    .wm-basic .wm-advanced-only { display: none !important; }
+    .wm-basic #edit-media-hotglue-content { display: block !important; }
+    .wm-basic #edit-hotglue-help { display: none !important; }
+    /* The active view is shown by the green (btn-primary) fill, so suppress the focus
+       ring on the two toggle buttons (it otherwise leaves a green box on the button that
+       gets focus when the modal opens). */
+    #wm-view-basic-btn:focus, #wm-view-basic-btn:focus-visible,
+    #wm-view-advanced-btn:focus, #wm-view-advanced-btn:focus-visible { outline: none !important; box-shadow: none !important; }
     </style>
+    <!-- Basic/Advanced toggle wiring via a nonced script (no inline onclick), so this
+         feature is clean under the strict Report-Only CSP the editor is migrating toward. -->
+    <script nonce="<?php echo htmlspecialchars($cspEditNonce); ?>">
+        document.addEventListener('DOMContentLoaded', function () {
+            var bb = document.getElementById('wm-view-basic-btn');
+            var ab = document.getElementById('wm-view-advanced-btn');
+            if (bb) bb.addEventListener('click', function () { setWormholeView('basic'); });
+            if (ab) ab.addEventListener('click', function () { setWormholeView('advanced'); });
+        });
+    </script>
     <dialog id="view_node_modal" class="modal">
         <div id="view-node-box" class="modal-box max-w-2xl p-0 bg-[#0a0a0c]/90 border border-white/20 text-white flex flex-col" style="box-shadow: 0 0 50px -10px rgba(0, 255, 204, 0.3);">
             <!-- Maximize / Restore (generic across media; mirrors the 3D viewer) -->

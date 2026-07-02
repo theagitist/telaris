@@ -164,6 +164,8 @@ class TelarisNetwork {
         const pdfOpenEl = document.getElementById('rm-pdf-open');
         const urlWrap = document.getElementById('rm-url-wrap');
         const urlButton = document.getElementById('rm-url-button');
+        const hotglueOpenWrap = document.getElementById('rm-hotglue-open-wrap');
+        const hotglueOpenBtn = document.getElementById('rm-hotglue-open-button');
 
         if (!overlay || !win) return;
 
@@ -219,9 +221,15 @@ class TelarisNetwork {
             // is the vertical scroll region, so there is no window-around-iframe
             // double scrollbar. See the .rm-hotglue-mode CSS in main-view.php.
             if (win) win.classList.add('rm-hotglue-mode');
+            // Pop-out button: open the same hotglue page in a new browser tab.
+            if (hotglueOpenWrap && hotglueOpenBtn) {
+                hotglueOpenWrap.classList.remove('hidden');
+                hotglueOpenBtn.onclick = () => { window.open(hgSrc, '_blank', 'noopener,noreferrer'); };
+            }
         } else if (hotglueWrap && hotglueEl) {
             hotglueWrap.classList.add('hidden');
             hotglueEl.setAttribute('src', 'about:blank');
+            if (hotglueOpenWrap) hotglueOpenWrap.classList.add('hidden');
             if (win) win.classList.remove('rm-hotglue-mode');
         }
 
