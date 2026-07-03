@@ -2087,6 +2087,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
             // Media mode (Classic vs Hotglue) and the node's hotglue page slug.
             document.getElementById('edit-hotglue-page').value = node.hotglue_page || ('node-' + node.id);
+            if (typeof updateHotglueDirectUrl === 'function') updateHotglueDirectUrl();
             switchMediaMode(node.media_mode === 'hotglue' ? 'hotglue' : 'classic', 'edit');
             applyHotglueTabVisibility(node);
 
@@ -2789,6 +2790,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
 
             switchVisualTab('image', 'edit');
             setVal('edit-hotglue-page', '');
+            if (typeof updateHotglueDirectUrl === 'function') updateHotglueDirectUrl();
             switchMediaMode('classic', 'edit');
             applyHotglueTabVisibility(null);
 
@@ -3632,6 +3634,13 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                             <?= t_attr('editor_btn_edit_hotglue', 'Edit hotglue content') ?>
                         </button>
                     </div>
+                    <!-- Direct link to this wormhole's bare hotglue page, with a one-click copy. Sized/coloured to match the button above. Shown only for a saved node (create mode has no slug yet). -->
+                    <div id="edit-hotglue-url-wrap" class="hidden mt-1 flex items-center gap-2 w-64 mx-auto">
+                        <input type="text" id="edit-hotglue-url" readonly onclick="this.select()" class="input input-bordered input-primary input-sm flex-1 min-w-0 text-xs text-primary text-right" aria-label="<?= t_attr('editor_hg_action_copy_url', 'Copy direct URL') ?>">
+                        <button type="button" onclick="copyHotglueDirectUrl()" class="btn btn-sm btn-square btn-outline btn-primary" title="<?= t_attr('editor_hg_action_copy_url', 'Copy direct URL') ?>" aria-label="<?= t_attr('editor_hg_action_copy_url', 'Copy direct URL') ?>">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        </button>
+                    </div>
                 </div>
                 <div id="edit-progress-wrap" class="hidden space-y-2">
                     <div class="flex justify-between text-xs font-medium">
@@ -4255,6 +4264,32 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 navigator.clipboard.writeText(absoluteUrl).then(() => {
                     if (typeof showMessage === 'function') showMessage(HG.toastUrlCopied || 'URL copied to clipboard');
                 }).catch(() => {});
+            }
+        };
+
+        // Fill + show the edit modal's direct-URL field from the current node's
+        // hotglue slug. Hidden in create mode (no slug until the node is saved).
+        window.updateHotglueDirectUrl = function () {
+            const wrap = document.getElementById('edit-hotglue-url-wrap');
+            const input = document.getElementById('edit-hotglue-url');
+            const slugEl = document.getElementById('edit-hotglue-page');
+            if (!wrap || !input || !slugEl) return;
+            const slug = (slugEl.value || '').trim();
+            if (!slug || slug === 'node-') { wrap.classList.add('hidden'); input.value = ''; return; }
+            const relativeUrl = '../hg/?' + encodeURIComponent(slug);
+            input.value = new URL(relativeUrl, window.location.origin + window.location.pathname).href;
+            wrap.classList.remove('hidden');
+        };
+        window.copyHotglueDirectUrl = function () {
+            const input = document.getElementById('edit-hotglue-url');
+            if (!input || !input.value) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(input.value).then(() => {
+                    if (typeof showMessage === 'function') showMessage(HG.toastUrlCopied || 'URL copied to clipboard');
+                }).catch(() => {});
+            } else {
+                input.select();
+                try { document.execCommand('copy'); } catch (e) {}
             }
         };
 
