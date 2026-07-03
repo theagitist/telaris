@@ -37,7 +37,16 @@ function draw_render_page_early($args)
 	}
 	// ponytail: ship a single un-minified edit file and load it directly,
 	// regardless of USE_MIN_FILES, to avoid hand-maintaining a .min.js twin.
-	html_add_js(base_url().'modules/draw/draw-edit.js');
-	html_add_css(base_url().'modules/draw/draw-edit.css');
+	// Cache-buster: append each file's mtime so browsers and any CDN refetch
+	// when it changes (hotglue asset URLs are otherwise unversioned). Same as
+	// module_text. The icon PNG is referenced from draw-edit.js, so its mtime
+	// is handed to the script as a JS var to version that URL too.
+	$dir = dirname(__FILE__).'/modules/draw/';
+	$jsv = @filemtime($dir.'draw-edit.js');
+	html_add_js(base_url().'modules/draw/draw-edit.js'.($jsv ? '?v='.$jsv : ''));
+	$cssv = @filemtime($dir.'draw-edit.css');
+	html_add_css(base_url().'modules/draw/draw-edit.css'.($cssv ? '?v='.$cssv : ''));
+	$iconv = @filemtime($dir.'draw.png');
+	html_add_js_var('$.glue.conf.draw.icon_v', $iconv ? (string)$iconv : '');
 	return true;
 }

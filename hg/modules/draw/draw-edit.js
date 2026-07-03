@@ -194,8 +194,11 @@
 	}
 
 	$(document).ready(function () {
+		// Cache-buster for the icon PNG (its mtime, handed over by module_draw.inc.php),
+		// so an edited/recoloured icon is not served stale from the browser or a CDN.
+		var icon_v = ($.glue.conf && $.glue.conf.draw && $.glue.conf.draw.icon_v) ? ('?v=' + $.glue.conf.draw.icon_v) : '';
 		// NEW-image button in the "new" menu (background click)
-		var add = $('<img src="' + $.glue.base_url + 'modules/draw/draw.png" alt="btn" title="' + $.glue.t('draw.new_title') + '" width="32" height="32">');
+		var add = $('<img src="' + $.glue.base_url + 'modules/draw/draw.png' + icon_v + '" alt="btn" title="' + $.glue.t('draw.new_title') + '" width="32" height="32">');
 		$(add).bind('click', function () {
 			var p = $.glue.menu.spawn_coords();
 			place_x = p ? p.x : $(document).scrollLeft() + 200;
@@ -207,7 +210,7 @@
 		$.glue.menu.register('new', add);
 
 		// EDIT-image button in an image object's context menu
-		var ed = $('<img src="' + $.glue.base_url + 'modules/draw/draw.png" alt="btn" title="' + $.glue.t('draw.edit_title') + '" width="32" height="32">');
+		var ed = $('<img src="' + $.glue.base_url + 'modules/draw/draw.png' + icon_v + '" alt="btn" title="' + $.glue.t('draw.edit_title') + '" width="32" height="32">');
 		$(ed).bind('click', function () {
 			var obj = $(this).data('owner');
 			if (!obj) { return; }
