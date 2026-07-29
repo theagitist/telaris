@@ -343,6 +343,22 @@ header("X-Content-Type-Options: nosniff");
                maximized, where the chrome is hidden and a second obvious exit is useful. */
             #rm-hotglue-close-link { display: none; }
             #rich-media-window.rm-maximized #rm-hotglue-close-link { display: inline-block; }
+
+            /* Rhizome (light theme): the media window is light, not black. Toggled by
+               showRichMediaWindow when the active scene theme is rhizome. */
+            #rich-media-window.rm-light {
+                background: rgba(246, 247, 244, 0.97) !important;
+                color: #1c1f24 !important;
+                border-color: rgba(0, 0, 0, 0.14) !important;
+                box-shadow: 0 12px 55px -12px rgba(0, 0, 0, 0.4) !important;
+            }
+            #rich-media-window.rm-light #rm-title,
+            #rich-media-window.rm-light #rm-description,
+            #rich-media-window.rm-light .text-white { color: #1c1f24 !important; }
+            #rich-media-window.rm-light [class*="text-white/"] { color: rgba(28, 31, 36, 0.5) !important; }
+            #rich-media-window.rm-light [class*="text-white/"]:hover,
+            #rich-media-window.rm-light .hover\:text-white:hover { color: #1c1f24 !important; }
+            #rich-media-window.rm-light #tour-dwell-bar-track { background: rgba(0, 0, 0, 0.06); }
         </style>
         <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md hidden transition-opacity duration-500 opacity-0">
             <div id="rich-media-window" class="bg-[#0a0a0c]/90 border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative text-white transition-all duration-500 ease-out transform scale-50 opacity-0"

@@ -19,6 +19,13 @@ import { getTheme } from './themes.js';
 // cursor's colour cloud reaches it. Normalized RGB (0..1), tuned to read on the
 // pale rhizome ground (0xf6f7f4).
 const RZ_NODE_GRAY = [0.86, 0.872, 0.885];
+// Rhizome nodes render as small dots (a few pixels); hubs stay 1.6x on top of this.
+const RZ_NODE_SCALE = 0.26;
+// Hard ceiling on a rhizome node's resting size so hubs/accentuated nodes can't grow big.
+const RZ_NODE_MAX = 0.58;
+// Small dots have a tiny raycast profile, so hover slips off. Give rhizome nodes a
+// generous screen-space hover hitbox (radius in CSS pixels) as a ray-miss fallback.
+const RZ_HOVER_HITBOX_PX = 24;
 // Rhizome connection rest colour: gray, a bit darker than the nodes, so the web
 // reads at rest; lines take their real colour in the hovered node's cloud.
 const RZ_LINE_GRAY = [0.72, 0.735, 0.75];
@@ -91,11 +98,10 @@ class TelarisNetwork {
 
     getNodeTooltipStyles(node) {
         const d = node.userData;
-        // Rhizome (light theme): a solid dark panel with white text, so the label
-        // is legible over the pale background instead of showing the grid through
-        // a translucent tint.
+        // Rhizome (light theme): a solid light panel with dark text, matching the
+        // pale background and the light media window instead of a dark tint.
         if (this.currentTheme && this.currentTheme.id === 'rhizome') {
-            return { backgroundColor: 'rgb(22,25,31)', color: 'rgb(245,247,250)' };
+            return { backgroundColor: 'rgb(246,247,244)', color: 'rgb(28,31,36)' };
         }
         if (!d || d.colorR === undefined) return { backgroundColor: 'rgba(0,0,0,0.35)', color: 'rgb(255,255,255)' };
         const r = d.colorR, g = d.colorG, b = d.colorB;
@@ -182,6 +188,9 @@ class TelarisNetwork {
         const hotglueOpenBtn = document.getElementById('rm-hotglue-open-button');
 
         if (!overlay || !win) return;
+
+        // Rhizome is a light theme: the media window is light, not black.
+        win.classList.toggle('rm-light', !!(this.currentTheme && this.currentTheme.id === 'rhizome'));
 
         // Title. In a multi-galaxy view, show the galaxy name (dimmed) before
         // the wormhole name so it is clear which galaxy the wormhole belongs to.
@@ -2672,26 +2681,28 @@ class TelarisNetwork {
             this.raycaster.setFromCamera(this.mouse, this.camera);
             const intersects = this.raycaster.intersectObjects(this.nodes.filter(n => n.visible), true);
 
-            // Rhizome: clicking empty space while zoomed in returns to the overview
-            // (same as the Back button).
-            if (intersects.length === 0 && this.currentTheme && this.currentTheme.id === 'rhizome' && this._rhizomeFocused) {
-                this.rhizomeReset();
+            const isRhizome = this.currentTheme && this.currentTheme.id === 'rhizome';
+
+            let targetNode = null;
+            if (intersects.length > 0) {
+                intersects.sort((a, b) => a.distance - b.distance);
+                for (const hit of intersects) {
+                    let obj = hit.object;
+                    while (obj && !this.nodes.includes(obj)) obj = obj.parent;
+                    if (obj) { targetNode = obj; break; }
+                }
+            }
+            // Rhizome dots have a tiny click profile too; reuse the hover pixel hitbox.
+            if (!targetNode && isRhizome) targetNode = this._nearestNodeToMouse(RZ_HOVER_HITBOX_PX);
+
+            // Rhizome: a click in true empty space while zoomed in returns to the overview.
+            if (!targetNode) {
+                if (isRhizome && this._rhizomeFocused) this.rhizomeReset();
                 return;
             }
 
-            if (intersects.length > 0) {
-                intersects.sort((a, b) => a.distance - b.distance);
-                
-                let targetNode = null;
-                for (const hit of intersects) {
-                    let obj = hit.object;
-                    while (obj && !this.nodes.includes(obj)) {
-                        obj = obj.parent;
-                    }
-                    if (obj) { targetNode = obj; break; }
-                }
-                
-                if (!targetNode || !targetNode.userData) return;
+            if (!targetNode.userData) return;
+            {
                 this.playGlitch();
 
                 const data = targetNode.userData;
@@ -2929,6 +2940,8 @@ class TelarisNetwork {
                     if (obj) return obj;
                 }
             }
+            // Rhizome dots are tiny; same pixel hitbox fallback as hover/click for taps.
+            if (this.currentTheme && this.currentTheme.id === 'rhizome') return this._nearestNodeToMouse(RZ_HOVER_HITBOX_PX);
             return null;
         };
 
@@ -2979,6 +2992,7 @@ class TelarisNetwork {
                 if (this.tooltipLine) {
                     this.tooltipLine.setAttribute('stroke', lineColor);
                     this.tooltipLine.setAttribute('stroke-opacity', '0.5');
+                    this.tooltipLine.setAttribute('stroke-width', (this.currentTheme && this.currentTheme.id === 'rhizome') ? '3.5' : '2');
                 }
 
                 const rect = this.renderer.domElement.getBoundingClientRect();
@@ -3889,8 +3903,10 @@ class TelarisNetwork {
                 const fullMult = 1.9 + Math.sin(time * 2.5) * 0.35;
                 tourSpotlightMult = 1.0 + spotStrength * (fullMult - 1.0);
             }
-            const rzHub = isRhizome ? (d._rhizomeHub || 1) : 1; // enlarge top-degree hubs
-            const s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * scaleMult * tourSpotlightMult * rzHub;
+            const rzHub = isRhizome ? (d._rhizomeHub || 1) * RZ_NODE_SCALE : 1; // small dots, hubs a touch bigger
+            let s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * scaleMult * rzHub;
+            if (isRhizome) s = Math.min(s, RZ_NODE_MAX); // cap resting size; tour spotlight below still scales
+            s *= tourSpotlightMult;
             n.scale.set(s, s, s);
 
             // Optimization: iterate cached moons directly
@@ -3981,6 +3997,26 @@ class TelarisNetwork {
         this.tooltipLine.setAttribute('points', points);
     }
 
+    // Nearest visible node to the cursor within pxRadius (CSS px), or null.
+    // ponytail: O(n) screen-space scan; fine at these node counts, only runs on a ray miss.
+    _nearestNodeToMouse(pxRadius) {
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        const mx = (this.mouse.x * 0.5 + 0.5) * rect.width;
+        const my = (0.5 - this.mouse.y * 0.5) * rect.height;
+        const p = new THREE.Vector3();
+        let best = null, bestD = pxRadius * pxRadius;
+        for (const n of this.nodes) {
+            if (!n.visible) continue;
+            n.getWorldPosition(p).project(this.camera);
+            if (p.z > 1) continue; // behind the camera
+            const nx = (p.x * 0.5 + 0.5) * rect.width;
+            const ny = (0.5 - p.y * 0.5) * rect.height;
+            const dx = nx - mx, dy = ny - my, d = dx * dx + dy * dy;
+            if (d < bestD) { bestD = d; best = n; }
+        }
+        return best;
+    }
+
     updateHoverState() {
         if (!this._mouseHasMoved) return;
         this.raycaster.setFromCamera(this.mouse, this.camera);
@@ -3994,6 +4030,12 @@ class TelarisNetwork {
                 while (obj && !this.nodes.includes(obj)) obj = obj.parent;
                 if (obj) { hoveredNode = obj; break; }
             }
+        }
+
+        // Rhizome dots are too small to reliably ray-hit; fall back to the nearest
+        // node within a pixel radius so the cursor doesn't keep slipping off.
+        if (!hoveredNode && this.currentTheme && this.currentTheme.id === 'rhizome') {
+            hoveredNode = this._nearestNodeToMouse(RZ_HOVER_HITBOX_PX);
         }
 
         const currentFocused = this.networkManager.getFocusedNode();
@@ -4067,6 +4109,7 @@ class TelarisNetwork {
                     if (this.tooltipLine) {
                         this.tooltipLine.setAttribute('stroke', lineColor);
                         this.tooltipLine.setAttribute('stroke-opacity', '0.5');
+                        this.tooltipLine.setAttribute('stroke-width', (this.currentTheme && this.currentTheme.id === 'rhizome') ? '3.5' : '2');
                     }
 
                     // Compute node screen position for the connector line
