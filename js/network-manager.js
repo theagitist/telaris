@@ -12,6 +12,7 @@ export class NetworkManager {
      */
     constructor(options = {}) {
         this._focusedNode = null;
+        this.showAllConnections = false; // Rhizome theme flips this on: all edges visible at rest.
         this.fadeSpeed = options.fadeSpeed ?? 0.1;
         this.visibilityThreshold = options.visibilityThreshold ?? 0.002;
     }
@@ -33,8 +34,18 @@ export class NetworkManager {
      * @returns {number} Target opacity (0 or baseOpacity)
      */
     getTargetOpacityForConnection(connection) {
-        if (!this._focusedNode || !connection.node1.visible || !connection.node2.visible) return 0;
+        if (!connection.node1.visible || !connection.node2.visible) return 0;
         const base = connection.baseOpacity ?? 0.5;
+        // Rhizome theme: every edge between two visible nodes stays lit, with no
+        // focused node required. During a focus transition the endpoint nodes carry
+        // a per-node fade factor (_rzFade 0..1); multiply it in so edges fade in step
+        // with their nodes instead of snapping off.
+        if (this.showAllConnections) {
+            const f1 = connection.node1.userData ? (connection.node1.userData._rzFade ?? 1) : 1;
+            const f2 = connection.node2.userData ? (connection.node2.userData._rzFade ?? 1) : 1;
+            return base * Math.min(f1, f2);
+        }
+        if (!this._focusedNode) return 0;
         const isRelevant = (this._focusedNode === connection.node1 || this._focusedNode === connection.node2);
         return isRelevant ? base : 0;
     }

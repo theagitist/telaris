@@ -9,10 +9,15 @@ import { getTheme } from './themes.js';
 const textureLoader = new THREE.TextureLoader();
 
 // ── Torus wireframe portal icon ───────────────────────────────────────────────
+// Two cached variants: the default bright-green texture (used by the dark themes
+// with additive blending), and a dark variant for the light Rhizome theme, where
+// additive blending on a near-white ground would wash the bright wires out.
 let _torusTexture = null;
+let _torusTextureDark = null;
 
-function getTorusWireframeTexture() {
-    if (_torusTexture) return _torusTexture;
+function getTorusWireframeTexture(dark = false) {
+    if (dark && _torusTextureDark) return _torusTextureDark;
+    if (!dark && _torusTexture) return _torusTexture;
 
     const size = 256;
     const canvas = document.createElement('canvas');
@@ -75,6 +80,25 @@ function getTorusWireframeTexture() {
         }
     }
 
+    if (dark) {
+        // Dark teal-green wires for the light Rhizome ground, drawn opaque enough
+        // to read with normal (not additive) blending.
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(10, 70, 50, 0.35)';
+        ctx.lineWidth = 5;
+        ctx.shadowColor = 'rgba(6, 50, 36, 0.5)';
+        ctx.shadowBlur = 8;
+        drawWires();
+
+        ctx.strokeStyle = 'rgba(12, 92, 66, 0.98)';
+        ctx.lineWidth = 1.8;
+        ctx.shadowBlur = 2;
+        drawWires();
+
+        _torusTextureDark = new THREE.CanvasTexture(canvas);
+        return _torusTextureDark;
+    }
+
     // Glow pass
     ctx.strokeStyle = 'rgba(80, 220, 140, 0.30)';
     ctx.lineWidth = 5;
@@ -93,14 +117,16 @@ function getTorusWireframeTexture() {
     return _torusTexture;
 }
 
-function createTorusPortalSprite(material) {
+function createTorusPortalSprite(material, dark = false) {
     const spriteMaterial = new THREE.SpriteMaterial({
-        map: getTorusWireframeTexture(),
+        map: getTorusWireframeTexture(dark),
         color: 0xffffff,
         transparent: true,
         opacity: material.opacity,
         sizeAttenuation: true,
-        blending: THREE.AdditiveBlending,
+        // Rhizome (light ground): normal blending so the dark wires stay dark.
+        // Dark themes keep additive blending for the neon glow.
+        blending: dark ? THREE.NormalBlending : THREE.AdditiveBlending,
         depthWrite: false,
     });
     spriteMaterial.isSpriteMaterial = true;
@@ -308,7 +334,7 @@ const iconFactories = {
     'sphere': createSphereNode
 };
 
-export function createNodeIcon(material, index, gm, type = 'object', themeId = 'cosmic', iconUrl = null) {
+export function createNodeIcon(material, index, gm, type = 'object', themeId = 'cosmic', iconUrl = null, sceneThemeId = null) {
     if (type === 'cluster' && iconUrl) {
         // Custom cluster icon (e.g. Baobáxia tree) — image sprite with cluster behavior
         const sprite = createImageNode(iconUrl, material);
@@ -328,8 +354,13 @@ export function createNodeIcon(material, index, gm, type = 'object', themeId = '
     }
 
     if (type === 'portal') {
-        // Torus wireframe sprite — looks like the other image nodes but is clearly a portal
-        return createTorusPortalSprite(material);
+        // Torus wireframe sprite — looks like the other image nodes but is clearly a portal.
+        // The dark, normal-blended variant is used when the SCENE is rhizome (light
+        // ground), so portals stay visible even in a union view whose portal comes
+        // from a non-rhizome galaxy. Falls back to the node's own theme if no scene
+        // theme was passed.
+        const rhizomeScene = (sceneThemeId || themeId) === 'rhizome';
+        return createTorusPortalSprite(material, rhizomeScene);
     }
 
     if (theme.nodes.type === 'image') {

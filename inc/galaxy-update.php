@@ -41,7 +41,7 @@ function handle_galaxy_update_post(array $post, ?string $userId, bool $isAdmin):
     }
     $tagline = trim((string)($post['tagline'] ?? ''));
 
-    $allowedThemes = ['cosmic', 'simple', 'abstract', 'rectangles', 'stripes', 'tech', 'light-rainbow'];
+    $allowedThemes = ['cosmic', 'simple', 'abstract', 'rectangles', 'stripes', 'tech', 'light-rainbow', 'rhizome'];
     $theme = trim((string)($post['theme'] ?? 'cosmic'));
     if (!in_array($theme, $allowedThemes, true)) {
         $theme = 'cosmic';

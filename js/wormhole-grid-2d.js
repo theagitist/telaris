@@ -84,6 +84,13 @@ const LINE_WIDTH_CAP = 4;
 const LINE_GLOW_REST_PX = 2;
 const LINE_GLOW_HOVER_PX = 4;
 
+// Rhizome theme (light): unlike the other themes, connections are always drawn
+// (not hover-only), so they get a non-zero rest opacity and a slightly heavier
+// base width. Line + card colours are darkened for contrast on the pale ground.
+const RZ_LINE_REST_OPACITY = 0.5;
+const RZ_LINE_WIDTH_BASE = 1.4;
+const RZ_BG_COLOR = '#f6f7f4';   // matches the 3D rhizome ground (0xf6f7f4)
+
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Average two #rrggbb colours into a single hex string. Matches keyword-canvas's blendHex. */
@@ -170,6 +177,7 @@ export class WormholeGrid2D {
 
     refresh() {
         if (!this.container || !this.cardsLayer || !this.linesSvg) return;
+        this._applyRhizomeSkin();
         const nodes = this._pullNodeData();
         this.nodes = nodes;
         if (nodes.length === 0) {
@@ -187,6 +195,7 @@ export class WormholeGrid2D {
         this._lastActiveKeywordsSnapshot = null;
         this._buildAdjacency(nodes);
         this._buildCards(nodes);          // measures + stores card sizes
+        this._applyRhizomeHubs();          // rhizome theme: enlarge top-degree cards
         this._seedPositions(nodes);        // Poisson-disc within the viewport
         this._buildLines(nodes);           // SVG lines, positioned in _renderFrame
         this._presettle();                 // resolve any seed overlaps offscreen
@@ -282,6 +291,11 @@ export class WormholeGrid2D {
         // used everywhere else (keyword chips, canvas, related row), so a
         // wormhole reads the same shade across the app.
         const pastel = CHIP_FG[colorIndexFor(n.name || ('#' + n.id))];
+        // Rhizome (light theme): darken the name-hashed pastel for text/border and
+        // sit it on a near-white card, mirroring the darkened, higher-contrast nodes
+        // of the 3D rhizome scene. Other themes keep the light-pastel-on-dark chip.
+        const isRz = this._isRhizome();
+        const inkColor = isRz ? this._darkenHex(pastel, 0.55) : pastel;
         const card = document.createElement('button');
         card.type = 'button';
         card.className = 'wh2d-card';
@@ -289,11 +303,11 @@ export class WormholeGrid2D {
         card.dataset.pastel = pastel;
         Object.assign(card.style, {
             position: 'absolute',
-            background: this._pastelRgba(pastel, 0.18),
-            border: `1px solid ${this._pastelRgba(pastel, 0.55)}`,
+            background: isRz ? 'rgba(255,255,255,0.92)' : this._pastelRgba(pastel, 0.18),
+            border: `1px solid ${isRz ? this._pastelRgba(inkColor, 0.85) : this._pastelRgba(pastel, 0.55)}`,
             borderRadius: '9999px',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.35)',
-            color: pastel,
+            boxShadow: isRz ? '0 1px 4px rgba(0, 0, 0, 0.14)' : '0 2px 8px rgba(0, 0, 0, 0.35)',
+            color: inkColor,
             cursor: 'pointer',
             padding: `${CARD_PAD_Y}px ${CARD_PAD_X + 4}px ${CARD_PAD_Y}px ${CARD_PAD_X}px`,
             display: 'inline-flex',
@@ -302,7 +316,9 @@ export class WormholeGrid2D {
             lineHeight: '1.2',
             whiteSpace: 'nowrap',
             maxWidth: CARD_MAX_W + 'px',
-            transition: 'border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease, background 160ms ease',
+            transition: isRz
+                ? 'border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease, background 160ms ease, opacity 380ms ease'
+                : 'border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease, background 160ms ease',
             transform: 'translate(-50%, -50%)',
             transformOrigin: '50% 50%',
             font: 'inherit',
@@ -372,6 +388,66 @@ export class WormholeGrid2D {
         const g = (p >> 8) & 0xff;
         const b = p & 0xff;
         return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    /** Multiply a "#rrggbb" toward black by factor f (0..1). Used to darken the
+     *  name-hashed pastels so they read on the light rhizome background. */
+    _darkenHex(hex, f) {
+        const p = parseInt(hex.slice(1), 16);
+        const r = Math.round(((p >> 16) & 0xff) * f);
+        const g = Math.round(((p >> 8) & 0xff) * f);
+        const b = Math.round((p & 0xff) * f);
+        return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
+    }
+
+    /** Compute the fit transform {zoom, panX, panY} for all nodes, or an id subset. */
+    _computeFit(idSet) {
+        const rect = this.container.getBoundingClientRect();
+        const vw = Math.max(1, rect.width);
+        const vh = Math.max(1, rect.height);
+        const list = idSet ? this.nodes.filter(n => idSet.has(n.id)) : this.nodes;
+        if (!list.length) return { zoom: 1, panX: 0, panY: 0 };
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const n of list) {
+            const p = this.positions.get(n.id);
+            if (!p) continue;
+            const s = this.cardSizes.get(n.id) || { w: 80, h: 28 };
+            minX = Math.min(minX, p.x - s.w / 2);
+            maxX = Math.max(maxX, p.x + s.w / 2);
+            minY = Math.min(minY, p.y - s.h / 2);
+            maxY = Math.max(maxY, p.y + s.h / 2);
+        }
+        if (!isFinite(minX)) return { zoom: 1, panX: 0, panY: 0 };
+        const bw = Math.max(1, maxX - minX);
+        const bh = Math.max(1, maxY - minY);
+        const z = Math.min((vw - FIT_PADDING * 2) / bw, (vh - FIT_PADDING * 2) / bh);
+        const zoom = Math.max(MIN_ZOOM, Math.min(FIT_MAX_ZOOM, z));
+        const cx = (minX + maxX) / 2;
+        const cy = (minY + maxY) / 2;
+        return { zoom, panX: vw / 2 - cx * zoom, panY: vh / 2 - cy * zoom };
+    }
+
+    /** Eased tween of zoom/pan toward a target transform (rhizome focus/back). */
+    _animateView(target, dur) {
+        if (this._viewAnimRaf) cancelAnimationFrame(this._viewAnimRaf);
+        const z0 = this.zoom, px0 = this.panX, py0 = this.panY;
+        const t0 = performance.now();
+        const tick = (now) => {
+            const raw = Math.min(1, (now - t0) / dur);
+            const e = raw < 0.5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
+            this.zoom = z0 + (target.zoom - z0) * e;
+            this.panX = px0 + (target.panX - px0) * e;
+            this.panY = py0 + (target.panY - py0) * e;
+            this._applyTransform();
+            if (raw < 1) this._viewAnimRaf = requestAnimationFrame(tick);
+            else this._viewAnimRaf = null;
+        };
+        this._viewAnimRaf = requestAnimationFrame(tick);
+    }
+
+    /** True when the active theme is Rhizome (light, always-lines, focus-on-click). */
+    _isRhizome() {
+        return !!window.TELARIS_THEME_ID && String(window.TELARIS_THEME_ID).toLowerCase() === 'rhizome';
     }
 
     /**
@@ -541,14 +617,20 @@ export class WormholeGrid2D {
                 // in keyword-canvas.
                 const colA = CHIP_FG[colorIndexFor(n.name || ('#' + n.id))];
                 const colB = CHIP_FG[colorIndexFor(other.name || ('#' + otherId))];
-                const glow = blendHex(colA, colB);
+                const blended = blendHex(colA, colB);
+                // Rhizome (light): draw all lines at rest, darker for contrast, a
+                // touch heavier. Other themes keep the pale hover-only line.
+                const isRz = this._isRhizome();
+                const glow = isRz ? this._darkenHex(blended, 0.5) : blended;
+                const restOpacity = isRz ? RZ_LINE_REST_OPACITY : LINE_BASE_OPACITY;
+                const wBase = isRz ? RZ_LINE_WIDTH_BASE : LINE_WIDTH_BASE;
                 const width = Math.min(
-                    LINE_WIDTH_BASE + LINE_WIDTH_PER_SHARE * (sharedCount - 1),
+                    wBase + LINE_WIDTH_PER_SHARE * (sharedCount - 1),
                     LINE_WIDTH_CAP
                 );
                 const line = document.createElementNS(SVG_NS, 'line');
                 line.setAttribute('stroke', glow);
-                line.setAttribute('stroke-opacity', String(LINE_BASE_OPACITY));
+                line.setAttribute('stroke-opacity', String(restOpacity));
                 line.setAttribute('stroke-width', String(width));
                 line.setAttribute('stroke-linecap', 'round');
                 // Keep stroke width in screen pixels regardless of zoom.
@@ -603,19 +685,23 @@ export class WormholeGrid2D {
         }
     }
 
-    /** Frame every card in the viewport (the default view shows all nodes). */
-    _fitToContent() {
+    /**
+     * Frame cards in the viewport. With no argument, frames every node (the
+     * default view). With an id Set (rhizome focus), frames just that subset.
+     */
+    _fitToContent(idSet) {
         if (!this.container) return;
         const rect = this.container.getBoundingClientRect();
         const vw = Math.max(1, rect.width);
         const vh = Math.max(1, rect.height);
-        if (!this.nodes.length) {
+        const list = idSet ? this.nodes.filter(n => idSet.has(n.id)) : this.nodes;
+        if (!list.length) {
             this.zoom = 1; this.panX = 0; this.panY = 0;
             this._applyTransform();
             return;
         }
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const n of this.nodes) {
+        for (const n of list) {
             const p = this.positions.get(n.id);
             if (!p) continue;
             const s = this.cardSizes.get(n.id) || { w: 80, h: 28 };
@@ -887,9 +973,15 @@ export class WormholeGrid2D {
 
     _onCardHover(nodeId, entering) {
         this.hoveredNodeId = entering ? nodeId : null;
+        // Rhizome: lines have a non-zero rest opacity (always drawn), and while a
+        // focus is active hover must not repaint line opacities (it would un-hide
+        // the culled edges). Other themes keep the original hover-reveal (rest 0).
+        const rzFocused = this._isRhizome() && this._rhizomeFocusId != null;
+        const restOpacity = this._isRhizome() ? RZ_LINE_REST_OPACITY : LINE_BASE_OPACITY;
+        const hoverOpacity = this._isRhizome() ? 0.85 : LINE_HIGHLIGHT_OPACITY;
         // Per-card pastel-glow line highlight.
         const neighbours = this.adjacency.get(nodeId);
-        if (neighbours) {
+        if (neighbours && !rzFocused) {
             for (const [otherId] of neighbours) {
                 const k = WormholeGrid2D._edgeKey(nodeId, otherId);
                 const line = this.lineEls.get(k);
@@ -897,11 +989,11 @@ export class WormholeGrid2D {
                 const glow = line.getAttribute('data-glow') || '#cbd5e1';
                 const baseW = parseFloat(line.getAttribute('data-base-width') || '1');
                 if (entering) {
-                    line.setAttribute('stroke-opacity', String(LINE_HIGHLIGHT_OPACITY));
+                    line.setAttribute('stroke-opacity', String(hoverOpacity));
                     line.setAttribute('stroke-width', String(baseW + 0.5));
                     line.style.filter = `drop-shadow(0 0 ${LINE_GLOW_HOVER_PX}px ${glow})`;
                 } else {
-                    line.setAttribute('stroke-opacity', String(LINE_BASE_OPACITY));
+                    line.setAttribute('stroke-opacity', String(restOpacity));
                     line.setAttribute('stroke-width', String(baseW));
                     line.style.filter = `drop-shadow(0 0 ${LINE_GLOW_REST_PX}px ${glow})`;
                 }
@@ -1003,9 +1095,79 @@ export class WormholeGrid2D {
         tipLineSvg.style.opacity = '1';
     }
 
+    /** Light background skin for the 2D view under the rhizome theme (matches the
+     *  3D ground). No-op for every other theme, which keep the dark dot grid. */
+    _applyRhizomeSkin() {
+        if (!this.container || !this._isRhizome()) return;
+        this.container.style.backgroundColor = RZ_BG_COLOR;
+        this.container.style.backgroundImage = 'radial-gradient(circle, rgba(120,128,140,0.30) 1.5px, transparent 2px)';
+    }
+
+    /** Enlarge the top-N cards by degree so hubs read at a glance. Rhizome only. */
+    _applyRhizomeHubs() {
+        if (!this._isRhizome() || !this.nodes.length) return;
+        const ranked = this.nodes
+            .map(n => ({ id: n.id, d: (this.adjacency.get(n.id) ? this.adjacency.get(n.id).size : 0) }))
+            .filter(x => x.d > 0)
+            .sort((a, b) => b.d - a.d);
+        const topN = Math.max(3, Math.ceil(this.nodes.length * 0.15));
+        const hubs = new Set(ranked.slice(0, topN).map(x => x.id));
+        for (const [id, card] of this.cardEls) {
+            if (!hubs.has(id)) continue;
+            card.style.fontWeight = '700';
+            card.style.transform = 'translate(-50%, -50%) scale(1.28)';
+            card.style.zIndex = '5';
+        }
+    }
+
+    /**
+     * Rhizome focus: keep the clicked card + its direct neighbours, fade the rest
+     * out, fade their lines out, and glide the zoom to fit the kept set. Animated
+     * (opacity via CSS transition on the cards/lines, zoom via _animateView). Back
+     * reverses it. Rhizome theme only.
+     */
+    _rhizomeFocus(id) {
+        const nb = this.adjacency.get(id);
+        const keep = new Set([id]);
+        if (nb) for (const [otherId] of nb) keep.add(otherId);
+        for (const [nid, card] of this.cardEls) {
+            const isKeep = keep.has(nid);
+            card.style.opacity = isKeep ? '1' : '0';
+            card.style.pointerEvents = isKeep ? '' : 'none';
+        }
+        for (const [, line] of this.lineEls) {
+            const a = parseInt(line.getAttribute('data-a'), 10);
+            const b = parseInt(line.getAttribute('data-b'), 10);
+            line.setAttribute('stroke-opacity', (keep.has(a) && keep.has(b)) ? String(RZ_LINE_REST_OPACITY) : '0');
+        }
+        this._rhizomeFocusId = id;
+        this._animateView(this._computeFit(keep), 1000);
+        const btn = document.getElementById('rhizome-back-btn');
+        if (btn) { btn.onclick = () => this._rhizomeReset(); btn.style.display = ''; }
+    }
+
+    _rhizomeReset() {
+        for (const [, card] of this.cardEls) { card.style.opacity = '1'; card.style.pointerEvents = ''; }
+        for (const [, line] of this.lineEls) line.setAttribute('stroke-opacity', String(RZ_LINE_REST_OPACITY));
+        this._rhizomeFocusId = null;
+        this._lastActiveKeywordsSnapshot = null; // let any active keyword/galaxy dim re-apply
+        this._animateView(this._computeFit(null), 1000);
+        const btn = document.getElementById('rhizome-back-btn');
+        if (btn) btn.style.display = 'none';
+    }
+
     _onCardClick(n) {
         const app = this.app;
         if (!app) return;
+        // Rhizome theme, two-stage: in the general view a click on a content
+        // wormhole focuses its neighbours (zoom in). Once zoomed in
+        // (_rhizomeFocusId set), a click falls through to open the media card.
+        // Clusters and portals keep navigating.
+        if (this._isRhizome() && n.node_type !== 'cluster' && n.node_type !== 'portal'
+            && this._rhizomeFocusId == null) {
+            this._rhizomeFocus(n.id);
+            return;
+        }
         if (n.node_type === 'cluster' && n.cluster_key) {
             const cid = window.TELARIS_CONSTELLATION_ID;
             if (cid != null && app.transitionToCluster) {

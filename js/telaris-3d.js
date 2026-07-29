@@ -83,6 +83,12 @@ class TelarisNetwork {
 
     getNodeTooltipStyles(node) {
         const d = node.userData;
+        // Rhizome (light theme): a solid dark panel with white text, so the label
+        // is legible over the pale background instead of showing the grid through
+        // a translucent tint.
+        if (this.currentTheme && this.currentTheme.id === 'rhizome') {
+            return { backgroundColor: 'rgb(22,25,31)', color: 'rgb(245,247,250)' };
+        }
         if (!d || d.colorR === undefined) return { backgroundColor: 'rgba(0,0,0,0.35)', color: 'rgb(255,255,255)' };
         const r = d.colorR, g = d.colorG, b = d.colorB;
         const darken = 0.5;
@@ -962,6 +968,9 @@ class TelarisNetwork {
     setupTheme(theme) {
         if (!theme) return;
 
+        // Rhizome keeps every connection lit at rest (no focused node needed).
+        if (this.networkManager) this.networkManager.showAllConnections = (theme.id === 'rhizome');
+
         // 1. Background
         if (this.stars) this.stars.visible = !!theme.background.starfield;
         if (this.bgNebulas) this.bgNebulas.visible = !!theme.background.nebulas;
@@ -976,6 +985,13 @@ class TelarisNetwork {
                 this.bloomPass.threshold = 0.05;
                 this.bloomPass.strength  = 1.6;
                 this.bloomPass.radius    = 0.7;
+            } else if (theme.id === 'rhizome') {
+                // Light background: bloom would treat the near-white ground as a
+                // bright source and wash the grid (and everything) out. Neutralize
+                // it (strength 0) while keeping the pass in the render-to-screen chain.
+                this.bloomPass.threshold = 1.0;
+                this.bloomPass.strength  = 0.0;
+                this.bloomPass.radius    = 0.0;
             } else {
                 this.bloomPass.threshold = 0.9;
                 this.bloomPass.strength  = 0.6;
@@ -1033,8 +1049,12 @@ class TelarisNetwork {
         const size = 80;
         const divisions = 20;
         const half = size / 2;
-        const colorCenter = 0x444444;
-        const colorGrid   = 0x222222;
+        // Grid line colours are theme-overridable via background.gridColors so a
+        // light theme (rhizome) can use soft grey instead of the near-black default
+        // (which reads fine on the dark themes but looks heavy on a pale background).
+        const gc = this.currentTheme && this.currentTheme.background && this.currentTheme.background.gridColors;
+        const colorCenter = (gc && gc.center !== undefined) ? gc.center : 0x444444;
+        const colorGrid   = (gc && gc.grid   !== undefined) ? gc.grid   : 0x222222;
 
         // 6 faces of a cube surrounding the nodes
         // Floor (Y = -half)
@@ -2658,8 +2678,22 @@ class TelarisNetwork {
                 
                 if (!targetNode || !targetNode.userData) return;
                 this.playGlitch();
-                
+
                 const data = targetNode.userData;
+
+                // Rhizome theme, two-stage interaction: in the general view a click
+                // on a content wormhole focuses its direct neighbours (hide the rest,
+                // zoom to fit). Once zoomed in (this._rhizomeFocused), a click falls
+                // through to the normal object branch below and opens the media card.
+                // Clusters and portals keep their navigation so visitors aren't stranded.
+                if (this.currentTheme && this.currentTheme.id === 'rhizome'
+                    && data.node_type !== 'cluster' && data.node_type !== 'portal'
+                    && !this._rhizomeFocused) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.rhizomeFocus(targetNode);
+                    return;
+                }
 
                 if (data.node_type === 'cluster' && data.cluster_key) {
                     event.preventDefault();
@@ -2772,6 +2806,26 @@ class TelarisNetwork {
                 
                 if (isTap && touchStartNode) {
                     const nodeData = touchStartNode.userData;
+
+                    // Rhizome theme, two-stage: in the general view a tap on a content
+                    // wormhole focuses its neighbours (zoom in). Once zoomed in, a tap
+                    // opens that wormhole's media card. Clusters/portals navigate.
+                    if (this.currentTheme && this.currentTheme.id === 'rhizome'
+                        && nodeData.node_type !== 'cluster' && nodeData.node_type !== 'portal') {
+                        e.preventDefault();
+                        this.playGlitch();
+                        if (this._rhizomeFocused) {
+                            const hasMedia = !!(nodeData.media_mode === 'hotglue' || nodeData.image_url || nodeData.video_url || nodeData.pdf_url || nodeData.embed_code || nodeData.audio_url);
+                            const hasDesc = !!(nodeData.description && nodeData.description.trim() !== '');
+                            if (hasMedia || hasDesc) this.showRichMediaWindow(touchStartNode);
+                            else if (nodeData.url) this.openInFrame(touchStartNode, nodeData.url);
+                        } else {
+                            this.rhizomeFocus(touchStartNode);
+                        }
+                        touchStartPos = null; touchStartNode = null;
+                        return;
+                    }
+
                     const currentlyFocused = this.networkManager.getFocusedNode();
 
                     if (currentlyFocused === touchStartNode) {
@@ -3010,7 +3064,11 @@ class TelarisNetwork {
                 // 3D icon stays recognizable across themes. The scene theme stays global (lighting,
                 // background animations, station rings); only the icon factory branches per-node.
                 const iconThemeId = node.constellation_theme || this.currentTheme.id;
-                const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type, iconThemeId, iconSourceUrl);
+                // The portal torus dark/light choice keys on the SCENE theme (the
+                // background it is drawn on), not the node's source galaxy, so a
+                // rhizome scene renders every portal dark even in union views.
+                const sceneThemeId = this.currentTheme ? this.currentTheme.id : 'cosmic';
+                const mesh = createNodeIcon(material, i, this.geometryManager, node.node_type, iconThemeId, iconSourceUrl, sceneThemeId);
                 mesh.visible = !isTransitioningIn;
                 mesh.position.copy(pos);
                 mesh.renderOrder = 100; // Force nodes to stay in front of lines
@@ -3129,6 +3187,10 @@ class TelarisNetwork {
 
         const bands = [0.008, 0.012, 0.018, 0.026];
         const opacities = [0.14, 0.28, 0.48, 0.58];
+        // Rhizome (light theme): thicker, darker, more opaque lines so the web of
+        // connections is easy to parse against the pale background.
+        const isRhizome = !!(this.currentTheme && this.currentTheme.id === 'rhizome');
+        const rzThickMul = isRhizome ? 1.6 : 1;
         const geometry = this.geometryManager.getOrCreate('connection_cylinder', () => new THREE.CylinderGeometry(0.5, 0.5, 1, 8));
 
         // Track connection counts to find the centerpiece
@@ -3144,11 +3206,11 @@ class TelarisNetwork {
 
                     const pct = shared / maxShared;
                     const bIdx = Math.min(Math.floor(pct * 4), 3);
-                    const thickness = bands[bIdx];
+                    const thickness = bands[bIdx] * rzThickMul;
                     const opacity = opacities[bIdx];
 
                     const hue = (this.connections.length * 0.618) % 1;
-                    const color = new THREE.Color().setHSL(hue, 0.7, 0.68);
+                    const color = new THREE.Color().setHSL(hue, isRhizome ? 0.6 : 0.7, isRhizome ? 0.42 : 0.68);
 
                     // Bridge = the two endpoints belong to different galaxies (only meaningful in
                     // multigalaxy union views, where shared keyword text crosses galaxy boundaries).
@@ -3187,11 +3249,24 @@ class TelarisNetwork {
                     mesh.renderOrder = 50; // Render after nebulas, before nodes (100)
                     this.connections.push({
                         mesh, node1: n1, node2: n2, sharedCount: shared,
-                        thickness, baseOpacity: Math.min(opacity * (isBridge ? 1.0 : 1.5), 1.0),
+                        thickness, baseOpacity: isRhizome ? Math.min(opacity * 3, 0.85) : Math.min(opacity * (isBridge ? 1.0 : 1.5), 1.0),
                         currentOpacity: 0, targetOpacity: 0,
                         isBridge
                     });
                 }
+            }
+        }
+
+        // Rhizome theme: flag the most-connected wormholes (top-N by degree) so
+        // updateNodes renders them larger. Stored on userData (not applied to scale
+        // here) because updateNodes recomputes node scale every frame.
+        if (isRhizome && nodeConnectionCounts.size > 0) {
+            const ranked = [...nodeConnectionCounts.entries()].sort((a, b) => b[1] - a[1]);
+            const topN = Math.max(3, Math.ceil(this.nodes.length * 0.15));
+            for (const n of this.nodes) { if (n.userData) n.userData._rhizomeHub = 1; }
+            for (let k = 0; k < ranked.length && k < topN; k++) {
+                const hub = ranked[k][0];
+                if (hub.userData) hub.userData._rhizomeHub = 1.6;
             }
         }
 
@@ -3327,24 +3402,97 @@ class TelarisNetwork {
         });
     }
 
-    fitCameraToNodes() {
-        if (this.nodes.length === 0) return;
+    /** Compute the camera framing (center, distance, maxDistance) for a set of nodes. */
+    _computeFitCam(list) {
         const box = new THREE.Box3();
-        this.nodes.forEach(n => box.expandByPoint(n.position));
-        
+        list.forEach(n => box.expandByPoint(n.position));
         const center = new THREE.Vector3(), size = new THREE.Vector3();
         box.getCenter(center); box.getSize(size);
-        
         const maxDim = Math.max(size.x, size.y, size.z);
-        let cameraZ = Math.max(Math.abs(maxDim / 2 / Math.tan(this.camera.fov * Math.PI / 360)) * 1.1, 13);
+        const cameraZ = Math.max(Math.abs(maxDim / 2 / Math.tan(this.camera.fov * Math.PI / 360)) * 1.1, 13);
+        return { center, cameraZ, maxDistance: Math.max(45, cameraZ * 1.8) };
+    }
 
-        this.camera.position.set(center.x, center.y, center.z + cameraZ);
-        this.camera.lookAt(center);
+    fitCameraToNodes(subset) {
+        const list = (subset && subset.length) ? subset : this.nodes;
+        if (list.length === 0) return;
+        const fit = this._computeFitCam(list);
+        this.camera.position.set(fit.center.x, fit.center.y, fit.center.z + fit.cameraZ);
+        this.camera.lookAt(fit.center);
         if (this.controls) {
-            this.controls.target.copy(center);
-            this.controls.maxDistance = Math.max(45, cameraZ * 1.8);
+            this.controls.target.copy(fit.center);
+            this.controls.maxDistance = fit.maxDistance;
             this.controls.update();
         }
+    }
+
+    /**
+     * Rhizome focus mode: keep the clicked node and its direct (1-hop) neighbours,
+     * fade the rest out, and glide the camera to fit the focused set. The fade and
+     * culling are driven per-frame in updateNodes via this._rhizomeKeepIds (a Set of
+     * node ids), mirroring the searchFilterIds hard-visibility mechanism; here we
+     * just set that Set and animate the camera. A Back button returns to the full
+     * view. Rhizome theme only.
+     */
+    rhizomeFocus(node) {
+        if (!node || !node.userData) return;
+        const idOf = (n) => {
+            const raw = n.userData ? n.userData.id : null;
+            return typeof raw === 'string' ? parseInt(raw, 10) : raw;
+        };
+        const keepIds = new Set([idOf(node)]);
+        const keepNodes = [node];
+        for (const c of this.connections) {
+            let other = null;
+            if (c.node1 === node) other = c.node2;
+            else if (c.node2 === node) other = c.node1;
+            if (other) { keepNodes.push(other); keepIds.add(idOf(other)); }
+        }
+        this._rhizomeKeepIds = keepIds;        // updateNodes fades + culls the rest
+        this._rhizomeFocused = true;
+        this.networkManager.setFocusedNode(null);
+        this._rhizomeCamTween(keepNodes);
+        const b = document.getElementById('rhizome-back-btn');
+        if (b) { b.onclick = () => this.rhizomeReset(); b.style.display = ''; }
+    }
+
+    rhizomeReset() {
+        this._rhizomeKeepIds = null;           // everything fades back in
+        this._rhizomeFocused = false;
+        this._rhizomeCamTween(this.nodes);
+        const b = document.getElementById('rhizome-back-btn');
+        if (b) b.style.display = 'none';
+    }
+
+    /** Eased camera glide to frame `list` (the focused set, or all nodes on Back). */
+    _rhizomeCamTween(list) {
+        const target = (list && list.length) ? list : this.nodes;
+        if (!target.length || !this.controls) return;
+        const fit = this._computeFitCam(target);
+        const camStart = this.camera.position.clone();
+        const camEnd = new THREE.Vector3(fit.center.x, fit.center.y, fit.center.z + fit.cameraZ);
+        const tgtStart = this.controls.target.clone();
+        const tgtEnd = fit.center.clone();
+        const dur = 1200;
+        const t0 = performance.now();
+        this._tourTweening = true;             // animate loop skips controls.update() while true
+        this.controls.enabled = false;
+        const tick = () => {
+            const raw = Math.min(1, (performance.now() - t0) / dur);
+            const e = raw < 0.5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
+            this.camera.position.lerpVectors(camStart, camEnd, e);
+            this.controls.target.lerpVectors(tgtStart, tgtEnd, e);
+            this.camera.lookAt(this.controls.target);
+            if (raw < 1) {
+                requestAnimationFrame(tick);
+            } else {
+                this._tourTweening = false;
+                this.controls.maxDistance = fit.maxDistance;
+                this.controls.enabled = true;
+                this.controls.update();
+            }
+        };
+        requestAnimationFrame(tick);
     }
 
     warmupPhysics() {
@@ -3399,6 +3547,7 @@ class TelarisNetwork {
         if (!this.nodes || this.nodes.length === 0) return;
         const time = performance.now() * 0.001;
         const focused = this.networkManager.getFocusedNode();
+        const isRhizome = !!(this.currentTheme && this.currentTheme.id === 'rhizome');
         
         const dists = this.nodes.map(n => {
             n.getWorldPosition(this._scratchVec);
@@ -3427,7 +3576,24 @@ class TelarisNetwork {
                 matchesSearch = true;
             }
 
-            n.visible = !!matchesSearch;
+            // Rhizome focus: ease a per-node fade toward 1 (in the focused set or
+            // full view) or 0 (outside it). Smooth fade-out / fade-in; once a node
+            // is fully faded it is culled like a search-filtered node. The factor is
+            // stored on userData so connection lines can fade in step (see NetworkManager).
+            let rzFade = 1;
+            if (isRhizome) {
+                const rid = typeof d.id === 'string' ? parseInt(d.id, 10) : d.id;
+                const rzTarget = this._rhizomeKeepIds ? (this._rhizomeKeepIds.has(rid) ? 1 : 0) : 1;
+                if (d._rzFade === undefined) d._rzFade = rzTarget;
+                if (d._rzFade !== rzTarget) {
+                    d._rzFade += (rzTarget - d._rzFade) * Math.min(1, dt * 3);
+                    if (rzTarget === 0 && d._rzFade < 0.02) d._rzFade = 0;
+                    if (rzTarget === 1 && d._rzFade > 0.98) d._rzFade = 1;
+                }
+                rzFade = d._rzFade;
+            }
+
+            n.visible = !!matchesSearch && !(isRhizome && rzFade <= 0);
 
             if (!n.visible) {
                 n.traverse(child => {
@@ -3455,6 +3621,7 @@ class TelarisNetwork {
             if (this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null) {
                 opacity = baseOpacity * this._portalFadeInMultiplier;
             }
+            opacity *= rzFade; // rhizome focus fade (1 outside the transition)
 
             const isTransitioning = this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null && this._portalFadeInMultiplier < 1;
 
@@ -3560,7 +3727,10 @@ class TelarisNetwork {
 
                 // Only update color for non-sprite materials (standard geometry nodes)
                 if (d.colorR !== undefined && !m.isSpriteMaterial) {
-                    if (m.color) m.color.setRGB((d.colorR / 255) * brightness, (d.colorG / 255) * brightness, (d.colorB / 255) * brightness);
+                    // Rhizome (light theme): darken node fill so it reads with more
+                    // contrast against the pale background instead of glowing pale.
+                    const rzDark = isRhizome ? 0.9 : 1;
+                    if (m.color) m.color.setRGB((d.colorR / 255) * brightness * rzDark, (d.colorG / 255) * brightness * rzDark, (d.colorB / 255) * brightness * rzDark);
                     if (m.emissive && m.color) m.emissive.copy(m.color);
 
                     if (m.emissiveIntensity !== undefined) {
@@ -3588,6 +3758,9 @@ class TelarisNetwork {
                             const tourBoostFull = 6.0 + Math.sin(time * 3.5) * 3.5;
                             const tourBoost = isTourSpotlight ? (1.0 + spotStrength * (tourBoostFull - 1.0)) : 1.0;
                             m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost * tourBoost * tourDimNonSpotlight * keywordChipDim * relatedDim;
+                            // Rhizome: cap self-glow so nodes stay saturated (not washed
+                            // pale) on the light background, but keep them vivid.
+                            if (isRhizome) m.emissiveIntensity = Math.min(m.emissiveIntensity, 0.5);
                         }
                     }
                 } else if (m.isSpriteMaterial) {
@@ -3625,7 +3798,8 @@ class TelarisNetwork {
                 const fullMult = 1.9 + Math.sin(time * 2.5) * 0.35;
                 tourSpotlightMult = 1.0 + spotStrength * (fullMult - 1.0);
             }
-            const s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * scaleMult * tourSpotlightMult;
+            const rzHub = isRhizome ? (d._rhizomeHub || 1) : 1; // enlarge top-degree hubs
+            const s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * scaleMult * tourSpotlightMult * rzHub;
             n.scale.set(s, s, s);
 
             // Optimization: iterate cached moons directly

@@ -215,6 +215,13 @@ header("X-Content-Type-Options: nosniff");
             </div>
         </div>
 
+        <!-- Rhizome theme: Back button, shown only while a wormhole's neighbours are
+             focused (in either 3D or 2D). Wired in JS (telaris-3d.js / wormhole-grid-2d.js)
+             to keep it CSP-safe; hidden by default. -->
+        <button type="button" id="rhizome-back-btn"
+                class="fixed top-14 left-4 z-[240] text-xs uppercase tracking-[0.14em] px-3 py-2 rounded-full text-white bg-black/70 border border-white/25 backdrop-blur-sm hover:bg-black/80 transition-colors"
+                style="display: none; pointer-events: auto;">&larr; <?= t('rhizome_back', 'Back to overview') ?></button>
+
         <?php if (!empty($show2dView)): ?>
         <!-- View-mode switch (top-center). Per-galaxy opt-in (constellations.
              show_2d_view). Visitor preference persists in localStorage. -->

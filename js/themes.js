@@ -176,6 +176,35 @@ export const THEMES = {
             type: 'geometry',
             factories: ['sphere', 'five-point-star', 'sparkle']
         }
+    },
+    rhizome: {
+        id: 'rhizome',
+        name: 'Rhizome',
+        // A light-background theme. All connections stay visible at rest, the
+        // most-connected wormholes are enlarged, and clicking a wormhole focuses
+        // its direct neighbours (hiding the rest and zooming to fit) instead of
+        // opening its card. Those behaviours live in telaris-3d.js / wormhole-grid-2d.js,
+        // gated on the active theme id being 'rhizome'; this object only sets the
+        // light palette and geometry nodes.
+        background: {
+            starfield: false,
+            nebulas: false,
+            grid: true,
+            gridColors: { center: 0x9298a0, grid: 0xaab0b8 }, // soft dark-grey graph paper on the light ground
+            color: 0xf6f7f4
+        },
+        animations: {},
+        lighting: {
+            ambient: { color: 0xffffff, intensity: 1.0 },
+            points: [
+                { color: 0x8aa0b8, x: 10, y: 10, z: 10 },
+                { color: 0xb0a0c0, x: -10, y: -10, z: 10 }
+            ]
+        },
+        nodes: {
+            type: 'geometry',
+            factories: ['sphere']
+        }
     }
 };
 
