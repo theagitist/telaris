@@ -29,6 +29,9 @@ const RZ_HOVER_HITBOX_PX = 24;
 // Rhizome connection rest colour: gray, a bit darker than the nodes, so the web
 // reads at rest; lines take their real colour in the hovered node's cloud.
 const RZ_LINE_GRAY = [0.72, 0.735, 0.75];
+// Rhizome background-grid line width in CSS pixels. Uses fat lines (LineSegments2)
+// because WebGL clamps GridHelper's LineBasicMaterial to 1px on Chrome/ANGLE.
+const RZ_GRID_LINE_PX = 2.6;
 
 // Append "&fuzzy=1" to a node/connection API URL when fuzzy keyword matching is
 // resolved on for this view (window.TELARIS_FUZZY_KEYWORDS, set by the server in
@@ -1072,44 +1075,58 @@ class TelarisNetwork {
         const gc = this.currentTheme && this.currentTheme.background && this.currentTheme.background.gridColors;
         const colorCenter = (gc && gc.center !== undefined) ? gc.center : 0x444444;
         const colorGrid   = (gc && gc.grid   !== undefined) ? gc.grid   : 0x222222;
+        const isRhizome = this.currentTheme && this.currentTheme.id === 'rhizome';
+        this.rhizomeGridMats = [];
 
-        // 6 faces of a cube surrounding the nodes
-        // Floor (Y = -half)
-        const floor = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
-        floor.position.y = -half;
-        this.glitchyGrid.add(floor);
-
-        // Ceiling (Y = +half)
-        const ceiling = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
-        ceiling.position.y = half;
-        this.glitchyGrid.add(ceiling);
-
-        // Back wall (Z = -half)
-        const back = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
-        back.rotation.x = Math.PI / 2;
-        back.position.z = -half;
-        this.glitchyGrid.add(back);
-
-        // Front wall (Z = +half)
-        const front = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
-        front.rotation.x = Math.PI / 2;
-        front.position.z = half;
-        this.glitchyGrid.add(front);
-
-        // Left wall (X = -half)
-        const left = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
-        left.rotation.z = Math.PI / 2;
-        left.position.x = -half;
-        this.glitchyGrid.add(left);
-
-        // Right wall (X = +half)
-        const right = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
-        right.rotation.z = Math.PI / 2;
-        right.position.x = half;
-        this.glitchyGrid.add(right);
+        // 6 faces of a cube surrounding the nodes (same XZ-plane orientation as
+        // GridHelper, so the per-face rotation/position transforms are shared).
+        const faces = [
+            { rot: [0, 0, 0],           pos: [0, -half, 0] }, // floor
+            { rot: [0, 0, 0],           pos: [0,  half, 0] }, // ceiling
+            { rot: [Math.PI / 2, 0, 0], pos: [0, 0, -half] }, // back
+            { rot: [Math.PI / 2, 0, 0], pos: [0, 0,  half] }, // front
+            { rot: [0, 0, Math.PI / 2], pos: [-half, 0, 0] }, // left
+            { rot: [0, 0, Math.PI / 2], pos: [ half, 0, 0] }, // right
+        ];
+        for (const f of faces) {
+            let mesh;
+            if (isRhizome) {
+                // Fat lines so the light grid reads at a real pixel width.
+                const geo = new LineSegmentsGeometry();
+                geo.setPositions(this._gridSegments(size, divisions));
+                const mat = new LineMaterial({
+                    color: colorGrid,
+                    linewidth: RZ_GRID_LINE_PX,
+                    resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
+                    transparent: true,
+                    opacity: 0.85,
+                    depthWrite: false,
+                });
+                this.rhizomeGridMats.push(mat);
+                mesh = new LineSegments2(geo, mat);
+            } else {
+                mesh = new THREE.GridHelper(size, divisions, colorCenter, colorGrid);
+            }
+            mesh.rotation.set(f.rot[0], f.rot[1], f.rot[2]);
+            mesh.position.set(f.pos[0], f.pos[1], f.pos[2]);
+            this.glitchyGrid.add(mesh);
+        }
 
         this.glitchyGrid.visible = !!(this.currentTheme && this.currentTheme.background.grid);
         this.bgScene.add(this.glitchyGrid);
+    }
+
+    // Flat segment endpoints for a square grid in the XZ plane (matches GridHelper).
+    _gridSegments(size, divisions) {
+        const half = size / 2;
+        const step = size / divisions;
+        const pts = [];
+        for (let i = 0; i <= divisions; i++) {
+            const k = -half + i * step;
+            pts.push(-half, 0, k,  half, 0, k); // line along X
+            pts.push(k, 0, -half,  k, 0, half); // line along Z
+        }
+        return pts;
     }
 
     updateGlitchyGrid(dt) {
@@ -4785,6 +4802,9 @@ class TelarisNetwork {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         // LineMaterial needs the viewport resolution for correct pixel linewidth
         for (const mat of (this.techBgLineMats || [])) {
+            mat.resolution.set(window.innerWidth, window.innerHeight);
+        }
+        for (const mat of (this.rhizomeGridMats || [])) {
             mat.resolution.set(window.innerWidth, window.innerHeight);
         }
     }

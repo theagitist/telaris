@@ -190,7 +190,7 @@ export const THEMES = {
             starfield: false,
             nebulas: false,
             grid: true,
-            gridColors: { center: 0xd7dbdf, grid: 0xe4e7ea }, // very light grey graph paper on the light ground
+            gridColors: { center: 0xebedf0, grid: 0xedeff1 }, // barely-there light grey graph paper on the light ground
             color: 0xf6f7f4
         },
         animations: {},
