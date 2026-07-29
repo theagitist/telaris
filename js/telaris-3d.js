@@ -15,6 +15,14 @@ import { NetworkManager } from './network-manager.js';
 import { GeometryManager } from './geometry-manager.js';
 import { getTheme } from './themes.js';
 
+// Rhizome theme rest colour: the uniform light gray every node sits at until the
+// cursor's colour cloud reaches it. Normalized RGB (0..1), tuned to read on the
+// pale rhizome ground (0xf6f7f4).
+const RZ_NODE_GRAY = [0.86, 0.872, 0.885];
+// Rhizome connection rest colour: gray, a bit darker than the nodes, so the web
+// reads at rest; lines take their real colour in the hovered node's cloud.
+const RZ_LINE_GRAY = [0.72, 0.735, 0.75];
+
 // Append "&fuzzy=1" to a node/connection API URL when fuzzy keyword matching is
 // resolved on for this view (window.TELARIS_FUZZY_KEYWORDS, set by the server in
 // inc/bootstrap.php from the installation + per-cluster toggles). When on, the API
@@ -2664,6 +2672,13 @@ class TelarisNetwork {
             this.raycaster.setFromCamera(this.mouse, this.camera);
             const intersects = this.raycaster.intersectObjects(this.nodes.filter(n => n.visible), true);
 
+            // Rhizome: clicking empty space while zoomed in returns to the overview
+            // (same as the Back button).
+            if (intersects.length === 0 && this.currentTheme && this.currentTheme.id === 'rhizome' && this._rhizomeFocused) {
+                this.rhizomeReset();
+                return;
+            }
+
             if (intersects.length > 0) {
                 intersects.sort((a, b) => a.distance - b.distance);
                 
@@ -2880,7 +2895,10 @@ class TelarisNetwork {
                         showTooltipForNode(touchStartNode, touchStartPos.screenX, touchStartPos.screenY);
                     }
                 } else if (isTap) {
-                    if (!this.mainTooltipNodeTimeout) {
+                    // Rhizome: tapping empty space while zoomed in returns to the overview.
+                    if (this.currentTheme && this.currentTheme.id === 'rhizome' && this._rhizomeFocused) {
+                        this.rhizomeReset();
+                    } else if (!this.mainTooltipNodeTimeout) {
                         this.mainTooltipNodeTimeout = setTimeout(() => {
                             this.networkManager.setFocusedNode(null);
                             this.mainTooltipNodeTimeout = null;
@@ -3211,6 +3229,11 @@ class TelarisNetwork {
 
                     const hue = (this.connections.length * 0.618) % 1;
                     const color = new THREE.Color().setHSL(hue, isRhizome ? 0.6 : 0.7, isRhizome ? 0.42 : 0.68);
+                    // Rhizome: lines rest at gray and take their real colour only for the
+                    // hovered node's cloud (both endpoints coloured). Keep the real colour
+                    // to lerp back to; start the material gray. updateConnections drives the mix.
+                    const rzRealColor = isRhizome ? color.clone() : null;
+                    if (isRhizome) color.setRGB(RZ_LINE_GRAY[0], RZ_LINE_GRAY[1], RZ_LINE_GRAY[2]);
 
                     // Bridge = the two endpoints belong to different galaxies (only meaningful in
                     // multigalaxy union views, where shared keyword text crosses galaxy boundaries).
@@ -3251,7 +3274,7 @@ class TelarisNetwork {
                         mesh, node1: n1, node2: n2, sharedCount: shared,
                         thickness, baseOpacity: isRhizome ? Math.min(opacity * 3, 0.85) : Math.min(opacity * (isBridge ? 1.0 : 1.5), 1.0),
                         currentOpacity: 0, targetOpacity: 0,
-                        isBridge
+                        isBridge, rzRealColor, _rzLineMix: 0
                     });
                 }
             }
@@ -3343,6 +3366,33 @@ class TelarisNetwork {
     }
 
     updateConnections(deltaTimeSec) {
+        // Rhizome line colour cloud: a connection takes its real colour only when
+        // both endpoints are in the hovered node's cloud (hovered + neighbours),
+        // else it eases back to gray. Mirrors the node colour cloud.
+        if (this.currentTheme && this.currentTheme.id === 'rhizome') {
+            const hov = this.networkManager.getFocusedNode();
+            let cloud = null;
+            if (hov) {
+                cloud = new Set([hov]);
+                for (const c of this.connections) {
+                    if (c.node1 === hov) cloud.add(c.node2);
+                    else if (c.node2 === hov) cloud.add(c.node1);
+                }
+            }
+            const ease = Math.min(1, (deltaTimeSec > 0 ? deltaTimeSec : 0.016) * 8);
+            for (const c of this.connections) {
+                if (!c.rzRealColor || !c.mesh.material || !c.mesh.material.color) continue;
+                const want = (cloud && cloud.has(c.node1) && cloud.has(c.node2)) ? 1 : 0;
+                c._rzLineMix += (want - c._rzLineMix) * ease;
+                const m = c._rzLineMix, rc = c.rzRealColor;
+                c.mesh.material.color.setRGB(
+                    RZ_LINE_GRAY[0] + (rc.r - RZ_LINE_GRAY[0]) * m,
+                    RZ_LINE_GRAY[1] + (rc.g - RZ_LINE_GRAY[1]) * m,
+                    RZ_LINE_GRAY[2] + (rc.b - RZ_LINE_GRAY[2]) * m
+                );
+            }
+        }
+
         this._anchorCache.clear();
         const cache = this._anchorCache;
         const getAnchor = (n) => {
@@ -3548,7 +3598,23 @@ class TelarisNetwork {
         const time = performance.now() * 0.001;
         const focused = this.networkManager.getFocusedNode();
         const isRhizome = !!(this.currentTheme && this.currentTheme.id === 'rhizome');
-        
+
+        // Rhizome colour cloud: nodes rest at a uniform light gray; the hovered node
+        // and its direct neighbours take their real colour, forming a colour cloud
+        // that follows the cursor. Build the "coloured" set once per frame from the
+        // hovered (focused) node; per-node _rzColorMix eases toward it below.
+        let rzColorSet = null;
+        if (isRhizome) {
+            const hov = this.networkManager.getFocusedNode();
+            if (hov) {
+                rzColorSet = new Set([hov]);
+                for (const c of this.connections) {
+                    if (c.node1 === hov) rzColorSet.add(c.node2);
+                    else if (c.node2 === hov) rzColorSet.add(c.node1);
+                }
+            }
+        }
+
         const dists = this.nodes.map(n => {
             n.getWorldPosition(this._scratchVec);
             return this._scratchVec.distanceTo(this.camera.position);
@@ -3649,7 +3715,9 @@ class TelarisNetwork {
                 0
             ));
 
-            if (!isTransitioning) {
+            // Rhizome keeps nodes calm: skip the glitch jitter + blink flicker (the
+            // "twitch"). The gentle Lissajous drift above still applies.
+            if (!isTransitioning && !isRhizome) {
                 // 2. GLITCH — brief random jitter/flicker episodes
                 d.animGlitchTimer -= dt;
                 if (d.animGlitchTimer <= 0) {
@@ -3719,6 +3787,16 @@ class TelarisNetwork {
                 relatedDim = 0.15;
             }
 
+            // Rhizome colour-cloud mix for this node: ease toward 1 (coloured) when
+            // hovered or adjacent to the hovered node, else toward 0 (light gray).
+            let rzMix = 1;
+            if (isRhizome) {
+                const want = (rzColorSet && rzColorSet.has(n)) ? 1 : 0;
+                if (d._rzColorMix === undefined) d._rzColorMix = want;
+                d._rzColorMix += (want - d._rzColorMix) * Math.min(1, dt * 8);
+                rzMix = d._rzColorMix;
+            }
+
             // Optimization: iterate cached materials directly
             d.cachedMaterials.forEach(m => {
                 m.opacity = opacity * glitchOpacityMult * tourDimNonSpotlight * keywordChipDim * galaxyStripDim * relatedDim;
@@ -3727,10 +3805,23 @@ class TelarisNetwork {
 
                 // Only update color for non-sprite materials (standard geometry nodes)
                 if (d.colorR !== undefined && !m.isSpriteMaterial) {
-                    // Rhizome (light theme): darken node fill so it reads with more
-                    // contrast against the pale background instead of glowing pale.
-                    const rzDark = isRhizome ? 0.9 : 1;
-                    if (m.color) m.color.setRGB((d.colorR / 255) * brightness * rzDark, (d.colorG / 255) * brightness * rzDark, (d.colorB / 255) * brightness * rzDark);
+                    // Rhizome (light theme): darken node fill for contrast, and blend
+                    // from a uniform light gray (rest) to the node's real colour (rzMix)
+                    // so a colour cloud follows the cursor. Other themes use the raw colour.
+                    const rzDark = isRhizome ? 1.0 : 1;
+                    if (m.color) {
+                        if (isRhizome) {
+                            const gr = RZ_NODE_GRAY[0], gg = RZ_NODE_GRAY[1], gb = RZ_NODE_GRAY[2];
+                            const rr = (d.colorR / 255) * rzDark, rg = (d.colorG / 255) * rzDark, rb = (d.colorB / 255) * rzDark;
+                            m.color.setRGB(
+                                (gr + (rr - gr) * rzMix) * brightness,
+                                (gg + (rg - gg) * rzMix) * brightness,
+                                (gb + (rb - gb) * rzMix) * brightness
+                            );
+                        } else {
+                            m.color.setRGB((d.colorR / 255) * brightness, (d.colorG / 255) * brightness, (d.colorB / 255) * brightness);
+                        }
+                    }
                     if (m.emissive && m.color) m.emissive.copy(m.color);
 
                     if (m.emissiveIntensity !== undefined) {
@@ -3758,9 +3849,9 @@ class TelarisNetwork {
                             const tourBoostFull = 6.0 + Math.sin(time * 3.5) * 3.5;
                             const tourBoost = isTourSpotlight ? (1.0 + spotStrength * (tourBoostFull - 1.0)) : 1.0;
                             m.emissiveIntensity = m._baseEmissiveIntensity * brightness * hoverDim * twinkle * flareBoost * accentBoost * tourBoost * tourDimNonSpotlight * keywordChipDim * relatedDim;
-                            // Rhizome: cap self-glow so nodes stay saturated (not washed
-                            // pale) on the light background, but keep them vivid.
-                            if (isRhizome) m.emissiveIntensity = Math.min(m.emissiveIntensity, 0.5);
+                            // Rhizome: gray rest nodes glow subtly; coloured (hovered/
+                            // adjacent) nodes glow brighter, scaled by the colour-cloud mix.
+                            if (isRhizome) m.emissiveIntensity = Math.min(m.emissiveIntensity, 0.3 + rzMix * 0.7);
                         }
                     }
                 } else if (m.isSpriteMaterial) {
