@@ -28,7 +28,7 @@ const RZ_NODE_MAX = 0.58;
 const RZ_HOVER_HITBOX_PX = 24;
 // Rhizome connection rest colour: gray, a bit darker than the nodes, so the web
 // reads at rest; lines take their real colour in the hovered node's cloud.
-const RZ_LINE_GRAY = [0.72, 0.735, 0.75];
+const RZ_LINE_GRAY = [0.58, 0.595, 0.61];
 // Rhizome background-grid line width in CSS pixels. Uses fat lines (LineSegments2)
 // because WebGL clamps GridHelper's LineBasicMaterial to 1px on Chrome/ANGLE.
 const RZ_GRID_LINE_PX = 2.6;
@@ -194,6 +194,11 @@ class TelarisNetwork {
 
         // Rhizome is a light theme: the media window is light, not black.
         win.classList.toggle('rm-light', !!(this.currentTheme && this.currentTheme.id === 'rhizome'));
+
+        // While a tour is spotlighting a node the card slides to the side (and
+        // drops the dim/blur backdrop) so it doesn't sit over the node and cut
+        // the flow. _tourSpotlightNode is set by the tour before this call.
+        overlay.classList.toggle('rm-tour', !!this._tourSpotlightNode);
 
         // Title. In a multi-galaxy view, show the galaxy name (dimmed) before
         // the wormhole name so it is clear which galaxy the wormhole belongs to.

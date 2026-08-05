@@ -91,7 +91,7 @@ const RZ_LINE_REST_OPACITY = 0.5;
 const RZ_LINE_WIDTH_BASE = 1.4;
 const RZ_BG_COLOR = '#f6f7f4';   // matches the 3D rhizome ground (0xf6f7f4)
 const RZ_CARD_GRAY = '#d6d9dd';  // uniform very-light rest colour for cards; matches the 3D node gray
-const RZ_LINE_GRAY_2D = '#b4b8be';  // rest colour for lines: a bit darker than the cards
+const RZ_LINE_GRAY_2D = '#9498a0';  // rest colour for lines: a bit darker than the cards
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 

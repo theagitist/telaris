@@ -140,8 +140,8 @@ header("X-Content-Type-Options: nosniff");
             background: rgba(255, 255, 255, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 4px;
-            color: #fff;
-            opacity: 0.6;
+            color: #71757b; /* neutral grey: legible on both the dark themes and the light rhizome background */
+            opacity: 0.85;
             transition: opacity 0.3s ease;
             cursor: pointer;
             z-index: 110;
@@ -359,6 +359,11 @@ header("X-Content-Type-Options: nosniff");
             #rich-media-window.rm-light [class*="text-white/"]:hover,
             #rich-media-window.rm-light .hover\:text-white:hover { color: #1c1f24 !important; }
             #rich-media-window.rm-light #tour-dwell-bar-track { background: rgba(0, 0, 0, 0.06); }
+            /* During a tour the card sits at the side and the backdrop clears, so the
+               spotlighted node stays visible and the tour flow isn't cut. All themes. */
+            #rich-media-overlay.rm-tour { justify-content: flex-end; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+            #rich-media-overlay.rm-tour #rich-media-window { max-width: 24rem; }
+            @media (max-width: 640px) { #rich-media-overlay.rm-tour { justify-content: center; } #rich-media-overlay.rm-tour #rich-media-window { max-width: 100%; } }
         </style>
         <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md hidden transition-opacity duration-500 opacity-0">
             <div id="rich-media-window" class="bg-[#0a0a0c]/90 border border-white/20 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative text-white transition-all duration-500 ease-out transform scale-50 opacity-0"
