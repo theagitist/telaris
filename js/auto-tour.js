@@ -49,6 +49,12 @@ export class TourController {
 
         this.boundOnKeydown = this.onKeydown.bind(this);
         this.boundOnCardCloseIntent = this.onCardCloseIntent.bind(this);
+        this.boundOnSceneInteract = this.onSceneInteract.bind(this);
+    }
+
+    /** The 3D scene canvas (OrbitControls target), or null before it exists. */
+    get sceneCanvas() {
+        return (this.app && this.app.renderer && this.app.renderer.domElement) || null;
     }
 
     init() {
@@ -109,7 +115,11 @@ export class TourController {
 
     startIdleWatch() {
         const seconds = Math.max(1, this.config.tour_idle_seconds || 30);
-        const events = ['mousemove', 'mousedown', 'keydown', 'wheel', 'touchstart'];
+        // OrbitControls drives the scene with pointer events + continuous
+        // touchmove; listening only to mousemove/mousedown missed drags and
+        // pinch/pan, so the idle timer fired mid-interaction. Cover pointer and
+        // touch move so any active interaction keeps resetting the countdown.
+        const events = ['pointerdown', 'pointermove', 'wheel', 'keydown', 'touchstart', 'touchmove'];
         const reset = () => {
             if (this.active) return;
             clearTimeout(this.idleTimerId);
@@ -167,6 +177,16 @@ export class TourController {
         this.hidePlayButton();
         this.showHud();
         document.addEventListener('keydown', this.boundOnKeydown);
+        // Interacting with the scene (rotate/zoom/tap) stops the tour at once.
+        // Bound to the canvas only, so clicks on the HUD or media card (which
+        // sit above it) drive the tour instead of quitting it. pointerdown /
+        // wheel / touchstart are deliberate actions; passive hover is ignored.
+        const canvas = this.sceneCanvas;
+        if (canvas) {
+            canvas.addEventListener('pointerdown', this.boundOnSceneInteract);
+            canvas.addEventListener('wheel', this.boundOnSceneInteract, { passive: true });
+            canvas.addEventListener('touchstart', this.boundOnSceneInteract, { passive: true });
+        }
         const closeBtn = document.getElementById('rm-close-btn');
         const overlay = document.getElementById('rich-media-overlay');
         if (closeBtn) closeBtn.addEventListener('click', this.boundOnCardCloseIntent);
@@ -182,6 +202,12 @@ export class TourController {
         this.hideHud();
         if (this.app) this.app._tourSpotlightNode = null;
         document.removeEventListener('keydown', this.boundOnKeydown);
+        const canvas = this.sceneCanvas;
+        if (canvas) {
+            canvas.removeEventListener('pointerdown', this.boundOnSceneInteract);
+            canvas.removeEventListener('wheel', this.boundOnSceneInteract);
+            canvas.removeEventListener('touchstart', this.boundOnSceneInteract);
+        }
         const closeBtn = document.getElementById('rm-close-btn');
         const overlay = document.getElementById('rich-media-overlay');
         if (closeBtn) closeBtn.removeEventListener('click', this.boundOnCardCloseIntent);
@@ -419,5 +445,12 @@ export class TourController {
         if (e.key === 'Escape') {
             this.exit();
         }
+    }
+
+    onSceneInteract() {
+        // Any deliberate scene interaction ends the tour immediately. In idle
+        // mode the persistent idle-watch listeners re-arm the countdown after
+        // this, so the tour can resume once the visitor goes quiet again.
+        if (this.active) this.exit();
     }
 }
