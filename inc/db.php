@@ -548,6 +548,7 @@ const PROJECT_INFO_KEYS = [
     'gem_keyword_chips_label', 'gem_keyword_chips_help',
     'gem_related_label', 'gem_related_help',
     'gem_2d_view_label', 'gem_2d_view_help',
+    'gem_group_nodes_label', 'gem_group_nodes_help',
     'gem_idle_spotlight_label', 'gem_idle_spotlight_help',
     'gem_pick_from_label',
     'gem_idle_pick_all', 'gem_idle_pick_accentuated',
@@ -2233,6 +2234,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'gem_related_help' => "When a wormhole's info card is open, dim unrelated wormholes in the scene and show up to 5 related ones (sharing keywords) as click-to-jump chips at the bottom of the card. Random sample each time.",
             'gem_2d_view_label' => '2D view switch',
             'gem_2d_view_help' => 'Show a top-center "3D / 2D" toggle so visitors can flip from the 3D scene to a flat grid of wormhole chips. The preference persists in the browser.',
+            'gem_group_nodes_label' => 'Group wormholes',
+            'gem_group_nodes_help' => 'When a galaxy has many wormholes, bundle them into navigable groups instead of showing all at once. On by default. Turn off to always show every wormhole, however many there are.',
             'gem_idle_spotlight_label' => 'Idle spotlight',
             'gem_idle_spotlight_help' => 'After a period of inactivity, fly the camera to one random wormhole and open its info card. Closes when media ends or after the dwell timer.',
             'gem_pick_from_label' => 'Pick from',
@@ -3817,6 +3820,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'gem_related_help' => 'Cuando se abre la tarjeta de información de un agujero de gusano, atenúa los no relacionados en la escena y muestra hasta 5 relacionados (que comparten palabras clave) como fichas para saltar al final de la tarjeta. Muestra cada vez una selección aleatoria.',
             'gem_2d_view_label' => 'Conmutador de vista 2D',
             'gem_2d_view_help' => 'Muestra un conmutador "3D / 2D" en la parte superior central para pasar de la escena 3D a una cuadrícula plana de fichas de agujeros de gusano. La preferencia persiste en el navegador.',
+            'gem_group_nodes_label' => 'Agrupar agujeros de gusano',
+            'gem_group_nodes_help' => 'Cuando una galaxia tiene muchos agujeros de gusano, los agrupa en conjuntos navegables en lugar de mostrarlos todos a la vez. Activado por defecto. Desactívalo para mostrar siempre todos los agujeros de gusano, sean los que sean.',
             'gem_idle_spotlight_label' => 'Foco al estar inactiva',
             'gem_idle_spotlight_help' => 'Tras un período de inactividad, la cámara vuela a un agujero de gusano aleatorio y se abre su tarjeta de información. Se cierra cuando termina el contenido o tras el temporizador de permanencia.',
             'gem_pick_from_label' => 'Elegir entre',
@@ -5397,6 +5402,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'gem_related_help' => 'Quando o cartão de informações de um buraco de minhoca está aberto, atenua os não relacionados na cena e mostra até 5 relacionados (que compartilham palavras-chave) como fichas para saltar na parte de baixo do cartão. Cada vez aparece uma amostra aleatória.',
             'gem_2d_view_label' => 'Alternador de vista 2D',
             'gem_2d_view_help' => 'Mostra um alternador "3D / 2D" no topo central para passar da cena 3D para uma grade plana de fichas de buracos de minhoca. A preferência persiste no navegador.',
+            'gem_group_nodes_label' => 'Agrupar buracos de minhoca',
+            'gem_group_nodes_help' => 'Quando uma galáxia tem muitos buracos de minhoca, agrupa-os em conjuntos navegáveis em vez de mostrar todos de uma vez. Ativado por padrão. Desative para mostrar sempre todos os buracos de minhoca, sejam quantos forem.',
             'gem_idle_spotlight_label' => 'Foco em inatividade',
             'gem_idle_spotlight_help' => 'Após um período de inatividade, a câmara voa para um buraco de minhoca aleatório e abre o cartão de informações. Fecha quando o conteúdo termina ou após o temporizador de permanência.',
             'gem_pick_from_label' => 'Escolher entre',
@@ -6977,6 +6984,8 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'gem_related_help' => 'Lorsque la fiche d\'informations d\'un trou de ver est ouverte, atténue ceux qui ne sont pas en lien dans la scène et montre jusqu\'à 5 en lien (qui partagent des mots-clés) comme étiquettes de saut au bas de la fiche. Un échantillon aléatoire apparaît à chaque fois.',
             'gem_2d_view_label' => 'Bascule de vue 2D',
             'gem_2d_view_help' => 'Affiche une bascule « 3D / 2D » en haut au centre pour passer de la scène 3D à une grille plate d\'étiquettes de trous de ver. La préférence persiste dans le navigateur.',
+            'gem_group_nodes_label' => 'Regrouper les trous de ver',
+            'gem_group_nodes_help' => 'Quand une galaxie compte beaucoup de trous de ver, les regrouper en ensembles navigables au lieu de tous les afficher d\'un coup. Activé par défaut. Désactive-le pour toujours afficher tous les trous de ver, quel qu\'en soit le nombre.',
             'gem_idle_spotlight_label' => 'Projecteur en veille',
             'gem_idle_spotlight_help' => 'Après une période d\'inactivité, la caméra vole vers un trou de ver aléatoire et ouvre la fiche d\'informations. Se ferme quand le contenu se termine ou après le minuteur de séjour.',
             'gem_pick_from_label' => 'Choisir parmi',
@@ -7507,6 +7516,10 @@ function db_ensure_constellations_tour_columns(): void {
         // view shows a top-center "3D / 2D" segmented switch (and remembers
         // the visitor's choice in localStorage).
         $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS show_2d_view BOOLEAN NOT NULL DEFAULT FALSE");
+        // group_nodes: when TRUE (default), large galaxies auto-cluster their
+        // wormholes into navigable groups (inc/clustering.php). Set FALSE to always
+        // show every wormhole flat, no matter how many.
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS group_nodes BOOLEAN NOT NULL DEFAULT TRUE");
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS constellation_tour_keywords (
                 constellation_id INT NOT NULL,
@@ -11542,7 +11555,7 @@ function db_get_constellation_tour_config(int $id): ?array {
         SELECT tour_enabled, tour_start_mode, tour_idle_seconds, tour_node_selection,
                tour_random_count, tour_default_dwell, tour_loop, keyword_chips_enabled,
                idle_spotlight_enabled, idle_spotlight_selection, idle_spotlight_idle_seconds,
-               related_nodes_enabled, show_2d_view
+               related_nodes_enabled, show_2d_view, group_nodes
         FROM constellations WHERE id = :id LIMIT 1
     ");
     $stmt->execute([':id' => $id]);
@@ -11565,6 +11578,7 @@ function db_get_constellation_tour_config(int $id): ?array {
         'idle_spotlight_idle_seconds' => (int)$row['idle_spotlight_idle_seconds'],
         'related_nodes_enabled' => (bool)$row['related_nodes_enabled'],
         'show_2d_view' => (bool)$row['show_2d_view'],
+        'group_nodes' => (bool)$row['group_nodes'],
     ];
 }
 
@@ -11599,7 +11613,7 @@ function db_get_tour_configs_for_ids(array $ids): array {
             SELECT id, tour_enabled, tour_start_mode, tour_idle_seconds, tour_node_selection,
                    tour_random_count, tour_default_dwell, tour_loop, keyword_chips_enabled,
                    idle_spotlight_enabled, idle_spotlight_selection, idle_spotlight_idle_seconds,
-                   related_nodes_enabled, show_2d_view
+                   related_nodes_enabled, show_2d_view, group_nodes
             FROM constellations WHERE id IN ($place)
         ");
         $stmt->execute($ids);
@@ -11621,6 +11635,7 @@ function db_get_tour_configs_for_ids(array $ids): array {
                 'idle_spotlight_idle_seconds' => (int)$row['idle_spotlight_idle_seconds'],
                 'related_nodes_enabled' => (bool)$row['related_nodes_enabled'],
                 'show_2d_view' => (bool)$row['show_2d_view'],
+                'group_nodes' => (bool)$row['group_nodes'],
             ];
         }
         if ($configs === []) {
@@ -11685,7 +11700,8 @@ function db_set_constellation_tour_config(int $id, array $config): void {
             idle_spotlight_selection = :idle_spotlight_selection,
             idle_spotlight_idle_seconds = :idle_spotlight_idle_seconds,
             related_nodes_enabled = :related_nodes_enabled,
-            show_2d_view = :show_2d_view
+            show_2d_view = :show_2d_view,
+            group_nodes = :group_nodes
         WHERE id = :id
     ")->execute([
         ':tour_enabled' => !empty($config['tour_enabled']) ? 1 : 0,
@@ -11701,6 +11717,9 @@ function db_set_constellation_tour_config(int $id, array $config): void {
         ':idle_spotlight_idle_seconds' => $idleSpotlightIdleSeconds,
         ':related_nodes_enabled' => !empty($config['related_nodes_enabled']) ? 1 : 0,
         ':show_2d_view' => !empty($config['show_2d_view']) ? 1 : 0,
+        // Default TRUE when the caller omits the key, matching the column default,
+        // so partial callers (e.g. personal-galaxy defaults) never flip it off.
+        ':group_nodes' => (!array_key_exists('group_nodes', $config) || !empty($config['group_nodes'])) ? 1 : 0,
         ':id' => $id,
     ]);
 }

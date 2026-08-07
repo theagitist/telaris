@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS constellations (
     idle_spotlight_idle_seconds INT NOT NULL DEFAULT 30,
     related_nodes_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     show_2d_view BOOLEAN NOT NULL DEFAULT FALSE,
+    group_nodes BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(255) NULL DEFAULT NULL,

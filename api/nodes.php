@@ -259,11 +259,21 @@ try {
             $isClustered = false;
             $clusterPath = '';
 
+            // Per-galaxy "group nodes" opt-out. Default TRUE (auto-cluster large
+            // galaxies); when the governing galaxy has it FALSE, always show flat.
+            // Governing id = the single galaxy, else the first union member.
+            $groupNodes = true;
+            $govId = $constellationId ?? ($multiGalaxyIds[0] ?? null);
+            if ($govId !== null) {
+                $govCfg = db_get_constellation_tour_config((int)$govId);
+                $groupNodes = $govCfg === null ? true : (bool)$govCfg['group_nodes'];
+            }
+
             if (!$noCluster && $clusterKey !== '') {
                 $formatted = filter_nodes_by_cluster($formatted, $clusterKey);
                 $isClustered = true;
                 $clusterPath = $clusterKey;
-            } elseif (!$noCluster) {
+            } elseif (!$noCluster && $groupNodes) {
                 $result = compute_clusters($formatted);
                 if (count($result) !== $totalNodes) {
                     $formatted = $result;

@@ -129,6 +129,14 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
 
             <div class="mb-4 border-t border-gray-200 pt-4">
                 <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="modal-group-nodes" name="group_nodes" value="1" class="toggle toggle-neutral toggle-sm">
+                    <span class="text-gray-800 font-medium"><?= t_attr('gem_group_nodes_label', 'Group wormholes') ?></span>
+                </label>
+                <p class="text-xs text-gray-500 mt-1"><?= t_attr('gem_group_nodes_help', 'When a galaxy has many wormholes, bundle them into navigable groups instead of showing all at once. On by default. Turn off to always show every wormhole, however many there are.') ?></p>
+            </div>
+
+            <div class="mb-4 border-t border-gray-200 pt-4">
+                <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" id="modal-idle-spotlight-enabled" name="idle_spotlight_enabled" value="1" class="toggle toggle-neutral toggle-sm">
                     <span class="text-gray-800 font-medium"><?= t_attr('gem_idle_spotlight_label', 'Idle spotlight') ?></span>
                 </label>
