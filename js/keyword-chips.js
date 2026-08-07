@@ -20,6 +20,10 @@ export const CHIP_FG = [
     '#c4b5fd', '#d8b4fe', '#f0abfc', '#f9a8d4', '#fda4af',
 ];
 
+// Rhizome is a light theme: the pastel palette above washes out on the pale
+// ground, so chips render in one dark slate tone (readable) with no neon glow.
+const RZ_CHIP_FG = '#334155';
+
 export function colorIndexFor(keyword) {
     let hash = 0;
     for (let i = 0; i < keyword.length; i++) {
@@ -88,6 +92,7 @@ export class KeywordChipsController {
         // visible, so a different subset surfaces each load.
         const entries = shuffle(Array.from(counts.entries())).slice(0, MAX_CHIPS);
 
+        const isRhizome = this._isRhizome();
         this.strip.innerHTML = '';
         for (const [keyword, count] of entries) {
             const idx = colorIndexFor(keyword);
@@ -95,7 +100,7 @@ export class KeywordChipsController {
             chip.type = 'button';
             chip.className = 'keyword-chip';
             chip.dataset.keyword = keyword;
-            const fg = CHIP_FG[idx];
+            const fg = isRhizome ? RZ_CHIP_FG : CHIP_FG[idx];
             chip.style.cssText = [
                 'background:transparent',
                 'border:none',
@@ -106,7 +111,7 @@ export class KeywordChipsController {
                 'font-weight:500',
                 'cursor:pointer',
                 'transition:opacity 150ms, text-shadow 150ms',
-                'opacity:0.55',
+                'opacity:' + (isRhizome ? '0.8' : '0.55'),
                 'white-space:nowrap',
                 'flex-shrink:0',
                 'text-shadow:none',
@@ -114,8 +119,8 @@ export class KeywordChipsController {
             chip.textContent = `#${keyword}`;
             chip.title = `${count} wormhole${count === 1 ? '' : 's'}`;
             chip.addEventListener('mouseenter', () => {
-                chip.style.opacity = '0.95';
-                chip.style.textShadow = `0 0 6px ${fg}, 0 0 14px ${fg}88`;
+                chip.style.opacity = '1';
+                chip.style.textShadow = isRhizome ? 'none' : `0 0 6px ${fg}, 0 0 14px ${fg}88`;
             });
             chip.addEventListener('mouseleave', () => {
                 chip.style.textShadow = 'none';
@@ -141,17 +146,25 @@ export class KeywordChipsController {
         this.refreshChipStyles();
     }
 
+    _isRhizome() {
+        return !!(this.app && this.app.currentTheme && this.app.currentTheme.id === 'rhizome');
+    }
+
     refreshChipStyles() {
         const active = this.app.activeKeywords || new Set();
+        const isRhizome = this._isRhizome();
+        // Rhizome (light ground) rests brighter and drops the neon glow, which
+        // reads as mud on a dark label. Dark themes keep the original values.
+        const restOpacity = isRhizome ? 0.8 : 0.55;
         this.strip.querySelectorAll('.keyword-chip').forEach(chip => {
             const isActive = active.has(chip.dataset.keyword);
             // Default (no active filter) is dim; active stays bright; siblings dim further when something is active.
-            let opacity = 0.55;
-            if (active.size > 0) opacity = isActive ? 0.95 : 0.25;
+            let opacity = restOpacity;
+            if (active.size > 0) opacity = isActive ? 1 : (isRhizome ? 0.4 : 0.25);
             chip.style.opacity = String(opacity);
             chip.style.fontWeight = isActive ? '700' : '500';
             const color = chip.style.color;
-            chip.style.textShadow = isActive ? `0 0 6px ${color}, 0 0 14px ${color}88` : 'none';
+            chip.style.textShadow = (isActive && !isRhizome) ? `0 0 6px ${color}, 0 0 14px ${color}88` : 'none';
         });
     }
 }

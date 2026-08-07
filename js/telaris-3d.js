@@ -4198,8 +4198,12 @@ class TelarisNetwork {
         };
 
         const toShowNodes = new Set(toShow.map(e => e.node));
+        // Rhizome is a light theme: dark labels at 0.2 vanish on the pale ground,
+        // so back-tier labels stay much more opaque. Dark themes keep 0.2.
+        const isRhizome = this.currentTheme && this.currentTheme.id === 'rhizome';
+        const backOpacity = isRhizome ? '0.6' : '0.2';
         toShow.forEach(e => {
-            const n = e.node, opacity = e.inFront10 ? '1' : '0.2';
+            const n = e.node, opacity = e.inFront10 ? '1' : backOpacity;
             n.getWorldPosition(this._scratchVec);
             const dist = this._scratchVec.distanceTo(this.camera.position);
             this._scratchVec.project(this.camera);
