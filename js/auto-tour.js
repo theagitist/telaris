@@ -57,6 +57,12 @@ export class TourController {
         return (this.app && this.app.renderer && this.app.renderer.domElement) || null;
     }
 
+    /** True while a wormhole info card is open over the map. */
+    isCardOpen() {
+        const overlay = document.getElementById('rich-media-overlay');
+        return !!(overlay && !overlay.classList.contains('hidden'));
+    }
+
     init() {
         if (!this.config || !this.config.tour_enabled) return;
         if (window.innerWidth < MOBILE_MIN_WIDTH) return;
@@ -68,7 +74,7 @@ export class TourController {
         // the visitor's start setting).
         const params = new URLSearchParams(window.location.search);
         if (params.get('tour') === 'preview') {
-            setTimeout(() => { if (!this.active && !this.cancelled) this.start(); }, 1500);
+            setTimeout(() => { if (!this.active && !this.cancelled && !this.isCardOpen()) this.start(); }, 1500);
             return;
         }
 
@@ -82,7 +88,7 @@ export class TourController {
             // camera starts panning. Don't start if they've already kicked the tour
             // off some other way in the meantime.
             setTimeout(() => {
-                if (!this.active && !this.cancelled) this.start();
+                if (!this.active && !this.cancelled && !this.isCardOpen()) this.start();
             }, 3000);
         }
     }
@@ -124,7 +130,10 @@ export class TourController {
             if (this.active) return;
             clearTimeout(this.idleTimerId);
             this.idleTimerId = setTimeout(() => {
-                if (!this.active) this.start();
+                // Only auto-start over a clear map: never cover an open info card.
+                // If a card is open the visitor is reading it; the next interaction
+                // (moving/closing) re-arms this timer, so it restarts once clear.
+                if (!this.active && !this.isCardOpen()) this.start();
             }, seconds * 1000);
         };
         events.forEach(ev => window.addEventListener(ev, reset, { passive: true }));
@@ -184,6 +193,7 @@ export class TourController {
         const canvas = this.sceneCanvas;
         if (canvas) {
             canvas.addEventListener('pointerdown', this.boundOnSceneInteract);
+            canvas.addEventListener('pointermove', this.boundOnSceneInteract, { passive: true });
             canvas.addEventListener('wheel', this.boundOnSceneInteract, { passive: true });
             canvas.addEventListener('touchstart', this.boundOnSceneInteract, { passive: true });
         }
@@ -205,6 +215,7 @@ export class TourController {
         const canvas = this.sceneCanvas;
         if (canvas) {
             canvas.removeEventListener('pointerdown', this.boundOnSceneInteract);
+            canvas.removeEventListener('pointermove', this.boundOnSceneInteract);
             canvas.removeEventListener('wheel', this.boundOnSceneInteract);
             canvas.removeEventListener('touchstart', this.boundOnSceneInteract);
         }
