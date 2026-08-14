@@ -3214,14 +3214,18 @@ class TelarisNetwork {
      */
     applyNodeInertia() {
         if (!this.controls) return;
-        const INERTIA_MIN_NODES = 10;   // at or below: lightest feel
-        const INERTIA_MAX_NODES = 140;  // at or above: heaviest feel (MAGINES ~94 sits near the top)
+        const INERTIA_MIN_NODES = 8;    // at or below: lightest, snappiest feel
+        const INERTIA_MAX_NODES = 90;   // at or above: heaviest feel (MAGINES ~94 maxes out here)
         const t = THREE.MathUtils.clamp(
             (this.nodes.length - INERTIA_MIN_NODES) / (INERTIA_MAX_NODES - INERTIA_MIN_NODES),
             0, 1
         );
-        this.controls.dampingFactor = THREE.MathUtils.lerp(0.075, 0.02, t); // lower = longer glide
-        this.controls.rotateSpeed = THREE.MathUtils.lerp(1.05, 0.6, t);     // lower = heavier push
+        // Wide, deliberately felt range. Light galaxies stop almost instantly and
+        // turn quickly; heavy ones coast for a long time after a flick (low
+        // dampingFactor) and are noticeably slower to push (low rotateSpeed), so
+        // they read as massive. Tune the four endpoints to taste.
+        this.controls.dampingFactor = THREE.MathUtils.lerp(0.14, 0.015, t); // lower = much longer coast
+        this.controls.rotateSpeed = THREE.MathUtils.lerp(1.1, 0.6, t);      // lower = heavier to push
     }
 
     /** True when the 3D view currently spans more than one galaxy. */
