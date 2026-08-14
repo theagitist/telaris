@@ -2279,7 +2279,18 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 node.embed_code = g('embed_code');
                 node.is_accentuated = g('is_accentuated') === '1' ? 1 : 0;
                 node.show_keywords = g('show_keywords') === '1' ? 1 : 0;
+                const prevConstellationId = node.constellation_id;
                 node.constellation_id = parseInt(g('constellation_id'), 10);
+                if (node.constellation_id !== prevConstellationId) {
+                    // Galaxy reassignment: keep the list's Galaxy column in sync and
+                    // re-render so the move is visible right away. Previously only
+                    // constellation_id was patched (not constellation_name) and the list
+                    // was not re-rendered until modal close, so a move looked like it
+                    // did nothing even though it saved.
+                    const c = CONSTELLATIONS.find(x => x.id === node.constellation_id);
+                    if (c) node.constellation_name = c.name;
+                    if (typeof displayNodes === 'function') displayNodes(allNodes);
+                }
                 node.node_type = g('node_type');
                 if (node.node_type === 'portal') {
                     node.target_constellation_id = parseInt(g('target_constellation_id'), 10) || null;
@@ -4429,14 +4440,17 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                 }).catch(() => {});
             }
         };
-        // "Revisions": open the current page's hotglue revision history in a new
-        // tab. Mirrors hgViewDirectly but uses the live overlay slug and the
-        // /revisions route (same Telaris auth gate as /edit).
+        // "Revisions": show the current page's hotglue revision history in the
+        // already-open editor overlay by navigating its iframe to the /revisions
+        // route (same Telaris auth gate as /edit). hotglue's "back to editing mode"
+        // link returns the iframe to the editor. This replaced a
+        // window.open(url, '_blank', 'noopener') pop-up, which Safari silently
+        // suppresses (window features + noopener), so the button did nothing there.
         window.hgOpenRevisions = function () {
             if (!hgCurrent || !hgCurrent.slug) return;
             const relativeUrl = '../hg/?' + encodeURIComponent(hgCurrent.slug) + '/revisions&lang=' + encodeURIComponent(HG_LOCALE);
-            const absoluteUrl = new URL(relativeUrl, window.location.origin + window.location.pathname).href;
-            window.open(absoluteUrl, '_blank', 'noopener');
+            const iframe = document.getElementById('hg-editor-iframe');
+            if (iframe) iframe.src = relativeUrl;
         };
         window.hgDuplicate = async function (id) {
             const p = hgPages.find(x => x.id === id);
