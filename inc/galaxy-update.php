@@ -103,6 +103,7 @@ function handle_galaxy_update_post(array $post, ?string $userId, bool $isAdmin):
         'related_nodes_enabled' => !empty($post['related_nodes_enabled']),
         'show_2d_view' => !empty($post['show_2d_view']),
         'group_nodes' => !empty($post['group_nodes']),
+        'heavy_inertia' => !empty($post['heavy_inertia']),
     ]);
     $tourKeywordIds = array_map('intval', array_filter((array)($post['tour_keyword_ids'] ?? [])));
     db_set_tour_keyword_ids($id, $tourKeywordIds);

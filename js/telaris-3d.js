@@ -955,6 +955,11 @@ class TelarisNetwork {
         this.controls.minDistance = 3;
         this.controls.maxDistance = 22;
         this.controls.zoomSpeed = ('ontouchstart' in window || navigator.maxTouchPoints > 0) ? 1.5 : 4.0;
+        // Remember the normal feel so the per-galaxy "heavy movement" toggle can
+        // restore it (see applyGalaxyInertia).
+        this._baseDampingFactor = this.controls.dampingFactor;
+        this._baseRotateSpeed = this.controls.rotateSpeed; // OrbitControls default 1.0
+        this._baseZoomSpeed = this.controls.zoomSpeed;
         this.controls.autoRotate = false;
         this.controls.autoRotateSpeed = 0.35;
         this.controls.target.set(0, -1.8, 0);
@@ -3200,32 +3205,33 @@ class TelarisNetwork {
         }
         this._distinctGalaxyCount = galaxyIds.size;
 
-        this.applyNodeInertia();
+        this.applyGalaxyInertia();
     }
 
     /**
-     * #2: heavier galaxies. Scale the control inertia by how many wormholes are
-     * loaded so a dense galaxy feels like it has more mass: slower to push
-     * (rotateSpeed) and a longer glide after release (lower dampingFactor).
-     * Pan + rotate both run through OrbitControls damping; the wheel zoom is
-     * instant by design, so it is left out. Re-applied on every galaxy load.
-     * Tunable: the node-count band (INERTIA_MIN/MAX_NODES) and the two lerp
-     * ranges below.
+     * #2: optional "heavy movement" per galaxy. Off by default; turned on by the
+     * galaxy's `heavy_inertia` flag (window.TELARIS_TOUR_CONFIG.heavy_inertia,
+     * set in the galaxy edit modal). When on, the 3D controls get a deliberately
+     * weighty feel: slower, heavier rotate and zoom, plus a long coast after a
+     * flick, so a dense galaxy reads as massive. When off, the normal feel is
+     * restored. Re-applied on every galaxy load. Tunable: the three HEAVY_*
+     * constants below.
      */
-    applyNodeInertia() {
+    applyGalaxyInertia() {
         if (!this.controls) return;
-        const INERTIA_MIN_NODES = 8;    // at or below: lightest, snappiest feel
-        const INERTIA_MAX_NODES = 90;   // at or above: heaviest feel (MAGINES ~94 maxes out here)
-        const t = THREE.MathUtils.clamp(
-            (this.nodes.length - INERTIA_MIN_NODES) / (INERTIA_MAX_NODES - INERTIA_MIN_NODES),
-            0, 1
-        );
-        // Wide, deliberately felt range. Light galaxies stop almost instantly and
-        // turn quickly; heavy ones coast for a long time after a flick (low
-        // dampingFactor) and are noticeably slower to push (low rotateSpeed), so
-        // they read as massive. Tune the four endpoints to taste.
-        this.controls.dampingFactor = THREE.MathUtils.lerp(0.14, 0.015, t); // lower = much longer coast
-        this.controls.rotateSpeed = THREE.MathUtils.lerp(1.1, 0.6, t);      // lower = heavier to push
+        const heavy = !!(window.TELARIS_TOUR_CONFIG && window.TELARIS_TOUR_CONFIG.heavy_inertia);
+        if (heavy) {
+            const HEAVY_DAMPING = 0.02;      // lower = much longer coast after release
+            const HEAVY_ROTATE = 0.4;        // fraction of normal drag speed (heavier to push)
+            const HEAVY_ZOOM_FACTOR = 0.4;   // fraction of normal zoom speed (heavier to zoom)
+            this.controls.dampingFactor = HEAVY_DAMPING;
+            this.controls.rotateSpeed = HEAVY_ROTATE;
+            this.controls.zoomSpeed = this._baseZoomSpeed * HEAVY_ZOOM_FACTOR;
+        } else {
+            this.controls.dampingFactor = this._baseDampingFactor;
+            this.controls.rotateSpeed = this._baseRotateSpeed;
+            this.controls.zoomSpeed = this._baseZoomSpeed;
+        }
     }
 
     /** True when the 3D view currently spans more than one galaxy. */

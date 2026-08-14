@@ -314,6 +314,8 @@
         if (show2dView) show2dView.checked = false;
         const groupNodes = document.getElementById('modal-group-nodes');
         if (groupNodes) groupNodes.checked = true; // on by default
+        const heavyInertia = document.getElementById('modal-heavy-inertia');
+        if (heavyInertia) heavyInertia.checked = false; // off by default
         if (idleSpotlightEnabled) idleSpotlightEnabled.checked = false;
         if (idleSpotlightSeconds) idleSpotlightSeconds.value = 30;
         idleSeconds.value = 30;
@@ -338,6 +340,7 @@
             if (relatedEnabled) relatedEnabled.checked = !!cfg.related_nodes_enabled;
             if (show2dView) show2dView.checked = !!cfg.show_2d_view;
             if (groupNodes) groupNodes.checked = cfg.group_nodes !== false; // legacy rows (undefined) default on
+            if (heavyInertia) heavyInertia.checked = !!cfg.heavy_inertia; // off unless explicitly set
             if (idleSpotlightEnabled) idleSpotlightEnabled.checked = !!cfg.idle_spotlight_enabled;
             if (idleSpotlightSeconds) idleSpotlightSeconds.value = cfg.idle_spotlight_idle_seconds ?? 30;
             idleSeconds.value = cfg.tour_idle_seconds ?? 30;

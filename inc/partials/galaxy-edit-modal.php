@@ -137,6 +137,14 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
 
             <div class="mb-4 border-t border-gray-200 pt-4">
                 <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="modal-heavy-inertia" name="heavy_inertia" value="1" class="toggle toggle-neutral toggle-sm">
+                    <span class="text-gray-800 font-medium"><?= t_attr('gem_heavy_inertia_label', 'Heavy movement') ?></span>
+                </label>
+                <p class="text-xs text-gray-500 mt-1"><?= t_attr('gem_heavy_inertia_help', 'Give this galaxy a weighty, high-inertia feel: rotating and zooming are slower and the view keeps gliding after you let go, so a dense galaxy feels massive. Off by default.') ?></p>
+            </div>
+
+            <div class="mb-4 border-t border-gray-200 pt-4">
+                <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" id="modal-idle-spotlight-enabled" name="idle_spotlight_enabled" value="1" class="toggle toggle-neutral toggle-sm">
                     <span class="text-gray-800 font-medium"><?= t_attr('gem_idle_spotlight_label', 'Idle spotlight') ?></span>
                 </label>
