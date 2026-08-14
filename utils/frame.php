@@ -182,7 +182,7 @@ $urlJson = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_
     <canvas id="bg-canvas"></canvas>
 
     <div class="content" id="main-content">
-        <div class="title" id="frame-title"><?php echo htmlspecialchars($launchingText); ?> <?php echo htmlspecialchars($nodeName); ?></div>
+        <div class="title" id="frame-title"><?php echo htmlspecialchars($launchingText); ?></div>
         <div class="subtitle" id="frame-subtitle"><?php echo nl2br(htmlspecialchars($alertMsg)); ?></div>
         <div class="description" id="frame-description" style="<?php echo $description === '' ? 'display:none' : ''; ?>"><?php echo nl2br(htmlspecialchars($description)); ?></div>
         <button class="launch-button" id="launch-btn" style="<?php echo $description === '' ? 'display:none' : ''; ?>"><?php echo htmlspecialchars($openPortalText); ?></button>

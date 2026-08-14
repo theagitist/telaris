@@ -570,6 +570,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             'badgeAudTitle' => t('editor_badge_has_aud_title', 'Has Audio'),
             'badgeVid' => t('editor_badge_has_vid', 'VID'),
             'badgeVidTitle' => t('editor_badge_has_vid_title', 'Has Video'),
+            'badgeHg' => t('editor_badge_has_hotglue', 'HG'),
+            'badgeHgTitle' => t('editor_badge_has_hotglue_title', 'Has Hotglue'),
             'titleAccentuated' => t('editor_title_accentuated', 'Accentuated'),
             'colName' => t('editor_col_name', 'Name'),
             'colType' => t('editor_col_type', 'Type'),
@@ -1420,6 +1422,7 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                                 ${node.embed_code ? `<span class="text-[10px] bg-pink-100 text-pink-700 px-1 rounded" title="${escapeHtml(TELARIS_EDIT.badgeEmbTitle)}">${escapeHtml(TELARIS_EDIT.badgeEmb)}</span>` : ''}
                                 ${node.audio_url ? `<span class="text-[10px] bg-orange-100 text-orange-700 px-1 rounded" title="${escapeHtml(TELARIS_EDIT.badgeAudTitle)}">${escapeHtml(TELARIS_EDIT.badgeAud)}</span>` : ''}
                                 ${node.video_url ? `<span class="text-[10px] bg-cyan-100 text-cyan-700 px-1 rounded" title="${escapeHtml(TELARIS_EDIT.badgeVidTitle)}">${escapeHtml(TELARIS_EDIT.badgeVid)}</span>` : ''}
+                                ${node.media_mode === 'hotglue' ? `<span class="text-[10px] bg-indigo-100 text-indigo-700 px-1 rounded" title="${escapeHtml(TELARIS_EDIT.badgeHgTitle)}">${escapeHtml(TELARIS_EDIT.badgeHg)}</span>` : ''}
                             </div>
                         </div>
                         <div class="md:col-span-1 text-xs">

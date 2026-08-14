@@ -1081,6 +1081,9 @@ class TelarisNetwork {
         const colorCenter = (gc && gc.center !== undefined) ? gc.center : 0x444444;
         const colorGrid   = (gc && gc.grid   !== undefined) ? gc.grid   : 0x222222;
         const isRhizome = this.currentTheme && this.currentTheme.id === 'rhizome';
+        // Rhizome grid is denser than the other themes (operator request 2026-08-14);
+        // only the rhizome fat-line path uses this, GridHelper stays at `divisions`.
+        const rzDivisions = 40;
         this.rhizomeGridMats = [];
 
         // 6 faces of a cube surrounding the nodes (same XZ-plane orientation as
@@ -1098,7 +1101,7 @@ class TelarisNetwork {
             if (isRhizome) {
                 // Fat lines so the light grid reads at a real pixel width.
                 const geo = new LineSegmentsGeometry();
-                geo.setPositions(this._gridSegments(size, divisions));
+                geo.setPositions(this._gridSegments(size, rzDivisions));
                 const mat = new LineMaterial({
                     color: colorGrid,
                     linewidth: RZ_GRID_LINE_PX,
