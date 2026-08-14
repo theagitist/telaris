@@ -2819,10 +2819,14 @@ class TelarisNetwork {
             if (Math.abs(e.deltaX) > 0 || Math.abs(e.deltaY) > 0) {
                 e.preventDefault();
                 e.stopPropagation();
+                // Heavy movement (per-galaxy toggle): slow this trackpad rotate to
+                // match the click-drag feel, which OrbitControls already makes heavy
+                // via rotateSpeed. 0.4x mirrors the HEAVY_ROTATE fraction.
+                const rf = this._heavyInertia ? 0.002 * 0.4 : 0.002;
                 tempOffset.subVectors(this.camera.position, this.controls.target);
                 tempSpherical.setFromVector3(tempOffset);
-                tempSpherical.theta += e.deltaX * 0.002;
-                tempSpherical.phi = THREE.MathUtils.clamp(tempSpherical.phi + e.deltaY * 0.002, 0.05, Math.PI - 0.05);
+                tempSpherical.theta += e.deltaX * rf;
+                tempSpherical.phi = THREE.MathUtils.clamp(tempSpherical.phi + e.deltaY * rf, 0.05, Math.PI - 0.05);
                 tempOffset.setFromSpherical(tempSpherical);
                 this.camera.position.copy(this.controls.target).add(tempOffset);
                 this.camera.lookAt(this.controls.target);
@@ -3220,6 +3224,11 @@ class TelarisNetwork {
     applyGalaxyInertia() {
         if (!this.controls) return;
         const heavy = !!(window.TELARIS_TOUR_CONFIG && window.TELARIS_TOUR_CONFIG.heavy_inertia);
+        // Two-finger trackpad drag does NOT go through OrbitControls: it fires
+        // wheel events handled by the custom wheel listener, which rotates the
+        // camera directly. That listener reads this._heavyInertia to slow itself
+        // to match the click-drag feel.
+        this._heavyInertia = heavy;
         if (heavy) {
             const HEAVY_DAMPING = 0.02;      // lower = much longer coast after release
             const HEAVY_ROTATE = 0.4;        // fraction of normal drag speed (heavier to push)
