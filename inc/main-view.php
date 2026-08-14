@@ -367,8 +367,10 @@ header("X-Content-Type-Options: nosniff");
             #rich-media-window.rm-light #tour-dwell-bar-track { background: rgba(0, 0, 0, 0.06); }
             /* During a tour the card sits at the side and the backdrop clears, so the
                spotlighted node stays visible and the tour flow isn't cut. All themes. */
-            #rich-media-overlay.rm-tour { justify-content: flex-end; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
-            #rich-media-overlay.rm-tour #rich-media-window { max-width: 24rem; }
+            #rich-media-overlay.rm-tour { justify-content: flex-end; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
+            /* Card stays interactive; the transparent backdrop lets scene clicks
+               through so the visitor keeps exploring while the tour runs. */
+            #rich-media-overlay.rm-tour #rich-media-window { max-width: 24rem; pointer-events: auto; }
             @media (max-width: 640px) { #rich-media-overlay.rm-tour { justify-content: center; } #rich-media-overlay.rm-tour #rich-media-window { max-width: 100%; } }
         </style>
         <div id="rich-media-overlay" class="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md hidden transition-opacity duration-500 opacity-0">
