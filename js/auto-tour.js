@@ -1,12 +1,12 @@
 /**
- * Auto-tour controller. Plays a sequence of nodes by opening each rich-media card
- * and advancing when the node's media (audio or video) ends, or after a configured
- * dwell for nodes with no waitable media.
+ * Auto-tour controller. Non-blocking: walks a sequence of nodes, lighting each
+ * one up (halo + floating name label + focus boost) for a configured dwell while
+ * the visitor keeps freely exploring the scene. No camera move, no auto-card.
  *
  * Configured per galaxy via window.TELARIS_TOUR_CONFIG. Disabled on phones.
  */
 
-import { MOBILE_MIN_WIDTH, delay, computeDwellSeconds, DwellBar } from './tour-shared.js';
+import { MOBILE_MIN_WIDTH, computeDwellSeconds, DwellBar } from './tour-shared.js';
 
 function shuffle(arr) {
     const out = arr.slice();
@@ -48,13 +48,6 @@ export class TourController {
         this.exitBtn = document.getElementById('tour-hud-exit');
 
         this.boundOnKeydown = this.onKeydown.bind(this);
-        this.boundOnCardCloseIntent = this.onCardCloseIntent.bind(this);
-        this.boundOnSceneInteract = this.onSceneInteract.bind(this);
-    }
-
-    /** The 3D scene canvas (OrbitControls target), or null before it exists. */
-    get sceneCanvas() {
-        return (this.app && this.app.renderer && this.app.renderer.domElement) || null;
     }
 
     /** True while a wormhole info card is open over the map. */
@@ -186,25 +179,14 @@ export class TourController {
         this.hidePlayButton();
         this.showHud();
         document.addEventListener('keydown', this.boundOnKeydown);
-        // Interacting with the scene (rotate/zoom/tap) stops the tour at once.
-        // Bound to the canvas only, so clicks on the HUD or media card (which
-        // sit above it) drive the tour instead of quitting it. pointerdown /
-        // wheel / touchstart are deliberate actions; passive hover is ignored.
-        const canvas = this.sceneCanvas;
-        if (canvas) {
-            canvas.addEventListener('pointerdown', this.boundOnSceneInteract);
-            canvas.addEventListener('pointermove', this.boundOnSceneInteract, { passive: true });
-            canvas.addEventListener('wheel', this.boundOnSceneInteract, { passive: true });
-            canvas.addEventListener('touchstart', this.boundOnSceneInteract, { passive: true });
-        }
-        const closeBtn = document.getElementById('rm-close-btn');
-        const overlay = document.getElementById('rich-media-overlay');
-        if (closeBtn) closeBtn.addEventListener('click', this.boundOnCardCloseIntent);
-        if (overlay) overlay.addEventListener('click', this.boundOnCardCloseIntent);
+        // Non-blocking tour: scene interaction (rotate/zoom/tap) no longer stops
+        // the tour, so the visitor keeps exploring while nodes light up. The tour
+        // opens no card either. It exits only via Escape or the HUD exit button,
+        // or by reaching the end of a non-looping queue.
         this.playCurrent();
     }
 
-    exit({ closeCard = true } = {}) {
+    exit() {
         this.cancelled = true;
         this.active = false;
         this.clearDwellTimer();
@@ -212,34 +194,11 @@ export class TourController {
         this.hideHud();
         if (this.app) this.app._tourSpotlightNode = null;
         document.removeEventListener('keydown', this.boundOnKeydown);
-        const canvas = this.sceneCanvas;
-        if (canvas) {
-            canvas.removeEventListener('pointerdown', this.boundOnSceneInteract);
-            canvas.removeEventListener('pointermove', this.boundOnSceneInteract);
-            canvas.removeEventListener('wheel', this.boundOnSceneInteract);
-            canvas.removeEventListener('touchstart', this.boundOnSceneInteract);
-        }
-        const closeBtn = document.getElementById('rm-close-btn');
-        const overlay = document.getElementById('rich-media-overlay');
-        if (closeBtn) closeBtn.removeEventListener('click', this.boundOnCardCloseIntent);
-        if (overlay) overlay.removeEventListener('click', this.boundOnCardCloseIntent);
-        if (closeCard && this.app?.closeRichMediaWindow) {
-            this.app.closeRichMediaWindow();
-        }
+        // The tour opens no card of its own, so exit leaves any card the visitor
+        // opened manually untouched.
         if ((this.config.tour_start_mode || 'manual') === 'manual') {
             this.showPlayButton();
         }
-    }
-
-    onCardCloseIntent(e) {
-        // The user closed the card themselves (close-X or backdrop click).
-        // Treat this as "I'm done with this card, move on" — same effect as the
-        // dwell timer running out. Use the HUD exit button to actually quit.
-        const overlay = document.getElementById('rich-media-overlay');
-        if (e.currentTarget === overlay && e.target !== overlay) return;
-        this.clearDwellTimer();
-        this.detachMediaListeners();
-        if (this.active && !this.paused) this.advance(1);
     }
 
     togglePause() {
@@ -303,113 +262,25 @@ export class TourController {
         this.playCurrent();
     }
 
-    async playCurrent() {
+    playCurrent() {
         if (this.cancelled) return;
         const node = this.queue[this.position];
         if (!node) return;
 
         this.updateProgress();
 
-        // Close the previous card first so the camera animation is visible.
-        // closeRichMediaWindow clears _tourSpotlightNode, so we set the new
-        // spotlight AFTER the close.
-        const overlay = document.getElementById('rich-media-overlay');
-        const cardOpen = overlay && !overlay.classList.contains('hidden');
-        if (cardOpen && this.app?.closeRichMediaWindow) {
-            this.app.closeRichMediaWindow();
-            await delay(500);
-            if (this.cancelled || !this.active) return;
-        }
-
-        // Tag the next node for the spotlight pulse so users can see which one
-        // the camera is heading to before the card opens.
+        // Non-blocking tour: just illuminate the node (halo + floating name
+        // label + focus boost) and let the visitor keep exploring. No camera
+        // move, no auto-card. The spotlight visuals live in telaris-3d.js and
+        // are driven per frame off _tourSpotlightNode / _tourSpotlightStrength.
         if (this.app) this.app._tourSpotlightNode = node;
         if (this.app?.networkManager?.setFocusedNode) {
             this.app.networkManager.setFocusedNode(node);
         }
 
-        if (this.app?.tourFocusOnNode) {
-            await this.app.tourFocusOnNode(node, 1400);
-            if (this.cancelled || !this.active) return;
-        }
-
-        if (this.app?.showRichMediaWindow) {
-            this.app.showRichMediaWindow(node);
-        }
-
-        // Wait for the card's media DOM to be wired up by showRichMediaWindow.
-        setTimeout(() => {
-            if (this.cancelled || !this.active) return;
-            this.attachMediaOrDwell(node);
-        }, 50);
-    }
-
-    attachMediaOrDwell(node) {
-        const data = node?.userData || {};
-        const audio = data.audio_url ? document.getElementById('rm-audio') : null;
-        const video = data.video_url ? document.getElementById('rm-video') : null;
-        const media = video || audio;
-
+        // No card means no waitable media, so every stop is a dwell.
         const baseDwell = Math.max(1, this.config.tour_default_dwell || 8);
-        const visibleDwellSec = computeDwellSeconds(node, baseDwell);
-
-        if (!media) {
-            this.scheduleDwellAdvance(visibleDwellSec * 1000);
-            return;
-        }
-
-        if (media === video) this.attachedVideo = true;
-        else this.attachedAudio = true;
-
-        const onEnded = () => {
-            media.removeEventListener('ended', onEnded);
-            this.attachedAudio = null;
-            this.attachedVideo = null;
-            this.clearDwellTimer();
-            if (this.active && !this.paused) this.advance(1);
-        };
-        media.addEventListener('ended', onEnded);
-
-        // Always start a visible reading-time countdown. This covers the
-        // autoplay-blocked case immediately and guarantees forward progress
-        // before metadata loads. If play succeeds, we replace it with a
-        // hidden failsafe matched to the media's real duration.
-        this.scheduleDwellAdvance(visibleDwellSec * 1000);
-
-        const onPlaySuccess = () => {
-            // Hide the visible bar; replace with a hidden failsafe that lasts
-            // the full media length + 3s, so 'ended' normally fires first.
-            this.dwellBar.cancel();
-            if (this.dwellTimerId) {
-                clearTimeout(this.dwellTimerId);
-                this.dwellTimerId = null;
-            }
-            const armFailsafe = () => {
-                const seconds = (isFinite(media.duration) && media.duration > 0)
-                    ? media.duration + 3
-                    : baseDwell * 4;
-                this.dwellTimerId = setTimeout(() => {
-                    this.dwellTimerId = null;
-                    if (this.active && !this.paused) this.advance(1);
-                }, seconds * 1000);
-            };
-            if (media.readyState >= 1) {
-                armFailsafe();
-            } else {
-                media.addEventListener('loadedmetadata', armFailsafe, { once: true });
-            }
-        };
-
-        const playPromise = media.play();
-        if (playPromise && typeof playPromise.then === 'function') {
-            playPromise.then(onPlaySuccess).catch(() => {
-                // Autoplay blocked. Leave the visible default-dwell bar alone —
-                // tour advances when it empties.
-            });
-        } else {
-            // Older browsers without a returned promise: assume play succeeded.
-            onPlaySuccess();
-        }
+        this.scheduleDwellAdvance(computeDwellSeconds(node, baseDwell) * 1000);
     }
 
     scheduleDwellAdvance(durationMs) {
@@ -456,12 +327,5 @@ export class TourController {
         if (e.key === 'Escape') {
             this.exit();
         }
-    }
-
-    onSceneInteract() {
-        // Any deliberate scene interaction ends the tour immediately. In idle
-        // mode the persistent idle-watch listeners re-arm the countdown after
-        // this, so the tour can resume once the visitor goes quiet again.
-        if (this.active) this.exit();
     }
 }
