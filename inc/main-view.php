@@ -347,10 +347,16 @@ header("X-Content-Type-Options: nosniff");
             /* Rhizome (light theme): the media window is light, not black. Toggled by
                showRichMediaWindow when the active scene theme is rhizome. */
             #rich-media-window.rm-light {
-                background: rgba(246, 247, 244, 0.97) !important;
+                background-color: rgba(246, 247, 244, 0.97) !important;
                 color: #1c1f24 !important;
                 border-color: rgba(0, 0, 0, 0.14) !important;
                 box-shadow: 0 12px 55px -12px rgba(0, 0, 0, 0.4) !important;
+                /* Same CRT scanline as #node-tooltip, layered over the light ground */
+                background-image: linear-gradient(
+                    rgba(0, 0, 0, 0.1) 50%,
+                    rgba(0, 0, 0, 0) 50%
+                ) !important;
+                background-size: 100% 4px !important;
             }
             #rich-media-window.rm-light #rm-title,
             #rich-media-window.rm-light #rm-description,
