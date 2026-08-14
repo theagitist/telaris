@@ -3199,6 +3199,29 @@ class TelarisNetwork {
             if (cid !== null && cid !== undefined) galaxyIds.add(cid);
         }
         this._distinctGalaxyCount = galaxyIds.size;
+
+        this.applyNodeInertia();
+    }
+
+    /**
+     * #2: heavier galaxies. Scale the control inertia by how many wormholes are
+     * loaded so a dense galaxy feels like it has more mass: slower to push
+     * (rotateSpeed) and a longer glide after release (lower dampingFactor).
+     * Pan + rotate both run through OrbitControls damping; the wheel zoom is
+     * instant by design, so it is left out. Re-applied on every galaxy load.
+     * Tunable: the node-count band (INERTIA_MIN/MAX_NODES) and the two lerp
+     * ranges below.
+     */
+    applyNodeInertia() {
+        if (!this.controls) return;
+        const INERTIA_MIN_NODES = 10;   // at or below: lightest feel
+        const INERTIA_MAX_NODES = 140;  // at or above: heaviest feel (MAGINES ~94 sits near the top)
+        const t = THREE.MathUtils.clamp(
+            (this.nodes.length - INERTIA_MIN_NODES) / (INERTIA_MAX_NODES - INERTIA_MIN_NODES),
+            0, 1
+        );
+        this.controls.dampingFactor = THREE.MathUtils.lerp(0.075, 0.02, t); // lower = longer glide
+        this.controls.rotateSpeed = THREE.MathUtils.lerp(1.05, 0.6, t);     // lower = heavier push
     }
 
     /** True when the 3D view currently spans more than one galaxy. */
