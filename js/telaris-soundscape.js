@@ -16,15 +16,54 @@
  *   <script src="telaris-soundscape.js"></script>
  */
 
+// ── Sound themes (presets) ───────────────────────────────────────────────────
+// Independent per-galaxy axis, chosen in the galaxy edit window and carried on
+// window.TELARIS_TOUR_CONFIG.sound_theme (same channel as group_nodes /
+// heavy_inertia). 'default' reproduces the original soundscape unchanged; add a
+// new key here + a <option> in inc/partials/galaxy-edit-modal.php to add a theme.
+const SOUND_PRESETS = {
+  default: {
+    pitchMul: 1.0,        // multiplies the ambient bed frequencies
+    oscMixGain: 0.18,     // tonal pad level
+    noiseGain: 0.06,      // white-noise breath level
+    noiseLpFreq: 800,     // noise brightness (lowpass cutoff, Hz)
+    glitchPitchMul: 1.0,  // scales one-shot glitch frequencies
+    glitchGain: 0.15,
+    glitchNoiseBias: false, // bias glitch type toward the noise burst
+    autoGlitch: false,    // ambient auto-fired bings/pings
+    autoGlitchMinMs: 0,
+    autoGlitchMaxMs: 0,
+  },
+  // Rhizome: glitchy, white-noise-forward, high-pitched bings and pings.
+  rhizome: {
+    pitchMul: 2.0,        // bed an octave up
+    oscMixGain: 0.10,     // quieter tonal pad, more room for noise/glitch
+    noiseGain: 0.16,      // louder white noise
+    noiseLpFreq: 3200,    // brighter, airier hiss
+    glitchPitchMul: 2.5,  // higher-pitched pings
+    glitchGain: 0.16,
+    glitchNoiseBias: true,
+    autoGlitch: true,     // ping/bing on a random timer, no interaction needed
+    autoGlitchMinMs: 700,
+    autoGlitchMaxMs: 3500,
+  },
+};
+
 class TelarisSoundscape {
   constructor(options = {}) {
     this.volume = options.volume ?? 0.7;
     this.fadeTime = options.fadeTime ?? 3.0;
+    const presetId = options.preset
+      || (typeof window !== 'undefined' && window.TELARIS_TOUR_CONFIG && window.TELARIS_TOUR_CONFIG.sound_theme)
+      || 'default';
+    this.presetId = SOUND_PRESETS[presetId] ? presetId : 'default';
+    this.preset = SOUND_PRESETS[this.presetId];
     this._ctx = null;
     this._master = null;
     this._nodes = [];
     this._running = false;
     this._started = false;
+    this._autoGlitchTimer = null;
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -54,10 +93,13 @@ class TelarisSoundscape {
     this._master.gain.setValueAtTime(0, now);
     this._master.gain.linearRampToValueAtTime(this.volume, now + this.fadeTime);
     this._running = true;
+    this._scheduleAutoGlitch();
   }
 
   async stop() {
     if (!this._running || !this._ctx) return;
+    clearTimeout(this._autoGlitchTimer);
+    this._autoGlitchTimer = null;
     const now = this._ctx.currentTime;
     this._master.gain.cancelScheduledValues(now);
     this._master.gain.setValueAtTime(this._master.gain.value, now);
@@ -66,6 +108,18 @@ class TelarisSoundscape {
       this._ctx.suspend();
       this._running = false;
     }, this.fadeTime * 1000 + 200);
+  }
+
+  // Ambient bings/pings on a random timer (rhizome and any preset with autoGlitch).
+  _scheduleAutoGlitch() {
+    const p = this.preset;
+    if (!p.autoGlitch || this._autoGlitchTimer) return;
+    const delay = p.autoGlitchMinMs + Math.random() * (p.autoGlitchMaxMs - p.autoGlitchMinMs);
+    this._autoGlitchTimer = setTimeout(() => {
+      this._autoGlitchTimer = null;
+      if (this._running && this.volume > 0) this.playGlitch();
+      if (this._running) this._scheduleAutoGlitch();
+    }, delay);
   }
 
   setVolume(v) {
@@ -84,28 +138,32 @@ class TelarisSoundscape {
     if (!this._ctx || this._ctx.state === 'suspended') return;
     const ctx = this._ctx;
     const now = ctx.currentTime;
-    
-    // Randomize glitch type: 0 = tonal blip, 1 = noise burst, 2 = FM chirp
-    const type = Math.floor(Math.random() * 3);
+    const p = this.preset;
+    const pm = p.glitchPitchMul;
+
+    // Randomize glitch type: 0 = tonal blip, 1 = noise burst, 2 = FM chirp.
+    // glitchNoiseBias skews toward the noise burst (glitchier, hiss-forward).
+    let type = Math.floor(Math.random() * 3);
+    if (p.glitchNoiseBias && Math.random() < 0.5) type = 1;
     const g = ctx.createGain();
     g.connect(this._master);
-    
+
     const dur = 0.05 + Math.random() * 0.15;
     g.gain.setValueAtTime(0, now);
-    g.gain.linearRampToValueAtTime(0.15 * this.volume, now + 0.005);
+    g.gain.linearRampToValueAtTime(p.glitchGain * this.volume, now + 0.005);
     g.gain.exponentialRampToValueAtTime(0.001, now + dur);
 
     if (type === 0) {
         // Tonal square/saw blip
         const osc = ctx.createOscillator();
         osc.type = Math.random() > 0.5 ? 'square' : 'sawtooth';
-        osc.frequency.setValueAtTime(100 + Math.random() * 800, now);
-        osc.frequency.exponentialRampToValueAtTime(20 + Math.random() * 100, now + dur);
-        
+        osc.frequency.setValueAtTime((100 + Math.random() * 800) * pm, now);
+        osc.frequency.exponentialRampToValueAtTime((20 + Math.random() * 100) * pm, now + dur);
+
         const filter = ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.value = 1000;
-        
+        filter.frequency.value = 1000 * pm;
+
         osc.connect(filter);
         filter.connect(g);
         osc.start(now);
@@ -116,15 +174,15 @@ class TelarisSoundscape {
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-        
+
         const noise = ctx.createBufferSource();
         noise.buffer = buffer;
-        
+
         const filter = ctx.createBiquadFilter();
         filter.type = 'bandpass';
-        filter.frequency.value = 2000 + Math.random() * 3000;
+        filter.frequency.value = (2000 + Math.random() * 3000) * pm;
         filter.Q.value = 10;
-        
+
         noise.connect(filter);
         filter.connect(g);
         noise.start(now);
@@ -134,10 +192,10 @@ class TelarisSoundscape {
         const mod = ctx.createOscillator();
         const modGain = ctx.createGain();
         const car = ctx.createOscillator();
-        
-        mod.frequency.value = 50 + Math.random() * 500;
+
+        mod.frequency.value = (50 + Math.random() * 500) * pm;
         modGain.gain.value = 100 + Math.random() * 1000;
-        car.frequency.value = 200 + Math.random() * 1000;
+        car.frequency.value = (200 + Math.random() * 1000) * pm;
         
         mod.connect(modGain);
         modGain.connect(car.frequency);
@@ -165,12 +223,12 @@ class TelarisSoundscape {
     // ── Layer 1: Detuned oscillator cluster ──────────────────────────────
     // Four sine oscillators in an open-fifth stack: A1 E2 A2 E3
     // Each has its own slow LFO for micro-detuning (vibrato depth varies)
-    const oscFreqs  = [55.0, 82.41, 110.0, 164.81];
+    const oscFreqs  = [55.0, 82.41, 110.0, 164.81].map(f => f * this.preset.pitchMul);
     const lfoRates  = [0.031, 0.047, 0.019, 0.061];
     const lfoDepths = [0.8,   0.6,   1.1,   0.5  ];
 
     const oscMix = ctx.createGain();
-    oscMix.gain.value = 0.18;
+    oscMix.gain.value = this.preset.oscMixGain;
 
     oscFreqs.forEach((freq, i) => {
       const lfo = ctx.createOscillator();
@@ -206,12 +264,12 @@ class TelarisSoundscape {
     // White noise through a lowpass — adds organic air beneath the tones
     const noiseNode = this._makeNoise(ctx);
     const noiseGain = ctx.createGain();
-    noiseGain.gain.value = 0.06;
+    noiseGain.gain.value = this.preset.noiseGain;
     noiseNode.connect(noiseGain);
 
     const noiseLp = ctx.createBiquadFilter();
     noiseLp.type = 'lowpass';
-    noiseLp.frequency.value = 800;
+    noiseLp.frequency.value = this.preset.noiseLpFreq;
     noiseLp.Q.value = 0.5;
     noiseGain.connect(noiseLp);
 

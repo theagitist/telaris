@@ -61,6 +61,14 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
                 </select>
             </div>
 
+            <div class="mb-4">
+                <label for="modal-sound-theme" class="block mb-1.5 text-gray-800 font-medium text-sm"><?= t_attr('gem_sound_theme_label', 'Sound Theme') ?></label>
+                <select id="modal-sound-theme" name="sound_theme" class="select select-bordered select-sm w-full bg-white">
+                    <option value="default"><?= t_attr('gem_sound_theme_default', 'Default (Ambient)') ?></option>
+                    <option value="rhizome"><?= t_attr('gem_sound_theme_rhizome', 'Rhizome (Glitchy, High-Pitched)') ?></option>
+                </select>
+            </div>
+
             <?php // Everything below configures an EXISTING galaxy (tags, discovery, idle
                   // spotlight, tours, bulk actions), so it is hidden in create mode. The
                   // unified modal shows only name/tagline/slug/theme when creating; the rest

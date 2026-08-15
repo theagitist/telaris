@@ -550,6 +550,7 @@ const PROJECT_INFO_KEYS = [
     'gem_2d_view_label', 'gem_2d_view_help',
     'gem_group_nodes_label', 'gem_group_nodes_help',
     'gem_heavy_inertia_label', 'gem_heavy_inertia_help',
+    'gem_sound_theme_label', 'gem_sound_theme_default', 'gem_sound_theme_rhizome',
     'gem_idle_spotlight_label', 'gem_idle_spotlight_help',
     'gem_pick_from_label',
     'gem_idle_pick_all', 'gem_idle_pick_accentuated',
@@ -2241,6 +2242,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'gem_group_nodes_help' => 'When a galaxy has many wormholes, bundle them into navigable groups instead of showing all at once. On by default. Turn off to always show every wormhole, however many there are.',
             'gem_heavy_inertia_label' => 'Heavy movement',
             'gem_heavy_inertia_help' => 'Give this galaxy a weighty, high-inertia feel: rotating and zooming are slower and the view keeps gliding after you let go, so a dense galaxy feels massive. Off by default.',
+            'gem_sound_theme_label' => 'Sound Theme',
+            'gem_sound_theme_default' => 'Default (Ambient)',
+            'gem_sound_theme_rhizome' => 'Rhizome (Glitchy, High-Pitched)',
             'gem_idle_spotlight_label' => 'Idle spotlight',
             'gem_idle_spotlight_help' => 'After a period of inactivity, fly the camera to one random wormhole and open its info card. Closes when media ends or after the dwell timer.',
             'gem_pick_from_label' => 'Pick from',
@@ -3831,6 +3835,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'gem_group_nodes_help' => 'Cuando una galaxia tiene muchos agujeros de gusano, los agrupa en conjuntos navegables en lugar de mostrarlos todos a la vez. Activado por defecto. Desactívalo para mostrar siempre todos los agujeros de gusano, sean los que sean.',
             'gem_heavy_inertia_label' => 'Movimiento pesado',
             'gem_heavy_inertia_help' => 'Da a esta galaxia una sensación de peso e inercia alta: girar y hacer zoom son más lentos y la vista sigue deslizándose después de soltar, para que una galaxia densa se sienta masiva. Desactivado por defecto.',
+            'gem_sound_theme_label' => 'Tema de sonido',
+            'gem_sound_theme_default' => 'Predeterminado (ambiental)',
+            'gem_sound_theme_rhizome' => 'Rizoma (con fallos, agudo)',
             'gem_idle_spotlight_label' => 'Foco al estar inactiva',
             'gem_idle_spotlight_help' => 'Tras un período de inactividad, la cámara vuela a un agujero de gusano aleatorio y se abre su tarjeta de información. Se cierra cuando termina el contenido o tras el temporizador de permanencia.',
             'gem_pick_from_label' => 'Elegir entre',
@@ -5417,6 +5424,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'gem_group_nodes_help' => 'Quando uma galáxia tem muitos buracos de minhoca, agrupa-os em conjuntos navegáveis em vez de mostrar todos de uma vez. Ativado por padrão. Desative para mostrar sempre todos os buracos de minhoca, sejam quantos forem.',
             'gem_heavy_inertia_label' => 'Movimento pesado',
             'gem_heavy_inertia_help' => 'Dá a esta galáxia uma sensação de peso e inércia alta: girar e dar zoom ficam mais lentos e a vista continua a deslizar depois de soltar, para que uma galáxia densa pareça maciça. Desativado por padrão.',
+            'gem_sound_theme_label' => 'Tema de som',
+            'gem_sound_theme_default' => 'Padrão (ambiente)',
+            'gem_sound_theme_rhizome' => 'Rizoma (com falhas, agudo)',
             'gem_idle_spotlight_label' => 'Foco em inatividade',
             'gem_idle_spotlight_help' => 'Após um período de inatividade, a câmara voa para um buraco de minhoca aleatório e abre o cartão de informações. Fecha quando o conteúdo termina ou após o temporizador de permanência.',
             'gem_pick_from_label' => 'Escolher entre',
@@ -7003,6 +7013,9 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'gem_group_nodes_help' => 'Quand une galaxie compte beaucoup de trous de ver, les regrouper en ensembles navigables au lieu de tous les afficher d\'un coup. Activé par défaut. Désactive-le pour toujours afficher tous les trous de ver, quel qu\'en soit le nombre.',
             'gem_heavy_inertia_label' => 'Mouvement lourd',
             'gem_heavy_inertia_help' => 'Donne à cette galaxie une sensation de poids et de forte inertie : la rotation et le zoom sont plus lents et la vue continue de glisser après le relâchement, pour qu\'une galaxie dense semble massive. Désactivé par défaut.',
+            'gem_sound_theme_label' => 'Thème sonore',
+            'gem_sound_theme_default' => 'Par défaut (ambiant)',
+            'gem_sound_theme_rhizome' => 'Rhizome (glitch, aigu)',
             'gem_idle_spotlight_label' => 'Projecteur en veille',
             'gem_idle_spotlight_help' => 'Après une période d\'inactivité, la caméra vole vers un trou de ver aléatoire et ouvre la fiche d\'informations. Se ferme quand le contenu se termine ou après le minuteur de séjour.',
             'gem_pick_from_label' => 'Choisir parmi',
@@ -7541,6 +7554,10 @@ function db_ensure_constellations_tour_columns(): void {
         // deliberately heavy feel (slow, weighty rotate + zoom, long coast) so a
         // dense galaxy reads as massive. FALSE (default) keeps the normal feel.
         $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS heavy_inertia BOOLEAN NOT NULL DEFAULT FALSE");
+        // sound_theme: independent per-galaxy audio preset (js/telaris-soundscape.js
+        // SOUND_PRESETS), separate from the visual `theme` column. 'default' = the
+        // original soundscape; 'rhizome' = a glitchy, high-pitched, noise-forward one.
+        $pdo->exec("ALTER TABLE constellations ADD COLUMN IF NOT EXISTS sound_theme VARCHAR(20) NOT NULL DEFAULT 'default'");
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS constellation_tour_keywords (
                 constellation_id INT NOT NULL,
@@ -11576,7 +11593,7 @@ function db_get_constellation_tour_config(int $id): ?array {
         SELECT tour_enabled, tour_start_mode, tour_idle_seconds, tour_node_selection,
                tour_random_count, tour_default_dwell, tour_loop, keyword_chips_enabled,
                idle_spotlight_enabled, idle_spotlight_selection, idle_spotlight_idle_seconds,
-               related_nodes_enabled, show_2d_view, group_nodes, heavy_inertia
+               related_nodes_enabled, show_2d_view, group_nodes, heavy_inertia, sound_theme
         FROM constellations WHERE id = :id LIMIT 1
     ");
     $stmt->execute([':id' => $id]);
@@ -11601,6 +11618,7 @@ function db_get_constellation_tour_config(int $id): ?array {
         'show_2d_view' => (bool)$row['show_2d_view'],
         'group_nodes' => (bool)$row['group_nodes'],
         'heavy_inertia' => (bool)$row['heavy_inertia'],
+        'sound_theme' => (string)($row['sound_theme'] ?? 'default'),
     ];
 }
 
@@ -11635,7 +11653,7 @@ function db_get_tour_configs_for_ids(array $ids): array {
             SELECT id, tour_enabled, tour_start_mode, tour_idle_seconds, tour_node_selection,
                    tour_random_count, tour_default_dwell, tour_loop, keyword_chips_enabled,
                    idle_spotlight_enabled, idle_spotlight_selection, idle_spotlight_idle_seconds,
-                   related_nodes_enabled, show_2d_view, group_nodes, heavy_inertia
+                   related_nodes_enabled, show_2d_view, group_nodes, heavy_inertia, sound_theme
             FROM constellations WHERE id IN ($place)
         ");
         $stmt->execute($ids);
@@ -11659,6 +11677,7 @@ function db_get_tour_configs_for_ids(array $ids): array {
                 'show_2d_view' => (bool)$row['show_2d_view'],
                 'group_nodes' => (bool)$row['group_nodes'],
                 'heavy_inertia' => (bool)$row['heavy_inertia'],
+                'sound_theme' => (string)($row['sound_theme'] ?? 'default'),
             ];
         }
         if ($configs === []) {
@@ -11708,6 +11727,13 @@ function db_set_constellation_tour_config(int $id, array $config): void {
     }
     $idleSpotlightIdleSeconds = max(1, (int)($config['idle_spotlight_idle_seconds'] ?? 30));
 
+    // sound_theme: validated against the known presets; anything else (or absent)
+    // falls back to 'default', so partial callers never set an invalid preset.
+    $soundTheme = (string)($config['sound_theme'] ?? 'default');
+    if (!in_array($soundTheme, ['default', 'rhizome'], true)) {
+        $soundTheme = 'default';
+    }
+
     $pdo = getDB();
     $pdo->prepare("
         UPDATE constellations SET
@@ -11725,7 +11751,8 @@ function db_set_constellation_tour_config(int $id, array $config): void {
             related_nodes_enabled = :related_nodes_enabled,
             show_2d_view = :show_2d_view,
             group_nodes = :group_nodes,
-            heavy_inertia = :heavy_inertia
+            heavy_inertia = :heavy_inertia,
+            sound_theme = :sound_theme
         WHERE id = :id
     ")->execute([
         ':tour_enabled' => !empty($config['tour_enabled']) ? 1 : 0,
@@ -11747,6 +11774,7 @@ function db_set_constellation_tour_config(int $id, array $config): void {
         // Defaults FALSE when the caller omits the key (matching the column
         // default), so partial callers never turn heavy inertia on by accident.
         ':heavy_inertia' => !empty($config['heavy_inertia']) ? 1 : 0,
+        ':sound_theme' => $soundTheme,
         ':id' => $id,
     ]);
 }
