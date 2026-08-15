@@ -59,7 +59,7 @@ The code uses the internal identifiers (`constellation`, `node`, `portal`); user
 
 ## Current state
 
-Latest version: **v6.12.26** on the deployed instances.
+The current version is in the [`VERSION`](VERSION) file; see the vault CHANGELOG for the version-by-version history.
 
 Active design and implementation threads:
 
