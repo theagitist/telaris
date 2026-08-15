@@ -219,30 +219,29 @@ class TelarisSoundscape {
   }
 
   /**
-   * Short musical ping for rolling over a node. Picks one of several notes
-   * (bright pentatonic set) with a random waveform and a small up/down chirp,
-   * so repeated hovers sound varied rather than identical. Follows the preset's
-   * pitch character (glitchPitchMul), softer and more tonal than playGlitch.
+   * Short beep for rolling over a node. A flat square-wave tone (no glide),
+   * pitch picked from a small set so repeated hovers vary. Follows the preset's
+   * pitch character (glitchPitchMul).
    */
   playHover() {
     if (!this._ctx || this._ctx.state === 'suspended' || this.volume <= 0) return;
     const ctx = this._ctx;
     const now = ctx.currentTime;
     const pm = this.preset.glitchPitchMul || 1.0;
-    const notes = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5]; // C5 D5 E5 G5 A5 C6
-    const f = notes[Math.floor(Math.random() * notes.length)] * pm;
-    const dur = 0.12 + Math.random() * 0.1;
+    const beeps = [660, 770, 880, 990]; // several beep pitches
+    const f = beeps[Math.floor(Math.random() * beeps.length)] * pm;
+    const dur = 0.07;
 
     const g = ctx.createGain();
     g.connect(this._master);
     g.gain.setValueAtTime(0, now);
-    g.gain.linearRampToValueAtTime(0.12 * this.volume, now + 0.008);
+    g.gain.linearRampToValueAtTime(0.1 * this.volume, now + 0.004);
+    g.gain.setValueAtTime(0.1 * this.volume, now + dur - 0.008);
     g.gain.exponentialRampToValueAtTime(0.001, now + dur);
 
     const osc = ctx.createOscillator();
-    osc.type = Math.random() > 0.5 ? 'sine' : 'triangle';
-    osc.frequency.setValueAtTime(f, now);
-    osc.frequency.exponentialRampToValueAtTime(f * (Math.random() > 0.5 ? 1.5 : 0.75), now + dur);
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(f, now); // flat: a plain beep, no chirp
     osc.connect(g);
     osc.start(now);
     osc.stop(now + dur);
