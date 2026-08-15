@@ -716,6 +716,14 @@ class TelarisNetwork {
         }
     }
 
+    playHover() {
+        if (!this.soundEnabled) return;
+        const soundscape = this._getSoundscape();
+        if (soundscape && typeof soundscape.playHover === 'function') {
+            soundscape.playHover();
+        }
+    }
+
     setupSoundToggle() {
         const toggleBtn = document.getElementById('hud-sound-toggle');
         if (!toggleBtn) return;
@@ -4116,7 +4124,8 @@ class TelarisNetwork {
             // ONLY update if it's a NEW node
             if (currentFocused !== hoveredNode) {
                 this.networkManager.setFocusedNode(hoveredNode);
-                
+                this.playHover(); // varied roll-over sound (debounced: new node only)
+
                 const isPortal = hoveredNode && hoveredNode.userData.node_type === 'portal' && hoveredNode.userData.target_constellation_id != null;
                 const isCluster = hoveredNode && hoveredNode.userData.node_type === 'cluster' && hoveredNode.userData.cluster_key;
                 // URL optional: any wormhole with a hotglue page, classic media, a URL,

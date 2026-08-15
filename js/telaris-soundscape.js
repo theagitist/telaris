@@ -27,6 +27,10 @@ const SOUND_PRESETS = {
     oscMixGain: 0.18,     // tonal pad level
     noiseGain: 0.06,      // white-noise breath level
     noiseLpFreq: 800,     // noise brightness (lowpass cutoff, Hz)
+    noiseLfoRate: 0,      // 0 = static level; >0 Hz = slow breathing
+    noiseLfoDepth: 0,     // gain added/removed by the level LFO
+    noiseSweepRate: 0,    // 0 = static brightness; >0 Hz = slow cutoff drift
+    noiseSweepDepth: 0,   // cutoff sweep amount, Hz
     glitchPitchMul: 1.0,  // scales one-shot glitch frequencies
     glitchGain: 0.15,
     glitchNoiseBias: false, // bias glitch type toward the noise burst
@@ -34,12 +38,16 @@ const SOUND_PRESETS = {
     autoGlitchMinMs: 0,
     autoGlitchMaxMs: 0,
   },
-  // Rhizome: glitchy, white-noise-forward, high-pitched bings and pings.
+  // Rhizome: glitchy, high-pitched bings and pings over a quiet, evolving hiss.
   rhizome: {
     pitchMul: 2.0,        // bed an octave up
-    oscMixGain: 0.10,     // quieter tonal pad, more room for noise/glitch
-    noiseGain: 0.16,      // louder white noise
-    noiseLpFreq: 3200,    // brighter, airier hiss
+    oscMixGain: 0.10,     // quieter tonal pad, more room for the glitches
+    noiseGain: 0.06,      // quiet white noise (was 0.16, operator: too loud)
+    noiseLpFreq: 3200,    // bright, airy hiss
+    noiseLfoRate: 0.05,   // ~20s breathing cycle
+    noiseLfoDepth: 0.04,  // level drifts ~0.02..0.10
+    noiseSweepRate: 0.03, // ~33s brightness cycle
+    noiseSweepDepth: 1500,// cutoff drifts ~1700..4700 Hz
     glitchPitchMul: 2.5,  // higher-pitched pings
     glitchGain: 0.16,
     glitchNoiseBias: true,
@@ -210,6 +218,37 @@ class TelarisSoundscape {
     setTimeout(() => g.disconnect(), (dur + 0.1) * 1000);
   }
 
+  /**
+   * Short musical ping for rolling over a node. Picks one of several notes
+   * (bright pentatonic set) with a random waveform and a small up/down chirp,
+   * so repeated hovers sound varied rather than identical. Follows the preset's
+   * pitch character (glitchPitchMul), softer and more tonal than playGlitch.
+   */
+  playHover() {
+    if (!this._ctx || this._ctx.state === 'suspended' || this.volume <= 0) return;
+    const ctx = this._ctx;
+    const now = ctx.currentTime;
+    const pm = this.preset.glitchPitchMul || 1.0;
+    const notes = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5]; // C5 D5 E5 G5 A5 C6
+    const f = notes[Math.floor(Math.random() * notes.length)] * pm;
+    const dur = 0.12 + Math.random() * 0.1;
+
+    const g = ctx.createGain();
+    g.connect(this._master);
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.12 * this.volume, now + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+    const osc = ctx.createOscillator();
+    osc.type = Math.random() > 0.5 ? 'sine' : 'triangle';
+    osc.frequency.setValueAtTime(f, now);
+    osc.frequency.exponentialRampToValueAtTime(f * (Math.random() > 0.5 ? 1.5 : 0.75), now + dur);
+    osc.connect(g);
+    osc.start(now);
+    osc.stop(now + dur);
+    setTimeout(() => g.disconnect(), (dur + 0.1) * 1000);
+  }
+
   // ── Internal build ────────────────────────────────────────────────────────
 
   _build() {
@@ -267,9 +306,34 @@ class TelarisSoundscape {
     noiseGain.gain.value = this.preset.noiseGain;
     noiseNode.connect(noiseGain);
 
+    // Slow level breathing so the hiss never sits as a constant flat tone.
+    if (this.preset.noiseLfoRate > 0) {
+      const nLfo = ctx.createOscillator();
+      nLfo.type = 'sine';
+      nLfo.frequency.value = this.preset.noiseLfoRate;
+      const nLfoGain = ctx.createGain();
+      nLfoGain.gain.value = this.preset.noiseLfoDepth; // added to noiseGain.gain
+      nLfo.connect(nLfoGain);
+      nLfoGain.connect(noiseGain.gain);
+      nLfo.start();
+      this._nodes.push(nLfo);
+    }
+
     const noiseLp = ctx.createBiquadFilter();
     noiseLp.type = 'lowpass';
     noiseLp.frequency.value = this.preset.noiseLpFreq;
+    // Slow brightness drift so the noise colour keeps shifting over time.
+    if (this.preset.noiseSweepRate > 0) {
+      const sLfo = ctx.createOscillator();
+      sLfo.type = 'sine';
+      sLfo.frequency.value = this.preset.noiseSweepRate;
+      const sLfoGain = ctx.createGain();
+      sLfoGain.gain.value = this.preset.noiseSweepDepth; // added to cutoff, Hz
+      sLfo.connect(sLfoGain);
+      sLfoGain.connect(noiseLp.frequency);
+      sLfo.start();
+      this._nodes.push(sLfo);
+    }
     noiseLp.Q.value = 0.5;
     noiseGain.connect(noiseLp);
 
