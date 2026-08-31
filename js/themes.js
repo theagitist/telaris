@@ -205,6 +205,37 @@ export const THEMES = {
             type: 'geometry',
             factories: ['sphere']
         }
+    },
+    cornrow: {
+        id: 'cornrow',
+        name: 'Cornrow',
+        // Eglash-cited fractal substrate: the scene background is a self-similar
+        // nested/rotated-square weave (built in telaris-3d.js initGlitchyGrid via
+        // background.fractal='cornrow'), after Ron Eglash's reading of cornrow
+        // braiding as scaling+rotation geometry in African Fractals (1999).
+        // Dark ground; node icons reuse the abstract family so only the
+        // BACKGROUND changes. citation surfaces in the picker label + docs.
+        citation: 'Recursive scaling weave after Ron Eglash, African Fractals (1999): cornrow braiding geometry.',
+        background: {
+            starfield: false,
+            nebulas: false,
+            grid: true,
+            fractal: 'cornrow',
+            gridColors: { center: 0x5a6b8c, grid: 0x5a6b8c }, // muted indigo weave on the dark ground
+            color: 0x000000
+        },
+        lighting: {
+            ambient: { color: 0xffffff, intensity: 0.6 },
+            points: [
+                { color: 0xffffff, x: 15, y: 15, z: 15 },
+                { color: 0xaaaaaa, x: -15, y: -15, z: -15 }
+            ]
+        },
+        nodes: {
+            type: 'image',
+            portalImage: '/img/themes/abstract/portal_icon.gif',
+            images: Array.from({ length: 73 }, (_, i) => `/img/themes/abstract/icon_${String(i + 1).padStart(3, '0')}.png`)
+        }
     }
 };
 

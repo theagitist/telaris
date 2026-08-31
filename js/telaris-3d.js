@@ -32,6 +32,13 @@ const RZ_LINE_GRAY = [0.58, 0.595, 0.61];
 // Rhizome background-grid line width in CSS pixels. Uses fat lines (LineSegments2)
 // because WebGL clamps GridHelper's LineBasicMaterial to 1px on Chrome/ANGLE.
 const RZ_GRID_LINE_PX = 2.6;
+// Cornrow fractal substrate (Eglash-cited): background is a nested/rotated-square
+// weave instead of a plain grid, rendered on the same fat-line path as rhizome.
+// CR_DEPTH = recursion levels; CR_LINE_PX = line width. Both look-and-feel knobs.
+const CR_LINE_PX = 2.0;
+const CR_DEPTH = 5;
+const CR_SCALE = 0.68;                 // each nested square shrinks by this factor
+const CR_ROT = Math.PI / 12;           // ... and rotates by this angle (15deg)
 
 // Append "&fuzzy=1" to a node/connection API URL when fuzzy keyword matching is
 // resolved on for this view (window.TELARIS_FUZZY_KEYWORDS, set by the server in
@@ -1094,6 +1101,11 @@ class TelarisNetwork {
         const colorCenter = (gc && gc.center !== undefined) ? gc.center : 0x444444;
         const colorGrid   = (gc && gc.grid   !== undefined) ? gc.grid   : 0x222222;
         const isRhizome = this.currentTheme && this.currentTheme.id === 'rhizome';
+        // Eglash-cited fractal substrate: background.fractal names a self-similar
+        // segment generator (currently 'cornrow') that replaces the plain grid.
+        const fractalKind = (this.currentTheme && this.currentTheme.background && this.currentTheme.background.fractal) || null;
+        // Both rhizome and the fractal themes render as fat lines (LineSegments2).
+        const useFatLines = isRhizome || !!fractalKind;
         // Rhizome grid is denser than the other themes (operator request 2026-08-14);
         // only the rhizome fat-line path uses this, GridHelper stays at `divisions`.
         const rzDivisions = 40;
@@ -1111,13 +1123,15 @@ class TelarisNetwork {
         ];
         for (const f of faces) {
             let mesh;
-            if (isRhizome) {
-                // Fat lines so the light grid reads at a real pixel width.
+            if (useFatLines) {
+                // Fat lines so the grid/weave reads at a real pixel width.
                 const geo = new LineSegmentsGeometry();
-                geo.setPositions(this._gridSegments(size, rzDivisions));
+                geo.setPositions(fractalKind
+                    ? this._fractalSegments(fractalKind, size)
+                    : this._gridSegments(size, rzDivisions));
                 const mat = new LineMaterial({
                     color: colorGrid,
-                    linewidth: RZ_GRID_LINE_PX,
+                    linewidth: fractalKind ? CR_LINE_PX : RZ_GRID_LINE_PX,
                     resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
                     transparent: true,
                     opacity: 0.85,
@@ -1146,6 +1160,41 @@ class TelarisNetwork {
             const k = -half + i * step;
             pts.push(-half, 0, k,  half, 0, k); // line along X
             pts.push(k, 0, -half,  k, 0, half); // line along Z
+        }
+        return pts;
+    }
+
+    // Eglash-cited fractal substrate as a flat XZ line-segment array (same format
+    // as _gridSegments), so it drops straight into the fat-line render path.
+    // 'cornrow': a self-similar weave of nested squares, each scaled + rotated
+    // relative to its parent, tiled over the face. After Ron Eglash's reading of
+    // cornrow braiding as scaling+rotation geometry (African Fractals, 1999).
+    _fractalSegments(kind, size) {
+        const half = size / 2;
+        const pts = [];
+        // One nested-square motif centred at (cx, cz), recursed CR_DEPTH deep.
+        const motif = (cx, cz, r, angle, depth) => {
+            // four corners of a square of half-extent r, rotated by `angle`
+            const cs = Math.cos(angle), sn = Math.sin(angle);
+            const corner = (sx, sz) => [cx + (sx * r) * cs - (sz * r) * sn, 0, cz + (sx * r) * sn + (sz * r) * cs];
+            const c = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)];
+            for (let i = 0; i < 4; i++) {
+                const a = c[i], b = c[(i + 1) % 4];
+                pts.push(a[0], 0, a[2], b[0], 0, b[2]);
+            }
+            if (depth > 0) motif(cx, cz, r * CR_SCALE, angle + CR_ROT, depth - 1);
+        };
+        // ponytail: fixed 4x4 tiling of the motif across the face. Denser tiling is
+        // just a bigger loop if the weave ever looks too sparse.
+        const tiles = 4;
+        const cell = size / tiles;
+        const rad = cell * 0.42; // motif half-extent, leaves a small gutter between tiles
+        for (let ix = 0; ix < tiles; ix++) {
+            for (let iz = 0; iz < tiles; iz++) {
+                const cx = -half + cell * (ix + 0.5);
+                const cz = -half + cell * (iz + 0.5);
+                motif(cx, cz, rad, 0, CR_DEPTH);
+            }
         }
         return pts;
     }
