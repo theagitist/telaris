@@ -236,6 +236,36 @@ export const THEMES = {
             portalImage: '/img/themes/abstract/portal_icon.gif',
             images: Array.from({ length: 73 }, (_, i) => `/img/themes/abstract/icon_${String(i + 1).padStart(3, '0')}.png`)
         }
+    },
+    adire: {
+        id: 'adire',
+        name: 'Adire',
+        // Eglash-cited fractal substrate: a Sierpinski-carpet lattice of nested
+        // square holes (built in telaris-3d.js via background.fractal='adire'),
+        // framed via Yoruba Adire indigo resist patterns, after Ron Eglash's
+        // African Fractals (1999). Sibling of the cornrow theme; deeper indigo
+        // line so the two read distinctly side by side.
+        citation: 'Nested-hole lattice after Ron Eglash, African Fractals (1999): Yoruba Adire indigo resist patterns.',
+        background: {
+            starfield: false,
+            nebulas: false,
+            grid: true,
+            fractal: 'adire',
+            gridColors: { center: 0x3b4a8a, grid: 0x3b4a8a }, // indigo lattice on the dark ground
+            color: 0x000000
+        },
+        lighting: {
+            ambient: { color: 0xffffff, intensity: 0.6 },
+            points: [
+                { color: 0xffffff, x: 15, y: 15, z: 15 },
+                { color: 0xaaaaaa, x: -15, y: -15, z: -15 }
+            ]
+        },
+        nodes: {
+            type: 'image',
+            portalImage: '/img/themes/abstract/portal_icon.gif',
+            images: Array.from({ length: 73 }, (_, i) => `/img/themes/abstract/icon_${String(i + 1).padStart(3, '0')}.png`)
+        }
     }
 };
 

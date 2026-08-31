@@ -39,6 +39,10 @@ const CR_LINE_PX = 2.0;
 const CR_DEPTH = 5;
 const CR_SCALE = 0.68;                 // each nested square shrinks by this factor
 const CR_ROT = Math.PI / 12;           // ... and rotates by this angle (15deg)
+// Adire fractal substrate (Eglash-cited): Sierpinski-carpet lattice of nested
+// square holes, framed via Yoruba Adire indigo resist patterns. AD_DEPTH is the
+// recursion depth (segment count grows ~8^depth, so keep it modest).
+const AD_DEPTH = 3;
 
 // Append "&fuzzy=1" to a node/connection API URL when fuzzy keyword matching is
 // resolved on for this view (window.TELARIS_FUZZY_KEYWORDS, set by the server in
@@ -1172,6 +1176,30 @@ class TelarisNetwork {
     _fractalSegments(kind, size) {
         const half = size / 2;
         const pts = [];
+        // Shared square-outline emitter (flat XZ), used by the fractal generators.
+        const square = (cx, cz, r, angle) => {
+            const cs = Math.cos(angle), sn = Math.sin(angle);
+            const cor = (sx, sz) => [cx + (sx * r) * cs - (sz * r) * sn, 0, cz + (sx * r) * sn + (sz * r) * cs];
+            const c = [cor(-1, -1), cor(1, -1), cor(1, 1), cor(-1, 1)];
+            for (let i = 0; i < 4; i++) { const a = c[i], b = c[(i + 1) % 4]; pts.push(a[0], 0, a[2], b[0], 0, b[2]); }
+        };
+        // 'adire': Sierpinski-carpet lattice (nested square holes), framed via
+        // Yoruba Adire indigo resist patterns, after Eglash, African Fractals (1999).
+        if (kind === 'adire') {
+            const R = half * 0.9;
+            square(0, 0, R, 0); // outer boundary
+            const carpet = (cx, cz, r, depth) => {
+                const t = r / 3;
+                square(cx, cz, t, 0); // central hole (the removed middle third)
+                if (depth <= 0) return;
+                for (let ix = -1; ix <= 1; ix++) for (let iz = -1; iz <= 1; iz++) {
+                    if (ix === 0 && iz === 0) continue;
+                    carpet(cx + ix * 2 * t, cz + iz * 2 * t, t, depth - 1);
+                }
+            };
+            carpet(0, 0, R, AD_DEPTH);
+            return pts;
+        }
         // One nested-square motif centred at (cx, cz), recursed CR_DEPTH deep.
         const motif = (cx, cz, r, angle, depth) => {
             // four corners of a square of half-extent r, rotated by `angle`

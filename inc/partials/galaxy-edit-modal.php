@@ -58,6 +58,7 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
                     <option value="tech"><?= t_attr('gem_theme_tech', 'Tech (Circuit Board Icons)') ?></option>
                     <option value="rhizome"><?= t_attr('gem_theme_rhizome', 'Rhizome (Light, Connection Map)') ?></option>
                     <option value="cornrow"><?= t_attr('gem_theme_cornrow', 'Cornrow (Fractal weave, after Eglash)') ?></option>
+                    <option value="adire"><?= t_attr('gem_theme_adire', 'Adire (Fractal lattice, after Eglash)') ?></option>
                     <?php // light-rainbow theme intentionally hidden from the picker pending rework; still defined in js/themes.js, the validation allowlists, and i18n (gem_theme_light_rainbow). Restore an option element with value light-rainbow to expose it again. ?>
                 </select>
             </div>

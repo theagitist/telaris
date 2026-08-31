@@ -251,7 +251,7 @@ if (!empty($_GET['galaxies']) && is_string($_GET['galaxies'])) {
         $constellationTheme = $resolvedMembers[0]['theme'] ?: 'cosmic';
         if (!empty($_GET['theme']) && is_string($_GET['theme'])) {
             $themeReq = preg_replace('/[^a-z0-9_-]/', '', strtolower(trim($_GET['theme'])));
-            $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech', 'light-rainbow', 'rhizome', 'cornrow'];
+            $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech', 'light-rainbow', 'rhizome', 'cornrow', 'adire'];
             if (in_array($themeReq, $allowedThemes, true)) {
                 $constellationTheme = $themeReq;
             }
@@ -419,7 +419,7 @@ if ($_resolvedInfo && ($_resolvedInfo['type'] ?? 'galaxy') === 'cluster') {
         // ?theme=<id> override (cluster's own theme already applied via the chain).
         if (!empty($_GET['theme']) && is_string($_GET['theme'])) {
             $themeReq = preg_replace('/[^a-z0-9_-]/', '', strtolower(trim($_GET['theme'])));
-            $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech', 'light-rainbow', 'rhizome', 'cornrow'];
+            $allowedThemes = ['cosmic', 'abstract', 'rectangles', 'stripes', 'tech', 'light-rainbow', 'rhizome', 'cornrow', 'adire'];
             if (in_array($themeReq, $allowedThemes, true)) {
                 $constellationTheme = $themeReq;
             }
