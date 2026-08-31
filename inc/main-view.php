@@ -155,9 +155,33 @@ header("X-Content-Type-Options: nosniff");
             outline-offset: 2px;
             opacity: 1;
         }
+        /* Eglash citation for the fractal substrate themes (cornrow, adire).
+           ponytail: both fractal themes are dark-ground, so a faint white credit
+           reads on both; revisit the colour if a light fractal theme is added. */
+        #fractal-credit {
+            position: fixed;
+            right: 0.9rem;
+            bottom: 0.6rem;
+            max-width: 22rem;
+            font-size: 10px;
+            line-height: 1.4;
+            letter-spacing: 0.02em;
+            color: rgba(255, 255, 255, 0.5);
+            text-align: right;
+            pointer-events: none;
+            z-index: 105;
+        }
     </style>
 </head>
 <body class="overflow-hidden bg-black">
+<?php
+// Eglash citation for the Eglash-cited fractal substrate themes; server-rendered
+// (theme is known here) so no visitor-JS change / VERSION bump is needed.
+$fractalCreditKeys = ['cornrow' => 'theme_credit_cornrow', 'adire' => 'theme_credit_adire'];
+if (isset($fractalCreditKeys[$constellationTheme ?? ''])):
+?>
+    <div id="fractal-credit"><?php echo htmlspecialchars(t($fractalCreditKeys[$constellationTheme], '')); ?></div>
+<?php endif; ?>
 <?php if (empty($nginxVersionedPathsOk)): ?>
     <!-- Visible to everyone because the app's JS will not load until the admin installs the rule. -->
     <div id="nginx-config-warning" style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#7f1d1d;color:#fff;padding:14px 20px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;border-bottom:2px solid #fca5a5;box-shadow:0 4px 12px rgba(0,0,0,0.5);">
