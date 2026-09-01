@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../inc/db.php';
 require_once __DIR__ . '/../inc/api-error.php';
+require_once __DIR__ . '/../inc/fractal-analytics.php';
 
 if (php_sapi_name() !== 'cli') {
     header('Content-Type: application/json'); header('Cache-Control: no-store, max-age=0'); header('Pragma: no-cache');
@@ -87,6 +88,35 @@ try {
                     $extra['tour_keyword_names'] = $selected;
                 }
                 echo json_encode($config + $extra, JSON_THROW_ON_ERROR);
+                return;
+            }
+
+            // Fractal profile of a galaxy's keyword-shared graph (admin-only diagnostic).
+            // See inc/fractal-analytics.php. Computed on demand; no cache.
+            if (isset($_GET['action']) && $_GET['action'] === 'fractal_profile' && isset($_GET['id'])) {
+                // Admin gate, applied lazily so ordinary constellation reads stay session-less
+                // (the bare API endpoints deliberately skip utils/auth.php). Reads the same
+                // session keys as isAdminLoggedIn().
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+                $isAdmin = isset($_SESSION['admin_user_id'], $_SESSION['admin_user_type'])
+                    && (int)$_SESSION['admin_user_type'] === 2;
+                if (!$isAdmin) {
+                    api_error('403.005', 'Access denied.');
+                }
+                $id = (int)$_GET['id'];
+                $info = db_get_constellation_by_id($id);
+                if (!$info) {
+                    api_error('404.002', 'Galaxy not found.');
+                }
+                if (($info['type'] ?? 'galaxy') === 'cluster') {
+                    // v1 measures single galaxies; the cluster-union profile is a follow-up.
+                    echo json_encode(['computed' => false, 'reason' => 'cluster'], JSON_THROW_ON_ERROR);
+                    return;
+                }
+                $fuzzy = db_get_fuzzy_keyword_matching();
+                echo json_encode(fractal_profile($id, $fuzzy), JSON_THROW_ON_ERROR);
                 return;
             }
 

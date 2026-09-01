@@ -265,6 +265,48 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
                 </div>
             </div>
 
+            <?php if ($isAdmin): ?>
+            <div id="fractal-profile-panel" class="mb-4 border-t border-gray-200 pt-4">
+                <label class="block mb-1 text-gray-800 font-medium text-sm"><?= t_attr('gem_fractal_title', 'Fractal profile') ?></label>
+                <p class="text-xs text-gray-500 mb-3"><?= t_attr('gem_fractal_intro', 'Read-only diagnostic. Measures the structure of this galaxy\'s keyword-shared graph (wormholes linked when they share a keyword). It authors nothing.') ?></p>
+
+                <p id="fractal-profile-loading" class="text-xs text-gray-500 italic"><?= t_attr('gem_fractal_loading', 'Measuring…') ?></p>
+                <p id="fractal-profile-nocompute" class="text-xs text-gray-600 hidden"></p>
+
+                <div id="fractal-profile-body" class="hidden text-sm text-gray-800">
+                    <div class="flex flex-wrap gap-x-8 gap-y-3">
+                        <div>
+                            <div class="text-xs text-gray-500"><?= t_attr('gem_fractal_dB_label', 'Fractal dimension (d_B)') ?></div>
+                            <div><span id="fp-dB" class="font-mono font-semibold text-base"></span> <span id="fp-dB-r2" class="text-xs text-gray-400"></span></div>
+                            <div id="fp-dB-reading" class="text-xs text-gray-500 max-w-xs"></div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-500"><?= t_attr('gem_fractal_width_label', 'Multifractal spectrum width') ?></div>
+                            <div><span id="fp-width" class="font-mono font-semibold text-base"></span></div>
+                            <div id="fp-width-reading" class="text-xs text-gray-500 max-w-xs"></div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <div class="text-xs text-gray-500 mb-1"><?= t_attr('gem_fractal_spectrum_label', 'Singularity spectrum f(α)') ?></div>
+                        <svg id="fp-chart" viewBox="0 0 220 120" class="w-56 h-28 border border-gray-200 rounded bg-gray-50" preserveAspectRatio="xMidYMid meet"></svg>
+                    </div>
+
+                    <div class="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-600 font-mono">
+                        <span><?= t_attr('gem_fractal_gen_dims_label', 'D0/D1/D2') ?>: <span id="fp-dims"></span></span>
+                        <span><?= t_attr('gem_fractal_gamma_label', 'Degree exponent γ') ?>: <span id="fp-gamma"></span></span>
+                    </div>
+                    <div class="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-600 font-mono">
+                        <span><?= t_attr('gem_fractal_stat_nodes', 'Wormholes') ?>: <span id="fp-nodes"></span></span>
+                        <span><?= t_attr('gem_fractal_stat_edges', 'Connections') ?>: <span id="fp-edges"></span></span>
+                        <span><?= t_attr('gem_fractal_stat_meandeg', 'Avg links') ?>: <span id="fp-meandeg"></span></span>
+                        <span><?= t_attr('gem_fractal_stat_components', 'Components') ?>: <span id="fp-comps"></span></span>
+                        <span><?= t_attr('gem_fractal_stat_diameter', 'Span') ?>: <span id="fp-diam"></span></span>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
             </div><!-- /gem-edit-only -->
 
             <div class="modal-action items-center justify-between">

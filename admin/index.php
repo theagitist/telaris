@@ -5897,6 +5897,21 @@ document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(fo
         'statusUpdatedMany' => t('editor_gxm_status_updated_many', 'Updated %d wormholes. Reload the visitor view to see the change.'),
         'labelFailedPrefix' => t('editor_gxm_label_failed_prefix', 'Failed: %s'),
         'errUpdateFailedFallback' => t('editor_gxm_err_update_failed_fallback', 'Update failed'),
+        'fractal' => [
+            'dBLow' => t('gem_fractal_dB_low', ''),
+            'dBMid' => t('gem_fractal_dB_mid', ''),
+            'dBHigh' => t('gem_fractal_dB_high', ''),
+            'widthNarrow' => t('gem_fractal_width_narrow', ''),
+            'widthWide' => t('gem_fractal_width_wide', ''),
+            'error' => t('gem_fractal_error', 'Could not load the fractal profile.'),
+            'reasons' => [
+                'empty' => t('gem_fractal_reason_empty', ''),
+                'too_small' => t('gem_fractal_reason_too_small', ''),
+                'too_shallow' => t('gem_fractal_reason_too_shallow', ''),
+                'too_large' => t('gem_fractal_reason_too_large', ''),
+                'cluster' => t('gem_fractal_reason_cluster', ''),
+            ],
+        ],
     ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
 </script>
 <script src="../js/galaxy-edit-modal.js?v=<?php echo $appVersion; ?>"></script>

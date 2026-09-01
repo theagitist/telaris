@@ -116,9 +116,96 @@
         await Promise.all([
             loadTourConfigIntoModal(c.id),
             loadGalaxyTagsIntoModal(c.id),
+            loadFractalProfileIntoModal(c.id),
         ]);
         document.getElementById('constellation_modal').showModal();
         gemAutosave.endPopulate(); // resume autosave now that the form reflects the galaxy
+    }
+
+    // ---------------------------------------------------------------------
+    // Fractal profile (admin-only read-only panel). Computed on demand by
+    // api/constellations.php?action=fractal_profile. The panel is rendered only
+    // for admins, so the guard below means editors never fetch (and never 403).
+    // ---------------------------------------------------------------------
+    function fpSetText(id, text) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    }
+
+    function fpDbReading(d, F) {
+        if (d < 1.3) return F.dBLow || '';
+        if (d < 2.3) return F.dBMid || '';
+        return F.dBHigh || '';
+    }
+
+    function fpDrawSpectrum(mf) {
+        const svg = document.getElementById('fp-chart');
+        if (!svg) return;
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        const alpha = mf.alpha || [];
+        const f = mf.falpha || [];
+        if (alpha.length < 2) return;
+        const W = 220, H = 120, pad = 14;
+        const amin = Math.min(...alpha), amax = Math.max(...alpha);
+        const fmin = Math.min(...f), fmax = Math.max(...f);
+        const ax = a => pad + (amax === amin ? 0.5 : (a - amin) / (amax - amin)) * (W - 2 * pad);
+        const ay = v => (H - pad) - (fmax === fmin ? 0.5 : (v - fmin) / (fmax - fmin)) * (H - 2 * pad);
+        const NS = 'http://www.w3.org/2000/svg';
+        const pts = alpha.map((a, i) => ({ a: a, v: f[i] })).sort((p, q) => p.a - q.a);
+        const poly = document.createElementNS(NS, 'polyline');
+        poly.setAttribute('points', pts.map(p => ax(p.a).toFixed(1) + ',' + ay(p.v).toFixed(1)).join(' '));
+        poly.setAttribute('fill', 'none');
+        poly.setAttribute('stroke', '#4f46e5');
+        poly.setAttribute('stroke-width', '1.5');
+        svg.appendChild(poly);
+    }
+
+    async function loadFractalProfileIntoModal(constellationId) {
+        const panel = document.getElementById('fractal-profile-panel');
+        if (!panel) return; // admin-only surface; editors never render it
+        const loading = document.getElementById('fractal-profile-loading');
+        const nocompute = document.getElementById('fractal-profile-nocompute');
+        const body = document.getElementById('fractal-profile-body');
+        const F = GXM.fractal || {};
+        if (loading) loading.classList.remove('hidden');
+        if (nocompute) nocompute.classList.add('hidden');
+        if (body) body.classList.add('hidden');
+        try {
+            const r = await fetch(`${getApiUrl()}?action=fractal_profile&id=${constellationId}`, {
+                headers: { 'X-API-Key': getApiKey(), 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') }
+            });
+            if (!r.ok) throw new Error('fractal_http_' + r.status);
+            const p = await r.json();
+            if (loading) loading.classList.add('hidden');
+            if (!p.computed) {
+                const reasons = F.reasons || {};
+                if (nocompute) {
+                    nocompute.textContent = reasons[p.reason] || F.error || '';
+                    nocompute.classList.remove('hidden');
+                }
+                return;
+            }
+            fpSetText('fp-dB', p.d_B.toFixed(3));
+            fpSetText('fp-dB-r2', p.d_B_r2 != null ? '(R² ' + p.d_B_r2.toFixed(2) + ')' : '');
+            fpSetText('fp-dB-reading', fpDbReading(p.d_B, F));
+            fpSetText('fp-width', p.mf.width.toFixed(3));
+            fpSetText('fp-width-reading', (p.mf.width < 0.5 ? (F.widthNarrow || '') : (F.widthWide || '')));
+            fpSetText('fp-dims', [p.mf.D0, p.mf.D1, p.mf.D2].map(x => x.toFixed(2)).join(' / '));
+            fpSetText('fp-gamma', p.gamma != null ? p.gamma.toFixed(2) : '—');
+            fpSetText('fp-nodes', String(p.node_count));
+            fpSetText('fp-edges', String(p.edge_count));
+            fpSetText('fp-meandeg', p.mean_degree.toFixed(1));
+            fpSetText('fp-comps', String(p.components));
+            fpSetText('fp-diam', String(p.diameter));
+            fpDrawSpectrum(p.mf);
+            if (body) body.classList.remove('hidden');
+        } catch (e) {
+            if (loading) loading.classList.add('hidden');
+            if (nocompute) {
+                nocompute.textContent = F.error || 'Could not load the fractal profile.';
+                nocompute.classList.remove('hidden');
+            }
+        }
     }
 
     // ---------------------------------------------------------------------
