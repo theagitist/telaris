@@ -1161,7 +1161,7 @@ foreach ($importantExtensions as $ext => $name) {
                     <?php if (empty($users)): ?>
                         <p class="text-gray-600"><?= t_attr('admin_msg_no_users', 'No users found.') ?></p>
                     <?php else: ?>
-                        <div class="border border-gray-300 rounded tbl-scroll-x">
+                        <div class="border border-gray-300 rounded">
                             <table id="users-list" class="w-full border-collapse tbl-cards">
                                 <thead>
                                     <tr class="border-b-2 border-gray-400 bg-gray-100">
@@ -4150,7 +4150,7 @@ foreach ($importantExtensions as $ext => $name) {
                     return;
                 }
 
-                let html = `<div class="border border-gray-300 rounded tbl-scroll-x">
+                let html = `<div class="border border-gray-300 rounded">
                     <table class="w-full border-collapse tbl-cards">
                         <thead>
                             <tr class="border-b-2 border-gray-400 bg-gray-100">
@@ -4378,7 +4378,7 @@ foreach ($importantExtensions as $ext => $name) {
                     return;
                 }
 
-                let html = `<div class="border border-gray-300 rounded tbl-scroll-x">
+                let html = `<div class="border border-gray-300 rounded">
                     <table class="w-full border-collapse tbl-cards">
                         <thead>
                             <tr class="border-b-2 border-gray-400 bg-gray-100">
@@ -4962,7 +4962,7 @@ foreach ($importantExtensions as $ext => $name) {
                 if (b > 1024) return (b / 1024).toFixed(1) + ' KB';
                 return b + ' B';
             };
-            let html = `<div class="border border-gray-300 rounded tbl-scroll-x">
+            let html = `<div class="border border-gray-300 rounded">
                 <table class="w-full border-collapse text-sm">
                     <thead><tr class="border-b-2 border-gray-400 bg-gray-100">
                         <th class="text-left p-2">${escapeHtmlAdmin(ADM.colSnapshotCreated || 'Created (UTC)')}</th>
