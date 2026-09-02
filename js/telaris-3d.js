@@ -1187,6 +1187,126 @@ class TelarisNetwork {
         this.initGlitchyGrid();
     }
 
+    // ---- F: spatial local-density lens (opt-in; recolours nodes by local density) ----
+
+    // Local density of each wormhole = its ego-network clustering coefficient: among
+    // its directly-connected neighbours, the share of possible connections that exist
+    // (0..1). High = a tight, interlinked pocket; low = a bridge or thinly-linked edge.
+    // Always defined (0 when a wormhole has fewer than 2 neighbours). Computed from the
+    // connection graph the scene already built; stored on node.userData.localDensity.
+    _computeLocalDensity() {
+        const nodes = this.nodes || [];
+        const nb = new Map();
+        nodes.forEach(n => nb.set(n, new Set()));
+        (this.connections || []).forEach(c => {
+            if (nb.has(c.node1) && nb.has(c.node2)) {
+                nb.get(c.node1).add(c.node2);
+                nb.get(c.node2).add(c.node1);
+            }
+        });
+        nodes.forEach(n => {
+            const N = nb.get(n);
+            const k = N.size;
+            let dens = 0;
+            if (k >= 2) {
+                const arr = Array.from(N);
+                let links = 0;
+                for (let i = 0; i < arr.length; i++) {
+                    for (let j = i + 1; j < arr.length; j++) {
+                        if (nb.get(arr[i]).has(arr[j])) links++;
+                    }
+                }
+                dens = links / (k * (k - 1) / 2);
+            }
+            if (n.userData) n.userData.localDensity = dens;
+        });
+    }
+
+    // Density -> colour ramp: 0 (sparse) = blue, 1 (dense) = red (cool to warm).
+    _densityColor(dens) {
+        const h = ((1 - Math.max(0, Math.min(1, dens))) * 220) / 360;
+        const c = new THREE.Color().setHSL(h, 0.75, 0.55);
+        return [Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)];
+    }
+
+    // Drive colours through the existing per-frame pipeline by overwriting the node's
+    // authoritative colorR/G/B (snapshotting the originals once so we can restore).
+    _applyDensityColors() {
+        (this.nodes || []).forEach(n => {
+            const d = n.userData;
+            if (!d || d.colorR === undefined) return;
+            if (d._origColorR === undefined) {
+                d._origColorR = d.colorR; d._origColorG = d.colorG; d._origColorB = d.colorB;
+            }
+            const rgb = this._densityColor(d.localDensity || 0);
+            d.colorR = rgb[0]; d.colorG = rgb[1]; d.colorB = rgb[2];
+        });
+    }
+
+    _restoreDensityColors() {
+        (this.nodes || []).forEach(n => {
+            const d = n.userData;
+            if (!d || d._origColorR === undefined) return;
+            d.colorR = d._origColorR; d.colorG = d._origColorG; d.colorB = d._origColorB;
+        });
+    }
+
+    // Toggle the lens. labels = {title, low, high} for the legend (from the HUD button).
+    setDensityMode(on, labels) {
+        this.densityMode = !!on;
+        if (labels) this._densityLabels = labels;
+        if (this.densityMode) {
+            this._computeLocalDensity();
+            this._applyDensityColors();
+            this._renderDensityLegend();
+        } else {
+            this._restoreDensityColors();
+            this._hideDensityLegend();
+        }
+    }
+
+    _renderDensityLegend() {
+        const L = this._densityLabels || {};
+        let el = document.getElementById('density-legend');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'density-legend';
+            Object.assign(el.style, {
+                position: 'absolute', top: '10px', left: '10px', zIndex: '90',
+                fontFamily: 'var(--font-mono)', fontSize: '0.6rem', letterSpacing: '0.1em',
+                textTransform: 'uppercase', color: 'rgba(255,255,255,0.85)',
+                background: 'rgba(0,0,0,0.55)', padding: '0.4rem 0.6rem', borderRadius: '4px',
+                backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.25)',
+                display: 'flex', flexDirection: 'column', gap: '0.25rem', pointerEvents: 'none'
+            });
+            const container = document.getElementById('canvas-container');
+            if (container) container.appendChild(el);
+        }
+        el.innerHTML = '';
+        const title = document.createElement('div');
+        title.textContent = L.title || 'Local density';
+        el.appendChild(title);
+        const row = document.createElement('div');
+        Object.assign(row.style, { display: 'flex', alignItems: 'center', gap: '0.35rem' });
+        const lo = document.createElement('span');
+        lo.textContent = L.low || 'sparse';
+        const bar = document.createElement('span');
+        Object.assign(bar.style, {
+            width: '80px', height: '8px', borderRadius: '4px',
+            background: 'linear-gradient(to right, hsl(220,75%,55%), hsl(150,75%,55%), hsl(60,75%,55%), hsl(0,75%,55%))'
+        });
+        const hi = document.createElement('span');
+        hi.textContent = L.high || 'dense';
+        row.appendChild(lo); row.appendChild(bar); row.appendChild(hi);
+        el.appendChild(row);
+        el.style.display = 'flex';
+    }
+
+    _hideDensityLegend() {
+        const el = document.getElementById('density-legend');
+        if (el) el.style.display = 'none';
+    }
+
     // Flat segment endpoints for a square grid in the XZ plane (matches GridHelper).
     _gridSegments(size, divisions) {
         const half = size / 2;
@@ -3573,6 +3693,14 @@ class TelarisNetwork {
         // Drive the fractal substrate weave depth from this galaxy's measured link
         // density now that the graph exists (no-op unless a fractal theme is active).
         this._applyMeasuredFractalDepth();
+
+        // Prime per-node local density and, if the density lens is on, re-apply its
+        // colours to the freshly built nodes (survives galaxy switches).
+        this._computeLocalDensity();
+        if (this.densityMode) {
+            this._applyDensityColors();
+            this._renderDensityLegend();
+        }
     }
 
     updateConnections(deltaTimeSec) {
@@ -4020,7 +4148,10 @@ class TelarisNetwork {
                     // so a colour cloud follows the cursor. Other themes use the raw colour.
                     const rzDark = isRhizome ? 1.0 : 1;
                     if (m.color) {
-                        if (isRhizome) {
+                        // Density lens owns the RGB when on; skip the rhizome colour cloud
+                        // so it does not overwrite the density colours (hover still works,
+                        // it only touches emissiveIntensity/scale).
+                        if (isRhizome && !this.densityMode) {
                             const gr = RZ_NODE_GRAY[0], gg = RZ_NODE_GRAY[1], gb = RZ_NODE_GRAY[2];
                             const rr = (d.colorR / 255) * rzDark, rg = (d.colorG / 255) * rzDark, rb = (d.colorB / 255) * rzDark;
                             m.color.setRGB(

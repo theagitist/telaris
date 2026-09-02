@@ -305,6 +305,19 @@ if (isset($fractalCreditKeys[$constellationTheme ?? ''])):
             </button>
         </div>
 
+        <!-- Density map lens (bottom-left). Opt-in, default off, all galaxies,
+             visitor + admin: recolours wormholes by their local link density.
+             Wired by id in js/main.js; state persists in localStorage. -->
+        <button id="density-map-toggle" type="button" aria-pressed="false"
+                data-title="<?php echo htmlspecialchars(t('hud_density_legend_title', 'Local density')); ?>"
+                data-low="<?php echo htmlspecialchars(t('hud_density_low', 'sparse')); ?>"
+                data-high="<?php echo htmlspecialchars(t('hud_density_high', 'dense')); ?>"
+                class="fixed bottom-3 left-3 z-[210]"
+                style="background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.18); border-radius:9999px; padding:0.35rem 0.85rem; color:#fff; font-weight:500; cursor:pointer; backdrop-filter:blur(4px); display:flex; align-items:center; gap:0.5rem; transition:border-color 150ms, background 150ms; font-size:0.85rem;">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none"/></svg>
+            <span><?php echo htmlspecialchars(t('hud_density_map_label', 'Density map')); ?></span>
+        </button>
+
         <!-- Auto-tour HUD: Play button (manual start) and during-tour player overlay -->
         <button id="tour-play-btn" class="hidden fixed bottom-6 right-6 z-[260] bg-black/70 hover:bg-black/90 border border-white/30 hover:border-[#00ffcc] text-white text-xs uppercase tracking-[0.18em] px-4 py-2 rounded-[2px] transition-all" type="button" aria-label="<?php echo htmlspecialchars($projectTourStartAriaText ?? 'Start tour'); ?>">
             <span class="inline-flex items-center gap-2">

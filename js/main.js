@@ -60,6 +60,7 @@ function initTelaris() {
         const grid = new WormholeGrid2D(app);
         window.telarisGrid2D = grid;
         wireViewModeSwitch(app, grid);
+        wireDensityToggle(app);
         // Re-render the grid whenever the underlying node set changes (cluster
         // drill, back navigation). loadDataForConstellation is the single
         // funnel for new node data, so a small wrapper around it suffices.
@@ -206,6 +207,28 @@ function wireViewModeSwitch(app, grid) {
         if (localStorage.getItem(VIEW_MODE_STORAGE_KEY) === '2d') initial = '2d';
     } catch (e) { /* ignore */ }
     setMode(initial);
+}
+
+const DENSITY_MODE_STORAGE_KEY = 'telaris.densityMap';
+
+// Wire the density-map lens toggle (F). Opt-in, default off, per-viewer persisted.
+// The button is always rendered (all galaxies, visitor + admin); the app method
+// does the recolour + legend.
+function wireDensityToggle(app) {
+    const btn = document.getElementById('density-map-toggle');
+    if (!btn || !app || !app.setDensityMode) return;
+    const labels = { title: btn.dataset.title, low: btn.dataset.low, high: btn.dataset.high };
+    const set = (on) => {
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.style.background = on ? 'rgba(79,70,229,0.85)' : 'rgba(0,0,0,0.55)';
+        btn.style.borderColor = on ? 'rgba(199,210,254,0.9)' : 'rgba(255,255,255,0.18)';
+        app.setDensityMode(on, labels);
+        try { localStorage.setItem(DENSITY_MODE_STORAGE_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
+    };
+    btn.addEventListener('click', () => set(btn.getAttribute('aria-pressed') !== 'true'));
+    let initial = false;
+    try { initial = localStorage.getItem(DENSITY_MODE_STORAGE_KEY) === '1'; } catch (e) { /* ignore */ }
+    if (initial) set(true);
 }
 
 function patchAppForGridRefresh(app, grid) {
