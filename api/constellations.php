@@ -143,6 +143,11 @@ try {
                 $out = [];
                 foreach ($rows as $r) {
                     $p = fractal_profile((int)$r['id'], $fuzzy);
+                    // Isolates = wormholes with no shared-keyword links (degree 0).
+                    // Fragmented = more than one connected piece once lone isolates are
+                    // set aside (a stray isolate is not "fragmented", it is "isolated").
+                    $isolates = $p['degree_hist'][0] ?? 0;
+                    $comps = $p['components'] ?? 0;
                     // Strip the heavy arrays (network, box points, spectrum curve): the
                     // fleet table needs only the scalar summary.
                     $out[] = [
@@ -151,8 +156,10 @@ try {
                         'node_count' => $p['node_count'] ?? 0,
                         'edge_count' => $p['edge_count'] ?? 0,
                         'density' => $p['density'] ?? 0.0,
-                        'components' => $p['components'] ?? 0,
+                        'components' => $comps,
                         'largest_component' => $p['largest_component'] ?? 0,
+                        'isolates' => $isolates,
+                        'fragmented' => ($comps - $isolates) > 1,
                         'computed' => $p['computed'] ?? false,
                         'reason' => $p['reason'] ?? null,
                         'd_B' => $p['d_B'] ?? null,

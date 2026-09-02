@@ -37,6 +37,12 @@
                     <span><?= t_attr('gem_fractal_stat_components', 'Connected pieces') ?>: <b id="fp-comps"></b></span>
                 </div>
 
+                <!-- Cross-galaxy bridge ratio, shown only for a cluster (union profile). -->
+                <div id="fp-bridges" class="mt-3 hidden">
+                    <div class="text-sm text-gray-700"><?= t_attr('gem_fractal_bridges_label', 'Cross-galaxy connections') ?>: <b id="fp-bridges-val"></b></div>
+                    <p class="text-xs text-gray-500 mt-0.5 max-w-sm"><?= t_attr('gem_fractal_bridges_caption', 'How many connections cross from one member galaxy to another. A high share means the cluster is genuinely woven together, not just galaxies side by side.') ?></p>
+                </div>
+
                 <!-- The literal wormhole network, shown for any small galaxy. -->
                 <div id="fp-network-section" class="mt-4 hidden">
                     <div class="text-sm font-medium text-gray-700"><?= t_attr('gem_fractal_network_label', 'Wormhole network') ?></div>

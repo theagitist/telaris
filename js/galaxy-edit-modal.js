@@ -368,6 +368,17 @@
             fpSetText('fp-density', Math.round((p.density || 0) * 100) + '%');
             fpSetText('fp-comps', String(p.components));
 
+            // Cross-galaxy bridge ratio, present only on a cluster-union profile.
+            const bridges = document.getElementById('fp-bridges');
+            if (bridges) {
+                if (p.bridge_ratio != null) {
+                    fpSetText('fp-bridges-val', Math.round((p.bridge_ratio || 0) * 100) + '% (' + (p.bridge_count || 0) + ' / ' + (p.edge_count || 0) + ')');
+                    bridges.classList.remove('hidden');
+                } else {
+                    bridges.classList.add('hidden');
+                }
+            }
+
             // The literal network, shown for any small galaxy (present in the payload).
             const networkSection = document.getElementById('fp-network-section');
             if (p.graph) {
@@ -973,14 +984,20 @@
             if (va > vb) return 1 * dir;
             return 0;
         });
+        const F = GXM.fractal || {};
         let html = '';
         for (const p of sorted) {
+            // Descriptive flags only (editorial-sovereignty rule): what is, not what is wrong.
+            const notes = [];
+            if (p.fragmented) notes.push(ffEsc(F.flagFragmented || 'Fragmented'));
+            if ((p.isolates || 0) > 0) notes.push(p.isolates + ' ' + ffEsc(F.flagIsolated || 'isolated'));
             html += `<tr class="border-b border-gray-200">
                 <td class="py-1.5 px-2 text-gray-800">${ffEsc(p.name)}</td>
                 <td class="py-1.5 px-2 text-gray-700">${ffEsc(fpShapeWord(p, S))}</td>
                 <td class="py-1.5 px-2 text-right text-gray-700">${p.node_count || 0}</td>
                 <td class="py-1.5 px-2 text-right text-gray-700">${p.edge_count || 0}</td>
                 <td class="py-1.5 px-2 text-right text-gray-700">${Math.round((p.density || 0) * 100)}%</td>
+                <td class="py-1.5 px-2 text-gray-500 text-xs">${notes.join(', ')}</td>
             </tr>`;
         }
         rows.innerHTML = html;

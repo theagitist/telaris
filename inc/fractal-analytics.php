@@ -490,13 +490,40 @@ function fractal_profile_cluster(int $clusterId, bool $fuzzy): array
 {
     $memberIds = db_get_cluster_member_ids($clusterId);
     $nodeIds = [];
+    $galaxyOf = []; // node id => its owning member-galaxy id
     if ($memberIds) {
         foreach (db_get_nodes_for_constellations($memberIds) as $n) {
-            $nodeIds[] = (int)$n['id'];
+            $id = (int)$n['id'];
+            $nodeIds[] = $id;
+            $galaxyOf[$id] = (int)$n['constellation_id'];
         }
     }
     $adj = fractal_adjacency_for_nodes($nodeIds, $fuzzy);
-    return fractal_profile_from_adjacency($adj);
+    $profile = fractal_profile_from_adjacency($adj);
+
+    // Bridge ratio: how many edges cross galaxy lines (endpoints in different member
+    // galaxies). This is the "is this cluster genuinely woven together or just galaxies
+    // side by side" number. Counted over the same adjacency, each undirected edge once.
+    $bridges = 0;
+    $seen = [];
+    foreach ($adj as $u => $neighbors) {
+        foreach ($neighbors as $v) {
+            $k = $u < $v ? "{$u}:{$v}" : "{$v}:{$u}";
+            if (isset($seen[$k])) {
+                continue;
+            }
+            $seen[$k] = true;
+            if (($galaxyOf[$u] ?? 0) !== ($galaxyOf[$v] ?? 0)) {
+                $bridges++;
+            }
+        }
+    }
+    $edges = $profile['edge_count'] ?? 0;
+    return array_merge($profile, [
+        'member_count' => count($memberIds),
+        'bridge_count' => $bridges,
+        'bridge_ratio' => $edges > 0 ? $bridges / $edges : 0.0,
+    ]);
 }
 
 /**

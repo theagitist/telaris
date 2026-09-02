@@ -5937,6 +5937,8 @@ document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(fo
             'fleetLoading' => t('gem_fractal_fleet_loading', 'Reading the galaxies…'),
             'fleetEmpty' => t('gem_fractal_fleet_empty', 'No galaxies to show.'),
             'fleetError' => t('gem_fractal_error', 'Could not read this galaxy.'),
+            'flagFragmented' => t('gem_fractal_flag_fragmented', 'Fragmented'),
+            'flagIsolated' => t('gem_fractal_flag_isolates', 'isolated'),
             'shapes' => [
                 'chain' => t('gem_fractal_shape_chain', 'Chain-like'),
                 'web' => t('gem_fractal_shape_web', 'Web'),

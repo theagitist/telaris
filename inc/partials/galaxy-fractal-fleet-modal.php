@@ -28,6 +28,7 @@
                             <th class="py-2 px-2 text-right ff-sort cursor-pointer select-none hover:text-gray-900" data-sort="node_count"><?= t_attr('gem_fractal_stat_nodes', 'Wormholes') ?><span class="ff-arrow"></span></th>
                             <th class="py-2 px-2 text-right ff-sort cursor-pointer select-none hover:text-gray-900" data-sort="edge_count"><?= t_attr('gem_fractal_stat_edges', 'Connections') ?><span class="ff-arrow"></span></th>
                             <th class="py-2 px-2 text-right ff-sort cursor-pointer select-none hover:text-gray-900" data-sort="density"><?= t_attr('gem_fractal_stat_density', 'Link density') ?><span class="ff-arrow"></span></th>
+                            <th class="py-2 px-2"><?= t_attr('gem_fractal_fleet_col_flags', 'Notes') ?></th>
                         </tr>
                     </thead>
                     <tbody id="ff-rows"></tbody>
