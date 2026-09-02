@@ -196,4 +196,11 @@ body.font-sans {
   }
   .tbl-cards td:empty { display: none; }
 }
+
+/* Horizontal-only table scroll. `overflow-x: auto` alone makes overflow-y
+   compute to `auto` (CSS spec), which adds a spurious SECOND vertical scrollbar
+   on a tall table once a page scrollbar narrows the viewport enough to trip the
+   horizontal one. Pinning overflow-y removes that second scrollbar; the wrapper
+   still scrolls horizontally when a table is genuinely wider than the page. */
+.tbl-scroll-x { overflow-x: auto; overflow-y: hidden; }
 </style>
