@@ -1422,6 +1422,7 @@ foreach ($importantExtensions as $ext => $name) {
                         <div class="flex items-center gap-3">
                             <h2 class="text-gray-800 text-base font-semibold"><?= t_attr('admin_heading_galaxies', 'Galaxies') ?> (<span id="constellations-count">...</span>)</h2>
                             <button type="button" onclick="openCreateConstellation()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_new_galaxy', 'New Galaxy') ?></button>
+                            <button type="button" onclick="openFractalFleetModal()" class="text-blue-600 hover:text-blue-800 font-medium text-base"><?= t_attr('admin_btn_fractal_fleet', 'Galaxy shapes') ?></button>
                             <?php bridges_admin_render('button'); ?>
                         </div>
 
@@ -4467,6 +4468,7 @@ foreach ($importantExtensions as $ext => $name) {
                                         <li><a onclick="event.stopPropagation(); openClusterEdit(${cJsonAttr})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionEdit || 'Edit')}</a></li>
                                         <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionView || 'View')}</a></li>
                                         <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionCopyUrl || 'Copy URL')}</a></li>
+                                        <li><a onclick="event.stopPropagation(); openFractalProfileModal(${cl.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionFractalProfile || 'Galaxy shape')}</a></li>
                                         <li><a onclick="event.stopPropagation(); duplicateCluster(${cJsonAttr})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionDuplicate || 'Duplicate')}</a></li>
                                         <li><a onclick="event.stopPropagation(); triggerDelete('delete_cluster', '${cl.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">${escapeHtmlAdmin(ADM.actionDelete || 'Delete')}</a></li>
                                     </ul>
@@ -5797,6 +5799,7 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
     <!-- Constellation Edit Modal -->
     <?php $isAdmin = true; require __DIR__ . '/../inc/partials/galaxy-edit-modal.php'; ?>
     <?php require __DIR__ . '/../inc/partials/galaxy-fractal-modal.php'; ?>
+    <?php require __DIR__ . '/../inc/partials/galaxy-fractal-fleet-modal.php'; ?>
 
     <!-- Duplicate Constellation Modal -->
     <dialog id="duplicate_constellation_modal" class="modal">
@@ -5925,6 +5928,19 @@ document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(fo
                 'too_shallow' => t('gem_fractal_reason_too_shallow', ''),
                 'too_large' => t('gem_fractal_reason_too_large', ''),
                 'cluster' => t('gem_fractal_reason_cluster', ''),
+            ],
+            'fleetLoading' => t('gem_fractal_fleet_loading', 'Reading the galaxies…'),
+            'fleetEmpty' => t('gem_fractal_fleet_empty', 'No galaxies to show.'),
+            'fleetError' => t('gem_fractal_error', 'Could not read this galaxy.'),
+            'shapes' => [
+                'chain' => t('gem_fractal_shape_chain', 'Chain-like'),
+                'web' => t('gem_fractal_shape_web', 'Web'),
+                'ball' => t('gem_fractal_shape_ball', 'Dense ball'),
+                'few' => t('gem_fractal_shape_few', 'Too few to tell'),
+                'tight' => t('gem_fractal_shape_tight', 'Tight cluster'),
+                'loose' => t('gem_fractal_shape_loose', 'Loose web'),
+                'split' => t('gem_fractal_shape_split', 'Fragmented'),
+                'huge' => t('gem_fractal_shape_huge', 'Very large'),
             ],
         ],
     ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;

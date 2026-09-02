@@ -111,12 +111,56 @@ try {
                     api_error('404.002', 'Galaxy not found.');
                 }
                 if (($info['type'] ?? 'galaxy') === 'cluster') {
-                    // v1 measures single galaxies; the cluster-union profile is a follow-up.
-                    echo json_encode(['computed' => false, 'reason' => 'cluster'], JSON_THROW_ON_ERROR);
+                    // Cluster-union profile: measure the union of the cluster's member
+                    // galaxies (incl. cross-galaxy bridge edges). Resolve fuzzy from the
+                    // cluster's own override, matching how the 3D view draws cluster edges.
+                    $mode = $info['fuzzy_keyword_matching'] ?? 'inherit';
+                    $fuzzy = $mode === 'on' ? true : ($mode === 'off' ? false : db_get_fuzzy_keyword_matching());
+                    echo json_encode(fractal_profile_cluster($id, $fuzzy), JSON_THROW_ON_ERROR);
                     return;
                 }
                 $fuzzy = db_get_fuzzy_keyword_matching();
                 echo json_encode(fractal_profile($id, $fuzzy), JSON_THROW_ON_ERROR);
+                return;
+            }
+
+            // Fleet overview: one compact shape summary per galaxy (admin-only).
+            // ponytail: computes every galaxy on demand (no cache), fine at current
+            // scale; cache in system_meta keyed by content hash if a big instance drags.
+            if (isset($_GET['action']) && $_GET['action'] === 'fractal_fleet') {
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+                $isAdmin = isset($_SESSION['admin_user_id'], $_SESSION['admin_user_type'])
+                    && (int)$_SESSION['admin_user_type'] === 2;
+                if (!$isAdmin) {
+                    api_error('403.005', 'Access denied.');
+                }
+                $fuzzy = db_get_fuzzy_keyword_matching();
+                $pdo = getDB();
+                $rows = $pdo->query("SELECT id, name FROM constellations WHERE type = 'galaxy' ORDER BY name ASC")
+                    ->fetchAll(PDO::FETCH_ASSOC);
+                $out = [];
+                foreach ($rows as $r) {
+                    $p = fractal_profile((int)$r['id'], $fuzzy);
+                    // Strip the heavy arrays (network, box points, spectrum curve): the
+                    // fleet table needs only the scalar summary.
+                    $out[] = [
+                        'id' => (int)$r['id'],
+                        'name' => $r['name'],
+                        'node_count' => $p['node_count'] ?? 0,
+                        'edge_count' => $p['edge_count'] ?? 0,
+                        'density' => $p['density'] ?? 0.0,
+                        'components' => $p['components'] ?? 0,
+                        'largest_component' => $p['largest_component'] ?? 0,
+                        'computed' => $p['computed'] ?? false,
+                        'reason' => $p['reason'] ?? null,
+                        'd_B' => $p['d_B'] ?? null,
+                        'width' => $p['mf']['width'] ?? null,
+                        'gamma' => $p['gamma'] ?? null,
+                    ];
+                }
+                echo json_encode(['galaxies' => $out], JSON_THROW_ON_ERROR);
                 return;
             }
 

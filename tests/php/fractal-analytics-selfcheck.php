@@ -130,5 +130,29 @@ check('edge_count == 3', $stats['edge_count'] === 3);
 check('node_count == 5', $stats['node_count'] === 5);
 check('density == 0.3 (3 of 10 possible, got ' . round($stats['density'], 3) . ')', abs($stats['density'] - 0.3) < 1e-9);
 
+// --- Extracted core fractal_profile_from_adjacency (shared by single-galaxy + cluster) ---
+echo "fractal_profile_from_adjacency (extracted core):\n";
+$pathAdj = build(range(0, 10), (function () {
+    $e = [];
+    for ($i = 0; $i < 10; $i++) {
+        $e[] = [$i, $i + 1];
+    }
+    return $e;
+})());
+$prof = fractal_profile_from_adjacency($pathAdj);
+check('path core computed == true', ($prof['computed'] ?? false) === true);
+check('path core node_count == 11', ($prof['node_count'] ?? 0) === 11);
+check('path core d_B matches direct fit', isset($prof['d_B']) && abs($prof['d_B'] - $p['box']['d_B']) < 1e-6);
+check('path core includes degree_hist', isset($prof['degree_hist']));
+check('path core includes network graph (<= 80 nodes)', isset($prof['graph']['edges']));
+// Star: diameter 2 => too shallow, but stats + gamma still returned.
+$starProf = fractal_profile_from_adjacency($starAdj);
+check('star core computed == false', ($starProf['computed'] ?? true) === false);
+check('star core reason == too_shallow', ($starProf['reason'] ?? '') === 'too_shallow');
+check('star core still returns node_count', ($starProf['node_count'] ?? 0) === 21);
+// Empty graph => empty reason (the empty-cluster path).
+$emptyProf = fractal_profile_from_adjacency([]);
+check('empty core reason == empty', ($emptyProf['reason'] ?? '') === 'empty');
+
 echo "\n" . ($failures === 0 ? "ALL PASSED\n" : "$failures FAILURE(S)\n");
 exit($failures === 0 ? 0 : 1);

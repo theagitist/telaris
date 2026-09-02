@@ -150,6 +150,22 @@
         return F.summaryModerate || '';
     }
 
+    // One short shape word for the fleet table, from the same thresholds the
+    // per-galaxy summary uses. S = F.shapes.
+    function fpShapeWord(p, S) {
+        if (p.computed) {
+            if (p.d_B < 1.3) return S.chain || '';
+            if (p.d_B < 2.3) return S.web || '';
+            return S.ball || '';
+        }
+        if (p.reason === 'too_large') return S.huge || '';
+        if (p.reason === 'too_small' || p.reason === 'empty') return S.few || '';
+        const frag = (p.node_count || 0) > 0 ? (p.largest_component || 0) / p.node_count : 1;
+        if ((p.components || 1) > 1 && frag < 0.7) return S.split || '';
+        if ((p.density || 0) >= 0.5) return S.tight || '';
+        return S.loose || '';
+    }
+
     // Draw the literal wormhole network on a circular layout (dots = wormholes,
     // lines = shared-keyword links, dot size by degree). Always drawable for a
     // small galaxy, so every small galaxy gets a graph even with no fractal fit.
@@ -914,6 +930,55 @@
         if (nameEl) nameEl.textContent = name ? '· ' + name : '';
         dlg.showModal();
         loadFractalProfileIntoModal(id);
+    };
+    // Fleet overview: one shape summary per galaxy (admin Galaxies-tab toolbar).
+    async function loadFractalFleet() {
+        const loading = document.getElementById('fractal-fleet-loading');
+        const empty = document.getElementById('fractal-fleet-empty');
+        const body = document.getElementById('fractal-fleet-body');
+        const rows = document.getElementById('ff-rows');
+        const F = GXM.fractal || {};
+        const S = F.shapes || {};
+        if (loading) { loading.textContent = F.fleetLoading || 'Reading…'; loading.classList.remove('hidden'); }
+        if (empty) empty.classList.add('hidden');
+        if (body) body.classList.add('hidden');
+        if (rows) rows.innerHTML = '';
+        try {
+            const r = await fetch(`${getApiUrl()}?action=fractal_fleet`, {
+                headers: { 'X-API-Key': getApiKey(), 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') }
+            });
+            if (!r.ok) throw new Error('fleet_http_' + r.status);
+            const data = await r.json();
+            const list = (data && data.galaxies) || [];
+            if (loading) loading.classList.add('hidden');
+            if (!list.length) { if (empty) empty.classList.remove('hidden'); return; }
+            // Most substantial galaxies first (by wormhole count).
+            list.sort((a, b) => (b.node_count || 0) - (a.node_count || 0));
+            const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+                { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+            ));
+            let html = '';
+            for (const p of list) {
+                html += `<tr class="border-b border-gray-200">
+                    <td class="py-1.5 px-2 text-gray-800">${esc(p.name)}</td>
+                    <td class="py-1.5 px-2 text-gray-700">${esc(fpShapeWord(p, S))}</td>
+                    <td class="py-1.5 px-2 text-right text-gray-700">${p.node_count || 0}</td>
+                    <td class="py-1.5 px-2 text-right text-gray-700">${p.edge_count || 0}</td>
+                    <td class="py-1.5 px-2 text-right text-gray-700">${Math.round((p.density || 0) * 100)}%</td>
+                </tr>`;
+            }
+            if (rows) rows.innerHTML = html;
+            if (body) body.classList.remove('hidden');
+        } catch (e) {
+            if (loading) { loading.textContent = F.fleetError || 'Could not read the galaxies.'; loading.classList.remove('hidden'); }
+        }
+    }
+
+    window.openFractalFleetModal = function () {
+        const dlg = document.getElementById('fractal_fleet_modal');
+        if (!dlg) return;
+        dlg.showModal();
+        loadFractalFleet();
     };
     window.openCreateConstellation = openCreateConstellation;
     window.loadTourConfigIntoModal = loadTourConfigIntoModal;

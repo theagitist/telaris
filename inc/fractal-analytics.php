@@ -476,6 +476,85 @@ function fractal_profile(int $galaxyId, bool $fuzzy): array
         $adj[$b][] = $a;
     }
 
+    return fractal_profile_from_adjacency($adj);
+}
+
+/**
+ * Cluster-union profile: the same measurement over the UNION of a cluster's member
+ * galaxies, including cross-galaxy "bridge" edges (two wormholes in different member
+ * galaxies that share a keyword). A cluster is a curated alias for its member
+ * galaxies, so this is where the "is this cluster genuinely federated vs. hub-and-spoke"
+ * question actually lands. Empty cluster falls through to reason='empty'.
+ */
+function fractal_profile_cluster(int $clusterId, bool $fuzzy): array
+{
+    $memberIds = db_get_cluster_member_ids($clusterId);
+    $nodeIds = [];
+    if ($memberIds) {
+        foreach (db_get_nodes_for_constellations($memberIds) as $n) {
+            $nodeIds[] = (int)$n['id'];
+        }
+    }
+    $adj = fractal_adjacency_for_nodes($nodeIds, $fuzzy);
+    return fractal_profile_from_adjacency($adj);
+}
+
+/**
+ * Build an undirected adjacency map over an EXPLICIT set of node ids, using the same
+ * keyword-shared rule as db_get_connections (inverted index; identical keyword strings
+ * link, so links form across galaxies too) but scoped to the given nodes. Fuzzy indexes
+ * by cluster key via keyword_fuzzy_build_groups, matching db_get_connections. Isolates
+ * are kept (empty neighbour list) so counts are honest.
+ */
+function fractal_adjacency_for_nodes(array $nodeIds, bool $fuzzy): array
+{
+    $adj = [];
+    foreach ($nodeIds as $id) {
+        $adj[(int)$id] = [];
+    }
+    if (!$nodeIds) {
+        return $adj;
+    }
+
+    $nodeKeywords = db_get_keywords_for_nodes_bulk(array_map('intval', $nodeIds));
+    $itemsByNode = $fuzzy ? keyword_fuzzy_build_groups($nodeKeywords)['groups'] : $nodeKeywords;
+
+    $keyToNodes = [];
+    foreach ($itemsByNode as $nodeId => $items) {
+        foreach ($items as $key) {
+            $keyToNodes[(string)$key][] = (int)$nodeId;
+        }
+    }
+
+    $seen = [];
+    foreach ($keyToNodes as $ids) {
+        $ids = array_values(array_unique($ids));
+        $count = count($ids);
+        for ($i = 0; $i < $count; $i++) {
+            for ($j = $i + 1; $j < $count; $j++) {
+                $a = min($ids[$i], $ids[$j]);
+                $b = max($ids[$i], $ids[$j]);
+                $k = "{$a}:{$b}";
+                if (isset($seen[$k]) || !isset($adj[$a], $adj[$b])) {
+                    continue;
+                }
+                $seen[$k] = true;
+                $adj[$a][] = $b;
+                $adj[$b][] = $a;
+            }
+        }
+    }
+    return $adj;
+}
+
+/**
+ * Compute the full fractal profile from a prebuilt adjacency map (node id => neighbour
+ * ids). Pure over the graph (no DB): the shared core for both the single-galaxy and the
+ * cluster-union orchestrators. On a guard trip returns computed=false + a machine reason
+ * plus basic stats.
+ */
+function fractal_profile_from_adjacency(array $adj): array
+{
     $components = fractal_components($adj);
     $stats = fractal_graph_stats($adj, $components);
 
