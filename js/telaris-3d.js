@@ -1155,6 +1155,38 @@ class TelarisNetwork {
         this.bgScene.add(this.glitchyGrid);
     }
 
+    // D: set the fractal-substrate weave depth from the galaxy's own measured link
+    // density (denser -> deeper weave), then rebuild the substrate once. Uses the
+    // connection graph already built by createConnections, so no server cost. No-op
+    // unless a fractal substrate theme (cornrow/adire) is active.
+    _applyMeasuredFractalDepth() {
+        const fractalKind = this.currentTheme && this.currentTheme.background && this.currentTheme.background.fractal;
+        if (!fractalKind) return;
+        const n = this.nodes ? this.nodes.length : 0;
+        const m = this.connections ? this.connections.length : 0;
+        const possible = n >= 2 ? (n * (n - 1)) / 2 : 0;
+        const density = possible > 0 ? m / possible : 0;
+        // ponytail: linear density -> intensity, clamped; add a curve if the realistic
+        // density range (mostly dense here) makes the depths bunch up.
+        const intensity = Math.max(0, Math.min(1, density));
+        if (this._shapeIntensity !== undefined && Math.abs(this._shapeIntensity - intensity) < 0.001) return;
+        this._shapeIntensity = intensity;
+        this._rebuildGlitchyGrid();
+    }
+
+    _rebuildGlitchyGrid() {
+        if (this.glitchyGrid) {
+            this.bgScene.remove(this.glitchyGrid);
+            this.glitchyGrid.traverse(o => {
+                if (o.geometry) o.geometry.dispose();
+                if (o.material) {
+                    Array.isArray(o.material) ? o.material.forEach(x => x.dispose()) : o.material.dispose();
+                }
+            });
+        }
+        this.initGlitchyGrid();
+    }
+
     // Flat segment endpoints for a square grid in the XZ plane (matches GridHelper).
     _gridSegments(size, divisions) {
         const half = size / 2;
@@ -1176,6 +1208,14 @@ class TelarisNetwork {
     _fractalSegments(kind, size) {
         const half = size / 2;
         const pts = [];
+        // The weave depth is driven by the galaxy's own measured link density
+        // (this._shapeIntensity, 0..1; denser galaxy -> deeper, more intricate weave).
+        // This modulates the Eglash-cited African fractal pattern by the measured
+        // structure; it does not change the pattern's tradition. Defaults to the base
+        // look (0.5) before the graph is measured. CR_DEPTH / AD_DEPTH are the baselines.
+        const intensity = (this._shapeIntensity !== undefined) ? this._shapeIntensity : 0.5;
+        const crDepth = Math.max(3, Math.min(CR_DEPTH + 1, Math.round((CR_DEPTH - 2) + intensity * 3)));
+        const adDepth = Math.max(2, Math.min(AD_DEPTH + 1, Math.round((AD_DEPTH - 1) + intensity * 2)));
         // Shared square-outline emitter (flat XZ), used by the fractal generators.
         const square = (cx, cz, r, angle) => {
             const cs = Math.cos(angle), sn = Math.sin(angle);
@@ -1197,7 +1237,7 @@ class TelarisNetwork {
                     carpet(cx + ix * 2 * t, cz + iz * 2 * t, t, depth - 1);
                 }
             };
-            carpet(0, 0, R, AD_DEPTH);
+            carpet(0, 0, R, adDepth);
             return pts;
         }
         // One nested-square motif centred at (cx, cz), recursed CR_DEPTH deep.
@@ -1221,7 +1261,7 @@ class TelarisNetwork {
             for (let iz = 0; iz < tiles; iz++) {
                 const cx = -half + cell * (ix + 0.5);
                 const cz = -half + cell * (iz + 0.5);
-                motif(cx, cz, rad, 0, CR_DEPTH);
+                motif(cx, cz, rad, 0, crDepth);
             }
         }
         return pts;
@@ -3529,6 +3569,10 @@ class TelarisNetwork {
                                         ring.raycast = () => {}; // Make ring non-clickable
                                         centerpiece.add(ring);
                                     }        }
+
+        // Drive the fractal substrate weave depth from this galaxy's measured link
+        // density now that the graph exists (no-op unless a fractal theme is active).
+        this._applyMeasuredFractalDepth();
     }
 
     updateConnections(deltaTimeSec) {
