@@ -268,7 +268,7 @@ $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
             <?php if ($isAdmin): ?>
             <div id="fractal-profile-panel" class="mb-4 border-t border-gray-200 pt-4">
                 <label class="block mb-1 text-gray-800 font-medium text-sm"><?= t_attr('gem_fractal_title', 'Fractal profile') ?></label>
-                <p class="text-xs text-gray-500 mb-3"><?= t_attr('gem_fractal_intro', 'Read-only diagnostic. Measures the structure of this galaxy\'s keyword-shared graph (wormholes linked when they share a keyword). It authors nothing.') ?></p>
+                <p class="text-xs text-gray-500 mb-3"><?= t_attr('gem_fractal_intro', 'Read-only diagnostic. Measures the structure of this galaxy\'s keyword-shared graph (wormholes linked when they share a keyword).') ?></p>
 
                 <p id="fractal-profile-loading" class="text-xs text-gray-500 italic"><?= t_attr('gem_fractal_loading', 'Measuring…') ?></p>
                 <p id="fractal-profile-nocompute" class="text-xs text-gray-600 hidden"></p>
