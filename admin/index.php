@@ -2779,6 +2779,7 @@ foreach ($importantExtensions as $ext => $name) {
             'actionView' => t('admin_action_view', 'View'),
             'actionCopyUrl' => t('admin_action_copy_url', 'Copy URL'),
             'actionKeywordCanvas' => t('admin_action_keyword_canvas', 'Keyword canvas'),
+            'actionFractalProfile' => t('admin_action_fractal_profile', 'Galaxy shape'),
             'actionDuplicate' => t('admin_action_duplicate', 'Duplicate'),
             'actionRefresh' => t('admin_action_refresh', 'Refresh'),
             'actionDelete' => t('admin_action_delete', 'Delete'),
@@ -4222,6 +4223,7 @@ foreach ($importantExtensions as $ext => $name) {
                                         <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionView || 'View')}</a></li>
                                         <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionCopyUrl || 'Copy URL')}</a></li>
                                         <li><a href="../edit/keyword-canvas.php?galaxy_id=${c.id}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionKeywordCanvas || 'Keyword canvas')}</a></li>
+                                        <li><a onclick="event.stopPropagation(); openFractalProfileModal(${c.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionFractalProfile || 'Galaxy shape')}</a></li>
                                         <li><a onclick="event.stopPropagation(); duplicateConstellation(${cJsonAttr})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionDuplicate || 'Duplicate')}</a></li>
                                         ${c.import_source ? `<li><a onclick="event.stopPropagation(); bridgeRefreshConstellation(${c.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-purple-600 text-xs">${escapeHtmlAdmin(ADM.actionRefresh || 'Refresh')}</a></li>` : ''}
                                         ${!c.is_default ? `<li><a onclick="event.stopPropagation(); triggerDelete('delete_constellation', '${c.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">${escapeHtmlAdmin(ADM.actionDelete || 'Delete')}</a></li>` : ''}
@@ -5794,6 +5796,7 @@ roberto.aguilar@example.org, Roberto, Aguilar, Admin, no</pre>
 
     <!-- Constellation Edit Modal -->
     <?php $isAdmin = true; require __DIR__ . '/../inc/partials/galaxy-edit-modal.php'; ?>
+    <?php require __DIR__ . '/../inc/partials/galaxy-fractal-modal.php'; ?>
 
     <!-- Duplicate Constellation Modal -->
     <dialog id="duplicate_constellation_modal" class="modal">
@@ -5903,7 +5906,8 @@ document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(fo
             'dBHigh' => t('gem_fractal_dB_high', ''),
             'widthNarrow' => t('gem_fractal_width_narrow', ''),
             'widthWide' => t('gem_fractal_width_wide', ''),
-            'error' => t('gem_fractal_error', 'Could not load the fractal profile.'),
+            'fitLabel' => t('gem_fractal_fit_label', 'fit quality'),
+            'error' => t('gem_fractal_error', 'Could not read this galaxy.'),
             'reasons' => [
                 'empty' => t('gem_fractal_reason_empty', ''),
                 'too_small' => t('gem_fractal_reason_too_small', ''),

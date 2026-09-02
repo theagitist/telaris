@@ -116,16 +116,16 @@
         await Promise.all([
             loadTourConfigIntoModal(c.id),
             loadGalaxyTagsIntoModal(c.id),
-            loadFractalProfileIntoModal(c.id),
         ]);
         document.getElementById('constellation_modal').showModal();
         gemAutosave.endPopulate(); // resume autosave now that the form reflects the galaxy
     }
 
     // ---------------------------------------------------------------------
-    // Fractal profile (admin-only read-only panel). Computed on demand by
-    // api/constellations.php?action=fractal_profile. The panel is rendered only
-    // for admins, so the guard below means editors never fetch (and never 403).
+    // Fractal profile (admin-only, dedicated modal launched from the galaxy row
+    // Actions menu). Computed on demand by api/constellations.php?action=fractal_profile.
+    // The modal exists only on the admin page, so the guard means editors never
+    // fetch (and never 403).
     // ---------------------------------------------------------------------
     function fpSetText(id, text) {
         const el = document.getElementById(id);
@@ -161,7 +161,7 @@
     }
 
     async function loadFractalProfileIntoModal(constellationId) {
-        const panel = document.getElementById('fractal-profile-panel');
+        const panel = document.getElementById('fractal_profile_modal');
         if (!panel) return; // admin-only surface; editors never render it
         const loading = document.getElementById('fractal-profile-loading');
         const nocompute = document.getElementById('fractal-profile-nocompute');
@@ -185,18 +185,21 @@
                 }
                 return;
             }
-            fpSetText('fp-dB', p.d_B.toFixed(3));
-            fpSetText('fp-dB-r2', p.d_B_r2 != null ? '(R² ' + p.d_B_r2.toFixed(2) + ')' : '');
-            fpSetText('fp-dB-reading', fpDbReading(p.d_B, F));
-            fpSetText('fp-width', p.mf.width.toFixed(3));
-            fpSetText('fp-width-reading', (p.mf.width < 0.5 ? (F.widthNarrow || '') : (F.widthWide || '')));
-            fpSetText('fp-dims', [p.mf.D0, p.mf.D1, p.mf.D2].map(x => x.toFixed(2)).join(' / '));
-            fpSetText('fp-gamma', p.gamma != null ? p.gamma.toFixed(2) : '—');
+            // Plain-language summary: what the shape is + how even the linking is.
+            const summary = [fpDbReading(p.d_B, F), (p.mf.width < 0.5 ? (F.widthNarrow || '') : (F.widthWide || ''))]
+                .filter(Boolean).join(' ');
+            fpSetText('fp-summary', summary);
+            // Concrete counts.
             fpSetText('fp-nodes', String(p.node_count));
             fpSetText('fp-edges', String(p.edge_count));
-            fpSetText('fp-meandeg', p.mean_degree.toFixed(1));
             fpSetText('fp-comps', String(p.components));
             fpSetText('fp-diam', String(p.diameter));
+            // Measurements drawer.
+            fpSetText('fp-dB', p.d_B.toFixed(3));
+            fpSetText('fp-dB-r2', p.d_B_r2 != null ? '(' + (F.fitLabel || 'fit') + ' ' + p.d_B_r2.toFixed(2) + ')' : '');
+            fpSetText('fp-width', p.mf.width.toFixed(3));
+            fpSetText('fp-dims', [p.mf.D0, p.mf.D1, p.mf.D2].map(x => x.toFixed(2)).join(' / '));
+            fpSetText('fp-gamma', p.gamma != null ? p.gamma.toFixed(2) : '—');
             fpDrawSpectrum(p.mf);
             if (body) body.classList.remove('hidden');
         } catch (e) {
@@ -713,6 +716,16 @@
 
     // Expose so inline onclick handlers and the row builders can call them.
     window.editConstellation = editConstellation;
+
+    // Open the dedicated fractal-profile modal (admin galaxy row Actions menu).
+    window.openFractalProfileModal = function (id, name) {
+        const dlg = document.getElementById('fractal_profile_modal');
+        if (!dlg) return;
+        const nameEl = document.getElementById('fp-galaxy-name');
+        if (nameEl) nameEl.textContent = name ? '· ' + name : '';
+        dlg.showModal();
+        loadFractalProfileIntoModal(id);
+    };
     window.openCreateConstellation = openCreateConstellation;
     window.loadTourConfigIntoModal = loadTourConfigIntoModal;
     window.updateTourFieldVisibility = updateTourFieldVisibility;
