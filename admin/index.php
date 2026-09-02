@@ -4469,7 +4469,7 @@ foreach ($importantExtensions as $ext => $name) {
                                         <li><a onclick="event.stopPropagation(); openClusterEdit(${cJsonAttr})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionEdit || 'Edit')}</a></li>
                                         <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionView || 'View')}</a></li>
                                         <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionCopyUrl || 'Copy URL')}</a></li>
-                                        <li><a onclick="event.stopPropagation(); openFractalProfileModal(${cl.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionClusterShape || 'Cluster shape')}</a></li>
+                                        <li><a onclick="event.stopPropagation(); openFractalProfileModal(${cl.id}, ${escapeHtmlAdmin(cNameJson)}, true)" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionClusterShape || 'Cluster shape')}</a></li>
                                         <li><a onclick="event.stopPropagation(); duplicateCluster(${cJsonAttr})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionDuplicate || 'Duplicate')}</a></li>
                                         <li><a onclick="event.stopPropagation(); triggerDelete('delete_cluster', '${cl.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">${escapeHtmlAdmin(ADM.actionDelete || 'Delete')}</a></li>
                                     </ul>
@@ -5905,6 +5905,10 @@ document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(fo
         'labelFailedPrefix' => t('editor_gxm_label_failed_prefix', 'Failed: %s'),
         'errUpdateFailedFallback' => t('editor_gxm_err_update_failed_fallback', 'Update failed'),
         'fractal' => [
+            'title' => t('gem_fractal_title', 'How this galaxy is shaped'),
+            'titleCluster' => t('gem_fractal_title_cluster', 'How this cluster is shaped'),
+            'intro' => t('gem_fractal_intro', ''),
+            'introCluster' => t('gem_fractal_intro_cluster', ''),
             'dBLow' => t('gem_fractal_dB_low', ''),
             'dBMid' => t('gem_fractal_dB_mid', ''),
             'dBHigh' => t('gem_fractal_dB_high', ''),

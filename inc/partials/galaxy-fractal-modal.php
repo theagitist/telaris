@@ -13,14 +13,14 @@
     <div class="modal-box bg-white !pt-0 max-w-lg">
         <div class="-mx-6 px-6 py-4 bg-neutral text-neutral-content rounded-t-2xl">
             <h3 class="font-bold text-xl">
-                <?= t_attr('gem_fractal_title', 'How this galaxy is shaped') ?>
+                <span id="fp-title-text"><?= t_attr('gem_fractal_title', 'How this galaxy is shaped') ?></span>
                 <span id="fp-galaxy-name" class="font-normal opacity-80"></span>
             </h3>
             <div class="text-xs opacity-70 mt-0.5"><?= t_attr('gem_fractal_subtitle', 'Fractal profile · read-only') ?></div>
         </div>
 
         <div class="mt-4">
-            <p class="text-sm text-gray-500 mb-4"><?= t_attr('gem_fractal_intro', 'A quick read on how this galaxy\'s wormholes connect to each other through shared keywords.') ?></p>
+            <p id="fp-intro" class="text-sm text-gray-500 mb-4"><?= t_attr('gem_fractal_intro', 'A quick read on how this galaxy\'s wormholes connect to each other through shared keywords.') ?></p>
 
             <p id="fractal-profile-loading" class="text-sm text-gray-500 italic"><?= t_attr('gem_fractal_loading', 'Reading the galaxy…') ?></p>
             <p id="fractal-profile-nocompute" class="text-sm text-gray-600 hidden"></p>

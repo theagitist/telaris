@@ -922,10 +922,17 @@
     // Expose so inline onclick handlers and the row builders can call them.
     window.editConstellation = editConstellation;
 
-    // Open the dedicated fractal-profile modal (admin galaxy row Actions menu).
-    window.openFractalProfileModal = function (id, name) {
+    // Open the dedicated fractal-profile modal (admin galaxy/cluster row Actions menu).
+    // isCluster swaps the galaxy-worded title + intro for cluster wording, since the
+    // one modal serves both (a cluster reads over the union of its member galaxies).
+    window.openFractalProfileModal = function (id, name, isCluster) {
         const dlg = document.getElementById('fractal_profile_modal');
         if (!dlg) return;
+        const F = GXM.fractal || {};
+        const titleEl = document.getElementById('fp-title-text');
+        if (titleEl) titleEl.textContent = (isCluster ? F.titleCluster : F.title) || titleEl.textContent;
+        const introEl = document.getElementById('fp-intro');
+        if (introEl) introEl.textContent = (isCluster ? F.introCluster : F.intro) || introEl.textContent;
         const nameEl = document.getElementById('fp-galaxy-name');
         if (nameEl) nameEl.textContent = name ? '· ' + name : '';
         dlg.showModal();
