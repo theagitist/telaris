@@ -37,7 +37,14 @@
                     <span><?= t_attr('gem_fractal_stat_diameter', 'Steps across') ?>: <b id="fp-diam"></b></span>
                 </div>
 
-                <!-- The technical measurements, opt-in. -->
+                <!-- The spectrum chart, always visible. -->
+                <div class="mt-4">
+                    <div class="text-sm font-medium text-gray-700"><?= t_attr('gem_fractal_spectrum_label', 'Connection texture, f(α)') ?></div>
+                    <svg id="fp-chart" viewBox="0 0 320 210" class="w-full max-w-sm h-auto mt-1 border border-gray-200 rounded bg-gray-50" preserveAspectRatio="xMidYMid meet"></svg>
+                    <p class="text-xs text-gray-500 mt-1 max-w-sm"><?= t_attr('gem_fractal_chart_caption', 'Each dot is a level of link-density found in the galaxy. A wide arc means it mixes densely and sparsely linked areas; a narrow one means the linking is uniform. The red ring marks where most of the galaxy sits.') ?></p>
+                </div>
+
+                <!-- The raw measurements, opt-in. -->
                 <details class="mt-4">
                     <summary class="text-sm text-gray-500 cursor-pointer select-none"><?= t_attr('gem_fractal_details_toggle', 'Show the measurements') ?></summary>
                     <div class="mt-3 space-y-1.5 text-xs text-gray-600 font-mono">
@@ -45,10 +52,6 @@
                         <div><?= t_attr('gem_fractal_width_label', 'Unevenness (spectrum width)') ?>: <span id="fp-width"></span></div>
                         <div><?= t_attr('gem_fractal_gen_dims_label', 'Generalized dimensions (D0/D1/D2)') ?>: <span id="fp-dims"></span></div>
                         <div><?= t_attr('gem_fractal_gamma_label', 'Hub dominance (degree exponent γ)') ?>: <span id="fp-gamma"></span></div>
-                    </div>
-                    <div class="mt-3">
-                        <div class="text-xs text-gray-500 mb-1"><?= t_attr('gem_fractal_spectrum_label', 'Connection texture, f(α)') ?></div>
-                        <svg id="fp-chart" viewBox="0 0 220 120" class="w-56 h-28 border border-gray-200 rounded bg-gray-50" preserveAspectRatio="xMidYMid meet"></svg>
                     </div>
                 </details>
             </div>

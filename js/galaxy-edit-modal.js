@@ -138,26 +138,84 @@
         return F.dBHigh || '';
     }
 
-    function fpDrawSpectrum(mf) {
+    // Draw the multifractal spectrum f(alpha) as a labelled chart: axes with tick
+    // values, plain axis labels, the data points, the peak highlighted, and a
+    // "spread" bracket showing the width (the interpretable quantity).
+    function fpDrawSpectrum(mf, F) {
         const svg = document.getElementById('fp-chart');
         if (!svg) return;
         while (svg.firstChild) svg.removeChild(svg.firstChild);
+        const NS = 'http://www.w3.org/2000/svg';
+        const el = (name, attrs) => {
+            const e = document.createElementNS(NS, name);
+            for (const k in attrs) e.setAttribute(k, attrs[k]);
+            return e;
+        };
+        const txt = (x, y, s, attrs) => {
+            const t = el('text', Object.assign({ x: x, y: y }, attrs || {}));
+            t.textContent = s;
+            return t;
+        };
+
         const alpha = mf.alpha || [];
         const f = mf.falpha || [];
-        if (alpha.length < 2) return;
-        const W = 220, H = 120, pad = 14;
-        const amin = Math.min(...alpha), amax = Math.max(...alpha);
-        const fmin = Math.min(...f), fmax = Math.max(...f);
-        const ax = a => pad + (amax === amin ? 0.5 : (a - amin) / (amax - amin)) * (W - 2 * pad);
-        const ay = v => (H - pad) - (fmax === fmin ? 0.5 : (v - fmin) / (fmax - fmin)) * (H - 2 * pad);
-        const NS = 'http://www.w3.org/2000/svg';
+        if (alpha.length < 2) {
+            svg.appendChild(txt(160, 100, '—', { 'text-anchor': 'middle', 'font-size': '12', fill: '#94a3b8' }));
+            return;
+        }
+
+        const W = 320, H = 210, mL = 46, mR = 16, mT = 14, mB = 48;
+        const plotW = W - mL - mR, plotH = H - mT - mB;
+        let amin = Math.min(...alpha), amax = Math.max(...alpha);
+        const fLo = Math.min(...f), fHi = Math.max(...f);
+        if (amax - amin < 1e-9) { amin -= 0.5; amax += 0.5; } // monofractal: give the point room
+        let fmin = fLo, fmax = fHi;
+        const fpad = ((fmax - fmin) || 1) * 0.12;
+        fmin -= fpad; fmax += fpad;
+        const X = a => mL + ((a - amin) / (amax - amin)) * plotW;
+        const Y = v => mT + plotH - ((v - fmin) / (fmax - fmin)) * plotH;
+
+        // Axes.
+        svg.appendChild(el('line', { x1: mL, y1: mT + plotH, x2: mL + plotW, y2: mT + plotH, stroke: '#cbd5e1', 'stroke-width': 1 }));
+        svg.appendChild(el('line', { x1: mL, y1: mT, x2: mL, y2: mT + plotH, stroke: '#cbd5e1', 'stroke-width': 1 }));
+
+        // X ticks (min, mid, max) with values.
+        [amin, (amin + amax) / 2, amax].forEach(a => {
+            const x = X(a);
+            svg.appendChild(el('line', { x1: x, y1: mT + plotH, x2: x, y2: mT + plotH + 4, stroke: '#cbd5e1', 'stroke-width': 1 }));
+            svg.appendChild(txt(x, mT + plotH + 15, a.toFixed(2), { 'text-anchor': 'middle', 'font-size': '9', fill: '#64748b' }));
+        });
+        // Y ticks (data min, max) with values.
+        [fLo, fHi].forEach(v => {
+            const y = Y(v);
+            svg.appendChild(el('line', { x1: mL - 4, y1: y, x2: mL, y2: y, stroke: '#cbd5e1', 'stroke-width': 1 }));
+            svg.appendChild(txt(mL - 6, y + 3, v.toFixed(2), { 'text-anchor': 'end', 'font-size': '9', fill: '#64748b' }));
+        });
+
+        // Axis labels.
+        svg.appendChild(txt(mL + plotW / 2, H - 8, (F && F.axisX) || 'link concentration (α)', { 'text-anchor': 'middle', 'font-size': '10', fill: '#475569' }));
+        const cy = mT + plotH / 2;
+        svg.appendChild(txt(13, cy, (F && F.axisY) || 'share of the galaxy', { 'text-anchor': 'middle', 'font-size': '10', fill: '#475569', transform: 'rotate(-90 13 ' + cy + ')' }));
+
+        // The curve + points.
         const pts = alpha.map((a, i) => ({ a: a, v: f[i] })).sort((p, q) => p.a - q.a);
-        const poly = document.createElementNS(NS, 'polyline');
-        poly.setAttribute('points', pts.map(p => ax(p.a).toFixed(1) + ',' + ay(p.v).toFixed(1)).join(' '));
-        poly.setAttribute('fill', 'none');
-        poly.setAttribute('stroke', '#4f46e5');
-        poly.setAttribute('stroke-width', '1.5');
-        svg.appendChild(poly);
+        svg.appendChild(el('polyline', {
+            points: pts.map(p => X(p.a).toFixed(1) + ',' + Y(p.v).toFixed(1)).join(' '),
+            fill: 'none', stroke: '#4f46e5', 'stroke-width': 1.5
+        }));
+        pts.forEach(p => svg.appendChild(el('circle', { cx: X(p.a).toFixed(1), cy: Y(p.v).toFixed(1), r: 1.8, fill: '#4f46e5' })));
+
+        // Highlight the peak (where most of the galaxy sits).
+        let peak = pts[0];
+        pts.forEach(p => { if (p.v > peak.v) peak = p; });
+        svg.appendChild(el('circle', { cx: X(peak.a), cy: Y(peak.v), r: 3.4, fill: 'none', stroke: '#e11d48', 'stroke-width': 1.5 }));
+
+        // Spread bracket = the spectrum width (the interpretable quantity).
+        const by = mT + plotH - 8;
+        svg.appendChild(el('line', { x1: X(amin), y1: by, x2: X(amax), y2: by, stroke: '#94a3b8', 'stroke-width': 1, 'stroke-dasharray': '2 2' }));
+        svg.appendChild(el('line', { x1: X(amin), y1: by - 3, x2: X(amin), y2: by + 3, stroke: '#94a3b8', 'stroke-width': 1 }));
+        svg.appendChild(el('line', { x1: X(amax), y1: by - 3, x2: X(amax), y2: by + 3, stroke: '#94a3b8', 'stroke-width': 1 }));
+        svg.appendChild(txt((X(amin) + X(amax)) / 2, by - 5, ((F && F.spreadLabel) || 'spread') + ' ' + (amax - amin).toFixed(2), { 'text-anchor': 'middle', 'font-size': '9', fill: '#64748b' }));
     }
 
     async function loadFractalProfileIntoModal(constellationId) {
@@ -200,7 +258,7 @@
             fpSetText('fp-width', p.mf.width.toFixed(3));
             fpSetText('fp-dims', [p.mf.D0, p.mf.D1, p.mf.D2].map(x => x.toFixed(2)).join(' / '));
             fpSetText('fp-gamma', p.gamma != null ? p.gamma.toFixed(2) : '—');
-            fpDrawSpectrum(p.mf);
+            fpDrawSpectrum(p.mf, F);
             if (body) body.classList.remove('hidden');
         } catch (e) {
             if (loading) loading.classList.add('hidden');
