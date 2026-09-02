@@ -150,6 +150,39 @@
         return F.summaryModerate || '';
     }
 
+    // Draw the literal wormhole network on a circular layout (dots = wormholes,
+    // lines = shared-keyword links, dot size by degree). Always drawable for a
+    // small galaxy, so every small galaxy gets a graph even with no fractal fit.
+    function fpDrawNetwork(graph) {
+        const svg = document.getElementById('fp-network');
+        if (!svg || !graph) return;
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        const NS = 'http://www.w3.org/2000/svg';
+        const el = (name, attrs) => {
+            const e = document.createElementNS(NS, name);
+            for (const k in attrs) e.setAttribute(k, attrs[k]);
+            return e;
+        };
+        const n = graph.n || 0;
+        if (n < 1) return;
+        const W = 320, H = 220, cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 22;
+        const deg = graph.deg || [];
+        const maxDeg = Math.max(1, ...deg);
+        const pos = [];
+        for (let i = 0; i < n; i++) {
+            const ang = (i / n) * 2 * Math.PI - Math.PI / 2;
+            pos.push([cx + (n === 1 ? 0 : R) * Math.cos(ang), cy + (n === 1 ? 0 : R) * Math.sin(ang)]);
+        }
+        (graph.edges || []).forEach(e => {
+            const a = pos[e[0]], b = pos[e[1]];
+            if (a && b) svg.appendChild(el('line', { x1: a[0].toFixed(1), y1: a[1].toFixed(1), x2: b[0].toFixed(1), y2: b[1].toFixed(1), stroke: '#c7d2fe', 'stroke-width': 0.8 }));
+        });
+        for (let i = 0; i < n; i++) {
+            const r = 3 + 3 * ((deg[i] || 0) / maxDeg);
+            svg.appendChild(el('circle', { cx: pos[i][0].toFixed(1), cy: pos[i][1].toFixed(1), r: r.toFixed(1), fill: '#4f46e5' }));
+        }
+    }
+
     // Draw the multifractal spectrum f(alpha) as a labelled chart: axes with tick
     // values, plain axis labels, the data points, the peak highlighted, and a
     // "spread" bracket showing the width (the interpretable quantity).
@@ -267,6 +300,15 @@
             fpSetText('fp-edges', String(p.edge_count));
             fpSetText('fp-density', Math.round((p.density || 0) * 100) + '%');
             fpSetText('fp-comps', String(p.components));
+
+            // The literal network, shown for any small galaxy (present in the payload).
+            const networkSection = document.getElementById('fp-network-section');
+            if (p.graph) {
+                fpDrawNetwork(p.graph);
+                if (networkSection) networkSection.classList.remove('hidden');
+            } else if (networkSection) {
+                networkSection.classList.add('hidden');
+            }
 
             if (p.computed) {
                 // Full shape reading + spectrum chart + measurements.

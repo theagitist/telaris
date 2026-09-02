@@ -37,7 +37,14 @@
                     <span><?= t_attr('gem_fractal_stat_components', 'Connected pieces') ?>: <b id="fp-comps"></b></span>
                 </div>
 
-                <!-- Shown only when there is enough structure to chart a shape. -->
+                <!-- The literal wormhole network, shown for any small galaxy. -->
+                <div id="fp-network-section" class="mt-4 hidden">
+                    <div class="text-sm font-medium text-gray-700"><?= t_attr('gem_fractal_network_label', 'Wormhole network') ?></div>
+                    <svg id="fp-network" viewBox="0 0 320 220" class="w-full max-w-sm h-auto mt-1 border border-gray-200 rounded bg-gray-50" preserveAspectRatio="xMidYMid meet"></svg>
+                    <p class="text-xs text-gray-500 mt-1 max-w-sm"><?= t_attr('gem_fractal_network_caption', 'Each dot is a wormhole; lines join wormholes that share a keyword. Bigger dots are more-connected hubs.') ?></p>
+                </div>
+
+                <!-- Shown when a detailed fractal shape cannot be fit. -->
                 <p id="fp-note" class="mt-3 text-xs text-gray-500 hidden"></p>
 
                 <div id="fp-chart-section" class="mt-4 hidden">

@@ -23,6 +23,9 @@ declare(strict_types=1);
 const FRACTAL_MAX_NODES = 1000;
 const FRACTAL_MIN_COMPONENT = 4; // need a few points to fit a slope
 const FRACTAL_MIN_DIAMETER = 3;  // need >= 3 distinct box sizes for log-log fit
+// Small enough to draw the literal wormhole network (a larger one is a hairball;
+// it gets the statistical spectrum instead).
+const FRACTAL_NETWORK_MAX = 40;
 
 /**
  * BFS single-source shortest paths on an unweighted adjacency map.
@@ -475,6 +478,26 @@ function fractal_profile(int $galaxyId, bool $fuzzy): array
 
     $components = fractal_components($adj);
     $stats = fractal_graph_stats($adj, $components);
+
+    // For a small galaxy, include the literal network (dots + shared-keyword links)
+    // so the shape can always be drawn, even when no fractal dimension can be fit.
+    if ($stats['node_count'] >= 1 && $stats['node_count'] <= FRACTAL_NETWORK_MAX) {
+        $ids = array_keys($adj);
+        $index = array_flip($ids);
+        $edges = [];
+        foreach ($adj as $u => $neighbors) {
+            foreach ($neighbors as $v) {
+                if ($index[$u] < $index[$v]) {
+                    $edges[] = [$index[$u], $index[$v]];
+                }
+            }
+        }
+        $deg = [];
+        foreach ($ids as $u) {
+            $deg[] = count($adj[$u]);
+        }
+        $stats['graph'] = ['n' => count($ids), 'edges' => $edges, 'deg' => $deg];
+    }
 
     if ($stats['node_count'] === 0) {
         return array_merge($stats, ['computed' => false, 'reason' => 'empty']);
