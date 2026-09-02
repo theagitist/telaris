@@ -932,13 +932,82 @@
         loadFractalProfileIntoModal(id);
     };
     // Fleet overview: one shape summary per galaxy (admin Galaxies-tab toolbar).
+    let fleetData = [];
+    let fleetSort = { key: 'node_count', dir: 'desc' }; // default: most substantial first
+    let fleetHeadersWired = false;
+
+    function ffEsc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+            { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+        ));
+    }
+
+    // Sort key -> comparable value. Strings sort case-insensitively; the shape column
+    // sorts by the localized shape word so identical shapes group together.
+    function ffSortValue(p, key, S) {
+        switch (key) {
+            case 'name': return (p.name || '').toLowerCase();
+            case 'shape': return fpShapeWord(p, S).toLowerCase();
+            case 'edge_count': return p.edge_count || 0;
+            case 'density': return p.density || 0;
+            default: return p.node_count || 0;
+        }
+    }
+
+    function renderFleet() {
+        const rows = document.getElementById('ff-rows');
+        if (!rows) return;
+        const S = (GXM.fractal || {}).shapes || {};
+        const dir = fleetSort.dir === 'asc' ? 1 : -1;
+        const sorted = fleetData.slice().sort((a, b) => {
+            const va = ffSortValue(a, fleetSort.key, S);
+            const vb = ffSortValue(b, fleetSort.key, S);
+            if (va < vb) return -1 * dir;
+            if (va > vb) return 1 * dir;
+            return 0;
+        });
+        let html = '';
+        for (const p of sorted) {
+            html += `<tr class="border-b border-gray-200">
+                <td class="py-1.5 px-2 text-gray-800">${ffEsc(p.name)}</td>
+                <td class="py-1.5 px-2 text-gray-700">${ffEsc(fpShapeWord(p, S))}</td>
+                <td class="py-1.5 px-2 text-right text-gray-700">${p.node_count || 0}</td>
+                <td class="py-1.5 px-2 text-right text-gray-700">${p.edge_count || 0}</td>
+                <td class="py-1.5 px-2 text-right text-gray-700">${Math.round((p.density || 0) * 100)}%</td>
+            </tr>`;
+        }
+        rows.innerHTML = html;
+        // Sort arrow on the active header.
+        document.querySelectorAll('#fractal_fleet_modal .ff-sort').forEach(th => {
+            const arr = th.querySelector('.ff-arrow');
+            if (arr) arr.textContent = th.getAttribute('data-sort') === fleetSort.key ? (dir === 1 ? ' ▲' : ' ▼') : '';
+        });
+    }
+
+    function wireFleetHeaders() {
+        if (fleetHeadersWired) return;
+        document.querySelectorAll('#fractal_fleet_modal .ff-sort').forEach(th => {
+            th.addEventListener('click', () => {
+                const key = th.getAttribute('data-sort');
+                if (fleetSort.key === key) {
+                    fleetSort.dir = fleetSort.dir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    fleetSort.key = key;
+                    // Text columns default A->Z; numeric columns default high->low.
+                    fleetSort.dir = (key === 'name' || key === 'shape') ? 'asc' : 'desc';
+                }
+                renderFleet();
+            });
+        });
+        fleetHeadersWired = true;
+    }
+
     async function loadFractalFleet() {
         const loading = document.getElementById('fractal-fleet-loading');
         const empty = document.getElementById('fractal-fleet-empty');
         const body = document.getElementById('fractal-fleet-body');
         const rows = document.getElementById('ff-rows');
         const F = GXM.fractal || {};
-        const S = F.shapes || {};
         if (loading) { loading.textContent = F.fleetLoading || 'Reading…'; loading.classList.remove('hidden'); }
         if (empty) empty.classList.add('hidden');
         if (body) body.classList.add('hidden');
@@ -949,25 +1018,11 @@
             });
             if (!r.ok) throw new Error('fleet_http_' + r.status);
             const data = await r.json();
-            const list = (data && data.galaxies) || [];
+            fleetData = (data && data.galaxies) || [];
             if (loading) loading.classList.add('hidden');
-            if (!list.length) { if (empty) empty.classList.remove('hidden'); return; }
-            // Most substantial galaxies first (by wormhole count).
-            list.sort((a, b) => (b.node_count || 0) - (a.node_count || 0));
-            const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => (
-                { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-            ));
-            let html = '';
-            for (const p of list) {
-                html += `<tr class="border-b border-gray-200">
-                    <td class="py-1.5 px-2 text-gray-800">${esc(p.name)}</td>
-                    <td class="py-1.5 px-2 text-gray-700">${esc(fpShapeWord(p, S))}</td>
-                    <td class="py-1.5 px-2 text-right text-gray-700">${p.node_count || 0}</td>
-                    <td class="py-1.5 px-2 text-right text-gray-700">${p.edge_count || 0}</td>
-                    <td class="py-1.5 px-2 text-right text-gray-700">${Math.round((p.density || 0) * 100)}%</td>
-                </tr>`;
-            }
-            if (rows) rows.innerHTML = html;
+            if (!fleetData.length) { if (empty) empty.classList.remove('hidden'); return; }
+            wireFleetHeaders();
+            renderFleet();
             if (body) body.classList.remove('hidden');
         } catch (e) {
             if (loading) { loading.textContent = F.fleetError || 'Could not read the galaxies.'; loading.classList.remove('hidden'); }

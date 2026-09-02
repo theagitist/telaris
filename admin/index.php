@@ -2781,6 +2781,7 @@ foreach ($importantExtensions as $ext => $name) {
             'actionCopyUrl' => t('admin_action_copy_url', 'Copy URL'),
             'actionKeywordCanvas' => t('admin_action_keyword_canvas', 'Keyword canvas'),
             'actionFractalProfile' => t('admin_action_fractal_profile', 'Galaxy shape'),
+            'actionClusterShape' => t('admin_action_cluster_shape', 'Cluster shape'),
             'actionDuplicate' => t('admin_action_duplicate', 'Duplicate'),
             'actionRefresh' => t('admin_action_refresh', 'Refresh'),
             'actionDelete' => t('admin_action_delete', 'Delete'),
@@ -4468,7 +4469,7 @@ foreach ($importantExtensions as $ext => $name) {
                                         <li><a onclick="event.stopPropagation(); openClusterEdit(${cJsonAttr})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionEdit || 'Edit')}</a></li>
                                         <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionView || 'View')}</a></li>
                                         <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionCopyUrl || 'Copy URL')}</a></li>
-                                        <li><a onclick="event.stopPropagation(); openFractalProfileModal(${cl.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionFractalProfile || 'Galaxy shape')}</a></li>
+                                        <li><a onclick="event.stopPropagation(); openFractalProfileModal(${cl.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionClusterShape || 'Cluster shape')}</a></li>
                                         <li><a onclick="event.stopPropagation(); duplicateCluster(${cJsonAttr})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionDuplicate || 'Duplicate')}</a></li>
                                         <li><a onclick="event.stopPropagation(); triggerDelete('delete_cluster', '${cl.id}', ${escapeHtmlAdmin(delMsg)}, ${escapeHtmlAdmin(cNameJson)})" class="text-red-600 text-xs">${escapeHtmlAdmin(ADM.actionDelete || 'Delete')}</a></li>
                                     </ul>
