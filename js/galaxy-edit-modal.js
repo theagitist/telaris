@@ -183,6 +183,57 @@
         }
     }
 
+    // Draw the degree distribution as a labelled bar chart: how many wormholes have
+    // how many connections. The scalable "shape" for a large galaxy.
+    function fpDrawDegreeHist(hist, F) {
+        const svg = document.getElementById('fp-degree');
+        if (!svg || !hist) return;
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        const NS = 'http://www.w3.org/2000/svg';
+        const el = (name, attrs) => {
+            const e = document.createElementNS(NS, name);
+            for (const k in attrs) e.setAttribute(k, attrs[k]);
+            return e;
+        };
+        const txt = (x, y, s, attrs) => {
+            const t = el('text', Object.assign({ x: x, y: y }, attrs || {}));
+            t.textContent = s;
+            return t;
+        };
+        const ks = Object.keys(hist).map(Number).sort((a, b) => a - b);
+        if (!ks.length) return;
+        const maxK = ks[ks.length - 1];
+        const W = 320, H = 210, mL = 44, mR = 12, mT = 12, mB = 46;
+        const plotW = W - mL - mR, plotH = H - mT - mB;
+        // One bar per degree when few distinct degrees, else linear bins.
+        const nb = maxK <= 24 ? (maxK + 1) : 24;
+        const binW = (maxK + 1) / nb;
+        const bins = new Array(nb).fill(0);
+        ks.forEach(k => { bins[Math.min(nb - 1, Math.floor(k / binW))] += hist[k]; });
+        const maxCount = Math.max.apply(null, bins.concat([1]));
+        const bw = plotW / nb;
+
+        svg.appendChild(el('line', { x1: mL, y1: mT + plotH, x2: mL + plotW, y2: mT + plotH, stroke: '#cbd5e1', 'stroke-width': 1 }));
+        svg.appendChild(el('line', { x1: mL, y1: mT, x2: mL, y2: mT + plotH, stroke: '#cbd5e1', 'stroke-width': 1 }));
+        bins.forEach((c, i) => {
+            if (c <= 0) return;
+            const h = (c / maxCount) * plotH;
+            svg.appendChild(el('rect', { x: (mL + i * bw + 0.5).toFixed(1), y: (mT + plotH - h).toFixed(1), width: Math.max(1, bw - 1).toFixed(1), height: h.toFixed(1), fill: '#4f46e5' }));
+        });
+        [0, Math.round(maxK / 2), maxK].forEach(k => {
+            const x = mL + ((k + 0.5) / (maxK + 1)) * plotW;
+            svg.appendChild(txt(x, mT + plotH + 15, String(k), { 'text-anchor': 'middle', 'font-size': '9', fill: '#64748b' }));
+        });
+        [0, maxCount].forEach(v => {
+            const y = mT + plotH - (v / maxCount) * plotH;
+            svg.appendChild(el('line', { x1: mL - 4, y1: y, x2: mL, y2: y, stroke: '#cbd5e1', 'stroke-width': 1 }));
+            svg.appendChild(txt(mL - 6, y + 3, String(v), { 'text-anchor': 'end', 'font-size': '9', fill: '#64748b' }));
+        });
+        svg.appendChild(txt(mL + plotW / 2, H - 8, (F && F.degAxisX) || 'links per wormhole', { 'text-anchor': 'middle', 'font-size': '10', fill: '#475569' }));
+        const cy = mT + plotH / 2;
+        svg.appendChild(txt(13, cy, (F && F.degAxisY) || 'number of wormholes', { 'text-anchor': 'middle', 'font-size': '10', fill: '#475569', transform: 'rotate(-90 13 ' + cy + ')' }));
+    }
+
     // Draw the multifractal spectrum f(alpha) as a labelled chart: axes with tick
     // values, plain axis labels, the data points, the peak highlighted, and a
     // "spread" bracket showing the width (the interpretable quantity).
@@ -308,6 +359,15 @@
                 if (networkSection) networkSection.classList.remove('hidden');
             } else if (networkSection) {
                 networkSection.classList.add('hidden');
+            }
+
+            // Degree distribution: the scalable graph for a large galaxy.
+            const degreeSection = document.getElementById('fp-degree-section');
+            if (p.degree_hist) {
+                fpDrawDegreeHist(p.degree_hist, F);
+                if (degreeSection) degreeSection.classList.remove('hidden');
+            } else if (degreeSection) {
+                degreeSection.classList.add('hidden');
             }
 
             if (p.computed) {

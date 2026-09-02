@@ -497,6 +497,16 @@ function fractal_profile(int $galaxyId, bool $fuzzy): array
             $deg[] = count($adj[$u]);
         }
         $stats['graph'] = ['n' => count($ids), 'edges' => $edges, 'deg' => $deg];
+    } elseif ($stats['node_count'] > FRACTAL_NETWORK_MAX) {
+        // Too big to draw as a network (hairball); send a degree histogram instead
+        // (how many wormholes have how many connections). Cheap at any size.
+        $hist = [];
+        foreach ($adj as $neighbors) {
+            $k = count($neighbors);
+            $hist[$k] = ($hist[$k] ?? 0) + 1;
+        }
+        ksort($hist);
+        $stats['degree_hist'] = $hist; // { degree: count }
     }
 
     if ($stats['node_count'] === 0) {

@@ -5910,6 +5910,8 @@ document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(fo
             'axisX' => t('gem_fractal_axis_x', 'link concentration (α)'),
             'axisY' => t('gem_fractal_axis_y', 'share of the galaxy'),
             'spreadLabel' => t('gem_fractal_spread_label', 'spread'),
+            'degAxisX' => t('gem_fractal_degree_axis_x', 'links per wormhole'),
+            'degAxisY' => t('gem_fractal_degree_axis_y', 'number of wormholes'),
             'summaryFew' => t('gem_fractal_summary_few', ''),
             'summaryDense' => t('gem_fractal_summary_dense', ''),
             'summaryModerate' => t('gem_fractal_summary_moderate', ''),

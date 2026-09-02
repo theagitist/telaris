@@ -44,6 +44,14 @@
                     <p class="text-xs text-gray-500 mt-1 max-w-sm"><?= t_attr('gem_fractal_network_caption', 'Each dot is a wormhole; lines join wormholes that share a keyword. Bigger dots are more-connected hubs.') ?></p>
                 </div>
 
+                <!-- Degree distribution: the scalable "shape" for a large galaxy -->
+                <!-- (too big to draw as a network). -->
+                <div id="fp-degree-section" class="mt-4 hidden">
+                    <div class="text-sm font-medium text-gray-700"><?= t_attr('gem_fractal_degree_label', 'Connection spread') ?></div>
+                    <svg id="fp-degree" viewBox="0 0 320 210" class="w-full max-w-sm h-auto mt-1 border border-gray-200 rounded bg-gray-50" preserveAspectRatio="xMidYMid meet"></svg>
+                    <p class="text-xs text-gray-500 mt-1 max-w-sm"><?= t_attr('gem_fractal_degree_caption', 'How many wormholes have how many connections. A tall spike on the left with a long tail to the right means a few busy hubs and many lightly-linked wormholes.') ?></p>
+                </div>
+
                 <!-- Shown when a detailed fractal shape cannot be fit. -->
                 <p id="fp-note" class="mt-3 text-xs text-gray-500 hidden"></p>
 
