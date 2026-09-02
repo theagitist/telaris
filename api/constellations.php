@@ -120,7 +120,12 @@ try {
                     return;
                 }
                 $fuzzy = db_get_fuzzy_keyword_matching();
-                echo json_encode(fractal_profile($id, $fuzzy), JSON_THROW_ON_ERROR);
+                $profile = fractal_profile($id, $fuzzy);
+                // Shape over time: record today's snapshot (throttled to once/day) and
+                // attach the accrued history so the modal can draw the density trend.
+                fractal_record_snapshot($id, $profile);
+                $profile['history'] = fractal_get_history($id);
+                echo json_encode($profile, JSON_THROW_ON_ERROR);
                 return;
             }
 

@@ -67,6 +67,14 @@
                     <p class="text-xs text-gray-500 mt-1 max-w-sm"><?= t_attr('gem_fractal_chart_caption', 'Each dot is a level of link-density found in the galaxy. A wide arc means it mixes densely and sparsely linked areas; a narrow one means the linking is uniform. The red ring marks where most of the galaxy sits.') ?></p>
                 </div>
 
+                <!-- Shape over time: a density sparkline, shown when >= 2 snapshots exist. -->
+                <div id="fp-trend-section" class="mt-4 hidden">
+                    <div class="text-sm font-medium text-gray-700"><?= t_attr('gem_fractal_trend_label', 'Link density over time') ?></div>
+                    <svg id="fp-trend" viewBox="0 0 320 120" class="w-full max-w-sm h-auto mt-1 border border-gray-200 rounded bg-gray-50" preserveAspectRatio="xMidYMid meet"></svg>
+                    <p id="fp-trend-note" class="text-xs text-gray-600 mt-1"></p>
+                    <p class="text-xs text-gray-500 mt-0.5 max-w-sm"><?= t_attr('gem_fractal_trend_caption', 'Each dot is a reading, taken when this galaxy\'s shape was viewed. A rising line means the galaxy is getting more interconnected over time.') ?></p>
+                </div>
+
                 <!-- The raw measurements, opt-in. Shown only when computed. -->
                 <details id="fp-measurements" class="mt-4 hidden">
                     <summary class="text-sm text-gray-500 cursor-pointer select-none"><?= t_attr('gem_fractal_details_toggle', 'Show the measurements') ?></summary>

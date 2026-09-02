@@ -330,6 +330,41 @@
         svg.appendChild(txt((X(amin) + X(amax)) / 2, by - 5, ((F && F.spreadLabel) || 'spread') + ' ' + (amax - amin).toFixed(2), { 'text-anchor': 'middle', 'font-size': '9', fill: '#64748b' }));
     }
 
+    // Draw the density-over-time sparkline (shape over time). history = [{at, density}, ...]
+    // oldest first. Density on the Y axis (0..max), one dot per reading.
+    function fpDrawTrend(history) {
+        const svg = document.getElementById('fp-trend');
+        if (!svg || !Array.isArray(history) || history.length < 2) return;
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        const NS = 'http://www.w3.org/2000/svg';
+        const el = (name, attrs) => {
+            const e = document.createElementNS(NS, name);
+            for (const k in attrs) e.setAttribute(k, attrs[k]);
+            return e;
+        };
+        const W = 320, H = 120, mL = 34, mR = 10, mT = 10, mB = 18;
+        const plotW = W - mL - mR, plotH = H - mT - mB;
+        const n = history.length;
+        let maxD = 0;
+        history.forEach(h => { if ((h.density || 0) > maxD) maxD = h.density; });
+        maxD = Math.max(0.05, Math.min(1, maxD * 1.15));
+        const x = i => mL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+        const y = d => mT + plotH - (Math.min(1, d) / maxD) * plotH;
+        svg.appendChild(el('line', { x1: mL, y1: mT + plotH, x2: mL + plotW, y2: mT + plotH, stroke: '#cbd5e1', 'stroke-width': 1 }));
+        svg.appendChild(el('line', { x1: mL, y1: mT, x2: mL, y2: mT + plotH, stroke: '#cbd5e1', 'stroke-width': 1 }));
+        const tick = (yy, s) => {
+            const t = el('text', { x: mL - 4, y: yy + 3, 'text-anchor': 'end', 'font-size': 8, fill: '#94a3b8' });
+            t.textContent = s;
+            svg.appendChild(t);
+        };
+        tick(mT + plotH, '0%');
+        tick(mT, Math.round(maxD * 100) + '%');
+        let d = '';
+        history.forEach((h, i) => { d += (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ' ' + y(h.density || 0).toFixed(1) + ' '; });
+        svg.appendChild(el('path', { d: d.trim(), fill: 'none', stroke: '#4f46e5', 'stroke-width': 1.5 }));
+        history.forEach((h, i) => svg.appendChild(el('circle', { cx: x(i).toFixed(1), cy: y(h.density || 0).toFixed(1), r: 2.5, fill: '#4f46e5' })));
+    }
+
     async function loadFractalProfileIntoModal(constellationId) {
         const panel = document.getElementById('fractal_profile_modal');
         if (!panel) return; // admin-only surface; editors never render it
@@ -416,6 +451,22 @@
                 if (chartSection) chartSection.classList.add('hidden');
                 if (measurements) measurements.classList.add('hidden');
                 if (note) { note.textContent = F.chartUnavailable || ''; note.classList.remove('hidden'); }
+            }
+
+            // Shape over time: density sparkline, shown once at least two readings exist.
+            const trendSection = document.getElementById('fp-trend-section');
+            if (trendSection) {
+                if (Array.isArray(p.history) && p.history.length >= 2) {
+                    fpDrawTrend(p.history);
+                    const first = p.history[0].density || 0;
+                    const last = p.history[p.history.length - 1].density || 0;
+                    fpSetText('fp-trend-note',
+                        (F.trendNow || 'now') + ' ' + Math.round(last * 100) + '% · ' +
+                        (F.trendEarliest || 'earliest') + ' ' + Math.round(first * 100) + '%');
+                    trendSection.classList.remove('hidden');
+                } else {
+                    trendSection.classList.add('hidden');
+                }
             }
             if (body) body.classList.remove('hidden');
         } catch (e) {

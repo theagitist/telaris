@@ -5939,6 +5939,8 @@ document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(fo
             'fleetError' => t('gem_fractal_error', 'Could not read this galaxy.'),
             'flagFragmented' => t('gem_fractal_flag_fragmented', 'Fragmented'),
             'flagIsolated' => t('gem_fractal_flag_isolates', 'isolated'),
+            'trendNow' => t('gem_fractal_trend_now', 'now'),
+            'trendEarliest' => t('gem_fractal_trend_earliest', 'earliest'),
             'shapes' => [
                 'chain' => t('gem_fractal_shape_chain', 'Chain-like'),
                 'web' => t('gem_fractal_shape_web', 'Web'),

@@ -575,6 +575,81 @@ function fractal_adjacency_for_nodes(array $nodeIds, bool $fuzzy): array
 }
 
 /**
+ * Shape-over-time storage. A galaxy's shape is snapshotted (density / d_B / width) when
+ * its shape modal is opened, throttled to once per ~day, so a trend accrues from normal
+ * admin use with no cron. Self-contained here (the feature's one table + its two helpers).
+ * ponytail: opportunistic capture on view; add a cron caller if scheduled cadence matters.
+ */
+function fractal_ensure_snapshots_table(): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $pdo = getDB();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fractal_snapshots (
+        id SERIAL PRIMARY KEY,
+        constellation_id INTEGER NOT NULL REFERENCES constellations(id) ON DELETE CASCADE,
+        captured_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        node_count INTEGER NOT NULL DEFAULT 0,
+        edge_count INTEGER NOT NULL DEFAULT 0,
+        density DOUBLE PRECISION NOT NULL DEFAULT 0,
+        d_b DOUBLE PRECISION,
+        width DOUBLE PRECISION,
+        gamma DOUBLE PRECISION
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_fractal_snapshots_cid_time ON fractal_snapshots (constellation_id, captured_at)");
+    $done = true;
+}
+
+/** Record one snapshot for a galaxy, at most once per $minHours (default ~daily). */
+function fractal_record_snapshot(int $galaxyId, array $profile, int $minHours = 20): void
+{
+    fractal_ensure_snapshots_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT captured_at FROM fractal_snapshots WHERE constellation_id = :id ORDER BY captured_at DESC LIMIT 1");
+    $stmt->execute([':id' => $galaxyId]);
+    $last = $stmt->fetchColumn();
+    if ($last !== false && (time() - strtotime((string)$last)) < $minHours * 3600) {
+        return; // throttled
+    }
+    $ins = $pdo->prepare("INSERT INTO fractal_snapshots (constellation_id, node_count, edge_count, density, d_b, width, gamma)
+        VALUES (:id, :n, :e, :d, :db, :w, :g)");
+    $ins->execute([
+        ':id' => $galaxyId,
+        ':n' => (int)($profile['node_count'] ?? 0),
+        ':e' => (int)($profile['edge_count'] ?? 0),
+        ':d' => (float)($profile['density'] ?? 0),
+        ':db' => isset($profile['d_B']) ? (float)$profile['d_B'] : null,
+        ':w' => isset($profile['mf']['width']) ? (float)$profile['mf']['width'] : null,
+        ':g' => (isset($profile['gamma']) && $profile['gamma'] !== null) ? (float)$profile['gamma'] : null,
+    ]);
+}
+
+/** Recent snapshots for a galaxy, oldest first. */
+function fractal_get_history(int $galaxyId, int $limit = 60): array
+{
+    fractal_ensure_snapshots_table();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT captured_at, node_count, density, d_b, width FROM fractal_snapshots
+        WHERE constellation_id = :id ORDER BY captured_at ASC LIMIT :lim");
+    $stmt->bindValue(':id', $galaxyId, PDO::PARAM_INT);
+    $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $rows[] = [
+            'at' => $r['captured_at'],
+            'node_count' => (int)$r['node_count'],
+            'density' => (float)$r['density'],
+            'd_B' => $r['d_b'] !== null ? (float)$r['d_b'] : null,
+            'width' => $r['width'] !== null ? (float)$r['width'] : null,
+        ];
+    }
+    return $rows;
+}
+
+/**
  * Compute the full fractal profile from a prebuilt adjacency map (node id => neighbour
  * ids). Pure over the graph (no DB): the shared core for both the single-galaxy and the
  * cluster-union orchestrators. On a guard trip returns computed=false + a machine reason
