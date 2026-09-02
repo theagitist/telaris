@@ -138,6 +138,18 @@
         return F.dBHigh || '';
     }
 
+    // Plain description when there is not enough structure to fit a fractal shape.
+    // Uses only the always-defined stats (counts, density, components).
+    function fpSmallSummary(p, F) {
+        if (p.reason === 'too_large') return F.summaryLarge || '';
+        if (p.reason === 'too_small') return F.summaryFew || '';
+        // "Split" only when genuinely fragmented, not one cluster plus a few strays.
+        const frag = p.node_count > 0 ? (p.largest_component || 0) / p.node_count : 1;
+        if ((p.components || 1) > 1 && frag < 0.7) return F.summarySplit || '';
+        if ((p.density || 0) >= 0.5) return F.summaryDense || '';
+        return F.summaryModerate || '';
+    }
+
     // Draw the multifractal spectrum f(alpha) as a labelled chart: axes with tick
     // values, plain axis labels, the data points, the peak highlighted, and a
     // "spread" bracket showing the width (the interpretable quantity).
@@ -235,7 +247,13 @@
             if (!r.ok) throw new Error('fractal_http_' + r.status);
             const p = await r.json();
             if (loading) loading.classList.add('hidden');
-            if (!p.computed) {
+
+            const chartSection = document.getElementById('fp-chart-section');
+            const measurements = document.getElementById('fp-measurements');
+            const note = document.getElementById('fp-note');
+
+            // Only the empty / cluster cases have nothing at all to show.
+            if (p.reason === 'cluster' || (p.node_count || 0) === 0) {
                 const reasons = F.reasons || {};
                 if (nocompute) {
                     nocompute.textContent = reasons[p.reason] || F.error || '';
@@ -243,22 +261,33 @@
                 }
                 return;
             }
-            // Plain-language summary: what the shape is + how even the linking is.
-            const summary = [fpDbReading(p.d_B, F), (p.mf.width < 0.5 ? (F.widthNarrow || '') : (F.widthWide || ''))]
-                .filter(Boolean).join(' ');
-            fpSetText('fp-summary', summary);
-            // Concrete counts.
+
+            // Always show the counts + density, at any size.
             fpSetText('fp-nodes', String(p.node_count));
             fpSetText('fp-edges', String(p.edge_count));
+            fpSetText('fp-density', Math.round((p.density || 0) * 100) + '%');
             fpSetText('fp-comps', String(p.components));
-            fpSetText('fp-diam', String(p.diameter));
-            // Measurements drawer.
-            fpSetText('fp-dB', p.d_B.toFixed(3));
-            fpSetText('fp-dB-r2', p.d_B_r2 != null ? '(' + (F.fitLabel || 'fit') + ' ' + p.d_B_r2.toFixed(2) + ')' : '');
-            fpSetText('fp-width', p.mf.width.toFixed(3));
-            fpSetText('fp-dims', [p.mf.D0, p.mf.D1, p.mf.D2].map(x => x.toFixed(2)).join(' / '));
-            fpSetText('fp-gamma', p.gamma != null ? p.gamma.toFixed(2) : '—');
-            fpDrawSpectrum(p.mf, F);
+
+            if (p.computed) {
+                // Full shape reading + spectrum chart + measurements.
+                fpSetText('fp-summary', [fpDbReading(p.d_B, F), (p.mf.width < 0.5 ? (F.widthNarrow || '') : (F.widthWide || ''))].filter(Boolean).join(' '));
+                fpSetText('fp-dB', p.d_B.toFixed(3));
+                fpSetText('fp-dB-r2', p.d_B_r2 != null ? '(' + (F.fitLabel || 'fit') + ' ' + p.d_B_r2.toFixed(2) + ')' : '');
+                fpSetText('fp-width', p.mf.width.toFixed(3));
+                fpSetText('fp-dims', [p.mf.D0, p.mf.D1, p.mf.D2].map(x => x.toFixed(2)).join(' / '));
+                fpSetText('fp-gamma', p.gamma != null ? p.gamma.toFixed(2) : '—');
+                fpSetText('fp-diam', String(p.diameter));
+                fpDrawSpectrum(p.mf, F);
+                if (chartSection) chartSection.classList.remove('hidden');
+                if (measurements) measurements.classList.remove('hidden');
+                if (note) note.classList.add('hidden');
+            } else {
+                // Too small / too dense / too large to chart a shape: still describe it plainly.
+                fpSetText('fp-summary', fpSmallSummary(p, F));
+                if (chartSection) chartSection.classList.add('hidden');
+                if (measurements) measurements.classList.add('hidden');
+                if (note) { note.textContent = F.chartUnavailable || ''; note.classList.remove('hidden'); }
+            }
             if (body) body.classList.remove('hidden');
         } catch (e) {
             if (loading) loading.classList.add('hidden');

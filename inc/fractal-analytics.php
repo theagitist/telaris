@@ -432,10 +432,14 @@ function fractal_graph_stats(array $adj, array $components): array
     }
     $edges = intdiv($edges, 2);
     $largest = $components ? count($components[0]) : 0;
+    // Link density = actual edges / possible edges. Defined for any galaxy with
+    // >= 2 wormholes, so it (unlike the fractal dimension) is always shown.
+    $possible = $nodes >= 2 ? ($nodes * ($nodes - 1)) / 2 : 0;
     return [
         'node_count' => $nodes,
         'edge_count' => $edges,
         'mean_degree' => $nodes > 0 ? (2.0 * $edges) / $nodes : 0.0,
+        'density' => $possible > 0 ? $edges / $possible : 0.0,
         'components' => count($components),
         'largest_component' => $largest,
     ];

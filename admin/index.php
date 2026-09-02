@@ -5910,6 +5910,12 @@ document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(fo
             'axisX' => t('gem_fractal_axis_x', 'link concentration (α)'),
             'axisY' => t('gem_fractal_axis_y', 'share of the galaxy'),
             'spreadLabel' => t('gem_fractal_spread_label', 'spread'),
+            'summaryFew' => t('gem_fractal_summary_few', ''),
+            'summaryDense' => t('gem_fractal_summary_dense', ''),
+            'summaryModerate' => t('gem_fractal_summary_moderate', ''),
+            'summarySplit' => t('gem_fractal_summary_split', ''),
+            'summaryLarge' => t('gem_fractal_summary_large', ''),
+            'chartUnavailable' => t('gem_fractal_chart_unavailable', ''),
             'error' => t('gem_fractal_error', 'Could not read this galaxy.'),
             'reasons' => [
                 'empty' => t('gem_fractal_reason_empty', ''),

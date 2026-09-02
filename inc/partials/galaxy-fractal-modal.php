@@ -26,32 +26,35 @@
             <p id="fractal-profile-nocompute" class="text-sm text-gray-600 hidden"></p>
 
             <div id="fractal-profile-body" class="hidden">
-                <!-- Plain-language summary, the headline. -->
+                <!-- Plain-language summary, the headline. Always shown. -->
                 <p id="fp-summary" class="text-base text-gray-800 leading-relaxed"></p>
 
-                <!-- Concrete counts anyone can read. -->
+                <!-- Concrete measures, defined at any size. Always shown. -->
                 <div class="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-700">
                     <span><?= t_attr('gem_fractal_stat_nodes', 'Wormholes') ?>: <b id="fp-nodes"></b></span>
                     <span><?= t_attr('gem_fractal_stat_edges', 'Connections') ?>: <b id="fp-edges"></b></span>
+                    <span><?= t_attr('gem_fractal_stat_density', 'Link density') ?>: <b id="fp-density"></b></span>
                     <span><?= t_attr('gem_fractal_stat_components', 'Connected pieces') ?>: <b id="fp-comps"></b></span>
-                    <span><?= t_attr('gem_fractal_stat_diameter', 'Steps across') ?>: <b id="fp-diam"></b></span>
                 </div>
 
-                <!-- The spectrum chart, always visible. -->
-                <div class="mt-4">
+                <!-- Shown only when there is enough structure to chart a shape. -->
+                <p id="fp-note" class="mt-3 text-xs text-gray-500 hidden"></p>
+
+                <div id="fp-chart-section" class="mt-4 hidden">
                     <div class="text-sm font-medium text-gray-700"><?= t_attr('gem_fractal_spectrum_label', 'Connection texture, f(α)') ?></div>
                     <svg id="fp-chart" viewBox="0 0 320 210" class="w-full max-w-sm h-auto mt-1 border border-gray-200 rounded bg-gray-50" preserveAspectRatio="xMidYMid meet"></svg>
                     <p class="text-xs text-gray-500 mt-1 max-w-sm"><?= t_attr('gem_fractal_chart_caption', 'Each dot is a level of link-density found in the galaxy. A wide arc means it mixes densely and sparsely linked areas; a narrow one means the linking is uniform. The red ring marks where most of the galaxy sits.') ?></p>
                 </div>
 
-                <!-- The raw measurements, opt-in. -->
-                <details class="mt-4">
+                <!-- The raw measurements, opt-in. Shown only when computed. -->
+                <details id="fp-measurements" class="mt-4 hidden">
                     <summary class="text-sm text-gray-500 cursor-pointer select-none"><?= t_attr('gem_fractal_details_toggle', 'Show the measurements') ?></summary>
                     <div class="mt-3 space-y-1.5 text-xs text-gray-600 font-mono">
                         <div><?= t_attr('gem_fractal_dB_label', 'Fractal dimension (d_B)') ?>: <span id="fp-dB"></span> <span id="fp-dB-r2" class="text-gray-400"></span></div>
                         <div><?= t_attr('gem_fractal_width_label', 'Unevenness (spectrum width)') ?>: <span id="fp-width"></span></div>
                         <div><?= t_attr('gem_fractal_gen_dims_label', 'Generalized dimensions (D0/D1/D2)') ?>: <span id="fp-dims"></span></div>
                         <div><?= t_attr('gem_fractal_gamma_label', 'Hub dominance (degree exponent γ)') ?>: <span id="fp-gamma"></span></div>
+                        <div><?= t_attr('gem_fractal_stat_diameter', 'Steps across') ?>: <span id="fp-diam"></span></div>
                     </div>
                 </details>
             </div>

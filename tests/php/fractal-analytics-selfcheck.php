@@ -128,6 +128,7 @@ check('largest first (size 3)', count($comps[0]) === 3);
 $stats = fractal_graph_stats($adj, $comps);
 check('edge_count == 3', $stats['edge_count'] === 3);
 check('node_count == 5', $stats['node_count'] === 5);
+check('density == 0.3 (3 of 10 possible, got ' . round($stats['density'], 3) . ')', abs($stats['density'] - 0.3) < 1e-9);
 
 echo "\n" . ($failures === 0 ? "ALL PASSED\n" : "$failures FAILURE(S)\n");
 exit($failures === 0 ? 0 : 1);
