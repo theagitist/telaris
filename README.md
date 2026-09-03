@@ -246,10 +246,11 @@ The application carries the following editor-facing and visitor-facing surfaces.
 
 - 3D scene with organic animation, pastel wormhole icons, semi-transparent connections drawn from shared-keyword inverted index
 - 2D wormhole view as an alternative layout (Poisson-disc placement, opt-in per galaxy)
-- Theme system per galaxy: cosmic, simple, abstract, rectangles, stripes, tech, the light rhizome connection map, and the Eglash-cited fractal-background themes cornrow and adire
+- Theme system per galaxy: cosmic, simple, abstract, rectangles, stripes, tech, the light rhizome connection map, and the Eglash-cited fractal-background themes cornrow and adire (whose weave depth reflects the galaxy's own measured link density)
 - Multigalaxy views: prefix-family unions (`/[XXX]`), tag unions (`/tag/<slug>`), explicit Galaxy Cluster type, query-string ad-hoc unions
 - Cross-galaxy related-wormholes panel in the info card
 - Auto-rotation when idle, fuzzy search, keyword-chip filter strip
+- Density map lens (opt-in HUD toggle): recolours wormholes by local link density (sparse to dense)
 - Permalinks to galaxies and to individual wormholes
 - Tactile launch animation when navigating to external URLs
 - PDF wormhole media via PDF.js
@@ -267,6 +268,7 @@ The application carries the following editor-facing and visitor-facing surfaces.
 **Admin side:**
 
 - `/admin/` console with paginated galaxy list, theme management, user management, bulk user creation
+- Galaxy shape analytics (read-only, no AI): a per-galaxy / per-cluster fractal profile of the keyword-shared graph (link density, box-counting dimension, multifractal spectrum, degree exponent, cross-galaxy bridge ratio, density-over-time), plus a "Galaxy shapes" fleet overview across all galaxies
 - Backup and restore: `.telaris-backup` portable archive (gzipped JSON, optional embedded media), per-galaxy conflict resolution
 - Snapshot system: local on-disk full-system backups with daily scheduler, age-based retention, manual + scheduled triggers
 - Outbound mail via any SMTP relay (PHPMailer): password reset, bulk-user welcome emails. SMTP settings live in `config.php` or the admin Global Settings page (which stores them in the database and takes precedence)
