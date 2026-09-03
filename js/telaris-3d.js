@@ -1265,46 +1265,70 @@ class TelarisNetwork {
         }
     }
 
+    // The legend is anchored to the Density map button (bottom-left) and slides out to
+    // the right of it when the lens turns on, so it never overlaps the top-left menu.
     _renderDensityLegend() {
         const L = this._densityLabels || {};
+        const btn = document.getElementById('density-map-toggle');
         let el = document.getElementById('density-legend');
         if (!el) {
             el = document.createElement('div');
             el.id = 'density-legend';
             Object.assign(el.style, {
-                position: 'absolute', top: '10px', left: '10px', zIndex: '90',
+                position: 'fixed', zIndex: '209',
                 fontFamily: 'var(--font-mono)', fontSize: '0.6rem', letterSpacing: '0.1em',
                 textTransform: 'uppercase', color: 'rgba(255,255,255,0.85)',
-                background: 'rgba(0,0,0,0.55)', padding: '0.4rem 0.6rem', borderRadius: '4px',
+                background: 'rgba(0,0,0,0.55)', padding: '0.4rem 0.6rem', borderRadius: '9999px',
                 backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.25)',
-                display: 'flex', flexDirection: 'column', gap: '0.25rem', pointerEvents: 'none'
+                display: 'flex', alignItems: 'center', gap: '0.4rem', pointerEvents: 'none',
+                whiteSpace: 'nowrap', transition: 'opacity 220ms ease, transform 220ms ease'
             });
-            const container = document.getElementById('canvas-container');
-            if (container) container.appendChild(el);
+            document.body.appendChild(el);
         }
+        clearTimeout(this._densityLegendHideT);
         el.innerHTML = '';
-        const title = document.createElement('div');
+        const title = document.createElement('span');
         title.textContent = L.title || 'Local density';
+        title.style.opacity = '0.7';
         el.appendChild(title);
-        const row = document.createElement('div');
-        Object.assign(row.style, { display: 'flex', alignItems: 'center', gap: '0.35rem' });
         const lo = document.createElement('span');
         lo.textContent = L.low || 'sparse';
         const bar = document.createElement('span');
         Object.assign(bar.style, {
-            width: '80px', height: '8px', borderRadius: '4px',
+            width: '72px', height: '8px', borderRadius: '4px',
             background: 'linear-gradient(to right, hsl(220,75%,55%), hsl(150,75%,55%), hsl(60,75%,55%), hsl(0,75%,55%))'
         });
         const hi = document.createElement('span');
         hi.textContent = L.high || 'dense';
-        row.appendChild(lo); row.appendChild(bar); row.appendChild(hi);
-        el.appendChild(row);
+        el.appendChild(lo); el.appendChild(bar); el.appendChild(hi);
+
+        // Anchor to the button: same bottom line, left edge just past the button's right.
+        const gap = 8;
+        const r = btn ? btn.getBoundingClientRect() : null;
+        if (r) {
+            el.style.bottom = (window.innerHeight - r.bottom) + 'px';
+            el.style.left = (r.right + gap) + 'px';
+        } else {
+            el.style.bottom = '12px';
+            el.style.left = '120px';
+        }
+        // Start tucked left (behind/under the button), then slide right into place.
         el.style.display = 'flex';
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(-14px)';
+        requestAnimationFrame(() => {
+            el.style.opacity = '1';
+            el.style.transform = 'translateX(0)';
+        });
     }
 
     _hideDensityLegend() {
         const el = document.getElementById('density-legend');
-        if (el) el.style.display = 'none';
+        if (!el) return;
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(-14px)';
+        clearTimeout(this._densityLegendHideT);
+        this._densityLegendHideT = setTimeout(() => { el.style.display = 'none'; }, 240);
     }
 
     // Flat segment endpoints for a square grid in the XZ plane (matches GridHelper).
