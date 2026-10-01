@@ -56,6 +56,9 @@ error_reporting(E_ALL & ~E_STRICT);						// see php documentation
 @define('IMAGE_UPLOAD_RESIZE_LARGER', '120%');	// automatically resize uploaded image when larger than n% of window width or height (set to 0% to disable)
 @define('IMAGE_UPLOAD_RESIZE_TO', '80%');		// target size in n% of window width or height
 @define('OBJECT_DEFAULT_COLORS', '#61b9cf #ff00ff #ffff00');		// default colors for new objects (space-separated string)
+@define('UPLOAD_MAX_SIZE', 512*1024*1024);		// cap on a single uploaded file, in bytes (0 to disable) - refused before anything touches disk, and announced to the editor for an early client-side refusal
+@define('PAGE_PASSWORD_MAX_TRIES', 5);			// page password attempts allowed per ip and page...
+@define('PAGE_PASSWORD_WINDOW', 10*60);			// ...within this many seconds (SOW-page-password.md: brute-force guard, flat-file counter, no db)
 @define('RESERVED_PAGE_NAMES', 'code edit pages');	// page names used internaly and thus unavailable
 @define('PAGE_DEFAULT_GRID_X', 50);			// default grid x spacing in px
 @define('PAGE_DEFAULT_GRID_Y', 50);			// default grid y spacing in px
