@@ -1,5 +1,6 @@
 Vendored from github.com/theagitist/hotglue2 (fork of k0a1a/hotglue2)
-branch telaris @ cbeee7e (bumped from 6ae4973)
+branch telaris @ c367a40 (bumped from cbeee7e; the intervening 90a8a39
+draw-icon recolour was already folded in without a header update)
 GPL-3.0; see hg/COPYING and hg/UPSTREAM.md
 
 Note: this is a curated vendor, not a full mirror. Local Telaris patches
@@ -11,6 +12,25 @@ build tooling) are intentionally not vendored. The code and user_code modules
 auth-gated embed, so their assets are skipped on every bump.
 
 Vendor history:
+- c367a40: upstream-sync port batch (three features, see ADR-044 in the Telaris
+  vault: track upstream by porting, not merging the ng rewrite). (1) upload size
+  cap (bfd68db): UPLOAD_MAX_SIZE define + server enforcement in module_glue
+  upload_files (413) + client refusal in js/edit.js; UPLOAD_MAX_SIZE/
+  PAGE_PASSWORD_* defines applied surgically into the patched config.inc.php.
+  (2) Firefox soundtrack fix (f7b87b4): a video alter_pre_save guard
+  (modules/video/video-edit.js + .min.js) stripping src/poster off the to_html
+  save clone, so a save of a touched video no longer stacks an audio track.
+  (3) per-page password protection (c367a40): bcrypt on the page's settings
+  object, PHP-session gate; new functions + 'asset' proxy controller +
+  page.set_password service appended to module_page.inc.php; the [protected]
+  marker + password action in module_page_browser.inc.php + page_browser.js
+  (+.min); clear_cache() + the 403 error branch added to common.inc.php, the
+  403 case to util.inc.php http_error (it was missing, which would let the
+  asset gate leak), and a session_start in index.php. The patched core files
+  (config.inc.php, common.inc.php, controller.inc.php, index.php, js/edit.js)
+  took these hunks surgically; the rest copied wholesale from the fork. e2e
+  specs skipped as usual. Verified live on starmaps: unprotected pages 200,
+  editor 302 to auth, ?asset -> 403, no log errors.
 - cbeee7e: scroll toggle icon cleanup + asset cache-buster. The toggle now uses
   a single move-vertical glyph (reused from iframe-scroll) with on/off shown via
   glue-menu-enabled/disabled + a subtle highlight in text-edit.css (new

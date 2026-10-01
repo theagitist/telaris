@@ -18,7 +18,8 @@ $(document).ready(function() {
 		html += '<a href="'+$.glue.base_url+'?'+$(this).attr('id')+'/edit">edit</a> | ';
 		html += '<a href="#" class="page_browser_copy">copy</a> | ';
 		html += '<a href="#" class="page_browser_rename">rename</a> | ';
-		html += '<a href="#" class="page_browser_delete">delete</a>';
+		html += '<a href="#" class="page_browser_delete">delete</a> | ';
+		html += '<a href="#" class="page_browser_password">password</a>';
 		if ($(this).attr('id')+'.head' != $.glue.conf.page.startpage) {
 			html += ' | <a href="#" class="page_browser_set_startpage">startpage</a>';
 		}
@@ -48,6 +49,33 @@ $(document).ready(function() {
 		return false;
 	});
 	
+	$('.page_browser_password').live('click', function(e) {
+		var entry = $(this).parents('.page_browser_entry');
+		var pn = $(entry).attr('id');
+		var current = $(entry).attr('data-protected') == '1';
+		// set / change / clear, hashed server-side (page.set_password):
+		// an empty entry removes the protection
+		var pw = prompt(current ?
+			'Enter a new password for page '+pn+' (leave empty to remove the protection)' :
+			'Set a password for page '+pn, '');
+		if (pw === null) {
+			return false;
+		}
+		$.glue.backend({ method: 'page.set_password', 'page': pn+'.head', 'password': pw }, function(data) {
+			var marker = $(entry).children('.page_browser_protected');
+			if (data === true) {
+				$(entry).attr('data-protected', '1');
+				if (marker.length == 0) {
+					$(entry).children('.page_browser_pagename').after('<span class="page_browser_protected">[protected] </span>');
+				}
+			} else {
+				$(entry).removeAttr('data-protected');
+				$(marker).remove();
+			}
+		});
+		return false;
+	});
+
 	$('.page_browser_copy').live('click', function(e) {
 		var entry = $(this).parents('.page_browser_entry');
 		var old = $(entry).attr('id');
@@ -58,6 +86,12 @@ $(document).ready(function() {
 				$(copy).attr('id', pn);
 				$(copy).find('span.page_browser_pagename').siblings().remove();
 				$(copy).children('.page_browser_pagename').html('<a href="'+$.glue.base_url+'?'+pn+'">'+pn+'</a>');
+				// copy_page copies the page's settings object along, so a
+				// protected source's copy is protected too - restore the
+				// marker the siblings().remove() above stripped
+				if ($(entry).attr('data-protected') == '1') {
+					$(copy).children('.page_browser_pagename').after('<span class="page_browser_protected">[protected] </span>');
+				}
 				$(entry).after(copy);
 			});
 		}
