@@ -44,6 +44,79 @@ const CR_ROT = Math.PI / 12;           // ... and rotates by this angle (15deg)
 // recursion depth (segment count grows ~8^depth, so keep it modest).
 const AD_DEPTH = 3;
 
+// Vein theme (prototype): same-galaxy connections render as curved organic conduits
+// instead of straight cylinders, the first step of Manuel's leaf-vein / vascular map
+// direction. The tube is rebuilt EVERY frame from the live node world-positions (like
+// the straight cylinders are repositioned every frame), so it tracks node drift and
+// camera orbit smoothly with no snap. The organic meander comes from a per-connection
+// set of baked random offsets (stable shape while the endpoints move). Bridges stay
+// straight-dashed. ponytail: a fresh TubeGeometry per visible connection per frame is
+// fine at typical galaxy sizes; pool the geometry or switch to fat lines if a very
+// large galaxy janks.
+const VEIN_WANDER = 0.22;        // lateral meander amplitude, as a fraction of the connection length
+const VEIN_TUBULAR_SEG = 20;     // samples along the curve (smoothness of the meander)
+const VEIN_RADIAL_SEG = 5;       // tube cross-section resolution
+const VEIN_RADIUS_MUL = 1.0;     // tube radius relative to the thickness band (was 2.2, too thick)
+const VEIN_RADIUS_MIN = 0.012;   // radius floor so faint links still read
+
+// Force-directed edge bundling (Holten & van Wijk 2009): links that run alongside each
+// other are pulled onto shared paths, so the map reads as trunks that branch toward
+// their targets (rhizome / venation) instead of independent wiggly lines. The curve
+// then MEANS "these links travel the same way." Run once at layout (nodes are
+// quasi-static); the result is stored as each link's control-point offsets, which the
+// per-frame tube rebuild already consumes, so motion stays smooth.
+const VEIN_BUNDLE = true;
+const VEIN_BUNDLE_MIN_EDGES = 24;  // below this (e.g. a tiny clique) bundling has nothing to reveal and can go unstable; keep the gentle meander
+const VEIN_BUNDLE_MAX_EDGES = 800; // above this, skip bundling and keep the per-link meander (keeps load snappy)
+const VEIN_BUNDLE_CYCLES = 3;      // subdivision doublings: control points P = 1,2,4,8
+const VEIN_BUNDLE_K = 0.1;         // global spring stiffness (resists over-bending)
+const VEIN_BUNDLE_STEP = 0.05;     // initial step size, halved each cycle
+const VEIN_BUNDLE_ITERS = 60;      // iterations in cycle 0 (scaled down each cycle)
+const VEIN_BUNDLE_COMPAT = 0.6;    // compatibility threshold (angle x scale x position)
+const VEIN_BUNDLE_MOVE_CAP = 0.12; // max per-iteration move, as a fraction of link length (stops the solver flinging a point off-screen)
+const VEIN_BUNDLE_OFFSET_MAX = 0.55; // hard clamp on a control point's final offset, as a fraction of link length (no out-of-bounds lines, ever)
+
+// Spawning-tree veins: the branching read bundling could not give. A max-weight spanning
+// forest (strongest links, rooted at the biggest hub) is the venation backbone, drawn
+// thick and tapering by how much each branch carries (trunk near the hub -> thin tips);
+// the remaining links drop to faint tendrils. A tree literally bifurcates at every node
+// with more than one child, which is the leaf / rhizome read Manuel asked for. Curves
+// stay terse per operator preference.
+const VEIN_TREE = true;
+const VEIN_TREE_RADIUS_MIN = 0.015; // tip (leaf) vein radius
+const VEIN_TREE_RADIUS_MAX = 0.06;  // trunk radius near the root (kept modest, not over-the-top)
+const VEIN_TREE_OPACITY = 0.9;      // backbone veins are solid
+const VEIN_TREE_BOW = 0.08;         // terse bow on a backbone vein (single control point)
+const VEIN_TENDRIL_RADIUS = 0.008;  // the non-backbone links, faint and thin
+const VEIN_TENDRIL_OPACITY = 0.16;
+const VEIN_TENDRIL_BOW = 0.05;
+const VEIN_STEM_FRAC = 0.4;         // backbone links leave a node via a SHARED branch point this far
+                                    // (fraction of the mean child distance) toward the children, then
+                                    // split, so a node with >1 child reads as a fork (---<), not a fan.
+
+// Tree LAYOUT: the backbone is not just drawn as a tree, the nodes are POSITIONED as one.
+// Children are placed OUTWARD from their parent along the parent's growth direction, so a
+// node with >1 child literally splits into diverging branches, and because this repeats at
+// every depth with a shrinking branch length it reads as a self-similar (fractal) tree.
+// The force sim is frozen for the vein theme so this shape holds (see applyForces gate).
+const VEIN_TREE_MAX_CHILDREN = 3;   // backbone branching factor: each node keeps at most this
+                                    // many children (its most-similar neighbours), so the tree
+                                    // forks repeatedly instead of snaking. A max-weight spanning
+                                    // tree does NOT branch (it chains along the heaviest edges);
+                                    // this breadth-first K-ary build is what makes it a tree.
+const VEIN_LAYOUT = true;
+const VEIN_LAYOUT_LEN0 = 8.0;       // root -> first-ring branch length (world units)
+const VEIN_LAYOUT_TAPER = 0.82;     // branch length *= taper each level deeper (fractal scaling)
+const VEIN_LAYOUT_LENMIN = 1.2;     // branches never shrink below this (small = tighter tip coils)
+const VEIN_LAYOUT_SPREAD = 0.8;     // half-angle (rad, ~46deg) a fork's children open from the trunk
+const VEIN_LAYOUT_SPREAD_DECAY = 0.92; // forks tighten slightly with depth
+const VEIN_LAYOUT_BEND = 0.3;       // a lone child turns this much each step, about a FIXED axis,
+                                    // so a run of lone children coils as a planar spiral not a ray
+const VEIN_LAYOUT_CURL = 0.1;       // extra turn per consecutive lone-child step: tightens a long
+                                    // filament into an inward spiral that curls into itself
+                                    // (~1 loop over 14 nodes, ~2 over 22). Raise for a tighter coil.
+const VEIN_LAYOUT_COMPONENT_R = 14; // disconnected sub-trees (forest) sit this far out on a ring
+
 // Append "&fuzzy=1" to a node/connection API URL when fuzzy keyword matching is
 // resolved on for this view (window.TELARIS_FUZZY_KEYWORDS, set by the server in
 // inc/bootstrap.php from the installation + per-cluster toggles). When on, the API
@@ -1017,8 +1090,9 @@ class TelarisNetwork {
     setupTheme(theme) {
         if (!theme) return;
 
-        // Rhizome keeps every connection lit at rest (no focused node needed).
-        if (this.networkManager) this.networkManager.showAllConnections = (theme.id === 'rhizome');
+        // Rhizome and Vein keep every connection lit at rest (no focused node needed):
+        // rhizome is a connection map, vein's whole point is the flowing conduits.
+        if (this.networkManager) this.networkManager.showAllConnections = (theme.id === 'rhizome' || theme.id === 'vein');
 
         // 1. Background
         if (this.stars) this.stars.visible = !!theme.background.starfield;
@@ -2352,6 +2426,7 @@ class TelarisNetwork {
                 this.createConnections();
                 this.warmupPhysics();
                 this.syncNodePositionsFromPhysics();
+                this._computeVeinTree();  // derive the branching backbone AFTER the layout settles
                 this.fitCameraToNodes();
                 this.nodes.forEach(n => this.scene.add(n));
                 if (this.connections.length > 0) {
@@ -2543,8 +2618,10 @@ class TelarisNetwork {
 
         this.connections.forEach(c => {
             this.scene.remove(c.mesh);
-            // Connection geometries are also shared via GeometryManager; only dispose materials
+            // Connection geometries are also shared via GeometryManager; only dispose materials.
+            // Vein tubes are per-connection (not shared), so dispose those geometries too.
             if (c.mesh.material) c.mesh.material.dispose();
+            if (c._vein && c.mesh.geometry) c.mesh.geometry.dispose();
         });
         this.connections = [];
         this.networkManager.setFocusedNode(null);
@@ -2810,6 +2887,7 @@ class TelarisNetwork {
             // Warm up physics IMMEDIATELY so they are in final positions when they first appear
             this.warmupPhysics();
             this.syncNodePositionsFromPhysics();
+            this._computeVeinTree();  // derive the branching backbone AFTER the layout settles
 
             if (!skipFit) {
                 this.fitCameraToNodes();
@@ -3319,7 +3397,10 @@ class TelarisNetwork {
     createNodes(nodeData) {
         // Clear previous nodes and connections from scene and arrays
         this.nodes.forEach(n => this.scene.remove(n));
-        this.connections.forEach(c => this.scene.remove(c.mesh));
+        this.connections.forEach(c => {
+            this.scene.remove(c.mesh);
+            if (c._vein && c.mesh.geometry) c.mesh.geometry.dispose(); // per-connection vein tube
+        });
         this.nodes = [];
         this.connections = [];
 
@@ -3558,6 +3639,7 @@ class TelarisNetwork {
         // Rhizome (light theme): thicker, darker, more opaque lines so the web of
         // connections is easy to parse against the pale background.
         const isRhizome = !!(this.currentTheme && this.currentTheme.id === 'rhizome');
+        const isVein = !!(this.currentTheme && this.currentTheme.id === 'vein');
         const rzThickMul = isRhizome ? 1.6 : 1;
         const geometry = this.geometryManager.getOrCreate('connection_cylinder', () => new THREE.CylinderGeometry(0.5, 0.5, 1, 8));
 
@@ -3584,6 +3666,10 @@ class TelarisNetwork {
                     // to lerp back to; start the material gray. updateConnections drives the mix.
                     const rzRealColor = isRhizome ? color.clone() : null;
                     if (isRhizome) color.setRGB(RZ_LINE_GRAY[0], RZ_LINE_GRAY[1], RZ_LINE_GRAY[2]);
+                    // Vein theme: warm leaf-sap palette (red -> orange -> amber -> gold)
+                    // instead of the full-spectrum golden-ratio hue, so the conduits read
+                    // organic. Sampled from Manuel's leaf references.
+                    if (isVein) color.setHSL(0.02 + ((this.connections.length * 0.137) % 1) * 0.12, 0.72, 0.5);
 
                     // Bridge = the two endpoints belong to different galaxies (only meaningful in
                     // multigalaxy union views, where shared keyword text crosses galaxy boundaries).
@@ -3607,6 +3693,18 @@ class TelarisNetwork {
                             depthTest: true
                         });
                         mesh = new THREE.Line(lineGeo, lineMat);
+                    } else if (isVein) {
+                        // Curved conduit: a per-connection TubeGeometry built lazily in
+                        // _updateVeinTube (the empty placeholder is replaced on first update).
+                        const material = new THREE.MeshBasicMaterial({
+                            color,
+                            transparent: true,
+                            opacity: 0,
+                            side: THREE.DoubleSide,
+                            depthWrite: false,
+                            depthTest: true
+                        });
+                        mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
                     } else {
                         const material = new THREE.MeshBasicMaterial({
                             color,
@@ -3624,7 +3722,8 @@ class TelarisNetwork {
                         mesh, node1: n1, node2: n2, sharedCount: shared,
                         thickness, baseOpacity: isRhizome ? Math.min(opacity * 3, 0.85) : Math.min(opacity * (isBridge ? 1.0 : 1.5), 1.0),
                         currentOpacity: 0, targetOpacity: 0,
-                        isBridge, rzRealColor, _rzLineMix: 0
+                        isBridge, rzRealColor, _rzLineMix: 0,
+                        _vein: isVein && !isBridge
                     });
                 }
             }
@@ -3786,6 +3885,11 @@ class TelarisNetwork {
                 continue;
             }
 
+            if (c._vein) {
+                this._updateVeinTube(c, p1, p2);
+                continue;
+            }
+
             // Vector from p1 to p2
             this._scratchVec.subVectors(p2, p1);
             const dist = this._scratchVec.length();
@@ -3805,6 +3909,457 @@ class TelarisNetwork {
             c.mesh.scale.set(t, dist, t);
         }
         this.networkManager.updateVisibility(this.connections, deltaTimeSec, this._portalFadeInMultiplier);
+    }
+
+    /**
+     * Vein theme: render a connection as a wandering tube (a Catmull-Rom curve through
+     * two baked, perpendicular-offset control points, giving a gentle organic S) instead
+     * of a straight cylinder, so links read as veins / conduits. Rebuilt every frame from
+     * the live endpoint positions so it tracks node drift and camera orbit smoothly (no
+     * threshold, no snap). The mesh sits at the origin; its geometry holds world-space
+     * coordinates. The meander coefficients are baked once per connection so the vein
+     * keeps a stable shape while its endpoints move.
+     * ponytail: constant tube radius (no taper yet) and a fresh TubeGeometry per frame;
+     * add a tapered radius and pool/retire the geometry if a large galaxy janks.
+     */
+    _updateVeinTube(c, p1, p2) {
+        const dist = p1.distanceTo(p2);
+        if (dist < 0.001) { c.mesh.visible = false; return; }
+
+        // Backbone link (spanning tree): route parent -> shared branch point -> child, so a
+        // node's children leave on one trunk and split (---<) instead of fanning out.
+        if (c._veinBranch && c._veinParent && c._veinKids) {
+            const Ppos = (c._veinParent === c.node1) ? p1 : p2;
+            const Cpos = (c._veinParent === c.node1) ? p2 : p1;
+            if (!this._veinBP) this._veinBP = new THREE.Vector3();
+            let GPpos = null;
+            if (c._veinGP) {
+                if (!this._veinGPpos) this._veinGPpos = new THREE.Vector3();
+                c._veinGP.getWorldPosition(this._veinGPpos);
+                GPpos = this._veinGPpos;
+            }
+            this._veinBranchPoint(Ppos, GPpos, c._veinKids, this._veinBP);
+            // 4 control points: P, a midpoint on the stem, the branch point, the child.
+            // P-mid-branch are collinear, so the trunk is straight and IDENTICAL for every
+            // sibling (they share P and the branch point), forking only at the branch point.
+            if (!c._veinPts || c._veinPts.length !== 4) {
+                c._veinPts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+                c._veinCurve = new THREE.CatmullRomCurve3(c._veinPts, false, 'catmullrom', 0.5);
+            }
+            c._veinPts[0].copy(Ppos);
+            c._veinPts[1].lerpVectors(Ppos, this._veinBP, 0.5);
+            c._veinPts[2].copy(this._veinBP);
+            c._veinPts[3].copy(Cpos);
+            const rTree = (c._veinRadius != null) ? c._veinRadius : VEIN_TREE_RADIUS_MIN;
+            const gTree = new THREE.TubeGeometry(c._veinCurve, VEIN_TUBULAR_SEG, rTree, VEIN_RADIAL_SEG, false);
+            const oldTree = c.mesh.geometry;
+            c.mesh.geometry = gTree;
+            if (oldTree) oldTree.dispose();
+            c.mesh.position.set(0, 0, 0);
+            c.mesh.quaternion.identity();
+            c.mesh.scale.set(1, 1, 1);
+            return;
+        }
+
+        // Control-point offsets (_veinWave) come from edge bundling (_computeVeinBundling)
+        // when it ran; otherwise fall back to a baked random S-meander so a link still
+        // curves. Each entry is {t (0..1 along the link), u,v (perpendicular offset as a
+        // fraction of the link length)}.
+        if (!c._veinWave) {
+            const r = () => (Math.random() * 2 - 1);
+            c._veinWave = [
+                { t: 0.33, u: VEIN_WANDER * (0.35 + Math.random() * 0.65), v: VEIN_WANDER * r() * 0.6 },
+                { t: 0.66, u: -VEIN_WANDER * (0.35 + Math.random() * 0.65), v: VEIN_WANDER * r() * 0.6 }
+            ];
+        }
+        const n = c._veinWave.length;
+        if (!c._veinPts || c._veinPts.length !== n + 2) {
+            c._veinPts = Array.from({ length: n + 2 }, () => new THREE.Vector3());
+            c._veinCurve = new THREE.CatmullRomCurve3(c._veinPts, false, 'catmullrom', 0.5);
+        }
+        if (!this._veinPerp1) { this._veinPerp1 = new THREE.Vector3(); this._veinPerp2 = new THREE.Vector3(); }
+        const dir = this._scratchVec.subVectors(p2, p1).normalize();
+        this._veinPerpBasis(dir, this._veinPerp1, this._veinPerp2);
+        const pts = c._veinPts;
+        pts[0].copy(p1);
+        pts[n + 1].copy(p2);
+        for (let i = 0; i < n; i++) {
+            const w = c._veinWave[i];
+            pts[i + 1].lerpVectors(p1, p2, w.t)
+                .addScaledVector(this._veinPerp1, w.u * dist)
+                .addScaledVector(this._veinPerp2, w.v * dist);
+        }
+        // Tree builder sets an explicit per-link radius (trunk thick, tip thin, tendril faint);
+        // otherwise fall back to the thickness band.
+        const radius = (c._veinRadius != null) ? c._veinRadius : Math.max(VEIN_RADIUS_MIN, c.thickness * VEIN_RADIUS_MUL);
+        const geo = new THREE.TubeGeometry(c._veinCurve, VEIN_TUBULAR_SEG, radius, VEIN_RADIAL_SEG, false);
+        const old = c.mesh.geometry;
+        c.mesh.geometry = geo;
+        if (old) old.dispose(); // empty placeholder on frame 1, the prior tube afterwards (never the shared cylinder)
+        c.mesh.position.set(0, 0, 0);
+        c.mesh.quaternion.identity();
+        c.mesh.scale.set(1, 1, 1);
+    }
+
+    /** Perpendicular basis for a (normalised) link direction; X-axis fallback when near-vertical. */
+    _veinPerpBasis(dir, perp1, perp2) {
+        perp1.crossVectors(dir, this._upVec);
+        if (perp1.lengthSq() < 1e-4) perp1.set(1, 0, 0);
+        perp1.normalize();
+        perp2.crossVectors(dir, perp1).normalize();
+    }
+
+    /**
+     * Spanning-tree veins: build a max-weight spanning forest over the vein links
+     * (strongest keyword links, each component rooted at its highest-degree hub), which
+     * is a tree, so it branches at every node with more than one child. Backbone links are
+     * drawn thick and tapered by the size of the subtree they carry (trunk near the hub,
+     * thinning to the tips); the remaining links become faint tendrils. Runs once after
+     * the layout settles. Writes per-link _veinRadius / baseOpacity / _veinWave (a single
+     * terse bow), all consumed by the existing per-frame tube rebuild.
+     */
+    _computeVeinTree() {
+        if (!VEIN_TREE || !this.currentTheme || this.currentTheme.id !== 'vein') return;
+        const links = this.connections.filter(c => c._vein);
+        if (!links.length) return;
+
+        // Weighted adjacency (weight = shared-keyword count).
+        const adj = new Map();
+        const add = (a, b, c) => { if (!adj.has(a)) adj.set(a, []); adj.get(a).push({ other: b, c, w: c.sharedCount || 1 }); };
+        for (const c of links) { add(c.node1, c.node2, c); add(c.node2, c.node1, c); }
+        const nodes = [...adj.keys()];
+        if (!nodes.length) return;
+
+        // Breadth-first K-ary spanning forest, rooting the biggest hub first. Each node, when
+        // dequeued, adopts its <= K most-similar not-yet-taken neighbours as children, so the
+        // backbone FORKS at (almost) every node. (A max-weight spanning tree does the opposite:
+        // it chains along the single heaviest edge and barely branches, which is why the earlier
+        // Prim version drew a line.) Keeping it breadth-first also keeps the tree shallow-ish and
+        // balanced rather than one long tail.
+        const visited = new Set();
+        const parentEdge = new Map();
+        const children = new Map();
+        nodes.forEach(n => children.set(n, []));
+        const treeEdges = new Set();
+        const byDeg = nodes.slice().sort((a, b) => adj.get(b).length - adj.get(a).length);
+        for (const start of byDeg) {
+            if (visited.has(start)) continue;
+            visited.add(start);
+            const queue = [start];
+            while (queue.length) {
+                const p = queue.shift();
+                const cand = adj.get(p).filter(e => !visited.has(e.other)).sort((a, b) => b.w - a.w);
+                for (let k = 0; k < cand.length && k < VEIN_TREE_MAX_CHILDREN; k++) {
+                    const e = cand[k];
+                    if (visited.has(e.other)) continue;
+                    visited.add(e.other);
+                    parentEdge.set(e.other, e.c);
+                    children.get(p).push(e.other);
+                    treeEdges.add(e.c);
+                    queue.push(e.other);
+                }
+            }
+        }
+
+        // Subtree sizes (post-order from each root) give each backbone link its "load".
+        const subtree = new Map();
+        const sizeOf = (n) => { let s = 1; for (const ch of children.get(n)) s += sizeOf(ch); subtree.set(n, s); return s; };
+        for (const n of nodes) if (!parentEdge.has(n)) sizeOf(n);
+        let maxLoad = 1;
+        for (const c of links) {
+            if (!treeEdges.has(c)) continue;
+            const childNode = (parentEdge.get(c.node1) === c) ? c.node1 : c.node2;
+            c._veinLoad = subtree.get(childNode) || 1;
+            if (c._veinLoad > maxLoad) maxLoad = c._veinLoad;
+        }
+
+        // Position the nodes AS the tree (children splay outward from each parent), then
+        // freeze the sim so the branching shape holds. This is what makes the forks visible:
+        // the layout itself bifurcates, the curve routing only cleans up the joint.
+        if (VEIN_LAYOUT) {
+            const roots = nodes.filter(n => !parentEdge.has(n));
+            this._computeVeinLayout(children, roots);
+        }
+
+        // Per-link render properties.
+        const sign = () => (Math.random() < 0.5 ? -1 : 1);
+        for (const c of links) {
+            if (treeEdges.has(c)) {
+                const t = Math.sqrt((c._veinLoad || 1) / maxLoad); // sqrt keeps mid branches visible
+                const childNode = (parentEdge.get(c.node1) === c) ? c.node1 : c.node2;
+                const parentNode = (childNode === c.node1) ? c.node2 : c.node1;
+                c._veinTree = true;
+                c._veinRadius = VEIN_TREE_RADIUS_MIN + t * (VEIN_TREE_RADIUS_MAX - VEIN_TREE_RADIUS_MIN);
+                c.baseOpacity = VEIN_TREE_OPACITY;
+                // Branch routing: this link leaves the parent via the parent's SHARED branch
+                // point (toward all its children) before heading to this child, so siblings
+                // fork instead of fanning. _veinKids is the parent's child-node list (shared).
+                c._veinBranch = true;
+                c._veinParent = parentNode;
+                c._veinChild = childNode;
+                c._veinKids = children.get(parentNode);
+                // Grandparent (parent's parent) gives the incoming trunk direction; null at the root.
+                const pe = parentEdge.get(parentNode);
+                c._veinGP = pe ? ((pe.node1 === parentNode) ? pe.node2 : pe.node1) : null;
+                c._veinWave = null;
+            } else {
+                c._veinTree = false;
+                c._veinBranch = false;
+                c._veinRadius = VEIN_TENDRIL_RADIUS;
+                c.baseOpacity = VEIN_TENDRIL_OPACITY;
+                c._veinWave = [{ t: 0.5, u: sign() * VEIN_TENDRIL_BOW, v: 0 }];
+            }
+            c._veinPts = null; // re-alloc sized to the control-point count
+        }
+    }
+
+    /**
+     * Position the vein backbone nodes as a branching tree. Each parent hands its children
+     * a growth direction and a (depth-tapered) branch length; children are placed OUTWARD
+     * along directions that splay around that growth direction, so every node with >1 child
+     * becomes a visible fork and the whole thing is self-similar across scales (fractal). The
+     * root hub fans its children over a full sphere (a radial dendrite); deeper splits open
+     * in a narrowing cone around the incoming branch. A lone child continues nearly straight
+     * with a gentle, spiralling bend so long runs stay organic rather than ruler-straight.
+     * Writes node.userData.originalPosition (the sim anchor) + node.position, zeroes velocity.
+     * ponytail: plain recursion; fine for galaxy-sized trees (hundreds of nodes), not millions.
+     */
+    _computeVeinLayout(children, roots) {
+        const V = THREE.Vector3;
+        if (!this._veinRefA) { this._veinRefA = new V(0, 1, 0); this._veinRefB = new V(1, 0, 0); }
+        const u = new V(), v = new V();
+        const GOLDEN = Math.PI * (3 - Math.sqrt(5)); // ~2.3999 rad, spreads successive azimuths evenly
+
+        // Orthonormal (u,v) spanning the plane perpendicular to unit `dir`.
+        const basis = (dir) => {
+            const ref = Math.abs(dir.y) < 0.99 ? this._veinRefA : this._veinRefB;
+            u.crossVectors(dir, ref).normalize();
+            v.crossVectors(dir, u).normalize();
+        };
+        // Unit vector `dir` tilted by polar angle `theta` toward azimuth `phi` (a cone around dir).
+        const cone = (dir, theta, phi, out) => {
+            basis(dir);
+            const st = Math.sin(theta);
+            out.copy(dir).multiplyScalar(Math.cos(theta))
+                .addScaledVector(u, st * Math.cos(phi))
+                .addScaledVector(v, st * Math.sin(phi))
+                .normalize();
+        };
+        // A unit axis PERPENDICULAR to `dir`, at azimuth `phase` around it. Rotating `dir` about
+        // this fixed axis each step keeps the path in one world plane, so a lone-child run coils
+        // as a clean planar spiral instead of wandering in 3D (which read as "straight").
+        const perpAxis = (dir, phase, out) => {
+            basis(dir);
+            out.copy(u).multiplyScalar(Math.cos(phase)).addScaledVector(v, Math.sin(phase)).normalize();
+        };
+
+        // `axis` is the FIXED rotation axis carried DOWN a lone-child run: every step rotates the
+        // heading about it by a (tightening) bend, so the run spirals inward and curls into itself
+        // like a fiddlehead rather than drawing a long straight line. A fork hands each child a
+        // fresh axis (perpendicular to that child's direction); a lone child reuses its parent's.
+        // `run` counts consecutive lone-child steps and tightens the bend toward the tip.
+        const place = (node, pos, dir, depth, axis, run) => {
+            const d = node.userData;
+            if (d.originalPosition) d.originalPosition.copy(pos); else d.originalPosition = pos.clone();
+            node.position.copy(pos);
+            if (d.velocity) d.velocity.set(0, 0, 0);
+
+            const kids = children.get(node) || [];
+            if (!kids.length) return;
+            const len = Math.max(VEIN_LAYOUT_LENMIN, VEIN_LAYOUT_LEN0 * Math.pow(VEIN_LAYOUT_TAPER, depth));
+
+            if (depth === 0) {
+                // Root hub: fan children over a sphere (Fibonacci) so the plant grows in every
+                // direction. Each becomes the trunk of its own recursively forking sub-tree.
+                const nK = kids.length;
+                for (let i = 0; i < nK; i++) {
+                    const y = (nK === 1) ? 0 : 1 - (i + 0.5) / nK * 2; // -1..1
+                    const r = Math.sqrt(Math.max(0, 1 - y * y));
+                    const a = i * GOLDEN;
+                    const nd = new V(Math.cos(a) * r, y, Math.sin(a) * r).normalize();
+                    const ax = new V(); perpAxis(nd, a, ax);
+                    place(kids[i], pos.clone().addScaledVector(nd, len), nd, depth + 1, ax, 0);
+                }
+                return;
+            }
+
+            if (kids.length === 1) {
+                // Spiral the run: rotate the heading about the fixed axis, tightening with length.
+                const bend = VEIN_LAYOUT_BEND * (1 + run * VEIN_LAYOUT_CURL);
+                const nd = dir.clone().applyAxisAngle(axis, bend);
+                place(kids[0], pos.clone().addScaledVector(nd, len), nd, depth + 1, axis, run + 1);
+                return;
+            }
+
+            // Fork: splay children on a cone around the incoming direction so they diverge, and
+            // give each a fresh spiral axis (from its placement azimuth) to coil along from here.
+            const half = VEIN_LAYOUT_SPREAD * Math.pow(VEIN_LAYOUT_SPREAD_DECAY, depth - 1);
+            const nK = kids.length;
+            const phase = depth * GOLDEN; // rotate each level's fan so successive forks don't align
+            for (let i = 0; i < nK; i++) {
+                const nd = new V();
+                const a = phase + (i / nK) * Math.PI * 2;
+                cone(dir, half, a, nd);
+                const ax = new V(); perpAxis(nd, a, ax);
+                place(kids[i], pos.clone().addScaledVector(nd, len), nd, depth + 1, ax, 0);
+            }
+        };
+
+        const nR = roots.length;
+        roots.forEach((root, idx) => {
+            const origin = (nR === 1)
+                ? new V(0, 0, 0)
+                : new V(Math.cos(idx / nR * Math.PI * 2) * VEIN_LAYOUT_COMPONENT_R, 0,
+                        Math.sin(idx / nR * Math.PI * 2) * VEIN_LAYOUT_COMPONENT_R);
+            place(root, origin, new V(0, 1, 0), 0, null, 0);
+        });
+    }
+
+    /**
+     * Shared branch point for a backbone node: a stem off the parent that all its child
+     * links pass through, so they share a trunk out of the node and split there (---<).
+     * The stem CONTINUES THE INCOMING VEIN direction (parent's-parent -> parent), which is
+     * always well defined, so interior nodes fork even when their children surround them
+     * (the earlier mean-child-direction version collapsed at exactly those hubs). The root
+     * (no grandparent) falls back to the mean child direction. Length is a fraction of the
+     * mean child distance. Uses scratch vectors; writes into `out`.
+     */
+    _veinBranchPoint(Ppos, GPpos, kids, out) {
+        if (!this._veinScA) { this._veinScA = new THREE.Vector3(); this._veinScB = new THREE.Vector3(); this._veinScC = new THREE.Vector3(); }
+        const kp = this._veinScB;
+        let meanDist = 0, m = 0;
+        for (const kid of kids) {
+            kid.getWorldPosition(kp);
+            const d = kp.distanceTo(Ppos);
+            if (d > 1e-4) { meanDist += d; m++; }
+        }
+        if (m === 0) { out.copy(Ppos); return; }
+        meanDist /= m;
+        const dir = this._veinScA;
+        if (GPpos) {
+            dir.subVectors(Ppos, GPpos); // continue the incoming vein past the node
+        } else {
+            dir.set(0, 0, 0); // root: mean child direction
+            for (const kid of kids) {
+                kid.getWorldPosition(kp);
+                const d = kp.distanceTo(Ppos);
+                if (d > 1e-4) dir.add(this._veinScC.subVectors(kp, Ppos).multiplyScalar(1 / d));
+            }
+        }
+        if (dir.lengthSq() < 1e-6) { out.copy(Ppos); return; }
+        dir.normalize();
+        out.copy(Ppos).addScaledVector(dir, VEIN_STEM_FRAC * meanDist);
+    }
+
+    /**
+     * Force-directed edge bundling over the vein links (Holten & van Wijk 2009). Pulls
+     * compatible (near-parallel, similar-length, nearby) links together so they share a
+     * path and peel off toward their endpoints, giving the trunk-that-branches look.
+     * Runs once at layout; writes each link's _veinWave (control-point offsets, stored as
+     * fractions of the link length in the link's perpendicular basis) which the per-frame
+     * tube rebuild consumes, so the bundled shape follows node drift without re-solving.
+     * ponytail: O(E^2) compatibility + a few iterative passes, capped at
+     * VEIN_BUNDLE_MAX_EDGES; above that we keep the per-link meander.
+     */
+    _computeVeinBundling() {
+        if (!VEIN_BUNDLE || !this.currentTheme || this.currentTheme.id !== 'vein') return;
+        const links = this.connections.filter(c => c._vein);
+        if (links.length < VEIN_BUNDLE_MIN_EDGES || links.length > VEIN_BUNDLE_MAX_EDGES) return; // fall back to per-link meander
+        const anchor = (nd) => (nd.userData && nd.userData.originalPosition) ? nd.userData.originalPosition : nd.position;
+        const E = links.map(c => {
+            const p1 = anchor(c.node1).clone(), p2 = anchor(c.node2).clone();
+            const len = Math.max(1e-6, p1.distanceTo(p2));
+            return { c, p1, p2, len, mid: p1.clone().add(p2).multiplyScalar(0.5), dir: p2.clone().sub(p1).normalize() };
+        });
+
+        // Compatibility, once. Store the sign flip so antiparallel links pair end-to-end.
+        const compat = E.map(() => []);
+        for (let i = 0; i < E.length; i++) {
+            for (let j = i + 1; j < E.length; j++) {
+                const a = E[i], b = E[j];
+                const dot = a.dir.dot(b.dir);
+                const Ca = Math.abs(dot);
+                const lavg = (a.len + b.len) / 2;
+                const Cs = 2 / (lavg / Math.min(a.len, b.len) + Math.max(a.len, b.len) / lavg);
+                const Cp = lavg / (lavg + a.mid.distanceTo(b.mid));
+                if (Ca * Cs * Cp >= VEIN_BUNDLE_COMPAT) {
+                    const flip = dot < 0;
+                    compat[i].push({ j, flip });
+                    compat[j].push({ j: i, flip });
+                }
+            }
+        }
+
+        let P = 1, step = VEIN_BUNDLE_STEP, iters = VEIN_BUNDLE_ITERS;
+        let subs = E.map(e => [e.mid.clone()]);
+        for (let cyc = 0; cyc < VEIN_BUNDLE_CYCLES; cyc++) {
+            subs = E.map((e, idx) => this._veinResubdivide(e, subs[idx], P));
+            for (let it = 0; it < iters; it++) {
+                const next = subs.map(arr => arr.map(v => v.clone()));
+                for (let i = 0; i < E.length; i++) {
+                    const e = E[i], pts = subs[i];
+                    const kP = VEIN_BUNDLE_K / (e.len * (P + 1));
+                    for (let k = 0; k < pts.length; k++) {
+                        const prev = (k === 0) ? e.p1 : pts[k - 1];
+                        const nxt = (k === pts.length - 1) ? e.p2 : pts[k + 1];
+                        const f = new THREE.Vector3().add(prev).sub(pts[k]).add(nxt).sub(pts[k]).multiplyScalar(kP);
+                        for (const { j, flip } of compat[i]) {
+                            const q = subs[j][flip ? (pts.length - 1 - k) : k];
+                            if (!q) continue;
+                            const d = new THREE.Vector3().subVectors(q, pts[k]);
+                            const dl = d.length();
+                            if (dl > 1e-2) f.addScaledVector(d, 1 / (dl * dl)); // toward q, inverse-distance (floored so it can't explode)
+                        }
+                        if (!isFinite(f.x) || !isFinite(f.y) || !isFinite(f.z)) continue;
+                        // Bound the per-iteration move so a large force can never fling a point off-screen.
+                        const mv = f.multiplyScalar(step);
+                        const cap = VEIN_BUNDLE_MOVE_CAP * e.len;
+                        const mvLen = mv.length();
+                        if (mvLen > cap) mv.multiplyScalar(cap / mvLen);
+                        next[i][k].copy(pts[k]).add(mv);
+                    }
+                }
+                subs = next;
+            }
+            P *= 2; step *= 0.5; iters = Math.max(10, Math.round(iters * 2 / 3));
+        }
+
+        // Decompose each bundled polyline into {t,u,v} offsets in the link's perp basis.
+        const perp1 = new THREE.Vector3(), perp2 = new THREE.Vector3(), rel = new THREE.Vector3(), res = new THREE.Vector3();
+        for (let i = 0; i < E.length; i++) {
+            const e = E[i];
+            this._veinPerpBasis(e.dir, perp1, perp2);
+            const M = VEIN_BUNDLE_OFFSET_MAX;
+            e.c._veinWave = subs[i].map(q => {
+                rel.subVectors(q, e.p1);
+                const t = THREE.MathUtils.clamp(rel.dot(e.dir) / e.len, 0, 1);
+                res.copy(q).sub(e.p1).addScaledVector(e.dir, -t * e.len);
+                // Hard clamp the perpendicular offset so no vein can ever stray off-screen.
+                return {
+                    t,
+                    u: THREE.MathUtils.clamp(res.dot(perp1) / e.len, -M, M),
+                    v: THREE.MathUtils.clamp(res.dot(perp2) / e.len, -M, M)
+                };
+            });
+            e.c._veinPts = null; // re-alloc sized to the new control-point count on next update
+        }
+    }
+
+    /** Resample a link's guide polyline (p1, ...interior, p2) into P points evenly by arc length. */
+    _veinResubdivide(e, cur, P) {
+        const poly = [e.p1, ...cur, e.p2];
+        const segLen = [];
+        let total = 0;
+        for (let i = 0; i < poly.length - 1; i++) { const l = poly[i].distanceTo(poly[i + 1]); segLen.push(l); total += l; }
+        const out = [];
+        for (let k = 1; k <= P; k++) {
+            const target = total * k / (P + 1);
+            let acc = 0, idx = 0;
+            while (idx < segLen.length - 1 && acc + segLen[idx] < target) { acc += segLen[idx]; idx++; }
+            const f = segLen[idx] > 1e-9 ? (target - acc) / segLen[idx] : 0;
+            out.push(new THREE.Vector3().lerpVectors(poly[idx], poly[idx + 1], f));
+        }
+        return out;
     }
 
     /** Sync node.position from userData.originalPosition so camera fit uses post-physics positions. */
@@ -3960,6 +4515,10 @@ class TelarisNetwork {
         const time = performance.now() * 0.001;
         const focused = this.networkManager.getFocusedNode();
         const isRhizome = !!(this.currentTheme && this.currentTheme.id === 'rhizome');
+        const isVein = !!(this.currentTheme && this.currentTheme.id === 'vein');
+        // Vein nodes are a fixed tree: keep only a whisper of drift so branches breathe but
+        // don't wobble out of their fork. Other themes float at the usual amplitude.
+        const driftAmp = isVein ? 0.05 : 0.28;
 
         // Rhizome colour cloud: nodes rest at a uniform light gray; the hovered node
         // and its direct neighbours take their real colour, forming a colour cloud
@@ -4072,14 +4631,14 @@ class TelarisNetwork {
 
             // 1. DRIFT — Lissajous float around anchor (always active to avoid jump when transition ends)
             glitchOffset.add(this._scratchVec.set(
-                Math.sin(time * 0.37 + d.animFloatOffset) * 0.28,
-                Math.cos(time * 0.51 + d.animFloatOffset * 1.3) * 0.28,
+                Math.sin(time * 0.37 + d.animFloatOffset) * driftAmp,
+                Math.cos(time * 0.51 + d.animFloatOffset * 1.3) * driftAmp,
                 0
             ));
 
             // Rhizome keeps nodes calm: skip the glitch jitter + blink flicker (the
             // "twitch"). The gentle Lissajous drift above still applies.
-            if (!isTransitioning && !isRhizome) {
+            if (!isTransitioning && !isRhizome && !isVein) {
                 // 2. GLITCH — brief random jitter/flicker episodes
                 d.animGlitchTimer -= dt;
                 if (d.animGlitchTimer <= 0) {
@@ -4675,7 +5234,9 @@ class TelarisNetwork {
             } else {
                 this.controls.autoRotate = !isFadingIn && (now - this.lastInteractionAt) > this.idleRotateDelayMs;
             }
-            if (!isFadingIn) {
+            // Vein theme freezes the sim: nodes are positioned as a fixed branching tree
+            // (_computeVeinLayout), so running forces would just pull the fork apart again.
+            if (!isFadingIn && !(this.currentTheme && this.currentTheme.id === 'vein')) {
                 this.applyForces(dt, 0.05);
             }
             if (!this._tourTweening) {

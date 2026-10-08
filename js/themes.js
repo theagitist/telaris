@@ -266,6 +266,33 @@ export const THEMES = {
             portalImage: '/img/themes/abstract/portal_icon.gif',
             images: Array.from({ length: 73 }, (_, i) => `/img/themes/abstract/icon_${String(i + 1).padStart(3, '0')}.png`)
         }
+    },
+    vein: {
+        id: 'vein',
+        name: 'Vein',
+        // PROTOTYPE (Manuel's leaf-vein / vascular direction, 2026-10): same-galaxy
+        // connections render as curved organic conduits instead of straight cylinders
+        // (see _updateVeinTube in telaris-3d.js, gated on this theme id) and stay lit at
+        // rest (showAllConnections). INGREDIENT 1 keeps the familiar cosmic starfield so
+        // the only change from Cosmic is the flowing conduits, a clean A/B; the dedicated
+        // venation background substrate + organic node layout are ingredients 2 and 3.
+        background: {
+            starfield: true,
+            nebulas: true
+        },
+        animations: {},
+        lighting: {
+            ambient: { color: 0xffffff, intensity: 0.4 },
+            points: [
+                { color: 0x8fbf5a, x: 10, y: 10, z: 10 },   // leaf green
+                { color: 0xd98a3a, x: -10, y: -10, z: 10 },  // amber
+                { color: 0xb5452e, x: 0, y: 10, z: -10 }     // deep red
+            ]
+        },
+        nodes: {
+            type: 'geometry',
+            factories: ['sphere', 'five-point-star', 'sparkle']
+        }
     }
 };
 
