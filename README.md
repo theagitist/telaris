@@ -246,7 +246,8 @@ The application carries the following editor-facing and visitor-facing surfaces.
 
 - 3D scene with organic animation, pastel wormhole icons, semi-transparent connections drawn from shared-keyword inverted index
 - 2D wormhole view as an alternative layout (Poisson-disc placement, opt-in per galaxy)
-- Theme system per galaxy: cosmic, simple, abstract, rectangles, stripes, tech, the light rhizome connection map, the Eglash-cited fractal-background themes cornrow and adire (whose weave depth reflects the galaxy's own measured link density), and the prototype vine theme (an organic leaf-vein / vascular map whose backbone is laid out as a branching, self-similar tree, drawn in warm sap colours on a deep navy field)
+- Default node layout: across every theme, nodes are organized as a branching, self-similar tree (a breadth-first spanning forest over the shared-keyword links, computed at render time). The galaxy stays a flat rhizome in the data; the tree is display only, and it can be switched back to the force-directed cloud with one engine flag.
+- Theme system per galaxy: cosmic, simple, abstract, rectangles, stripes, tech, the light rhizome connection map, the Eglash-cited fractal-background themes cornrow and adire (whose weave depth reflects the galaxy's own measured link density), and the vine theme (organic leaf-vein / vascular look, warm sap-coloured conduits on a deep navy field). Themes govern colour, background, node icons, and connection style; node organization is the shared branching-tree layout above.
 - Multigalaxy views: prefix-family unions (`/[XXX]`), tag unions (`/tag/<slug>`), explicit Galaxy Cluster type, query-string ad-hoc unions
 - Cross-galaxy related-wormholes panel in the info card
 - Auto-rotation when idle, fuzzy search, keyword-chip filter strip
