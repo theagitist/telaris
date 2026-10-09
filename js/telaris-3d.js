@@ -53,6 +53,11 @@ const AD_DEPTH = 3;
 // straight-dashed. ponytail: a fresh TubeGeometry per visible connection per frame is
 // fine at typical galaxy sizes; pool the geometry or switch to fat lines if a very
 // large galaxy janks.
+// Cap the render resolution: a HiDPI/Retina display reports devicePixelRatio 2-3,
+// which renders 4-9x the pixels AND runs bloom per pixel. 1.5 is near-imperceptible
+// on a soft glowing scene but a big fill-rate win; raise toward 2 if edges look soft.
+const MAX_PIXEL_RATIO = 1.5;
+
 const VEIN_WANDER = 0.22;        // lateral meander amplitude, as a fraction of the connection length
 const VEIN_TUBULAR_SEG = 20;     // samples along the curve (smoothness of the meander)
 const VEIN_RADIAL_SEG = 5;       // tube cross-section resolution
@@ -83,12 +88,21 @@ const VEIN_BUNDLE_OFFSET_MAX = 0.55; // hard clamp on a control point's final of
 // with more than one child, which is the leaf / rhizome read Manuel asked for. Curves
 // stay terse per operator preference.
 const VEIN_TREE = true;
-const VEIN_TREE_RADIUS_MIN = 0.015; // tip (leaf) vein radius
-const VEIN_TREE_RADIUS_MAX = 0.06;  // trunk radius near the root (kept modest, not over-the-top)
+const VEIN_TREE_RADIUS_MIN = 0.04;  // tip (leaf) vein radius (thickened per Manuel: close the node/link size gap)
+const VEIN_TREE_RADIUS_MAX = 0.14;  // trunk radius near the root (vine-branch weight, not a thin thread)
 const VEIN_TREE_OPACITY = 0.9;      // backbone veins are solid
 const VEIN_TREE_BOW = 0.08;         // terse bow on a backbone vein (single control point)
-const VEIN_TENDRIL_RADIUS = 0.008;  // the non-backbone links, faint and thin
-const VEIN_TENDRIL_OPACITY = 0.16;
+const VEIN_NODE_SCALE = 0.55;       // shrink nodes in the vein theme so veins read like vine branches
+const VEIN_PORTAL_SCALE = 1.5;      // vine portals render LARGER than the shrunk nodes so the highlighted star-burst (replacing the old torus) stands out
+const VEIN_TENDRIL_RADIUS = 0.02;   // the non-backbone links, faint but no longer hair-thin
+const VEIN_SHOW_TENDRILS = true;   // the branching backbone tree dominates; the full keyword
+                                   // cross-links are drawn back in as a faint whisper so the
+                                   // underlying connectivity still reads without the hairball
+                                   // muddying the field or burying the branches.
+const VEIN_TENDRIL_OPACITY = 0.16; // Manuel: visible enough that the warm hue reads, but a touch
+                                   // fainter than 0.25 (was 0.04 = invisible). Still well under the
+                                   // backbone's 0.9 so they stay subordinate. They STACK into a haze
+                                   // on very dense galaxies, so dial back down if a big union muddies.
 const VEIN_TENDRIL_BOW = 0.05;
 const VEIN_STEM_FRAC = 0.4;         // backbone links leave a node via a SHARED branch point this far
                                     // (fraction of the mean child distance) toward the children, then
@@ -116,6 +130,18 @@ const VEIN_LAYOUT_CURL = 0.1;       // extra turn per consecutive lone-child ste
                                     // filament into an inward spiral that curls into itself
                                     // (~1 loop over 14 nodes, ~2 over 22). Raise for a tighter coil.
 const VEIN_LAYOUT_COMPONENT_R = 14; // disconnected sub-trees (forest) sit this far out on a ring
+
+// Vine field (scene background) colour. Manuel liked the WARM line colours (the
+// red/orange/amber/gold ramp set where the connection colour is assigned, and the
+// full-spectrum node dots); they read best on a deep navy. Live-tweak the field with
+// "?vinefield=RRGGBB" on the URL (no redeploy); once chosen, bake it into VINE_FIELD.
+const VINE_FIELD = 0x070e2a;
+const VINE_FIELD_OVERRIDE = (() => {
+    try {
+        const v = new URLSearchParams(window.location.search).get('vinefield');
+        return (v && /^[0-9a-fA-F]{6}$/.test(v)) ? parseInt(v, 16) : null;
+    } catch (e) { return null; }
+})();
 
 // Append "&fuzzy=1" to a node/connection API URL when fuzzy keyword matching is
 // resolved on for this view (window.TELARIS_FUZZY_KEYWORDS, set by the server in
@@ -189,6 +215,12 @@ class TelarisNetwork {
         // pale background and the light media window instead of a dark tint.
         if (this.currentTheme && this.currentTheme.id === 'rhizome') {
             return { backgroundColor: 'rgb(246,247,244)', color: 'rgb(28,31,36)' };
+        }
+        // Vine: a SOLID deep panel (not the translucent tint) so the info window reads
+        // against the lighter blue field; text takes the node's bright colour.
+        if (this.currentTheme && this.currentTheme.id === 'vine') {
+            const txt = (d && d.colorR !== undefined) ? `rgb(${d.colorR},${d.colorG},${d.colorB})` : 'rgb(232,246,240)';
+            return { backgroundColor: 'rgb(6,13,30)', color: txt };
         }
         if (!d || d.colorR === undefined) return { backgroundColor: 'rgba(0,0,0,0.35)', color: 'rgb(255,255,255)' };
         const r = d.colorR, g = d.colorG, b = d.colorB;
@@ -954,7 +986,7 @@ class TelarisNetwork {
         // Background renderer (blurred canvas — stars, grids, nebulas, animations)
         this.bgRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         this.bgRenderer.setSize(window.innerWidth, window.innerHeight);
-        this.bgRenderer.setPixelRatio(window.devicePixelRatio);
+        this.bgRenderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
         this.bgRenderer.setClearColor(0x000000, 1);
         const bgCanvas = this.bgRenderer.domElement;
         bgCanvas.id = 'telaris-bg-canvas';
@@ -971,7 +1003,7 @@ class TelarisNetwork {
 
         // Foreground renderer (unblurred canvas — nodes and connections only)
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
         this.renderer.setClearColor(0x000000, 0);
 
         const canvasElement = this.renderer.domElement;
@@ -1090,9 +1122,9 @@ class TelarisNetwork {
     setupTheme(theme) {
         if (!theme) return;
 
-        // Rhizome and Vein keep every connection lit at rest (no focused node needed):
-        // rhizome is a connection map, vein's whole point is the flowing conduits.
-        if (this.networkManager) this.networkManager.showAllConnections = (theme.id === 'rhizome' || theme.id === 'vein');
+        // Rhizome and Vine keep every connection lit at rest (no focused node needed):
+        // rhizome is a connection map, vine's whole point is the flowing conduits.
+        if (this.networkManager) this.networkManager.showAllConnections = (theme.id === 'rhizome' || theme.id === 'vine');
 
         // 1. Background
         if (this.stars) this.stars.visible = !!theme.background.starfield;
@@ -1115,6 +1147,13 @@ class TelarisNetwork {
                 this.bloomPass.threshold = 1.0;
                 this.bloomPass.strength  = 0.0;
                 this.bloomPass.radius    = 0.0;
+            } else if (theme.id === 'vine') {
+                // Deep-blue field: keep bloom GENTLE so elements stay crisp/legible.
+                // Heavy bloom hazed the flat-blue bg (muddy) and smeared bright
+                // elements together; contrast here comes from crisp edges, not glow.
+                this.bloomPass.threshold = 0.9;
+                this.bloomPass.strength  = 0.4;
+                this.bloomPass.radius    = 0.28;
             } else {
                 this.bloomPass.threshold = 0.9;
                 this.bloomPass.strength  = 0.6;
@@ -1133,7 +1172,8 @@ class TelarisNetwork {
             this.bokehPass.enabled = theme.id === 'tech';
         }
 
-        const bgColor = theme.background.color !== undefined ? theme.background.color : 0x000000;
+        let bgColor = theme.background.color !== undefined ? theme.background.color : 0x000000;
+        if (theme.id === 'vine') bgColor = (VINE_FIELD_OVERRIDE != null) ? VINE_FIELD_OVERRIDE : VINE_FIELD; // ?vinefield= override or the baked VINE_FIELD
         this.bgRenderer.setClearColor(bgColor, 1);
         this.renderer.setClearColor(0x000000, 0); // foreground canvas stays transparent
 
@@ -3469,8 +3509,11 @@ class TelarisNetwork {
                 // During cross-fade transitions, start nodes invisible so they don't flash at full opacity
                 const isTransitioningIn = this._portalFadeInMultiplier !== undefined && this._portalFadeInMultiplier !== null;
                 const initialOpacity = isTransitioningIn ? 0 : 1.0;
+                // Vine nodes glow brighter (not bigger) so they stay legible against the
+                // deep-blue field while keeping Manuel's small node size.
+                const vineGlow = (this.currentTheme && this.currentTheme.id === 'vine') ? 0.6 : 0.5;
                 const material = new THREE.MeshStandardMaterial({
-                    color, emissive: color, emissiveIntensity: node.is_accentuated ? 1.5 : 0.5,
+                    color, emissive: color, emissiveIntensity: node.is_accentuated ? 1.5 : vineGlow,
                     metalness: 0.3, roughness: 0.7, transparent: true, opacity: initialOpacity
                 });
                 // If the editor opted in, use the node's main image as the 3D icon.
@@ -3639,7 +3682,7 @@ class TelarisNetwork {
         // Rhizome (light theme): thicker, darker, more opaque lines so the web of
         // connections is easy to parse against the pale background.
         const isRhizome = !!(this.currentTheme && this.currentTheme.id === 'rhizome');
-        const isVein = !!(this.currentTheme && this.currentTheme.id === 'vein');
+        const isVein = !!(this.currentTheme && this.currentTheme.id === 'vine');
         const rzThickMul = isRhizome ? 1.6 : 1;
         const geometry = this.geometryManager.getOrCreate('connection_cylinder', () => new THREE.CylinderGeometry(0.5, 0.5, 1, 8));
 
@@ -3666,9 +3709,9 @@ class TelarisNetwork {
                     // to lerp back to; start the material gray. updateConnections drives the mix.
                     const rzRealColor = isRhizome ? color.clone() : null;
                     if (isRhizome) color.setRGB(RZ_LINE_GRAY[0], RZ_LINE_GRAY[1], RZ_LINE_GRAY[2]);
-                    // Vein theme: warm leaf-sap palette (red -> orange -> amber -> gold)
-                    // instead of the full-spectrum golden-ratio hue, so the conduits read
-                    // organic. Sampled from Manuel's leaf references.
+                    // Vine theme: warm leaf-sap palette (red -> orange -> amber -> gold),
+                    // which Manuel loved, instead of the full-spectrum golden-ratio hue, so
+                    // the conduits read organic against the deep-navy field.
                     if (isVein) color.setHSL(0.02 + ((this.connections.length * 0.137) % 1) * 0.12, 0.72, 0.5);
 
                     // Bridge = the two endpoints belong to different galaxies (only meaningful in
@@ -3926,6 +3969,21 @@ class TelarisNetwork {
         const dist = p1.distanceTo(p2);
         if (dist < 0.001) { c.mesh.visible = false; return; }
 
+        // ponytail: skip the rebuild when neither endpoint moved since the last build.
+        // Vine freezes the sim (static positions, no glitch) and the tube holds world-space
+        // coords, so after settle every tube is identical frame to frame; rebuilding a fresh
+        // TubeGeometry (+GPU re-upload) per link per frame is what janks dense galaxies.
+        // Branch tubes derive their shape from the parent/GP nodes, which are equally frozen,
+        // so an unchanged p1/p2 means an unchanged curve. Vein tubes only exist in vine, so
+        // a moving-sim theme can never hit this path — no regression there.
+        if (c._veinLastP1 &&
+            c._veinLastP1.distanceToSquared(p1) < 1e-6 &&
+            c._veinLastP2.distanceToSquared(p2) < 1e-6) {
+            return;
+        }
+        if (!c._veinLastP1) { c._veinLastP1 = new THREE.Vector3(); c._veinLastP2 = new THREE.Vector3(); }
+        c._veinLastP1.copy(p1); c._veinLastP2.copy(p2);
+
         // Backbone link (spanning tree): route parent -> shared branch point -> child, so a
         // node's children leave on one trunk and split (---<) instead of fanning out.
         if (c._veinBranch && c._veinParent && c._veinKids) {
@@ -4019,7 +4077,7 @@ class TelarisNetwork {
      * terse bow), all consumed by the existing per-frame tube rebuild.
      */
     _computeVeinTree() {
-        if (!VEIN_TREE || !this.currentTheme || this.currentTheme.id !== 'vein') return;
+        if (!VEIN_TREE || !this.currentTheme || this.currentTheme.id !== 'vine') return;
         const links = this.connections.filter(c => c._vein);
         if (!links.length) return;
 
@@ -4106,7 +4164,7 @@ class TelarisNetwork {
                 c._veinTree = false;
                 c._veinBranch = false;
                 c._veinRadius = VEIN_TENDRIL_RADIUS;
-                c.baseOpacity = VEIN_TENDRIL_OPACITY;
+                c.baseOpacity = VEIN_SHOW_TENDRILS ? VEIN_TENDRIL_OPACITY : 0; // 0 => hidden (backbone-only)
                 c._veinWave = [{ t: 0.5, u: sign() * VEIN_TENDRIL_BOW, v: 0 }];
             }
             c._veinPts = null; // re-alloc sized to the control-point count
@@ -4262,7 +4320,7 @@ class TelarisNetwork {
      * VEIN_BUNDLE_MAX_EDGES; above that we keep the per-link meander.
      */
     _computeVeinBundling() {
-        if (!VEIN_BUNDLE || !this.currentTheme || this.currentTheme.id !== 'vein') return;
+        if (!VEIN_BUNDLE || !this.currentTheme || this.currentTheme.id !== 'vine') return;
         const links = this.connections.filter(c => c._vein);
         if (links.length < VEIN_BUNDLE_MIN_EDGES || links.length > VEIN_BUNDLE_MAX_EDGES) return; // fall back to per-link meander
         const anchor = (nd) => (nd.userData && nd.userData.originalPosition) ? nd.userData.originalPosition : nd.position;
@@ -4515,7 +4573,7 @@ class TelarisNetwork {
         const time = performance.now() * 0.001;
         const focused = this.networkManager.getFocusedNode();
         const isRhizome = !!(this.currentTheme && this.currentTheme.id === 'rhizome');
-        const isVein = !!(this.currentTheme && this.currentTheme.id === 'vein');
+        const isVein = !!(this.currentTheme && this.currentTheme.id === 'vine');
         // Vein nodes are a fixed tree: keep only a whisper of drift so branches breathe but
         // don't wobble out of their fork. Other themes float at the usual amplitude.
         const driftAmp = isVein ? 0.05 : 0.28;
@@ -4814,7 +4872,8 @@ class TelarisNetwork {
                 tourSpotlightMult = 1.0 + spotStrength * (fullMult - 1.0);
             }
             const rzHub = isRhizome ? (d._rhizomeHub || 1) * RZ_NODE_SCALE : 1; // small dots, hubs a touch bigger
-            let s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * scaleMult * rzHub;
+            const veinMul = isVein ? (d.node_type === 'portal' ? VEIN_PORTAL_SCALE : VEIN_NODE_SCALE) : 1; // vein: smaller nodes, but portals larger to stand out
+            let s = (baseS + Math.sin(time * pulseFreq + d.phase) * pulseAmp) * scaleMult * rzHub * veinMul;
             if (isRhizome) s = Math.min(s, RZ_NODE_MAX); // cap resting size; tour spotlight below still scales
             s *= tourSpotlightMult;
             n.scale.set(s, s, s);
@@ -5121,13 +5180,17 @@ class TelarisNetwork {
             }
             el.textContent = n.userData.name;
             const s = this.getNodeTooltipStyles(n);
-            Object.assign(el.style, { 
-                left: left + 'px', 
-                top: top + 'px', 
-                transform: 'translate(-50%, -50%) translate(-12px, 0)', 
-                background: s.background, 
-                color: s.color, 
-                opacity 
+            const vineLbl = this.currentTheme && this.currentTheme.id === 'vine';
+            Object.assign(el.style, {
+                left: left + 'px',
+                top: top + 'px',
+                transform: 'translate(-50%, -50%) translate(-12px, 0)',
+                background: s.background,
+                color: s.color,
+                // Vine: dark halo so the bright label text reads on the lighter blue field
+                // (a panel per label would clutter; these float by the dozen).
+                textShadow: vineLbl ? '0 1px 3px rgba(2,8,22,0.95), 0 0 3px rgba(2,8,22,0.9)' : '',
+                opacity
             });
         });
 
@@ -5236,7 +5299,7 @@ class TelarisNetwork {
             }
             // Vein theme freezes the sim: nodes are positioned as a fixed branching tree
             // (_computeVeinLayout), so running forces would just pull the fork apart again.
-            if (!isFadingIn && !(this.currentTheme && this.currentTheme.id === 'vein')) {
+            if (!isFadingIn && !(this.currentTheme && this.currentTheme.id === 'vine')) {
                 this.applyForces(dt, 0.05);
             }
             if (!this._tourTweening) {

@@ -325,6 +325,23 @@ function createSphereNode(material, gm) {
     return group;
 }
 
+function createVinePortalNode(material, gm) {
+    // Vine portals: a highlighted radiant node (an extra-bright star-burst) instead of
+    // the out-of-theme wireframe torus. The enlargement is applied per-frame via
+    // VEIN_PORTAL_SCALE in telaris-3d.js; here we lift the glow and add a generous
+    // invisible hitbox so the node stays easy to click.
+    material.emissiveIntensity = Math.max((material.emissiveIntensity || 0.6) * 1.6, 1.0);
+    const group = createStarNode(material, gm);
+    const hitbox = new THREE.Mesh(
+        new THREE.SphereGeometry(0.55, 8, 8),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })
+    );
+    hitbox.name = 'portal_hitbox';
+    group.add(hitbox);
+    group.isPortal = true;
+    return group;
+}
+
 const iconFactories = {
     'star': createStarNode,
     'moon': createMoonNode,
@@ -354,12 +371,15 @@ export function createNodeIcon(material, index, gm, type = 'object', themeId = '
     }
 
     if (type === 'portal') {
+        const sceneT = (sceneThemeId || themeId);
+        // Vine: the wireframe torus is off-theme, so render a highlighted radiant node instead.
+        if (sceneT === 'vine') return createVinePortalNode(material, gm);
         // Torus wireframe sprite — looks like the other image nodes but is clearly a portal.
         // The dark, normal-blended variant is used when the SCENE is rhizome (light
         // ground), so portals stay visible even in a union view whose portal comes
         // from a non-rhizome galaxy. Falls back to the node's own theme if no scene
         // theme was passed.
-        const rhizomeScene = (sceneThemeId || themeId) === 'rhizome';
+        const rhizomeScene = sceneT === 'rhizome';
         return createTorusPortalSprite(material, rhizomeScene);
     }
 

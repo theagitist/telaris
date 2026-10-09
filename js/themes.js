@@ -267,9 +267,9 @@ export const THEMES = {
             images: Array.from({ length: 73 }, (_, i) => `/img/themes/abstract/icon_${String(i + 1).padStart(3, '0')}.png`)
         }
     },
-    vein: {
-        id: 'vein',
-        name: 'Vein',
+    vine: {
+        id: 'vine',
+        name: 'Vine',
         // PROTOTYPE (Manuel's leaf-vein / vascular direction, 2026-10): same-galaxy
         // connections render as curved organic conduits instead of straight cylinders
         // (see _updateVeinTube in telaris-3d.js, gated on this theme id) and stay lit at
@@ -277,8 +277,11 @@ export const THEMES = {
         // the only change from Cosmic is the flowing conduits, a clean A/B; the dedicated
         // venation background substrate + organic node layout are ingredients 2 and 3.
         background: {
-            starfield: true,
-            nebulas: true
+            // Clean flat field (Manuel 2026-10). Nebulas OFF: the blurred colored clouds
+            // muddied the field; his references are flat. Starfield off too. The field
+            // COLOUR is driven by VINE_PALETTE.field in telaris-3d.js (one source of truth).
+            starfield: false,
+            nebulas: false
         },
         animations: {},
         lighting: {
@@ -291,7 +294,7 @@ export const THEMES = {
         },
         nodes: {
             type: 'geometry',
-            factories: ['sphere', 'five-point-star', 'sparkle']
+            factories: ['sphere'] // Manuel: vine nodes should all be plain spheres
         }
     }
 };

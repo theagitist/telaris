@@ -95,6 +95,29 @@ const RZ_LINE_GRAY_2D = '#9498a0';  // rest colour for lines: a bit darker than 
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+// Vein theme (2D): the planar sibling of the 3D vein map. The backbone is laid
+// out as a branching tree (a leaf is literally a planar vein network), the force
+// seed/settle is skipped, and only the backbone is drawn, as tapered curved
+// conduits. Same logic as the 3D theme (telaris-3d.js): a breadth-first K-ary
+// spanning forest forks at nearly every node, children splay outward in a
+// depth-tapered fan, and a lone-child run coils into a fiddlehead.
+const VEIN2D_MAX_CHILDREN = 3;    // branching factor (2 = strict dichotomous forks)
+const VEIN2D_LEN0 = 170;          // root -> first-ring branch length (px world units)
+const VEIN2D_TAPER = 0.82;        // branch length *= taper each depth (fractal scaling)
+const VEIN2D_LENMIN = 72;         // branches never shrink below this (keeps cards apart)
+const VEIN2D_SPREAD = 0.72;       // half-angle (rad) a fork's children open from the trunk
+const VEIN2D_SPREAD_DECAY = 0.92; // forks tighten slightly with depth
+const VEIN2D_BEND = 0.3;          // a lone child turns this much each step (one sense -> coil)
+const VEIN2D_CURL = 0.1;          // extra turn per consecutive lone-child step (fiddlehead tip)
+const VEIN2D_COMPONENT_R = 420;   // disconnected sub-trees sit this far out on a ring
+const VEIN2D_WIDTH_MIN = 1.4;     // tip (leaf) vein stroke px
+const VEIN2D_WIDTH_MAX = 7;       // trunk stroke px near the root
+const VEIN2D_REST_OPACITY = 0.85; // backbone conduits stay visible at rest
+const VEIN2D_PATH_BOW = 0.14;     // perpendicular bow on each conduit (fraction of its length)
+const VEIN2D_IDLE_MULT = 0.3;     // damp the idle float so the tree stays crisp
+// Warm leaf-sap palette (sampled from Manuel's leaf refs), matched to the 3D vein hues.
+const VEIN2D_COLORS = ['#b5452e', '#c6632c', '#d98a3a', '#cc9a33', '#8fbf5a', '#6fae4e'];
+
 /** Average two #rrggbb colours into a single hex string. Matches keyword-canvas's blendHex. */
 function blendHex(a, b) {
     const pa = parseInt(a.slice(1), 16);
@@ -198,12 +221,23 @@ export class WormholeGrid2D {
         this._buildAdjacency(nodes);
         this._buildCards(nodes);          // measures + stores card sizes
         this._applyRhizomeHubs();          // rhizome theme: enlarge top-degree cards
-        this._seedPositions(nodes);        // Poisson-disc within the viewport
-        this._buildLines(nodes);           // SVG lines, positioned in _renderFrame
-        this._presettle();                 // resolve any seed overlaps offscreen
-        this._resolveOverlaps();           // hard guarantee: no rectangle overlaps
-        this._fitToContent();              // frame ALL cards in the default view
-        this._renderFrame();               // place cards + lines at settled positions
+        if (this._isVein()) {
+            // Vein: position the cards AS a branching tree and freeze (no Poisson seed,
+            // no force settle), so the fork shape holds. _resolveOverlaps is skipped too
+            // because it would shove branches off their fork; branch lengths keep cards apart.
+            this._computeVeinTree2D(nodes);
+            this._veinLayout2D(nodes);
+            this._buildLines(nodes);
+            this._fitToContent();
+            this._renderFrame();
+        } else {
+            this._seedPositions(nodes);        // Poisson-disc within the viewport
+            this._buildLines(nodes);           // SVG lines, positioned in _renderFrame
+            this._presettle();                 // resolve any seed overlaps offscreen
+            this._resolveOverlaps();           // hard guarantee: no rectangle overlaps
+            this._fitToContent();              // frame ALL cards in the default view
+            this._renderFrame();               // place cards + lines at settled positions
+        }
     }
 
     /**
@@ -459,6 +493,11 @@ export class WormholeGrid2D {
         return !!window.TELARIS_THEME_ID && String(window.TELARIS_THEME_ID).toLowerCase() === 'rhizome';
     }
 
+    /** True when the active theme is Vine (backbone laid out + drawn as a branching tree). */
+    _isVein() {
+        return !!window.TELARIS_THEME_ID && String(window.TELARIS_THEME_ID).toLowerCase() === 'vine';
+    }
+
     /**
      * Poisson-disc seed positions inside the container. Each candidate sample
      * keeps the best-candidate (Mitchell) distance from prior chips. Uses each
@@ -539,6 +578,120 @@ export class WormholeGrid2D {
     }
 
     /**
+     * Vein backbone topology: a breadth-first K-ary spanning forest over the
+     * shared-keyword adjacency (each node adopts its <= K most-similar not-yet-taken
+     * neighbours as children), so the backbone forks at nearly every node. A maximum
+     * spanning tree does the opposite (it chains along the heaviest edge), so this is
+     * what makes it a tree. Stores this.vein = { children, parent, depth, subtree,
+     * roots, maxSub, treeEdges }.
+     */
+    _computeVeinTree2D(nodes) {
+        const adj = this.adjacency;
+        const ids = nodes.map(n => n.id).filter(id => adj.has(id));
+        const deg = id => (adj.get(id) ? adj.get(id).size : 0);
+        const children = new Map(); ids.forEach(id => children.set(id, []));
+        const parent = new Map();
+        const depth = new Map();
+        const treeEdges = new Set();
+        const visited = new Set();
+        const byDeg = ids.slice().sort((a, b) => deg(b) - deg(a));
+        for (const start of byDeg) {
+            if (visited.has(start)) continue;
+            visited.add(start); depth.set(start, 0);
+            const queue = [start];
+            while (queue.length) {
+                const p = queue.shift();
+                const cand = [...adj.get(p).entries()]
+                    .filter(([o]) => !visited.has(o))
+                    .sort((a, b) => b[1] - a[1]); // most shared keywords first
+                for (let k = 0; k < cand.length && k < VEIN2D_MAX_CHILDREN; k++) {
+                    const o = cand[k][0];
+                    if (visited.has(o)) continue;
+                    visited.add(o);
+                    parent.set(o, p);
+                    children.get(p).push(o);
+                    depth.set(o, depth.get(p) + 1);
+                    treeEdges.add(WormholeGrid2D._edgeKey(o, p));
+                    queue.push(o);
+                }
+            }
+        }
+        const subtree = new Map();
+        const sizeOf = (id) => { let s = 1; for (const c of children.get(id)) s += sizeOf(c); subtree.set(id, s); return s; };
+        const roots = ids.filter(id => !parent.has(id));
+        for (const r of roots) sizeOf(r);
+        let maxSub = 1; for (const id of ids) maxSub = Math.max(maxSub, subtree.get(id) || 1);
+        this.vein = { children, parent, depth, subtree, roots, maxSub, treeEdges };
+    }
+
+    /**
+     * Place the cards as the branching tree: children splay OUTWARD from each parent
+     * in a depth-tapered fan (visible, self-similar forks = fractal); the root fans its
+     * children around a full circle; a run of lone children turns one way each step and
+     * coils into a fiddlehead. Planar by construction (a leaf vein is planar). Writes
+     * this.positions (world px) and world bounds; nodes with no backbone go in a row below.
+     */
+    _veinLayout2D(nodes) {
+        this.positions.clear();
+        const { children, depth, roots } = this.vein;
+        const place = (id, x, y, ang, run) => {
+            this.positions.set(id, { x, y });
+            const kids = children.get(id) || [];
+            if (!kids.length) return;
+            const d = depth.get(id);
+            const len = Math.max(VEIN2D_LENMIN, VEIN2D_LEN0 * Math.pow(VEIN2D_TAPER, d));
+            if (d === 0) {
+                // Root hub: fan children around the full circle; each is its own sub-tree.
+                const n = kids.length;
+                for (let i = 0; i < n; i++) {
+                    const a = (n === 1) ? ang : (i / n) * Math.PI * 2;
+                    place(kids[i], x + Math.cos(a) * len, y + Math.sin(a) * len, a, 0);
+                }
+            } else if (kids.length === 1) {
+                // Continue the branch, turning one consistent way so a long run coils.
+                const a = ang + VEIN2D_BEND * (1 + run * VEIN2D_CURL);
+                place(kids[0], x + Math.cos(a) * len, y + Math.sin(a) * len, a, run + 1);
+            } else {
+                // Fork: spread children symmetrically about the incoming direction.
+                const n = kids.length;
+                const half = VEIN2D_SPREAD * Math.pow(VEIN2D_SPREAD_DECAY, d - 1);
+                for (let i = 0; i < n; i++) {
+                    const a = ang + ((i / (n - 1)) - 0.5) * 2 * half;
+                    place(kids[i], x + Math.cos(a) * len, y + Math.sin(a) * len, a, 0);
+                }
+            }
+        };
+        const nR = roots.length;
+        roots.forEach((r, idx) => {
+            let ox = 0, oy = 0;
+            if (nR > 1) { const a = (idx / nR) * Math.PI * 2; ox = Math.cos(a) * VEIN2D_COMPONENT_R; oy = Math.sin(a) * VEIN2D_COMPONENT_R; }
+            place(r, ox, oy, -Math.PI / 2, 0); // first branch grows "up"
+        });
+        // Any node with no backbone link (isolated): drop it in a row below the tree.
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const { x, y } of this.positions.values()) {
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+        if (!isFinite(minX)) { minX = minY = 0; maxX = maxY = 0; }
+        let orphanX = minX;
+        for (const n of nodes) {
+            if (this.positions.has(n.id)) continue;
+            this.positions.set(n.id, { x: orphanX, y: maxY + 120 });
+            orphanX += 110;
+            if (orphanX > maxX) maxX = orphanX;
+        }
+        // Normalize to positive world coords with a margin, set world bounds.
+        const M = WORLD_MARGIN + 100;
+        for (const n of nodes) {
+            const p = this.positions.get(n.id);
+            if (p) { p.x += (-minX + M); p.y += (-minY + M); }
+        }
+        this.worldW = (maxX - minX) + 2 * M;
+        this.worldH = (maxY - minY) + 2 * M;
+    }
+
+    /**
      * Guarantee no rectangle overlaps remain after physics. Walks every
      * pair; if any overlap, push them apart along the axis of least
      * overlap (less layout disruption) and iterate. Cheap — the inner
@@ -609,6 +762,7 @@ export class WormholeGrid2D {
         // pan/zoom. Line coordinates are world coordinates.
         this.linesGroup = document.createElementNS(SVG_NS, 'g');
         this.linesSvg.appendChild(this.linesGroup);
+        if (this._isVein()) { this._buildVeinLines(nodes); return; }
         const nodeById = new Map();
         for (const n of nodes) nodeById.set(n.id, n);
         const seen = new Set();
@@ -658,6 +812,41 @@ export class WormholeGrid2D {
                 this.linesGroup.appendChild(line);
                 this.lineEls.set(key, line);
             }
+        }
+    }
+
+    /**
+     * Vein backbone as curved tapered conduits: one <path> per tree edge (child -> parent),
+     * stroke thicker near the root (by subtree size), warm leaf-sap colour, visible at rest.
+     * Non-backbone links are dropped so the leaf read stays clean. Geometry is filled in each
+     * frame by _renderFrame (a quadratic bezier with a small perpendicular bow).
+     */
+    _buildVeinLines(nodes) {
+        const { parent, subtree, maxSub } = this.vein;
+        let i = 0;
+        for (const [childId, parentId] of parent) {
+            const key = WormholeGrid2D._edgeKey(childId, parentId);
+            const ratio = Math.sqrt((subtree.get(childId) || 1) / maxSub); // trunk thick, tips thin
+            const width = VEIN2D_WIDTH_MIN + ratio * (VEIN2D_WIDTH_MAX - VEIN2D_WIDTH_MIN);
+            const color = VEIN2D_COLORS[i % VEIN2D_COLORS.length];
+            i++;
+            const path = document.createElementNS(SVG_NS, 'path');
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', color);
+            path.setAttribute('stroke-opacity', String(VEIN2D_REST_OPACITY));
+            path.setAttribute('stroke-width', String(width));
+            path.setAttribute('stroke-linecap', 'round');
+            path.setAttribute('vector-effect', 'non-scaling-stroke');
+            path.setAttribute('data-a', String(childId));
+            path.setAttribute('data-b', String(parentId));
+            path.setAttribute('data-vein', '1');
+            path.setAttribute('data-glow', color);
+            path.setAttribute('data-rest-stroke', color);
+            path.setAttribute('data-base-width', String(width));
+            path.style.transition = 'stroke-opacity 160ms ease, stroke-width 160ms ease, filter 160ms ease';
+            path.style.filter = `drop-shadow(0 0 ${LINE_GLOW_REST_PX}px ${color})`;
+            this.linesGroup.appendChild(path);
+            this.lineEls.set(key, path);
         }
     }
 
@@ -924,11 +1113,12 @@ export class WormholeGrid2D {
 
     _updateIdleOffsets(timestampMs) {
         const t = timestampMs / 1000;
+        const amp = this._isVein() ? VEIN2D_IDLE_MULT : 1; // vein tree stays crisp, just breathes
         for (const n of this.nodes) {
             const p1 = hashPhase(String(n.id));
             const p2 = hashPhase(String(n.id) + '·y');
-            const rx = IDLE_RADIUS_MIN + (IDLE_RADIUS_MAX - IDLE_RADIUS_MIN) * p1;
-            const ry = IDLE_RADIUS_MIN + (IDLE_RADIUS_MAX - IDLE_RADIUS_MIN) * p2;
+            const rx = (IDLE_RADIUS_MIN + (IDLE_RADIUS_MAX - IDLE_RADIUS_MIN) * p1) * amp;
+            const ry = (IDLE_RADIUS_MIN + (IDLE_RADIUS_MAX - IDLE_RADIUS_MIN) * p2) * amp;
             const periodX = IDLE_PERIOD_MIN + (IDLE_PERIOD_MAX - IDLE_PERIOD_MIN) * p1;
             const periodY = IDLE_PERIOD_MIN + (IDLE_PERIOD_MAX - IDLE_PERIOD_MIN) * p2;
             const phaseX = p1 * Math.PI * 2;
@@ -971,10 +1161,22 @@ export class WormholeGrid2D {
             const sb = this.cardSizes.get(bId);
             const e1 = sa ? this._clipToRect(cxA, cyA, sa.w, sa.h, cxB, cyB) : { x: cxA, y: cyA };
             const e2 = sb ? this._clipToRect(cxB, cyB, sb.w, sb.h, cxA, cyA) : { x: cxB, y: cyB };
-            line.setAttribute('x1', String(e1.x));
-            line.setAttribute('y1', String(e1.y));
-            line.setAttribute('x2', String(e2.x));
-            line.setAttribute('y2', String(e2.y));
+            if (line.getAttribute('data-vein')) {
+                // Curved conduit: quadratic bezier bowed perpendicular to the chord. The bow
+                // sign is fixed per edge (from the id pair) so it never flickers frame to frame.
+                const dx = e2.x - e1.x, dy = e2.y - e1.y;
+                const L = Math.hypot(dx, dy) || 1;
+                const sign = ((aId * 31 + bId) % 2) ? 1 : -1;
+                const bow = VEIN2D_PATH_BOW * L * sign;
+                const mx = (e1.x + e2.x) / 2 + (-dy / L) * bow;
+                const my = (e1.y + e2.y) / 2 + (dx / L) * bow;
+                line.setAttribute('d', `M ${e1.x} ${e1.y} Q ${mx} ${my} ${e2.x} ${e2.y}`);
+            } else {
+                line.setAttribute('x1', String(e1.x));
+                line.setAttribute('y1', String(e1.y));
+                line.setAttribute('x2', String(e2.x));
+                line.setAttribute('y2', String(e2.y));
+            }
         }
     }
 
@@ -1024,8 +1226,10 @@ export class WormholeGrid2D {
         // focus is active hover must not repaint line opacities (it would un-hide
         // the culled edges). Other themes keep the original hover-reveal (rest 0).
         const rzFocused = this._isRhizome() && this._rhizomeFocusId != null;
-        const restOpacity = this._isRhizome() ? RZ_LINE_REST_OPACITY : LINE_BASE_OPACITY;
-        const hoverOpacity = this._isRhizome() ? 0.85 : LINE_HIGHLIGHT_OPACITY;
+        // Vein backbone is drawn at rest (like rhizome), so it must return to its own
+        // rest opacity on leave, not to the hover-reveal 0 the dark themes use.
+        const restOpacity = this._isRhizome() ? RZ_LINE_REST_OPACITY : (this._isVein() ? VEIN2D_REST_OPACITY : LINE_BASE_OPACITY);
+        const hoverOpacity = this._isRhizome() ? 0.85 : (this._isVein() ? 1 : LINE_HIGHLIGHT_OPACITY);
         // Per-card pastel-glow line highlight.
         const neighbours = this.adjacency.get(nodeId);
         if (neighbours && !rzFocused) {
