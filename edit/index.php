@@ -4614,5 +4614,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
         };
     })();
     </script>
+    <?php require __DIR__ . '/../inc/partials/backstage-chat.php'; ?>
 </body>
 </html>

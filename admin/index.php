@@ -5955,5 +5955,6 @@ document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(fo
     ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
 </script>
 <script src="../js/galaxy-edit-modal.js?v=<?php echo $appVersion; ?>"></script>
+<?php require __DIR__ . '/../inc/partials/backstage-chat.php'; ?>
 </body>
 </html>

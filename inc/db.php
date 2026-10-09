@@ -824,6 +824,21 @@ const PROJECT_INFO_KEYS = [
     'admin_whitelist_err_missing_peer', 'admin_whitelist_err_unknown_peer',
     'admin_whitelist_err_mirrored', 'admin_whitelist_err_invalid_slug',
     'admin_whitelist_err_unknown_subscription', 'admin_whitelist_err_peer_mismatch',
+
+    // Backstage chat (inc/partials/backstage-chat.php + js/backstage-chat.js).
+    // Rooms for logged-in authors (editors) and admins: an instance-wide room
+    // plus private DMs and subset groups.
+    'chat_panel_title', 'chat_toggle_label', 'chat_input_placeholder', 'chat_send_label',
+    'chat_empty', 'chat_send_error', 'chat_role_admin', 'chat_role_author',
+    'chat_room_everyone', 'chat_new_label', 'chat_new_dm', 'chat_new_group',
+    'chat_dm_pick', 'chat_group_name_placeholder', 'chat_group_members_label',
+    'chat_create_label', 'chat_cancel_label', 'chat_create_error', 'chat_no_people',
+    'chat_delete', 'chat_report', 'chat_leave', 'chat_report_prompt', 'chat_report_sent',
+    'chat_confirm_delete_room', 'chat_confirm_leave', 'chat_reports_title', 'chat_no_reports',
+    'chat_ban', 'chat_dismiss', 'chat_ban_1d', 'chat_ban_7d', 'chat_ban_30d', 'chat_ban_perm',
+    'chat_banned_notice', 'chat_reported_by', 'chat_action_error',
+    'chat_attach', 'chat_voice_start', 'chat_voice_stop', 'chat_download',
+    'chat_upload_error', 'chat_recording', 'chat_voice_unsupported',
 ];
 
 /**
@@ -1750,6 +1765,50 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_whitelist_err_invalid_slug' => 'The remote slug is empty or too long.',
             'admin_whitelist_err_unknown_subscription' => 'That subscription no longer exists.',
             'admin_whitelist_err_peer_mismatch' => 'That subscription belongs to a different peer.',
+            'chat_panel_title' => 'Backstage chat',
+            'chat_toggle_label' => 'Backstage chat',
+            'chat_input_placeholder' => 'Message authors and admins...',
+            'chat_send_label' => 'Send',
+            'chat_empty' => 'No messages yet. Say hello to the others who run this installation.',
+            'chat_send_error' => 'Could not send. Try again.',
+            'chat_role_admin' => 'admin',
+            'chat_role_author' => 'author',
+            'chat_room_everyone' => 'Everyone',
+            'chat_new_label' => 'New',
+            'chat_new_dm' => 'Direct message',
+            'chat_new_group' => 'Group',
+            'chat_dm_pick' => 'Choose a person',
+            'chat_group_name_placeholder' => 'Group name',
+            'chat_group_members_label' => 'Members',
+            'chat_create_label' => 'Create',
+            'chat_cancel_label' => 'Cancel',
+            'chat_create_error' => 'Could not create the conversation.',
+            'chat_no_people' => 'No other authors or admins yet.',
+            'chat_delete' => 'Delete',
+            'chat_report' => 'Report',
+            'chat_leave' => 'Leave',
+            'chat_report_prompt' => 'Why are you reporting this person? (optional)',
+            'chat_report_sent' => 'Reported. The admins have been notified.',
+            'chat_confirm_delete_room' => 'Delete this conversation for everyone?',
+            'chat_confirm_leave' => 'Leave this group?',
+            'chat_reports_title' => 'Reports',
+            'chat_no_reports' => 'No open reports.',
+            'chat_ban' => 'Ban',
+            'chat_dismiss' => 'Dismiss',
+            'chat_ban_1d' => '1 day',
+            'chat_ban_7d' => '7 days',
+            'chat_ban_30d' => '30 days',
+            'chat_ban_perm' => 'Permanent',
+            'chat_banned_notice' => 'You are banned from the chat.',
+            'chat_reported_by' => 'reported by',
+            'chat_action_error' => 'Action failed. Try again.',
+            'chat_attach' => 'Attach image or video',
+            'chat_voice_start' => 'Record a voice message',
+            'chat_voice_stop' => 'Stop recording',
+            'chat_download' => 'Download',
+            'chat_upload_error' => 'Could not upload the file.',
+            'chat_recording' => 'Recording... click to stop',
+            'chat_voice_unsupported' => 'Voice recording is not supported in this browser.',
             'admin_heading_download_backup' => 'Download a backup',
             'admin_help_download_backup' => 'Create a portable backup file containing galaxies and/or users. The default produces a full backup with embedded media.',
             'admin_label_galaxies' => 'Galaxies',
@@ -3424,6 +3483,50 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_whitelist_err_invalid_slug' => 'El slug remoto está vacío o es demasiado largo.',
             'admin_whitelist_err_unknown_subscription' => 'Esa suscripción ya no existe.',
             'admin_whitelist_err_peer_mismatch' => 'Esa suscripción pertenece a otro par.',
+            'chat_panel_title' => 'Chat interno',
+            'chat_toggle_label' => 'Chat interno',
+            'chat_input_placeholder' => 'Escribe a autores y administradores...',
+            'chat_send_label' => 'Enviar',
+            'chat_empty' => 'Aún no hay mensajes. Saluda a quienes gestionan esta instalación.',
+            'chat_send_error' => 'No se pudo enviar. Inténtalo de nuevo.',
+            'chat_role_admin' => 'admin',
+            'chat_role_author' => 'autor',
+            'chat_room_everyone' => 'Todos',
+            'chat_new_label' => 'Nuevo',
+            'chat_new_dm' => 'Mensaje directo',
+            'chat_new_group' => 'Grupo',
+            'chat_dm_pick' => 'Elige a una persona',
+            'chat_group_name_placeholder' => 'Nombre del grupo',
+            'chat_group_members_label' => 'Integrantes',
+            'chat_create_label' => 'Crear',
+            'chat_cancel_label' => 'Cancelar',
+            'chat_create_error' => 'No se pudo crear la conversación.',
+            'chat_no_people' => 'Aún no hay otros autores ni administradores.',
+            'chat_delete' => 'Eliminar',
+            'chat_report' => 'Reportar',
+            'chat_leave' => 'Salir',
+            'chat_report_prompt' => '¿Por qué reportas a esta persona? (opcional)',
+            'chat_report_sent' => 'Reportado. Se ha notificado a los administradores.',
+            'chat_confirm_delete_room' => '¿Eliminar esta conversación para todos?',
+            'chat_confirm_leave' => '¿Salir de este grupo?',
+            'chat_reports_title' => 'Reportes',
+            'chat_no_reports' => 'No hay reportes abiertos.',
+            'chat_ban' => 'Vetar',
+            'chat_dismiss' => 'Descartar',
+            'chat_ban_1d' => '1 día',
+            'chat_ban_7d' => '7 días',
+            'chat_ban_30d' => '30 días',
+            'chat_ban_perm' => 'Permanente',
+            'chat_banned_notice' => 'Estás vetado del chat.',
+            'chat_reported_by' => 'reportado por',
+            'chat_action_error' => 'La acción falló. Inténtalo de nuevo.',
+            'chat_attach' => 'Adjuntar imagen o video',
+            'chat_voice_start' => 'Grabar un mensaje de voz',
+            'chat_voice_stop' => 'Detener la grabación',
+            'chat_download' => 'Descargar',
+            'chat_upload_error' => 'No se pudo subir el archivo.',
+            'chat_recording' => 'Grabando... pulsa para detener',
+            'chat_voice_unsupported' => 'Este navegador no admite la grabación de voz.',
             'admin_heading_download_backup' => 'Descargar un respaldo',
             'admin_help_download_backup' => 'Crea un archivo de respaldo portable con galaxias y/o cuentas. La opción por defecto produce un respaldo completo con los archivos multimedia incrustados.',
             'admin_label_galaxies' => 'Galaxias',
@@ -5094,6 +5197,50 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_whitelist_err_invalid_slug' => 'O slug remoto está vazio ou é longo demais.',
             'admin_whitelist_err_unknown_subscription' => 'Essa assinatura não existe mais.',
             'admin_whitelist_err_peer_mismatch' => 'Essa assinatura pertence a outro par.',
+            'chat_panel_title' => 'Chat interno',
+            'chat_toggle_label' => 'Chat interno',
+            'chat_input_placeholder' => 'Escreva para autores e administradores...',
+            'chat_send_label' => 'Enviar',
+            'chat_empty' => 'Ainda não há mensagens. Cumprimente quem administra esta instalação.',
+            'chat_send_error' => 'Não foi possível enviar. Tente novamente.',
+            'chat_role_admin' => 'admin',
+            'chat_role_author' => 'autor',
+            'chat_room_everyone' => 'Todos',
+            'chat_new_label' => 'Novo',
+            'chat_new_dm' => 'Mensagem direta',
+            'chat_new_group' => 'Grupo',
+            'chat_dm_pick' => 'Escolha uma pessoa',
+            'chat_group_name_placeholder' => 'Nome do grupo',
+            'chat_group_members_label' => 'Integrantes',
+            'chat_create_label' => 'Criar',
+            'chat_cancel_label' => 'Cancelar',
+            'chat_create_error' => 'Não foi possível criar a conversa.',
+            'chat_no_people' => 'Ainda não há outros autores ou administradores.',
+            'chat_delete' => 'Excluir',
+            'chat_report' => 'Denunciar',
+            'chat_leave' => 'Sair',
+            'chat_report_prompt' => 'Por que você está denunciando esta pessoa? (opcional)',
+            'chat_report_sent' => 'Denunciado. Os administradores foram notificados.',
+            'chat_confirm_delete_room' => 'Excluir esta conversa para todos?',
+            'chat_confirm_leave' => 'Sair deste grupo?',
+            'chat_reports_title' => 'Denúncias',
+            'chat_no_reports' => 'Nenhuma denúncia aberta.',
+            'chat_ban' => 'Banir',
+            'chat_dismiss' => 'Descartar',
+            'chat_ban_1d' => '1 dia',
+            'chat_ban_7d' => '7 dias',
+            'chat_ban_30d' => '30 dias',
+            'chat_ban_perm' => 'Permanente',
+            'chat_banned_notice' => 'Você está banido do chat.',
+            'chat_reported_by' => 'denunciado por',
+            'chat_action_error' => 'A ação falhou. Tente novamente.',
+            'chat_attach' => 'Anexar imagem ou vídeo',
+            'chat_voice_start' => 'Gravar uma mensagem de voz',
+            'chat_voice_stop' => 'Parar a gravação',
+            'chat_download' => 'Baixar',
+            'chat_upload_error' => 'Não foi possível enviar o arquivo.',
+            'chat_recording' => 'Gravando... clique para parar',
+            'chat_voice_unsupported' => 'Este navegador não suporta gravação de voz.',
             'admin_heading_download_backup' => 'Baixar um backup',
             'admin_help_download_backup' => 'Crie um arquivo de backup portátil com galáxias e/ou contas. A opção padrão produz um backup completo com mídia incorporada.',
             'admin_label_galaxies' => 'Galáxias',
@@ -6764,6 +6911,50 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'admin_whitelist_err_invalid_slug' => 'Le slug distant est vide ou trop long.',
             'admin_whitelist_err_unknown_subscription' => 'Cet abonnement n\'existe plus.',
             'admin_whitelist_err_peer_mismatch' => 'Cet abonnement appartient à un autre pair.',
+            'chat_panel_title' => 'Chat interne',
+            'chat_toggle_label' => 'Chat interne',
+            'chat_input_placeholder' => 'Écrivez aux auteurs et administrateurs...',
+            'chat_send_label' => 'Envoyer',
+            'chat_empty' => 'Aucun message pour l\'instant. Saluez les autres responsables de cette installation.',
+            'chat_send_error' => 'Envoi impossible. Réessayez.',
+            'chat_role_admin' => 'admin',
+            'chat_role_author' => 'auteur',
+            'chat_room_everyone' => 'Tout le monde',
+            'chat_new_label' => 'Nouveau',
+            'chat_new_dm' => 'Message direct',
+            'chat_new_group' => 'Groupe',
+            'chat_dm_pick' => 'Choisissez une personne',
+            'chat_group_name_placeholder' => 'Nom du groupe',
+            'chat_group_members_label' => 'Membres',
+            'chat_create_label' => 'Créer',
+            'chat_cancel_label' => 'Annuler',
+            'chat_create_error' => 'Impossible de créer la conversation.',
+            'chat_no_people' => 'Aucun autre auteur ou administrateur pour l\'instant.',
+            'chat_delete' => 'Supprimer',
+            'chat_report' => 'Signaler',
+            'chat_leave' => 'Quitter',
+            'chat_report_prompt' => 'Pourquoi signalez-vous cette personne ? (facultatif)',
+            'chat_report_sent' => 'Signalé. Les administrateurs ont été notifiés.',
+            'chat_confirm_delete_room' => 'Supprimer cette conversation pour tout le monde ?',
+            'chat_confirm_leave' => 'Quitter ce groupe ?',
+            'chat_reports_title' => 'Signalements',
+            'chat_no_reports' => 'Aucun signalement ouvert.',
+            'chat_ban' => 'Bannir',
+            'chat_dismiss' => 'Rejeter',
+            'chat_ban_1d' => '1 jour',
+            'chat_ban_7d' => '7 jours',
+            'chat_ban_30d' => '30 jours',
+            'chat_ban_perm' => 'Permanent',
+            'chat_banned_notice' => 'Vous êtes banni du chat.',
+            'chat_reported_by' => 'signalé par',
+            'chat_action_error' => 'Action échouée. Réessayez.',
+            'chat_attach' => 'Joindre une image ou une vidéo',
+            'chat_voice_start' => 'Enregistrer un message vocal',
+            'chat_voice_stop' => 'Arrêter l\'enregistrement',
+            'chat_download' => 'Télécharger',
+            'chat_upload_error' => 'Impossible d\'envoyer le fichier.',
+            'chat_recording' => 'Enregistrement... cliquez pour arrêter',
+            'chat_voice_unsupported' => 'Ce navigateur ne prend pas en charge l\'enregistrement vocal.',
             'admin_heading_download_backup' => 'Télécharger une sauvegarde',
             'admin_help_download_backup' => 'Crée une archive de sauvegarde portable avec les galaxies et/ou les comptes. L\'option par défaut produit une sauvegarde complète avec les médias intégrés.',
             'admin_label_galaxies' => 'Galaxies',
@@ -8022,6 +8213,571 @@ function db_ensure_galaxy_tags_table(): void {
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_galaxy_tags_table: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Backstage chat base table. author_name is snapshotted for display; deleting
+ * a user CASCADE-deletes their messages (the v3 moderation policy: "delete
+ * means delete"). Rooms + moderation live in db_ensure_chat_rooms() below.
+ *
+ * The attachment_* columns (added in db_ensure_chat_rooms) carry an optional
+ * single image/video/voice file per message, stored on the filesystem outside
+ * the web root (chat_media_dir) and streamed through the gated media reader.
+ */
+function db_ensure_chat_messages_table(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id BIGSERIAL PRIMARY KEY,
+                author_id VARCHAR(255) NULL,
+                author_name VARCHAR(255) NOT NULL,
+                author_type SMALLINT NOT NULL DEFAULT 0,
+                body TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_chat_messages_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_chat_messages_table: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Fetch backstage chat messages in one room for polling. $sinceId > 0 returns
+ * only messages newer than that id (ascending); otherwise returns the most
+ * recent $limit messages (ascending) as the initial window. Capped at 200.
+ */
+function chat_fetch_since(int $roomId, int $sinceId = 0, int $limit = 200): array {
+    db_ensure_chat_rooms();
+    $limit = max(1, min(200, $limit));
+    $pdo = getDB();
+    $cols = CHAT_MSG_COLS;
+    if ($sinceId > 0) {
+        $stmt = $pdo->prepare("SELECT $cols FROM chat_messages WHERE room_id = :rid AND id > :since ORDER BY id ASC LIMIT :lim");
+        $stmt->bindValue(':rid', $roomId, PDO::PARAM_INT);
+        $stmt->bindValue(':since', $sinceId, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+    $stmt = $pdo->prepare("SELECT $cols FROM (SELECT $cols FROM chat_messages WHERE room_id = :rid ORDER BY id DESC LIMIT :lim) t ORDER BY id ASC");
+    $stmt->bindValue(':rid', $roomId, PDO::PARAM_INT);
+    $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll();
+}
+
+/** The columns the chat read/insert paths return (kept in one place because the
+ *  optional attachment_* set is appended after v4). */
+const CHAT_MSG_COLS = 'id, room_id, author_id, author_name, author_type, body, created_at, attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size';
+
+/** Insert one backstage chat message into a room and return the created row.
+ *  $attachment, when given, is ['path','type','mime','name','size']. */
+function chat_insert(int $roomId, ?string $authorId, string $authorName, int $authorType, string $body, ?array $attachment = null): array {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("INSERT INTO chat_messages
+        (room_id, author_id, author_name, author_type, body,
+         attachment_path, attachment_type, attachment_mime, attachment_name, attachment_size)
+        VALUES (:rid, :aid, :aname, :atype, :body, :apath, :atype2, :amime, :an, :asize)
+        RETURNING " . CHAT_MSG_COLS);
+    $stmt->bindValue(':rid', $roomId, PDO::PARAM_INT);
+    if ($authorId === null || $authorId === '') $stmt->bindValue(':aid', null, PDO::PARAM_NULL);
+    else $stmt->bindValue(':aid', $authorId, PDO::PARAM_STR);
+    $stmt->bindValue(':aname', $authorName, PDO::PARAM_STR);
+    $stmt->bindValue(':atype', $authorType, PDO::PARAM_INT);
+    $stmt->bindValue(':body', $body, PDO::PARAM_STR);
+    $a = $attachment ?: [];
+    $stmt->bindValue(':apath', $a['path'] ?? null, isset($a['path']) ? PDO::PARAM_STR : PDO::PARAM_NULL);
+    $stmt->bindValue(':atype2', $a['type'] ?? null, isset($a['type']) ? PDO::PARAM_STR : PDO::PARAM_NULL);
+    $stmt->bindValue(':amime', $a['mime'] ?? null, isset($a['mime']) ? PDO::PARAM_STR : PDO::PARAM_NULL);
+    $stmt->bindValue(':an', $a['name'] ?? null, isset($a['name']) ? PDO::PARAM_STR : PDO::PARAM_NULL);
+    if (isset($a['size'])) $stmt->bindValue(':asize', (int)$a['size'], PDO::PARAM_INT);
+    else $stmt->bindValue(':asize', null, PDO::PARAM_NULL);
+    $stmt->execute();
+    return $stmt->fetch();
+}
+
+/** Where chat media files live: a non-web-served sibling of UPLOAD_DIR (mirrors
+ *  the snapshots dir), so files are reachable only through the gated reader. */
+function chat_media_dir(): string {
+    if (defined('CHAT_MEDIA_DIR')) $dir = (string)CHAT_MEDIA_DIR;
+    elseif (defined('UPLOAD_DIR')) $dir = dirname(rtrim(UPLOAD_DIR, '/')) . '/chat-media';
+    else $dir = sys_get_temp_dir() . '/telaris-chat-media';
+    if (!is_dir($dir)) { @mkdir($dir, 02775, true); }
+    return $dir;
+}
+
+/** Resolve a stored relative attachment path to an absolute path, guarding
+ *  against traversal outside chat_media_dir. Null if outside or missing. */
+function chat_media_abs_path(string $rel): ?string {
+    $rel = ltrim($rel, '/');
+    if ($rel === '' || str_contains($rel, '..')) return null;
+    $base = realpath(chat_media_dir());
+    if ($base === false) return null;
+    $candidate = $base . '/' . $rel;
+    $real = realpath($candidate);
+    if ($real === false) return null;
+    if (!str_starts_with($real, $base . '/')) return null; // escaped the base
+    return $real;
+}
+
+/** One message row (for the media reader): includes room_id + attachment. */
+function chat_get_message(int $id): ?array {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT " . CHAT_MSG_COLS . " FROM chat_messages WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $id]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+/**
+ * Rooms + membership for DMs and subset groups. The v1 instance-wide room stays
+ * as a singleton kind='instance' every editor/admin can see; DMs and groups are
+ * private and gated by a membership row (admins do NOT auto-join).
+ * ponytail: membership is fixed at creation; add leave/rename/edit-members when
+ * someone actually needs them.
+ */
+function db_ensure_chat_rooms(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    db_ensure_chat_messages_table();
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS chat_rooms (
+                id BIGSERIAL PRIMARY KEY,
+                kind VARCHAR(16) NOT NULL DEFAULT 'group',
+                name VARCHAR(255) NULL,
+                created_by VARCHAR(255) NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_chat_rooms_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_rooms_instance ON chat_rooms (kind) WHERE kind = 'instance';
+            CREATE TABLE IF NOT EXISTS chat_room_members (
+                room_id BIGINT NOT NULL,
+                user_id VARCHAR(255) NOT NULL,
+                PRIMARY KEY (room_id, user_id),
+                CONSTRAINT fk_chat_members_room FOREIGN KEY (room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE,
+                CONSTRAINT fk_chat_members_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_members_user ON chat_room_members (user_id);
+            ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS room_id BIGINT NULL;
+            ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_path VARCHAR(255) NULL;
+            ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_type VARCHAR(16) NULL;
+            ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_mime VARCHAR(100) NULL;
+            ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_name VARCHAR(255) NULL;
+            ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_size BIGINT NULL;
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_room ON chat_messages (room_id, id);
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_author ON chat_messages (author_id);
+            CREATE TABLE IF NOT EXISTS chat_reports (
+                id BIGSERIAL PRIMARY KEY,
+                reported_user_id VARCHAR(255) NOT NULL,
+                reporter_id VARCHAR(255) NULL,
+                reporter_name VARCHAR(255) NOT NULL,
+                room_id BIGINT NULL,
+                reason TEXT NULL,
+                sample TEXT NOT NULL DEFAULT '[]',
+                status VARCHAR(16) NOT NULL DEFAULT 'open',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_chat_reports_reported FOREIGN KEY (reported_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_chat_reports_reporter FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_chat_reports_room FOREIGN KEY (room_id) REFERENCES chat_rooms(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_reports_status ON chat_reports (status, id);
+            CREATE TABLE IF NOT EXISTS chat_bans (
+                user_id VARCHAR(255) PRIMARY KEY,
+                banned_by VARCHAR(255) NULL,
+                reason TEXT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMPTZ NULL,
+                CONSTRAINT fk_chat_bans_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_chat_bans_by FOREIGN KEY (banned_by) REFERENCES users(id) ON DELETE SET NULL
+            );
+        ");
+        // Seed the singleton instance room, then backfill any pre-room messages into it.
+        $rid = chat_instance_room_id();
+        $pdo->prepare("UPDATE chat_messages SET room_id = :rid WHERE room_id IS NULL")
+            ->execute([':rid' => $rid]);
+        // Attach the room FK now that no NULLs remain, and upgrade the author FK to
+        // CASCADE for tables created before the v3 moderation policy (idempotent).
+        $pdo->exec("ALTER TABLE chat_messages
+            DROP CONSTRAINT IF EXISTS fk_chat_messages_room,
+            ADD CONSTRAINT fk_chat_messages_room FOREIGN KEY (room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE");
+        $pdo->exec("ALTER TABLE chat_messages
+            DROP CONSTRAINT IF EXISTS fk_chat_messages_author,
+            ADD CONSTRAINT fk_chat_messages_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE");
+    } catch (PDOException $e) {
+        error_log('db_ensure_chat_rooms: ' . $e->getMessage());
+    }
+}
+
+/** Delete one message. Allowed if $isAdmin or the caller authored it. Returns
+ *  true if a row was removed. */
+function chat_delete_message(int $id, string $meId, bool $isAdmin): bool {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    // Grab the attachment path first so we can unlink the file after the row goes.
+    $msg = chat_get_message($id);
+    if ($isAdmin) {
+        $stmt = $pdo->prepare("DELETE FROM chat_messages WHERE id = :id");
+        $stmt->execute([':id' => $id]);
+    } else {
+        $stmt = $pdo->prepare("DELETE FROM chat_messages WHERE id = :id AND author_id = :me");
+        $stmt->execute([':id' => $id, ':me' => $meId]);
+    }
+    $deleted = $stmt->rowCount() > 0;
+    if ($deleted && $msg && !empty($msg['attachment_path'])) {
+        $abs = chat_media_abs_path((string)$msg['attachment_path']);
+        if ($abs !== null) @unlink($abs);
+    }
+    return $deleted;
+}
+
+/** Hard-delete a non-instance room (CASCADE clears its messages + members).
+ *  Allowed for admins, the room creator, or either DM participant. */
+function chat_delete_room(int $roomId, string $meId, bool $isAdmin): bool {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT kind, created_by FROM chat_rooms WHERE id = :rid LIMIT 1");
+    $stmt->execute([':rid' => $roomId]);
+    $room = $stmt->fetch();
+    if (!$room || $room['kind'] === 'instance') return false;
+    $allowed = $isAdmin
+        || ((string)($room['created_by'] ?? '') === $meId)
+        || ($room['kind'] === 'dm' && chat_user_in_room($meId, $roomId));
+    if (!$allowed) return false;
+    $pdo->prepare("DELETE FROM chat_rooms WHERE id = :rid")->execute([':rid' => $roomId]);
+    // Remove the room's media files (CASCADE cleared the rows; files are on disk).
+    chat_rrmdir_media((string)$roomId);
+    return true;
+}
+
+/** Recursively delete chat_media_dir/<rel>, guarded to stay inside the base. */
+function chat_rrmdir_media(string $rel): void {
+    $base = realpath(chat_media_dir());
+    if ($base === false) return;
+    $dir = realpath($base . '/' . trim($rel, '/'));
+    if ($dir === false || $dir === $base || !str_starts_with($dir, $base . '/')) return;
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($it as $f) { $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname()); }
+    @rmdir($dir);
+}
+
+/** Leave a group (drop own membership). Deletes the room if it becomes empty.
+ *  Groups only; instance + dm rooms are not leavable. */
+function chat_leave_room(int $roomId, string $meId): bool {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT kind FROM chat_rooms WHERE id = :rid LIMIT 1");
+    $stmt->execute([':rid' => $roomId]);
+    $kind = $stmt->fetchColumn();
+    if ($kind !== 'group') return false;
+    $del = $pdo->prepare("DELETE FROM chat_room_members WHERE room_id = :rid AND user_id = :me");
+    $del->execute([':rid' => $roomId, ':me' => $meId]);
+    if ($del->rowCount() === 0) return false;
+    $left = (int)$pdo->query("SELECT count(*) FROM chat_room_members WHERE room_id = " . (int)$roomId)->fetchColumn();
+    if ($left === 0) {
+        $pdo->prepare("DELETE FROM chat_rooms WHERE id = :rid")->execute([':rid' => $roomId]);
+    }
+    return true;
+}
+
+/** Snapshot a user's most recent messages in a room (evidence for a report). */
+function chat_collect_sample(string $userId, int $roomId, int $limit = 10): array {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT body, created_at FROM chat_messages
+        WHERE author_id = :uid AND room_id = :rid ORDER BY id DESC LIMIT :lim");
+    $stmt->bindValue(':uid', $userId, PDO::PARAM_STR);
+    $stmt->bindValue(':rid', $roomId, PDO::PARAM_INT);
+    $stmt->bindValue(':lim', max(1, min(50, $limit)), PDO::PARAM_INT);
+    $stmt->execute();
+    $out = [];
+    foreach (array_reverse($stmt->fetchAll()) as $r) {
+        $out[] = ['body' => (string)$r['body'], 'created_at' => (string)$r['created_at']];
+    }
+    return $out;
+}
+
+/** File a report. Returns the created report row (with decoded sample). */
+function chat_create_report(string $reportedId, string $reporterId, string $reporterName, int $roomId, ?string $reason): array {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    $sample = chat_collect_sample($reportedId, $roomId);
+    $stmt = $pdo->prepare("INSERT INTO chat_reports (reported_user_id, reporter_id, reporter_name, room_id, reason, sample)
+        VALUES (:ru, :rp, :rpn, :rid, :reason, :sample)
+        RETURNING id, reported_user_id, reporter_id, reporter_name, room_id, reason, sample, status, created_at");
+    $stmt->bindValue(':ru', $reportedId, PDO::PARAM_STR);
+    if ($reporterId === '') $stmt->bindValue(':rp', null, PDO::PARAM_NULL);
+    else $stmt->bindValue(':rp', $reporterId, PDO::PARAM_STR);
+    $stmt->bindValue(':rpn', $reporterName, PDO::PARAM_STR);
+    $stmt->bindValue(':rid', $roomId, PDO::PARAM_INT);
+    if ($reason === null || $reason === '') $stmt->bindValue(':reason', null, PDO::PARAM_NULL);
+    else $stmt->bindValue(':reason', $reason, PDO::PARAM_STR);
+    $stmt->bindValue(':sample', json_encode($sample, JSON_UNESCAPED_UNICODE), PDO::PARAM_STR);
+    $stmt->execute();
+    $row = $stmt->fetch();
+    $row['sample'] = $sample;
+    return $row;
+}
+
+/** Open reports, newest first, for the admin surface. Resolves display names. */
+function chat_reports_open(): array {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    $rows = $pdo->query("
+        SELECT r.id, r.reported_user_id, r.reporter_name, r.reason, r.sample, r.created_at,
+               trim(coalesce(u.firstname,'') || ' ' || coalesce(u.lastname,'')) AS reported_name
+        FROM chat_reports r
+        LEFT JOIN users u ON u.id = r.reported_user_id
+        WHERE r.status = 'open'
+        ORDER BY r.id DESC")->fetchAll();
+    $out = [];
+    foreach ($rows as $r) {
+        $sample = json_decode((string)$r['sample'], true);
+        $out[] = [
+            'id'               => (int)$r['id'],
+            'reported_user_id' => (string)$r['reported_user_id'],
+            'reported_name'    => trim((string)$r['reported_name']) !== '' ? trim((string)$r['reported_name']) : (string)$r['reported_user_id'],
+            'reporter_name'    => (string)$r['reporter_name'],
+            'reason'           => $r['reason'] !== null ? (string)$r['reason'] : '',
+            'sample'           => is_array($sample) ? $sample : [],
+            'created_at'       => (string)$r['created_at'],
+        ];
+    }
+    return $out;
+}
+
+/** Mark a report closed. */
+function chat_close_report(int $id): bool {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("UPDATE chat_reports SET status = 'closed' WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    return $stmt->rowCount() > 0;
+}
+
+/** Ban a user. $days null/<=0 = indefinite. UPSERT (one active ban per user). */
+function chat_ban_user(string $userId, ?int $days, string $byId, ?string $reason): void {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    $expires = ($days !== null && $days > 0) ? gmdate('Y-m-d H:i:s', time() + $days * 86400) : null;
+    $stmt = $pdo->prepare("INSERT INTO chat_bans (user_id, banned_by, reason, expires_at, created_at)
+        VALUES (:uid, :by, :reason, :exp, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id) DO UPDATE SET banned_by = EXCLUDED.banned_by,
+            reason = EXCLUDED.reason, expires_at = EXCLUDED.expires_at, created_at = CURRENT_TIMESTAMP");
+    $stmt->bindValue(':uid', $userId, PDO::PARAM_STR);
+    $stmt->bindValue(':by', $byId !== '' ? $byId : null, $byId !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
+    if ($reason === null || $reason === '') $stmt->bindValue(':reason', null, PDO::PARAM_NULL);
+    else $stmt->bindValue(':reason', $reason, PDO::PARAM_STR);
+    if ($expires === null) $stmt->bindValue(':exp', null, PDO::PARAM_NULL);
+    else $stmt->bindValue(':exp', $expires, PDO::PARAM_STR);
+    $stmt->execute();
+}
+
+/** Lift a ban. */
+function chat_unban_user(string $userId): void {
+    db_ensure_chat_rooms();
+    getDB()->prepare("DELETE FROM chat_bans WHERE user_id = :uid")->execute([':uid' => $userId]);
+}
+
+/** The active ban row for a user (expires in the future or never), or null. */
+function chat_active_ban(string $userId): ?array {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT user_id, reason, expires_at FROM chat_bans
+        WHERE user_id = :uid AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP) LIMIT 1");
+    $stmt->execute([':uid' => $userId]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+/** Email recipients for report notifications: every admin (type 2) with an email. */
+function chat_admin_recipients(): array {
+    $pdo = getDB();
+    $rows = $pdo->query("SELECT email, firstname, lastname FROM users WHERE type = 2 AND email IS NOT NULL AND email <> ''")->fetchAll();
+    $out = [];
+    foreach ($rows as $r) {
+        $name = trim(($r['firstname'] ?? '') . ' ' . ($r['lastname'] ?? ''));
+        $out[] = ['email' => (string)$r['email'], 'name' => $name];
+    }
+    return $out;
+}
+
+/** A user's type (0 regular / 1 editor / 2 admin), or null if unknown. */
+function chat_user_type(string $userId): ?int {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT type FROM users WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $userId]);
+    $t = $stmt->fetchColumn();
+    return $t === false ? null : (int)$t;
+}
+
+/** Id of the singleton instance-wide ("everyone") room, created on first need.
+ *  SELECT-then-INSERT with a catch so a racing insert (blocked by the partial
+ *  unique index) just re-selects rather than erroring. */
+function chat_instance_room_id(): int {
+    $pdo = getDB();
+    $id = $pdo->query("SELECT id FROM chat_rooms WHERE kind = 'instance' LIMIT 1")->fetchColumn();
+    if ($id !== false) return (int)$id;
+    try {
+        $pdo->exec("INSERT INTO chat_rooms (kind, name) VALUES ('instance', NULL)");
+    } catch (PDOException $e) {
+        // a concurrent insert won the unique index; fall through and re-select
+    }
+    $id = $pdo->query("SELECT id FROM chat_rooms WHERE kind = 'instance' LIMIT 1")->fetchColumn();
+    return (int)$id;
+}
+
+/** True if $userId may read/post in $roomId. Instance room = any editor/admin
+ *  (the caller already enforced that); dm/group = an explicit membership row. */
+function chat_user_in_room(string $userId, int $roomId): bool {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT kind FROM chat_rooms WHERE id = :rid LIMIT 1");
+    $stmt->execute([':rid' => $roomId]);
+    $kind = $stmt->fetchColumn();
+    if ($kind === false) return false;
+    if ($kind === 'instance') return true;
+    $m = $pdo->prepare("SELECT 1 FROM chat_room_members WHERE room_id = :rid AND user_id = :uid LIMIT 1");
+    $m->execute([':rid' => $roomId, ':uid' => $userId]);
+    return (bool)$m->fetchColumn();
+}
+
+/** Editors + admins, for the DM/group member picker. */
+function chat_directory(): array {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    $rows = $pdo->query("SELECT id, firstname, lastname FROM users WHERE type IN (1,2) ORDER BY firstname, lastname")->fetchAll();
+    $out = [];
+    foreach ($rows as $r) {
+        $name = trim(($r['firstname'] ?? '') . ' ' . ($r['lastname'] ?? ''));
+        $out[] = ['id' => (string)$r['id'], 'name' => $name !== '' ? $name : (string)$r['id']];
+    }
+    return $out;
+}
+
+/** Display names of a room's members (dm/group), excluding $exceptId when given. */
+function chat_room_member_names(int $roomId, ?string $exceptId = null): array {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT u.id, u.firstname, u.lastname
+        FROM chat_room_members m JOIN users u ON u.id = m.user_id
+        WHERE m.room_id = :rid");
+    $stmt->execute([':rid' => $roomId]);
+    $names = [];
+    foreach ($stmt->fetchAll() as $r) {
+        if ($exceptId !== null && (string)$r['id'] === $exceptId) continue;
+        $name = trim(($r['firstname'] ?? '') . ' ' . ($r['lastname'] ?? ''));
+        $names[] = $name !== '' ? $name : (string)$r['id'];
+    }
+    return $names;
+}
+
+/** Rooms $userId can see: the instance room plus their dm/group rooms, each with
+ *  its kind, a display label, and the room's latest message id (for ordering +
+ *  client-side unread). */
+function chat_rooms_for_user(string $userId, bool $isAdmin = false): array {
+    db_ensure_chat_rooms();
+    $instanceId = chat_instance_room_id();
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT r.id, r.kind, r.name, r.created_by,
+               (SELECT max(id) FROM chat_messages cm WHERE cm.room_id = r.id) AS last_message_id
+        FROM chat_rooms r
+        WHERE r.kind = 'instance'
+           OR r.id IN (SELECT room_id FROM chat_room_members WHERE user_id = :uid)
+        ORDER BY last_message_id DESC NULLS LAST, r.id");
+    $stmt->execute([':uid' => $userId]);
+    $out = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $id = (int)$r['id'];
+        $kind = (string)$r['kind'];
+        $isInstance = $id === $instanceId;
+        $label = (string)($r['name'] ?? '');
+        if ($kind === 'dm') {
+            $others = chat_room_member_names($id, $userId);
+            $label = $others ? implode(', ', $others) : '';
+        }
+        $isCreator = (string)($r['created_by'] ?? '') === $userId;
+        $out[] = [
+            'id'              => $id,
+            'kind'            => $kind,
+            'label'           => $label,
+            'is_instance'     => $isInstance,
+            'can_delete'      => !$isInstance && ($isAdmin || $isCreator || $kind === 'dm'),
+            'can_leave'       => $kind === 'group',
+            'last_message_id' => $r['last_message_id'] !== null ? (int)$r['last_message_id'] : 0,
+        ];
+    }
+    return $out;
+}
+
+/** Find (or create) the canonical 1:1 DM room for the unordered pair. */
+function chat_find_or_create_dm(string $meId, string $otherId): int {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    $find = $pdo->prepare("
+        SELECT r.id FROM chat_rooms r
+        WHERE r.kind = 'dm'
+          AND (SELECT count(*) FROM chat_room_members m WHERE m.room_id = r.id) = 2
+          AND EXISTS (SELECT 1 FROM chat_room_members WHERE room_id = r.id AND user_id = :me)
+          AND EXISTS (SELECT 1 FROM chat_room_members WHERE room_id = r.id AND user_id = :other)
+        LIMIT 1");
+    $find->execute([':me' => $meId, ':other' => $otherId]);
+    $existing = $find->fetchColumn();
+    if ($existing !== false) return (int)$existing;
+
+    $pdo->beginTransaction();
+    try {
+        $ins = $pdo->prepare("INSERT INTO chat_rooms (kind, created_by) VALUES ('dm', :me) RETURNING id");
+        $ins->execute([':me' => $meId]);
+        $roomId = (int)$ins->fetchColumn();
+        $mem = $pdo->prepare("INSERT INTO chat_room_members (room_id, user_id) VALUES (:rid, :uid) ON CONFLICT DO NOTHING");
+        $mem->execute([':rid' => $roomId, ':uid' => $meId]);
+        $mem->execute([':rid' => $roomId, ':uid' => $otherId]);
+        $pdo->commit();
+        return $roomId;
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/** Create a named group room with the creator plus the given members. Returns
+ *  the room id. Only ids that are editors/admins are added. */
+function chat_create_group(string $creatorId, string $name, array $memberIds): int {
+    db_ensure_chat_rooms();
+    $pdo = getDB();
+    // Keep only real editor/admin ids, plus the creator, deduped.
+    $allowed = [];
+    foreach (chat_directory() as $u) $allowed[$u['id']] = true;
+    $ids = [$creatorId => true];
+    foreach ($memberIds as $mid) {
+        $mid = (string)$mid;
+        if ($mid !== '' && isset($allowed[$mid])) $ids[$mid] = true;
+    }
+    $pdo->beginTransaction();
+    try {
+        $ins = $pdo->prepare("INSERT INTO chat_rooms (kind, name, created_by) VALUES ('group', :name, :me) RETURNING id");
+        $ins->execute([':name' => $name, ':me' => $creatorId]);
+        $roomId = (int)$ins->fetchColumn();
+        $mem = $pdo->prepare("INSERT INTO chat_room_members (room_id, user_id) VALUES (:rid, :uid) ON CONFLICT DO NOTHING");
+        foreach (array_keys($ids) as $uid) $mem->execute([':rid' => $roomId, ':uid' => $uid]);
+        $pdo->commit();
+        return $roomId;
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        throw $e;
     }
 }
 
