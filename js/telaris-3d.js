@@ -88,6 +88,13 @@ const VEIN_BUNDLE_OFFSET_MAX = 0.55; // hard clamp on a control point's final of
 // with more than one child, which is the leaf / rhizome read Manuel asked for. Curves
 // stay terse per operator preference.
 const VEIN_TREE = true;
+// The tree-branching NODE ORGANIZATION is the default for every galaxy and every theme
+// (Adri 2026-10-08), not just vine. It governs where nodes sit (the branching tree) + freezing
+// the sim so the shape holds; each theme keeps its own look (colours, background, node icons,
+// connection style). The warm tubes / navy field / sphere nodes / radiant portal stay vine-only.
+// ponytail: single kill-switch. Flip to false to restore force-directed layout everywhere and
+// make the tree vine-only again.
+const TREE_LAYOUT_UNIVERSAL = true;
 const VEIN_TREE_RADIUS_MIN = 0.04;  // tip (leaf) vein radius (thickened per Manuel: close the node/link size gap)
 const VEIN_TREE_RADIUS_MAX = 0.14;  // trunk radius near the root (vine-branch weight, not a thin thread)
 const VEIN_TREE_OPACITY = 0.9;      // backbone veins are solid
@@ -4077,8 +4084,13 @@ class TelarisNetwork {
      * terse bow), all consumed by the existing per-frame tube rebuild.
      */
     _computeVeinTree() {
-        if (!VEIN_TREE || !this.currentTheme || this.currentTheme.id !== 'vine') return;
-        const links = this.connections.filter(c => c._vein);
+        if (!VEIN_TREE) return;
+        if (!TREE_LAYOUT_UNIVERSAL && !(this.currentTheme && this.currentTheme.id === 'vine')) return;
+        // Build the backbone over every intra-galaxy shared-keyword link. For vine this is the
+        // same set the old `c._vein` filter gave (vine flags exactly the non-bridge links); for
+        // other themes _vein is false, so !isBridge is what opens the tree layout to them.
+        const isVein = !!(this.currentTheme && this.currentTheme.id === 'vine');
+        const links = this.connections.filter(c => !c.isBridge);
         if (!links.length) return;
 
         // Weighted adjacency (weight = shared-keyword count).
@@ -4148,7 +4160,7 @@ class TelarisNetwork {
                 const parentNode = (childNode === c.node1) ? c.node2 : c.node1;
                 c._veinTree = true;
                 c._veinRadius = VEIN_TREE_RADIUS_MIN + t * (VEIN_TREE_RADIUS_MAX - VEIN_TREE_RADIUS_MIN);
-                c.baseOpacity = VEIN_TREE_OPACITY;
+                if (isVein) c.baseOpacity = VEIN_TREE_OPACITY; // vine-only: other themes keep their own line opacity
                 // Branch routing: this link leaves the parent via the parent's SHARED branch
                 // point (toward all its children) before heading to this child, so siblings
                 // fork instead of fanning. _veinKids is the parent's child-node list (shared).
@@ -4164,7 +4176,7 @@ class TelarisNetwork {
                 c._veinTree = false;
                 c._veinBranch = false;
                 c._veinRadius = VEIN_TENDRIL_RADIUS;
-                c.baseOpacity = VEIN_SHOW_TENDRILS ? VEIN_TENDRIL_OPACITY : 0; // 0 => hidden (backbone-only)
+                if (isVein) c.baseOpacity = VEIN_SHOW_TENDRILS ? VEIN_TENDRIL_OPACITY : 0; // vine-only; 0 => hidden (backbone-only)
                 c._veinWave = [{ t: 0.5, u: sign() * VEIN_TENDRIL_BOW, v: 0 }];
             }
             c._veinPts = null; // re-alloc sized to the control-point count
@@ -4574,9 +4586,10 @@ class TelarisNetwork {
         const focused = this.networkManager.getFocusedNode();
         const isRhizome = !!(this.currentTheme && this.currentTheme.id === 'rhizome');
         const isVein = !!(this.currentTheme && this.currentTheme.id === 'vine');
-        // Vein nodes are a fixed tree: keep only a whisper of drift so branches breathe but
-        // don't wobble out of their fork. Other themes float at the usual amplitude.
-        const driftAmp = isVein ? 0.05 : 0.28;
+        // Tree-layout nodes are a fixed tree: keep only a whisper of drift so branches breathe
+        // but don't wobble out of their fork. Universal now, so every theme stays calm (a 0.28
+        // float blurred the branching); themes still differ in colour/background/icons.
+        const driftAmp = (isVein || TREE_LAYOUT_UNIVERSAL) ? 0.05 : 0.28;
 
         // Rhizome colour cloud: nodes rest at a uniform light gray; the hovered node
         // and its direct neighbours take their real colour, forming a colour cloud
@@ -5297,9 +5310,10 @@ class TelarisNetwork {
             } else {
                 this.controls.autoRotate = !isFadingIn && (now - this.lastInteractionAt) > this.idleRotateDelayMs;
             }
-            // Vein theme freezes the sim: nodes are positioned as a fixed branching tree
-            // (_computeVeinLayout), so running forces would just pull the fork apart again.
-            if (!isFadingIn && !(this.currentTheme && this.currentTheme.id === 'vine')) {
+            // The tree layout freezes the sim for every theme now (Adri 2026-10-08): nodes are
+            // positioned as a fixed branching tree (_computeVeinLayout), so running forces would
+            // just pull the forks apart again.
+            if (!isFadingIn && !TREE_LAYOUT_UNIVERSAL && !(this.currentTheme && this.currentTheme.id === 'vine')) {
                 this.applyForces(dt, 0.05);
             }
             if (!this._tourTweening) {
