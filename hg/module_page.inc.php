@@ -15,6 +15,7 @@
 
 @require_once('config.inc.php');
 require_once('common.inc.php');
+require_once('controller.inc.php');	// register_controller() for the gated-asset controller below; json.php does not pull this in on its own
 require_once('html.inc.php');
 require_once('util.inc.php');
 
