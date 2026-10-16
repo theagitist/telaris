@@ -19,6 +19,222 @@ require_once('util.inc.php');
 // (they can be easier than that one though)
 
 
+/**
+ *	Object Properties: user-supplied classes and attributes.
+ *
+ *	Both are stored on the object and merged into the container <div> at render
+ *	time. Validation lives here, in the RENDER path, rather than only where the
+ *	editor writes them - glue.update_object is a generic key/value setter, so
+ *	anything that only guards the write can be walked around with one POST.
+ *	Filtering as we render is the gate that actually holds.
+ *
+ *	Attribute NAMES are the dangerous half, and not for the obvious reason.
+ *	html.inc.php:228 emits them with htmlspecialchars(..., ENT_NOQUOTES), which
+ *	deliberately leaves quotes alone - so a name of  x" onload="alert(1)  would
+ *	close the attribute and inject an event handler. Values are emitted with
+ *	ENT_COMPAT and are safe. Hence the strict name charset below: it is load
+ *	bearing, not tidiness.
+ */
+
+// letters, digits and dashes, starting with a letter - covers data-*, aria-*,
+// role, title, name, and rejects everything that could break out
+define('OBJECT_ATTR_NAME_RE', '/^[a-zA-Z][a-zA-Z0-9-]*$/');
+// one CSS class token
+define('OBJECT_CLASS_TOKEN_RE', '/^-?[A-Za-z_][A-Za-z0-9_-]*$/');
+
+/**
+ *	attribute names the user may not set on an object container
+ *
+ *	@return array lowercase names
+ */
+function object_attr_denylist()
+{
+	return [
+		// identity and layout are hotglue's, not the user's
+		'id',			// the editor's primary handle (selection, save, undo)
+		'class',		// managed by the separate class field
+		'style',		// would let a user override the absolute positioning
+						// that IS hotglue; object styling has its own path
+		// would fight the editor's own behaviour
+		'contenteditable',
+		'draggable',
+	];
+}
+
+/**
+ *	is this attribute name allowed on an object container?
+ *
+ *	@param string $name attribute name
+ *	@return bool
+ */
+function object_attr_allowed($name)
+{
+	$name = strtolower(trim($name));
+	if (!preg_match(OBJECT_ATTR_NAME_RE, $name)) {
+		return false;
+	}
+	// every inline event handler - JS belongs in page-level /code
+	if (substr($name, 0, 2) == 'on') {
+		return false;
+	}
+	return !in_array($name, object_attr_denylist());
+}
+
+/**
+ *	filter a class string down to the tokens that are valid CSS class names
+ *
+ *	@param string $str space-separated tokens
+ *	@return array valid tokens
+ */
+function object_filter_classes($str)
+{
+	$out = [];
+	foreach (preg_split('/\s+/', trim((string)$str)) as $token) {
+		if ($token !== '' && preg_match(OBJECT_CLASS_TOKEN_RE, $token)) {
+			$out[] = $token;
+		}
+	}
+	return $out;
+}
+
+/**
+ *	decode the stored object-attributes property
+ *
+ *	Stored as a single line of JSON, which suits the flat file format: it never
+ *	contains a raw newline (save_object strips those from every value anyway,
+ *	module_glue.inc.php), and a colon inside it is harmless because the parser
+ *	splits each line on the FIRST colon only.
+ *
+ *	@param string $str stored value
+ *	@return array name=>value, only the entries that pass validation
+ */
+function object_decode_attributes($str)
+{
+	if (empty($str)) {
+		return [];
+	}
+	$decoded = @json_decode($str, true);
+	if (!is_array($decoded)) {
+		log_msg('warn', 'object: could not decode object-attributes '.quot($str));
+		return [];
+	}
+	$out = [];
+	foreach ($decoded as $name=>$val) {
+		if (is_array($val) || is_object($val)) {
+			continue;
+		}
+		if (object_attr_allowed($name)) {
+			$out[strtolower(trim($name))] = (string)$val;
+		} else {
+			log_msg('warn', 'object: dropping disallowed attribute '.quot($name));
+		}
+	}
+	return $out;
+}
+
+
+/**
+ *	save an object's user classes and custom attributes
+ *
+ *	The editor could write these with glue.update_object directly - this exists
+ *	so a bad value is REJECTED with a reason instead of being stored and then
+ *	silently dropped at render time. Client-side validation is for feedback;
+ *	this is where a save actually gets refused.
+ *
+ *	Note the render path filters independently (object_alter_render_early), and
+ *	has to: glue.update_object is a generic key/value setter, so this service
+ *	cannot be the only check without being trivially bypassed.
+ *
+ *	@param array $args arguments
+ *		key 'name' is the object name
+ *		key 'classes' space-separated user class tokens (optional, '' clears)
+ *		key 'attributes' name=>value map of custom attributes (optional)
+ *	@return array response
+ *		true if successful
+ */
+function object_set_properties($args)
+{
+	if (empty($args['name'])) {
+		return response('Required argument "name" missing', 400);
+	}
+	load_modules('glue');
+
+	$update = ['name'=>$args['name']];
+	$remove = [];
+
+	if (isset($args['classes'])) {
+		$raw = preg_split('/\s+/', trim((string)$args['classes']), -1, PREG_SPLIT_NO_EMPTY);
+		$bad = [];
+		foreach ($raw as $token) {
+			if (!preg_match(OBJECT_CLASS_TOKEN_RE, $token)) {
+				$bad[] = $token;
+			}
+		}
+		if (count($bad)) {
+			return response('Invalid class name(s): '.quot(implode(' ', $bad)).' - use letters, digits, - and _, not starting with a digit', 400);
+		}
+		if (count($raw)) {
+			$update['object-custom-class'] = implode(' ', $raw);
+		} else {
+			$remove[] = 'object-custom-class';
+		}
+	}
+
+	if (isset($args['attributes'])) {
+		if (!is_array($args['attributes'])) {
+			return response('Argument "attributes" must be an object', 400);
+		}
+		$attrs = [];
+		foreach ($args['attributes'] as $name=>$val) {
+			$name = strtolower(trim((string)$name));
+			if ($name === '') {
+				continue;
+			}
+			if (is_array($val) || is_object($val)) {
+				return response('Attribute '.quot($name).' must have a text value', 400);
+			}
+			if (!preg_match(OBJECT_ATTR_NAME_RE, $name)) {
+				return response('Invalid attribute name '.quot($name).' - use letters, digits and dashes, starting with a letter', 400);
+			}
+			if (substr($name, 0, 2) == 'on') {
+				return response('Attribute '.quot($name).' can\'t be set here - inline event handlers are not allowed, put javascript in the page\'s code instead', 400);
+			}
+			if (in_array($name, object_attr_denylist())) {
+				if ($name == 'style') {
+					return response('Attribute "style" can\'t be set here - the object\'s position and size are managed by the object itself', 400);
+				}
+				return response('Attribute '.quot($name).' can\'t be set here - it is managed by hotglue', 400);
+			}
+			$attrs[$name] = (string)$val;
+		}
+		if (count($attrs)) {
+			// one line of JSON - see object_decode_attributes()
+			$update['object-attributes'] = json_encode($attrs, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+		} else {
+			$remove[] = 'object-attributes';
+		}
+	}
+
+	// nothing is written until every field has passed, so a rejected save
+	// cannot leave half the properties updated
+	if (1 < count($update)) {
+		$ret = update_object($update);
+		if ($ret['#error']) {
+			return $ret;
+		}
+	}
+	foreach ($remove as $attr) {
+		$ret = object_remove_attr(['name'=>$args['name'], 'attr'=>$attr]);
+		if ($ret['#error']) {
+			return $ret;
+		}
+	}
+	return response(true);
+}
+
+register_service('object.set_properties', 'object_set_properties', ['auth'=>true]);
+
+
 function object_alter_render_early($args)
 {
 	$elem = &$args['elem'];
@@ -36,6 +252,170 @@ function object_alter_render_early($args)
 	if (!empty($obj['object-opacity'])) {
 		elem_css($elem, 'opacity', $obj['object-opacity']);
 	}
+	// whether content bigger than the object's box is cut off or spills out.
+	// Absent means visible, which is the browser default and what hotglue has
+	// always done - so only 'hidden' is ever stored, and an object that has
+	// never been touched keeps exactly the markup it had.
+	if (!empty($obj['object-overflow'])) {
+		elem_css($elem, 'overflow', $obj['object-overflow']);
+	}
+	// rounded corners
+	if (!empty($obj['object-border-radius'])) {
+		elem_css($elem, 'border-radius', $obj['object-border-radius']);
+	}
+	// how the object blends with what is behind it. Absent means normal -
+	// the browser default - so only a non-normal mode is ever stored, and
+	// the stored value is allowlisted before it reaches the style attribute.
+	if (!empty($obj['object-mix-blend-mode']) &&
+			in_array($obj['object-mix-blend-mode'], array('multiply', 'screen',
+				'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn',
+				'hard-light', 'soft-light', 'difference', 'exclusion', 'hue',
+				'saturation', 'color', 'luminosity'))) {
+		elem_css($elem, 'mix-blend-mode', $obj['object-mix-blend-mode']);
+	}
+	// A border of the author's own. Solid is the default and is NOT stored -
+	// absent means solid, the way absent means visible for overflow - so an
+	// object with an ordinary border carries two attributes rather than
+	// three. (The editor's selection used to be a border on this same
+	// element, which is why objects could not have one at all until it became
+	// an outline - see .glue-selected in css/edit.css.)
+	if (!empty($obj['object-border-width'])) {
+		elem_css($elem, 'border-width', $obj['object-border-width']);
+		elem_css($elem, 'border-style', !empty($obj['object-border-style']) ?
+			$obj['object-border-style'] : 'solid');
+		if (!empty($obj['object-border-color'])) {
+			elem_css($elem, 'border-color', $obj['object-border-color']);
+		}
+	}
+	// A background image of the object's own. The URL points at the OBJECT,
+	// not at the file in the shared directory - object_serve_resource() below
+	// hands the file over - which is the same arrangement image objects use
+	// and for the same reason: the shared directory is deduplicated, and the
+	// object is what knows which file is its. The one exception is an image
+	// object: its object URL serves the PICTURE (image_serve_resource wins
+	// the hook dispatch, and object_serve_resource refuses objects with
+	// image-file), so the background of an image object points at the
+	// shared file directly - the same raw path the video poster uses.
+	if (!empty($obj['object-background-file'])) {
+		if (!empty($obj['image-file'])) {
+			$pn = get_first_item(expl('.', $obj['name']));
+			$url = CONTENT_DIR.'/'.$pn.'/shared/'.rawurlencode($obj['object-background-file']);
+		} else if (SHORT_URLS) {
+			$url = base_path().urlencode($obj['name']);
+		} else {
+			$url = base_path().'?'.urlencode($obj['name']);
+		}
+		elem_css($elem, 'background-image', 'url('.$url.')');
+		elem_css($elem, 'background-repeat', !empty($obj['object-background-repeat']) ?
+			$obj['object-background-repeat'] : 'no-repeat');
+		if (!empty($obj['object-background-position'])) {
+			elem_css($elem, 'background-position', $obj['object-background-position']);
+		}
+		// the scale is a percentage of the object's width, height keeping its
+		// own ratio - '% auto' is composed here, the bare number is stored
+		if (!empty($obj['object-background-scale'])) {
+			elem_css($elem, 'background-size',
+				$obj['object-background-scale'].'% auto');
+		}
+	}
+	// The colour under it, or - for an object with no picture - the background
+	// itself. Text objects have their own (text-background-color, which the
+	// text module renders), so this is every other kind, matching the guard in
+	// object_alter_save().
+	if (!elem_has_class($elem, 'text') && !empty($obj['object-background-color'])) {
+		elem_css($elem, 'background-color', $obj['object-background-color']);
+	}
+	// Padding, for every kind except text (which stores its own
+	// text-padding-*): the four longhands when the object was saved with
+	// per-side values, the x/y pair as the fallback for the uniform row -
+	// danja's call, 2026-09-23: image and video objects got the padding
+	// section text has. The frame compensation the panel does means the
+	// object's stored width/height stay the OUTER size, and the picture
+	// letterboxes inside the padded content box.
+	if (!elem_has_class($elem, 'text')) {
+		if (!empty($obj['object-padding-left'])) {
+			elem_css($elem, 'padding-left', $obj['object-padding-left']);
+		}
+		if (!empty($obj['object-padding-right'])) {
+			elem_css($elem, 'padding-right', $obj['object-padding-right']);
+		}
+		if (empty($obj['object-padding-left']) && empty($obj['object-padding-right']) && !empty($obj['object-padding-x'])) {
+			elem_css($elem, 'padding-left', $obj['object-padding-x']);
+			elem_css($elem, 'padding-right', $obj['object-padding-x']);
+		}
+		if (!empty($obj['object-padding-top'])) {
+			elem_css($elem, 'padding-top', $obj['object-padding-top']);
+		}
+		if (!empty($obj['object-padding-bottom'])) {
+			elem_css($elem, 'padding-bottom', $obj['object-padding-bottom']);
+		}
+		if (empty($obj['object-padding-top']) && empty($obj['object-padding-bottom']) && !empty($obj['object-padding-y'])) {
+			elem_css($elem, 'padding-top', $obj['object-padding-y']);
+			elem_css($elem, 'padding-bottom', $obj['object-padding-y']);
+		}
+	}
+	// The box-shadow family - a soft halo behind the content, a solid band
+	// outside the box and one inside it, and a directional drop shadow - see
+	// .glue-glow in css/main.css. Like the fade above, what is stored is the
+	// ingredients (colours, radii, strengths) rather than any shadow itself.
+	// One class turns on the whole composed rule; the members nobody set stay
+	// invisible, so an object with just an inset band does not also invent a
+	// glow or an outer rim.
+	//
+	// Every NUMBER emitted here is format-guarded: a single bad unit in one
+	// variable would invalidate the entire box-shadow at computed-value time
+	// and take the whole family down with it, so a hand-edited file with,
+	// say, '20px' in a spread is dropped rather than trusted.
+	if (!empty($obj['object-glow-color'])) {
+		elem_css($elem, '--glue-glow-color', $obj['object-glow-color']);
+		if (!empty($obj['object-glow-spread']) &&
+		    preg_match('/^[0-9.]+$/', $obj['object-glow-spread'])) {
+			elem_css($elem, '--glue-glow-spread', $obj['object-glow-spread']);
+		}
+		if (!empty($obj['object-glow-alpha']) &&
+		    preg_match('/^[0-9.]+$/', $obj['object-glow-alpha'])) {
+			elem_css($elem, '--glue-glow-alpha', $obj['object-glow-alpha']);
+		}
+		// the inner layers and the duotone sides are sized off the spread,
+		// so they exist only while the glow has a reach - without one they
+		// would be a solid box
+		if (!empty($obj['object-glow-spread'])) {
+			if (!empty($obj['object-glow-inner'])) {
+				elem_css($elem, '--glue-glow-inner', $obj['object-glow-inner']);
+			}
+			if (!empty($obj['object-glow-color2'])) {
+				elem_css($elem, '--glue-glow-color2', $obj['object-glow-color2']);
+			}
+		}
+		elem_add_class($elem, 'glue-glow');
+	}
+	// the drop shadow's on-switch is its colour: without one, no shadow
+	if (!empty($obj['object-drop-color'])) {
+		elem_css($elem, '--glue-drop-color', $obj['object-drop-color']);
+		// the angle keeps its unit, so the trig in the composed rule sees
+		// an angle rather than a number
+		if (!empty($obj['object-drop-angle']) &&
+		    preg_match('/^[0-9.]+deg$/', $obj['object-drop-angle'])) {
+			elem_css($elem, '--glue-drop-angle', $obj['object-drop-angle']);
+		}
+		foreach (['distance', 'blur', 'spread'] as $part) {
+			if (!empty($obj['object-drop-'.$part]) &&
+			    preg_match('/^[0-9.]+$/', $obj['object-drop-'.$part])) {
+				elem_css($elem, '--glue-drop-'.$part, $obj['object-drop-'.$part]);
+			}
+		}
+		elem_add_class($elem, 'glue-glow');
+	}
+	// A soft edge: the NUMBER is stored, and one rule in css/main.css builds
+	// the mask from it - see .glue-edge-fade there. Storing the gradient
+	// itself would put commas and quotes in the object file and write the
+	// same gradient out in two places (here and the editor) that would have
+	// to agree forever. The class is what turns the rule on, so objects
+	// nobody has faded carry no mask at all.
+	if (!empty($obj['object-edge-fade'])) {
+		elem_css($elem, '--glue-fade', $obj['object-edge-fade']);
+		elem_add_class($elem, 'glue-edge-fade');
+	}
 	elem_css($elem, 'position', 'absolute');
 	if (!empty($obj['object-top'])) {
 		elem_css($elem, 'top', $obj['object-top']);
@@ -46,7 +426,23 @@ function object_alter_render_early($args)
 	if (!empty($obj['object-zindex'])) {
 		elem_css($elem, 'z-index', $obj['object-zindex']);
 	}
-	
+	// custom class: appended alongside the internal classes (safe, classes
+	// don't collide) so the user's own CSS/JS can target this object. Filtered
+	// to valid class tokens - APPENDED, so a user can never remove or replace
+	// the classes the editor and the modules key off.
+	if (!empty($obj['object-custom-class'])) {
+		foreach (object_filter_classes($obj['object-custom-class']) as $token) {
+			elem_add_class($elem, $token);
+		}
+	}
+
+	// custom attributes, denylist-filtered (see the note at the top)
+	if (!empty($obj['object-attributes'])) {
+		foreach (object_decode_attributes($obj['object-attributes']) as $name=>$val) {
+			elem_attr($elem, $name, $val);
+		}
+	}
+
 	return true;
 }
 
@@ -68,12 +464,21 @@ function object_alter_render_late($args)
 			}
 			// resolve any aliases
 			$link = resolve_aliases($link, $obj['name']);
-			if (!is_url($link) && substr($link, 0, 1) != '#') {
-				// add base url for relative links that are not directed towards anchors
+			if (($local = localize_url($link)) !== false) {
+				// a saved absolute address of this very site (see localize_url())
+				$link = $local;
+			} elseif (!is_url($link) && substr($link, 0, 1) != '#') {
+				// same-site page links are kept relative (not prefixed with
+				// base_url()) so they still resolve correctly when the page
+				// is viewed through a different domain (e.g. a custom
+				// domain pointed at this install) than whatever BASE_URL is
+				// configured/detected as - the browser resolves a relative
+				// href against the domain the page is actually being viewed
+				// on, not a hardcoded one
 				if (SHORT_URLS) {
-					$link = base_url().urlencode($link);
+					$link = base_path().urlencode($link);
 				} else {
-					$link = base_url().'?'.urlencode($link);
+					$link = base_path().'?'.urlencode($link);
 				}
 			}
 			// <a> can include block elements in html5
@@ -116,6 +521,191 @@ function object_alter_save($args)
 	} else {
 		unset($obj['object-opacity']);
 	}
+	if (elem_css($elem, 'mix-blend-mode') !== NULL &&
+			elem_css($elem, 'mix-blend-mode') != 'normal') {
+		$obj['object-mix-blend-mode'] = elem_css($elem, 'mix-blend-mode');
+	} else {
+		unset($obj['object-mix-blend-mode']);
+	}
+	if (elem_css($elem, 'overflow') !== NULL) {
+		$obj['object-overflow'] = elem_css($elem, 'overflow');
+	} else {
+		unset($obj['object-overflow']);
+	}
+	if (elem_css($elem, 'border-radius') !== NULL) {
+		$obj['object-border-radius'] = elem_css($elem, 'border-radius');
+	} else {
+		unset($obj['object-border-radius']);
+	}
+	// The colour under the picture, and - for an object with no picture - the
+	// whole of its background. Text objects keep theirs in text-background-color
+	// (the text module has owned that property since long before there was a
+	// background panel, and renders it itself), so this is every other kind:
+	// without it a colour picked in the background panel would live in the
+	// editor's DOM and nowhere else.
+	if (!elem_has_class($elem, 'text') && elem_css($elem, 'background-color') !== NULL) {
+		$obj['object-background-color'] = elem_css($elem, 'background-color');
+	} else {
+		unset($obj['object-background-color']);
+	}
+	// padding, for every kind except text (the text module stores its own
+	// text-padding-*): the x/y pair while the sides are symmetric, the four
+	// longhands when they are not - the same parse text_alter_save does.
+	// The panel compensates the frame, so width/height above keep being the
+	// OUTER size and the content box shrinks by the padding.
+	if (!elem_has_class($elem, 'text')) {
+		$pad = ['top'=>NULL, 'right'=>NULL, 'bottom'=>NULL, 'left'=>NULL];
+		if (elem_css($elem, 'padding') !== NULL) {
+			// inline padding as shorthand rather than longhands (Firefox
+			// serialises it that way - same reason as text_alter_save)
+			$s = expl(' ', elem_css($elem, 'padding'));
+			if (count($s) == 1) {
+				$pad['top'] = $pad['right'] = $pad['bottom'] = $pad['left'] = $s[0];
+			} elseif (count($s) == 2) {
+				$pad['top'] = $pad['bottom'] = $s[0];
+				$pad['left'] = $pad['right'] = $s[1];
+			} elseif (count($s) == 3) {
+				$pad['top'] = $s[0];
+				$pad['left'] = $pad['right'] = $s[1];
+				$pad['bottom'] = $s[2];
+			} else {
+				$pad['top'] = $s[0];
+				$pad['right'] = $s[1];
+				$pad['bottom'] = $s[2];
+				$pad['left'] = $s[3];
+			}
+		} else {
+			foreach ($pad as $side => $v) {
+				$pad[$side] = elem_css($elem, 'padding-'.$side);
+			}
+		}
+		// left/right -> object-padding-x, or the two longhands when they differ
+		if ($pad['left'] !== NULL || $pad['right'] !== NULL) {
+			if ($pad['left'] !== NULL && $pad['right'] !== NULL && $pad['left'] == $pad['right']) {
+				$obj['object-padding-x'] = $pad['left'];
+				unset($obj['object-padding-left']);
+				unset($obj['object-padding-right']);
+			} else {
+				unset($obj['object-padding-x']);
+				if ($pad['left'] !== NULL) {
+					$obj['object-padding-left'] = $pad['left'];
+				} else {
+					unset($obj['object-padding-left']);
+				}
+				if ($pad['right'] !== NULL) {
+					$obj['object-padding-right'] = $pad['right'];
+				} else {
+					unset($obj['object-padding-right']);
+				}
+			}
+		} else {
+			unset($obj['object-padding-x']);
+			unset($obj['object-padding-left']);
+			unset($obj['object-padding-right']);
+		}
+		// top/bottom likewise
+		if ($pad['top'] !== NULL || $pad['bottom'] !== NULL) {
+			if ($pad['top'] !== NULL && $pad['bottom'] !== NULL && $pad['top'] == $pad['bottom']) {
+				$obj['object-padding-y'] = $pad['top'];
+				unset($obj['object-padding-top']);
+				unset($obj['object-padding-bottom']);
+			} else {
+				unset($obj['object-padding-y']);
+				if ($pad['top'] !== NULL) {
+					$obj['object-padding-top'] = $pad['top'];
+				} else {
+					unset($obj['object-padding-top']);
+				}
+				if ($pad['bottom'] !== NULL) {
+					$obj['object-padding-bottom'] = $pad['bottom'];
+				} else {
+					unset($obj['object-padding-bottom']);
+				}
+			}
+		} else {
+			unset($obj['object-padding-y']);
+			unset($obj['object-padding-top']);
+			unset($obj['object-padding-bottom']);
+		}
+	}
+	// Only the two settings, never the image URL: that is derived from
+	// object-background-file, which the upload sets and nothing else touches.
+	// Storing the url as well would give the object two copies of the same
+	// fact, one of which goes stale the moment a page is renamed.
+	//
+	// And only for an object whose background is its OWN. The image module
+	// paints its picture with background-image too, complete with a
+	// no-repeat, so reading these off any element that has them would write
+	// two new attributes into every image object on every save - files that
+	// have round-tripped untouched for years.
+	if (!empty($obj['object-background-file'])) {
+		if (elem_css($elem, 'background-repeat') !== NULL) {
+			$obj['object-background-repeat'] = elem_css($elem, 'background-repeat');
+		} else {
+			unset($obj['object-background-repeat']);
+		}
+		if (elem_css($elem, 'background-position') !== NULL) {
+			$obj['object-background-position'] = elem_css($elem, 'background-position');
+		} else {
+			unset($obj['object-background-position']);
+		}
+		if (elem_css($elem, 'background-size') !== NULL) {
+			// the bare number is stored: the '% auto' it renders as is
+			// composed at render. Chromium writes a width-only '150%' back
+			// into the style attribute (dropping the redundant 'auto'), so
+			// both spellings are accepted. A size that is not one of ours
+			// (someone hand-wrote 'cover', say) is dropped rather than
+			// stored, so a scaled-back object ends up byte-identical to one
+			// never touched.
+			if (preg_match('/^([0-9.]+)%( auto)?$/', elem_css($elem, 'background-size'), $m)) {
+				$obj['object-background-scale'] = $m[1];
+			} else {
+				unset($obj['object-background-scale']);
+			}
+		} else {
+			unset($obj['object-background-scale']);
+		}
+	}
+	// solid is the default and stays unstored: see object_render_object()
+	if (elem_css($elem, 'border-style') !== NULL &&
+	    elem_css($elem, 'border-style') != 'solid') {
+		$obj['object-border-style'] = elem_css($elem, 'border-style');
+	} else {
+		unset($obj['object-border-style']);
+	}
+	if (elem_css($elem, 'border-width') !== NULL) {
+		$obj['object-border-width'] = elem_css($elem, 'border-width');
+	} else {
+		unset($obj['object-border-width']);
+	}
+	if (elem_css($elem, 'border-color') !== NULL) {
+		$obj['object-border-color'] = elem_css($elem, 'border-color');
+	} else {
+		unset($obj['object-border-color']);
+	}
+	// see object_render_object(): the ingredients are what is stored, and the
+	// class comes back with them. The glow and the drop shadow are the same
+	// deal: the inline vars are the file's attrs, nothing composed is kept
+	// (the drop angle round-trips with its unit, '135deg').
+	foreach (['color', 'spread', 'alpha', 'inner', 'color2'] as $part) {
+		if (elem_css($elem, '--glue-glow-'.$part) !== NULL) {
+			$obj['object-glow-'.$part] = elem_css($elem, '--glue-glow-'.$part);
+		} else {
+			unset($obj['object-glow-'.$part]);
+		}
+	}
+	foreach (['color', 'distance', 'angle', 'blur', 'spread'] as $part) {
+		if (elem_css($elem, '--glue-drop-'.$part) !== NULL) {
+			$obj['object-drop-'.$part] = elem_css($elem, '--glue-drop-'.$part);
+		} else {
+			unset($obj['object-drop-'.$part]);
+		}
+	}
+	if (elem_css($elem, '--glue-fade') !== NULL) {
+		$obj['object-edge-fade'] = elem_css($elem, '--glue-fade');
+	} else {
+		unset($obj['object-edge-fade']);
+	}
 	if (elem_css($elem, 'top') !== NULL) {
 		$obj['object-top'] = elem_css($elem, 'top');
 	} else {
@@ -148,4 +738,87 @@ function object_render_page_early($args)
 		// add default colors
 		html_add_js_var('$.glue.conf.object.default_colors', expl(' ', OBJECT_DEFAULT_COLORS));
 	}
+}
+
+
+/**
+ *	implements upload for preferred_module 'object'
+ *
+ *	Sets an uploaded image as one object's background. Unlike the image
+ *	module's upload, which makes a new object out of the file, this one is
+ *	given the object to put it on - the frontend passes 'object' - and touches
+ *	nothing else about it.
+ *
+ *	The preferred_module has to be the MODULE's name and nothing else:
+ *	upload_files() dispatches by building "{preferred_module}_upload" and
+ *	calling it, so anything with a hyphen in it is not a function name, is
+ *	silently not callable, and the file falls through to the generic hooks -
+ *	where the image module makes an object out of it instead.
+ *
+ *	@param array $args arguments
+ *		key 'object' the object to set the background on
+ *	@return bool true when the file was taken
+ */
+function object_upload($args)
+{
+	if (empty($args['preferred_module']) || $args['preferred_module'] != 'object') {
+		return false;
+	}
+	if (empty($args['object'])) {
+		return false;
+	}
+	// the same set the page background accepts
+	if (!in_array($args['mime'], ['image/jpeg', 'image/png', 'image/gif']) &&
+	    !($args['mime'] == '' && in_array(filext($args['file']), ['jpg', 'jpeg', 'png', 'gif']))) {
+		return false;
+	}
+
+	load_modules('glue');
+	$obj = load_object(['name'=>$args['object']]);
+	if ($obj['#error']) {
+		log_msg('error', 'object_upload: no such object '.quot($args['object']));
+		return false;
+	}
+	$obj = $obj['#data'];
+	// a background this replaces is one upload fewer to keep
+	if (!empty($obj['object-background-file'])) {
+		delete_upload(['pagename'=>get_first_item(expl('.', $args['object'])),
+			'file'=>$obj['object-background-file'], 'max_cnt'=>1]);
+	}
+
+	$ret = update_object([
+		'name' => $args['object'],
+		'object-background-file' => $args['file'],
+		'object-background-mime' => $args['mime']
+	]);
+	if ($ret['#error']) {
+		log_msg('error', 'object_upload: error updating object: '.quot($ret['#data']));
+		return false;
+	}
+	return true;
+}
+
+
+/**
+ *	implements serve_resource
+ *
+ *	Hands over an object's background image. Objects that are images serve
+ *	their own picture through image_serve_resource() instead, so this
+ *	deliberately stands aside for them: one object, one resource.
+ */
+function object_serve_resource($args)
+{
+	$obj = $args['obj'];
+	if (empty($obj['object-background-file']) || !empty($obj['image-file'])) {
+		return false;
+	}
+	$pn = get_first_item(expl('.', $obj['name']));
+	$fn = CONTENT_DIR.'/'.$pn.'/shared/'.$obj['object-background-file'];
+	$mime = !empty($obj['object-background-mime']) ? $obj['object-background-mime'] : '';
+	if (!is_file($fn)) {
+		log_msg('warn', 'object_serve_resource: missing background file '.quot($fn));
+		return false;
+	}
+	serve_file($fn, $args['dl'], $mime);
+	return true;
 }

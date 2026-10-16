@@ -7,100 +7,126 @@
  *	See the file COPYING for more details.
  */
 
-$(document).ready(function() {
+document.addEventListener('DOMContentLoaded', function() {
 	var span = false;
-	
-	$('.page_browser_entry').live('mouseenter', function(e) {
-		if (span) {
-			$(span).remove();
-		}
-		var html = '<span class="page_browser_actions">';
-		html += '<a href="'+$.glue.base_url+'?'+$(this).attr('id')+'/edit">edit</a> | ';
-		html += '<a href="#" class="page_browser_copy">copy</a> | ';
-		html += '<a href="#" class="page_browser_rename">rename</a> | ';
-		html += '<a href="#" class="page_browser_delete">delete</a> | ';
-		html += '<a href="#" class="page_browser_password">password</a>';
-		if ($(this).attr('id')+'.head' != $.glue.conf.page.startpage) {
-			html += ' | <a href="#" class="page_browser_set_startpage">startpage</a>';
-		}
-		html += '</span>';
-		
-		span = $(html);
-		$(this).append(span);
+
+	// native mouseenter/mouseleave don't bubble, so unlike the click
+	// handlers below they can't be delegated with $.glue.live - bound
+	// directly instead, at both points .page_browser_entry elements get
+	// created (initial page render, and the clone in the copy handler)
+	var bind_hover = function(entry) {
+		entry.addEventListener('mouseenter', function(e) {
+			if (span) {
+				span.remove();
+			}
+			var html = '<span class="page_browser_actions">';
+			html += '<a href="'+$.glue.base_url+'?'+this.id+'/edit">edit</a> | ';
+			html += '<a href="#" class="page_browser_copy">copy</a> | ';
+			html += '<a href="#" class="page_browser_rename">rename</a> | ';
+			html += '<a href="#" class="page_browser_delete">delete</a> | ';
+			html += '<a href="#" class="page_browser_password">password</a>';
+			if (this.id+'.head' != $.glue.conf.page.startpage) {
+				html += ' | <a href="#" class="page_browser_set_startpage">startpage</a>';
+			}
+			html += '</span>';
+
+			var tmp = document.createElement('div');
+			tmp.innerHTML = html;
+			span = tmp.firstElementChild;
+			this.appendChild(span);
+		});
+
+		entry.addEventListener('mouseleave', function(e) {
+			if (span) {
+				span.remove();
+				span = false;
+			}
+		});
+	};
+
+	document.querySelectorAll('.page_browser_entry').forEach(function(entry) {
+		bind_hover(entry);
 	});
-	
-	$('.page_browser_entry').bind('mouseleave', function(e) {
-		if (span) {
-			$(span).remove();
-			span = false;
-		}
-	});
-	
-	$('.page_browser_rename').live('click', function(e) {
-		var entry = $(this).parents('.page_browser_entry');
-		var old = $(entry).attr('id');
+
+	$.glue.live('.page_browser_rename', 'click', function(e) {
+		var entry = this.closest('.page_browser_entry');
+		var old = entry.id;
 		var pn = prompt('Change the page URL', old);
 		if (pn != null && pn != old) {
 			$.glue.backend({ method: 'glue.rename_page', 'old': old, 'new': pn }, function(data) {
-				$(entry).attr('id', pn);
-				$(entry).children('.page_browser_pagename').html('<a href="'+$.glue.base_url+'?'+pn+'">'+pn+'</a>');
+				entry.id = pn;
+				entry.querySelector(':scope > .page_browser_pagename').innerHTML = '<a href="'+$.glue.base_url+'?'+pn+'">'+pn+'</a>';
 			});
 		}
-		return false;
+		e.preventDefault();
 	});
-	
-	$('.page_browser_password').live('click', function(e) {
-		var entry = $(this).parents('.page_browser_entry');
-		var pn = $(entry).attr('id');
-		var current = $(entry).attr('data-protected') == '1';
+
+	$.glue.live('.page_browser_password', 'click', function(e) {
+		var entry = this.closest('.page_browser_entry');
+		var pn = entry.id;
+		var current = entry.hasAttribute('data-protected');
 		// set / change / clear, hashed server-side (page.set_password):
 		// an empty entry removes the protection
 		var pw = prompt(current ?
 			'Enter a new password for page '+pn+' (leave empty to remove the protection)' :
 			'Set a password for page '+pn, '');
 		if (pw === null) {
-			return false;
+			e.preventDefault();
+			return;
 		}
 		$.glue.backend({ method: 'page.set_password', 'page': pn+'.head', 'password': pw }, function(data) {
-			var marker = $(entry).children('.page_browser_protected');
+			var marker = entry.querySelector(':scope > .page_browser_protected');
 			if (data === true) {
-				$(entry).attr('data-protected', '1');
-				if (marker.length == 0) {
-					$(entry).children('.page_browser_pagename').after('<span class="page_browser_protected">[protected] </span>');
+				entry.setAttribute('data-protected', '1');
+				if (!marker) {
+					var m = document.createElement('span');
+					m.className = 'page_browser_protected';
+					m.textContent = '[protected] ';
+					var pagename = entry.querySelector(':scope > .page_browser_pagename');
+					pagename.parentNode.insertBefore(m, pagename.nextSibling);
 				}
 			} else {
-				$(entry).removeAttr('data-protected');
-				$(marker).remove();
+				entry.removeAttribute('data-protected');
+				if (marker) {
+					marker.remove();
+				}
 			}
 		});
-		return false;
+		e.preventDefault();
 	});
 
-	$('.page_browser_copy').live('click', function(e) {
-		var entry = $(this).parents('.page_browser_entry');
-		var old = $(entry).attr('id');
+	$.glue.live('.page_browser_copy', 'click', function(e) {
+		var entry = this.closest('.page_browser_entry');
+		var old = entry.id;
 		var pn = prompt('Specify a name', old+'-copy');
 		if (pn != null && pn != old) {
 			$.glue.backend({ method: 'glue.copy_page', 'old': old, 'new': pn }, function(data) {
-				copy = $(entry).clone();
-				$(copy).attr('id', pn);
-				$(copy).find('span.page_browser_pagename').siblings().remove();
-				$(copy).children('.page_browser_pagename').html('<a href="'+$.glue.base_url+'?'+pn+'">'+pn+'</a>');
-				// copy_page copies the page's settings object along, so a
-				// protected source's copy is protected too - restore the
-				// marker the siblings().remove() above stripped
-				if ($(entry).attr('data-protected') == '1') {
-					$(copy).children('.page_browser_pagename').after('<span class="page_browser_protected">[protected] </span>');
+				var copy = entry.cloneNode(true);
+				copy.id = pn;
+				var pagenameSpan = copy.querySelector('span.page_browser_pagename');
+				Array.from(pagenameSpan.parentNode.children).forEach(function(el) {
+					if (el !== pagenameSpan) {
+						el.remove();
+					}
+				});
+				pagenameSpan.innerHTML = '<a href="'+$.glue.base_url+'?'+pn+'">'+pn+'</a>';
+				// the server's copy_page copies the page's settings object
+				// along, so a protected source's copy is protected too -
+				// the marker the stripping above removed comes back
+				if (copy.hasAttribute('data-protected')) {
+					pagenameSpan.insertAdjacentHTML('afterend',
+						' <span class="page_browser_protected">[protected] </span>');
 				}
-				$(entry).after(copy);
+				entry.after(copy);
+				bind_hover(copy);
 			});
 		}
-		return false;
+		e.preventDefault();
 	});
 
-	$('.page_browser_delete').live('click', function(e) {
-		var entry = $(this).parents('.page_browser_entry');
-		var pn = $(entry).attr('id');
+	$.glue.live('.page_browser_delete', 'click', function(e) {
+		var entry = this.closest('.page_browser_entry');
+		var pn = entry.id;
 		if (confirm('Really delete page '+pn+'?')) {
 			// get all revisions
 			var pages = [];
@@ -116,24 +142,221 @@ $(document).ready(function() {
 				}
 				// TODO (later): check if all revisions were indeed deleted
 				// remove entry
-				$(entry).hide('fast', function() {
-					$(this).remove();
+				entry.style.transition = 'opacity 200ms, max-height 200ms';
+				entry.style.overflow = 'hidden';
+				entry.style.maxHeight = entry.scrollHeight + 'px';
+				requestAnimationFrame(function() {
+					requestAnimationFrame(function() {
+						entry.style.opacity = '0';
+						entry.style.maxHeight = '0px';
+					});
 				});
+				setTimeout(function() {
+					entry.remove();
+				}, 200);
 			});
 		}
-		return false;
+		e.preventDefault();
 	});
-	
-	$('.page_browser_set_startpage').live('click', function(e) {
-		var entry = $(this).parents('.page_browser_entry');
-		var pn = $(entry).attr('id');
+
+	$.glue.live('.page_browser_set_startpage', 'click', function(e) {
+		var entry = this.closest('.page_browser_entry');
+		var pn = entry.id;
 		$.glue.backend({ method: 'glue.set_startpage', page: pn+'.head' }, function(data) {
-			$('#page_browser_startpage').remove();
-			$(entry).children('.page_browser_pagename').after(' <span id="page_browser_startpage">[startpage]</span>');
+			var sp = document.getElementById('page_browser_startpage');
+			if (sp) {
+				sp.remove();
+			}
+			entry.querySelector(':scope > .page_browser_pagename').insertAdjacentHTML('afterend', ' <span id="page_browser_startpage">[startpage]</span>');
 			$.glue.conf.page.startpage = pn+'.head';
 			if (span) {
-				$(entry).trigger('mouseenter');
+				entry.dispatchEvent(new MouseEvent('mouseenter'));
 			}
+		});
+	});
+
+	//
+	// site settings (favicon, custom fonts) - this page doesn't load
+	// edit.js (that's only pulled in for actual page-canvas editing), so
+	// uploads here use a small standalone multipart helper rather than
+	// $.glue.upload
+	//
+	var upload_file = function(file, fields, callback) {
+		var xhr = new XMLHttpRequest();
+		xhr.open('POST', $.glue.base_url+'json.php', true);
+		xhr.onload = function() {
+			var data = null;
+			try {
+				data = JSON.parse(xhr.responseText);
+			} catch (e) {}
+			callback(data);
+		};
+		xhr.onerror = function() {
+			callback(null);
+		};
+		var fd = new FormData();
+		for (var key in fields) {
+			fd.append(key, JSON.stringify(fields[key]));
+		}
+		fd.append('file', file);
+		xhr.send(fd);
+	};
+
+	var favicon_input = document.getElementById('site_settings_favicon_input');
+	if (favicon_input) {
+		favicon_input.addEventListener('change', function(e) {
+			var file = this.files[0];
+			this.value = '';
+			if (!file) {
+				return;
+			}
+			upload_file(file, { method: 'glue.upload_files', page: $.glue.conf.page.options, preferred_module: 'page_favicon' }, function(data) {
+				if (!data || data['#error'] || !data['#data'] || !data['#data'].length) {
+					$.glue.error('There was a problem uploading the favicon');
+					return;
+				}
+				var preview = document.getElementById('site_settings_favicon_preview');
+				var empty = document.getElementById('site_settings_favicon_preview_empty');
+				if (!preview) {
+					preview = document.createElement('img');
+					preview.id = 'site_settings_favicon_preview';
+					preview.alt = 'current favicon';
+					if (empty) {
+						empty.replaceWith(preview);
+					}
+				}
+				// the timestamp here is to trick any caching going on
+				preview.src = $.glue.base_url+'?favicon&'+(new Date().getTime());
+				document.getElementById('site_settings_favicon_clear').style.display = '';
+				var link = document.querySelector('link[rel="shortcut icon"]');
+				if (!link) {
+					link = document.createElement('link');
+					link.rel = 'shortcut icon';
+					document.head.appendChild(link);
+				}
+				link.href = preview.src;
+			});
+		});
+	}
+
+	$.glue.live('#site_settings_favicon_clear', 'click', function(e) {
+		e.preventDefault();
+		$.glue.backend({ method: 'page.clear_favicon' }, function(data) {
+			var preview = document.getElementById('site_settings_favicon_preview');
+			if (preview) {
+				var empty = document.createElement('span');
+				empty.id = 'site_settings_favicon_preview_empty';
+				empty.textContent = 'no favicon set';
+				preview.replaceWith(empty);
+			}
+			document.getElementById('site_settings_favicon_clear').style.display = 'none';
+		});
+	});
+
+	// the zoom of the mobile guided view (site-wide, stored on the startpage's
+	// page-object; see module_page.inc.php's page_set_guided_zoom())
+	var guided_zoom = document.getElementById('site_settings_guided_zoom');
+	var guided_on = document.getElementById('site_settings_guided_on');
+	if (guided_on && guided_zoom) {
+		guided_on.addEventListener('change', function() {
+			var want = guided_on.checked;
+			$.glue.backend({ method: 'page.set_guided', enabled: want }, function(data) {
+				if (!data || data['#error']) {
+					// not saved: put the box back to what is stored
+					guided_on.checked = !want;
+					$.glue.error('There was a problem saving the setting');
+					return;
+				}
+				// the zoom means nothing while the view is off
+				guided_zoom.querySelectorAll('input').forEach(function(r) {
+					r.disabled = !want;
+				});
+			});
+		});
+	}
+	if (guided_zoom) {
+		var guided_prev = (guided_zoom.querySelector('input:checked') || {}).value;
+		guided_zoom.addEventListener('change', function(e) {
+			var chosen = e.target.value;
+			$.glue.backend({ method: 'page.set_guided_zoom', zoom: parseInt(chosen, 10) }, function(data) {
+				if (!data || data['#error']) {
+					// not saved: put the choice back to what is stored
+					var back = guided_zoom.querySelector('input[value="' + guided_prev + '"]');
+					if (back) {
+						back.checked = true;
+					}
+					$.glue.error('There was a problem saving the zoom');
+					return;
+				}
+				guided_prev = chosen;
+			});
+		});
+	}
+
+	// "remove" is only shown on hover, same pattern (and re-using the same
+	// .page_browser_actions styling) as the "All pages" list above
+	var font_span = false;
+	var bind_font_hover = function(li) {
+		li.addEventListener('mouseenter', function(e) {
+			if (font_span) {
+				font_span.remove();
+			}
+			var tmp = document.createElement('div');
+			tmp.innerHTML = '<span class="page_browser_actions"><a href="#" class="site_settings_font_remove">remove</a></span>';
+			font_span = tmp.firstElementChild;
+			this.appendChild(font_span);
+		});
+		li.addEventListener('mouseleave', function(e) {
+			if (font_span) {
+				font_span.remove();
+				font_span = false;
+			}
+		});
+	};
+
+	document.querySelectorAll('#site_settings_fonts_list li').forEach(function(li) {
+		bind_font_hover(li);
+	});
+
+	var add_font_entry = function(fontFile, fontName) {
+		var li = document.createElement('li');
+		li.setAttribute('data-file', fontFile);
+		var name = document.createElement('span');
+		name.className = 'site_settings_font_name';
+		name.textContent = fontName;
+		li.appendChild(name);
+		bind_font_hover(li);
+		document.getElementById('site_settings_fonts_list').appendChild(li);
+	};
+
+	var fonts_input = document.getElementById('site_settings_fonts_input');
+	if (fonts_input) {
+		fonts_input.addEventListener('change', function(e) {
+			var file = this.files[0];
+			this.value = '';
+			if (!file) {
+				return;
+			}
+			upload_file(file, { method: 'glue.upload_files', page: $.glue.conf.page.options, preferred_module: 'page_font' }, function(data) {
+				if (!data || data['#error'] || !data['#data'] || !data['#data'].length || !data['#data'][0]) {
+					$.glue.error('There was a problem uploading the font');
+					return;
+				}
+				if (data['#data'][0] === 'limit') {
+					$.glue.error('You can upload up to 10 custom fonts - remove one before adding another');
+					return;
+				}
+				add_font_entry(data['#data'][0].file, data['#data'][0].name);
+			});
+		});
+	}
+
+	$.glue.live('.site_settings_font_remove', 'click', function(e) {
+		e.preventDefault();
+		var li = this.closest('li');
+		var fontFile = li.getAttribute('data-file');
+		$.glue.backend({ method: 'page.remove_font', file: fontFile }, function(data) {
+			li.remove();
 		});
 	});
 });

@@ -3711,7 +3711,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         </div>
                     </div>
                     <span id="hg-edit-status" class="text-xs opacity-80" aria-live="polite"></span>
-                    <button type="button" class="btn btn-sm" onclick="hgOpenRevisions()"><?= t_attr('editor_hg_btn_revisions', 'Revisions') ?></button>
                     <button type="button" class="btn btn-sm" onclick="hgCloseEditor()"><?= t_attr('editor_btn_close', 'Close') ?></button>
                 </div>
             </div>
@@ -4439,18 +4438,6 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                     if (typeof showMessage === 'function') showMessage(HG.toastUrlCopied || 'URL copied to clipboard');
                 }).catch(() => {});
             }
-        };
-        // "Revisions": show the current page's hotglue revision history in the
-        // already-open editor overlay by navigating its iframe to the /revisions
-        // route (same Telaris auth gate as /edit). hotglue's "back to editing mode"
-        // link returns the iframe to the editor. This replaced a
-        // window.open(url, '_blank', 'noopener') pop-up, which Safari silently
-        // suppresses (window features + noopener), so the button did nothing there.
-        window.hgOpenRevisions = function () {
-            if (!hgCurrent || !hgCurrent.slug) return;
-            const relativeUrl = '../hg/?' + encodeURIComponent(hgCurrent.slug) + '/revisions&lang=' + encodeURIComponent(HG_LOCALE);
-            const iframe = document.getElementById('hg-editor-iframe');
-            if (iframe) iframe.src = relativeUrl;
         };
         window.hgDuplicate = async function (id) {
             const p = hgPages.find(x => x.id === id);

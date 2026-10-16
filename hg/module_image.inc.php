@@ -7,9 +7,6 @@
  *	Copyright Gottfried Haider, Danja Vasiliev 2010.
  *	This source code is licensed under the GNU General Public License.
  *	See the file COPYING for more details.
- *
- *	Modified 2026-06-25 by the theagitist/hotglue2 fork: added WebP support
- *	(upload acceptance, GD resize via imagecreatefromwebp/imagewebp, serving); wrap user-facing response() messages in t() (module_i18n) for UI localization (English byte-identical).
  */
 
 @require_once('config.inc.php');
@@ -41,10 +38,122 @@ function _gd_get_imagesize($f)
 {
 	$ret = @getimagesize($f);
 	if ($ret === false) {
-		return array(0, 0);
+		return [0, 0];
 	} else {
-		return array($ret[0], $ret[1]);
+		return [$ret[0], $ret[1]];
 	}
+}
+
+
+/**
+ *	fill in image-file-{width,height} (and default object-{width,height}
+ *	if not already set) for an image object that doesn't have them yet,
+ *	persisting the result
+ *
+ *	must be called before invoke_hook_first('alter_render_early', 'image',
+ *	...) in image_render_object(), not from within the hook itself -
+ *	invoke_hook() passes the same $args array by value to every hook it
+ *	calls, so a reassignment made inside image_alter_render_early() would
+ *	only be visible to itself, not to object_alter_render_early()
+ *	(dispatched afterwards in the same pass), which sets the container
+ *	div's width/height CSS from object-width/object-height - it would see
+ *	the pre-backfill (missing) values on the very first render of a newly
+ *	uploaded image, only correcting itself on the next reload. See
+ *	video_render_object()'s equivalent fix for video-file dimensions.
+ *
+ *	@param array $obj
+ *	@return array the (possibly updated) object
+ */
+function _image_finalize_dimensions($obj)
+{
+	if (!empty($obj['image-file']) && (empty($obj['image-file-width']) || intval($obj['image-file-width']) == 0)) {
+		$a = expl('.', $obj['name']);
+		$fn = CONTENT_DIR.'/'.$a[0].'/shared/'.$obj['image-file'];
+		// resolve symlinks
+		if (@is_link($fn)) {
+			$target = @readlink($fn);
+			if (substr($target, 0, 1) == '/') {
+				$fn = $target;
+			} else {
+				$fn = dirname($fn).'/'.$target;
+			}
+		}
+		$size = _image_size($fn);
+		if ($size !== false) {
+			$obj['image-file-width'] = $size[0];
+			// update regular with as well if not set
+			if (empty($obj['object-width']) || intval($obj['object-width']) == 0) {
+				$obj['object-width'] = $size[0].'px';
+			}
+			$obj['image-file-height'] = $size[1];
+			if (empty($obj['object-height']) || intval($obj['object-height']) == 0) {
+				$obj['object-height'] = $size[1].'px';
+			}
+		}
+		save_object($obj);
+	}
+	return $obj;
+}
+
+
+/**
+ *	return the dimensions of an SVG file: the root element's width/height
+ *	attributes in px when present, the viewBox as the fallback, a 200x200
+ *	default when neither says. GD cannot read SVGs, so this little parse
+ *	is their only size source.
+ *
+ *	@param string $file filename
+ *
+ *	@return array with width and height
+ */
+function _svg_dimensions($file)
+{
+	$h = @fopen($file, 'r');
+	if (!$h) {
+		return [200, 200];
+	}
+	// the root element always sits in the first chunk
+	$head = fread($h, 4096);
+	fclose($h);
+	$w = false;
+	$hh = false;
+	if (preg_match('/<svg\b[^>]*>/i', $head, $m)) {
+		$tag = $m[0];
+		if (preg_match('/\bwidth\s*=\s*["\']([0-9]+)(?:px)?["\']/i', $tag, $a)) {
+			$w = intval($a[1]);
+		}
+		if (preg_match('/\bheight\s*=\s*["\']([0-9]+)(?:px)?["\']/i', $tag, $a)) {
+			$hh = intval($a[1]);
+		}
+		// the last two numbers of the viewBox are its width and height
+		if ((!$w || !$hh) && preg_match('/\bviewBox\s*=\s*["\'][-0-9. ]+?\s([0-9.]+)\s+([0-9.]+)\s*["\']/i', $tag, $a)) {
+			if (!$w) {
+				$w = intval(round(floatval($a[1])));
+			}
+			if (!$hh) {
+				$hh = intval(round(floatval($a[2])));
+			}
+		}
+	}
+	return [($w > 0 ? $w : 200), ($hh > 0 ? $hh : 200)];
+}
+
+
+/**
+ *	return a size for an image file: the svg parser for vectors (GD cannot
+ *	read them), _gd_get_imagesize() for everything else when gd is there
+ *
+ *	@param string $fn filename
+ *	@return array with width and height, or false
+ */
+function _image_size($fn)
+{
+	if (filext($fn) == 'svg') {
+		return _svg_dimensions($fn);
+	} elseif (_gd_available()) {
+		return _gd_get_imagesize($fn);
+	}
+	return false;
 }
 
 
@@ -60,113 +169,113 @@ function image_alter_render_early($args)
 	if (!elem_has_class($elem, 'image')) {
 		return false;
 	}
-	
-	// try to calculate original-{width,height} if not already set
-	if (!empty($obj['image-file']) && (empty($obj['image-file-width']) || intval($obj['image-file-width']) == 0)) {
-		if (_gd_available()) {
-			$a = expl('.', $obj['name']);
-			$fn = CONTENT_DIR.'/'.$a[0].'/shared/'.$obj['image-file'];
-			// resolve symlinks
-			if (@is_link($fn)) {
-				$target = @readlink($fn);
-				if (substr($target, 0, 1) == '/') {
-					$fn = $target;
-				} else {
-					$fn = dirname($fn).'/'.$target;
-				}
-			}
-			$size = _gd_get_imagesize($fn);
-			$obj['image-file-width'] = $size[0];
-			// update regular with as well if not set
-			if (empty($obj['object-width']) || intval($obj['object-width']) == 0) {
-				$obj['object-width'] = $size[0].'px';
-			}
-			$obj['image-file-height'] = $size[1];
-			if (empty($obj['object-height']) || intval($obj['object-height']) == 0) {
-				$obj['object-height'] = $size[1].'px';
-			}
-		}
-		save_object($obj);
-	}
-	
+	// note: image-file-{width,height} backfill already happened in
+	// image_render_object() before this hook ran, see
+	// _image_finalize_dimensions()
+
 	// setup url
-	// note: the url points to the object name, not the 
-	// filename in the shared directory (the file eventually gets served 
+	// note: the url points to the object name, not the
+	// filename in the shared directory (the file eventually gets served
 	// in image_serve_resource())
+	// kept relative (not prefixed with base_url()) so it still resolves
+	// correctly when viewed through a different domain than the one
+	// configured/detected as the base url - see module_object.inc.php's
+	// object_alter_render_late() for the full rationale
 	// TODO (later): support URLs as well
 	if (SHORT_URLS) {
-		$url = base_url().urlencode($obj['name']);
+		$url = base_path().urlencode($obj['name']);
 	} else {
-		$url = base_url().'?'.urlencode($obj['name']);
+		$url = base_path().'?'.urlencode($obj['name']);
 	}
 	
-	// render a div with background if we have original-{width,height}
-	// otherwise a div with an img inside
-	if (empty($obj['image-file-width']) || intval($obj['image-file-width']) == 0) {
-		// render a div with an img inside
-		$i = elem('img');
-		elem_attr($i, 'src', $url);
+	// A tiled (or positioned) picture saved by the old tiling and position
+	// buttons - image-background-repeat / -position - is drawn the way it
+	// always was: as the object's own background, at its natural size, repeating.
+	// The editor can no longer write these keys, but a great many existing pages
+	// carry them (hotglue.me's own start page tiles bluegrid.png), and a single
+	// stretched copy of a 40px tile is not what they were made to look like.
+	// An object with a background of its own (object-background-file) keeps the
+	// new model.
+	$legacy_repeat = !empty($obj['image-background-repeat']) &&
+		$obj['image-background-repeat'] != 'no-repeat';
+	$legacy_pos = !empty($obj['image-background-position']) &&
+		!in_array($obj['image-background-position'], ['0px 0px', '0% 0%']);
+	if (($legacy_repeat || $legacy_pos) && empty($obj['object-background-file'])) {
+		elem_css($elem, 'background-image', 'url('.$url.')');
+		if ($legacy_repeat) {
+			elem_css($elem, 'background-repeat', $obj['image-background-repeat']);
+		} else {
+			elem_css($elem, 'background-repeat', 'no-repeat');
+			elem_css($elem, 'background-size', '100% 100%');
+		}
+		if (!empty($obj['image-background-position'])) {
+			elem_css($elem, 'background-position', $obj['image-background-position']);
+		}
+		// no img child to carry the description: the object says it itself
+		if (!empty($obj['image-decorative'])) {
+			elem_attr($elem, 'role', 'presentation');
+		} else {
+			$legacy_alt = isset($obj['image-alt']) ? $obj['image-alt']
+				: (isset($obj['image-title']) ? $obj['image-title'] : '');
+			if ($legacy_alt !== '') {
+				elem_attr($elem, 'role', 'img');
+				elem_attr($elem, 'aria-label', $legacy_alt);
+			}
+		}
 		if (!empty($obj['image-title'])) {
-			elem_attr($i, 'alt', $obj['image-title']);
-		} else {
-			elem_attr($i, 'alt', '');
+			elem_attr($elem, 'title', $obj['image-title']);
 		}
-		// make sure you only append to the element in alter_render_early 
-		// handlers, don't assume that nothing is in there yet
-		elem_append($elem, $i);
-	} else {
-		if (!$args['edit'] && IE8_COMPAT && (empty($obj['image-background-repeat']) || $obj['image-background-repeat'] == 'no-repeat')) {
-			// background-size is not supported by IE8, so render a div with an img inside instead
-			$i = elem('img');
-			elem_attr($i, 'src', $url);
-			if (!empty($obj['image-title'])) {
-				elem_attr($i, 'alt', $obj['image-title']);
-			} else {
-				elem_attr($i, 'alt', '');
-			}
-			elem_css($i, 'width', '100%');
-			elem_css($i, 'height', '100%');
-			elem_css($i, 'padding', '0px');
-			elem_css($i, 'border', '0px');
-			if (!empty($obj['image-background-position']) && $obj['image-background-position'] != '0px 0px' && $obj['image-background-position'] != '0% 0%') {
-				elem_css($elem, 'max-width', $obj['object-width']);
-				elem_css($elem, 'max-height', $obj['object-height']);
-				elem_css($elem, 'overflow', 'hidden');
-				// assume px
-				$a = expl(' ', $obj['image-background-position']);
-				elem_css($i, 'margin-left', @intval($a[0]).'px');
-				elem_css($i, 'margin-top', @intval($a[1]).'px');
-				elem_css($i, 'margin-right', '0px');
-				elem_css($i, 'margin-bottom', '0px');
-			} else {
-				elem_css($i, 'margin', '0px');
-			}
-			elem_append($elem, $i);
-		} else {
-			// this is the regular case
-			// render a div with background
-			elem_css($elem, 'background-image', 'url('.$url.')');
-			// default to no tiling
-			if (empty($obj['image-background-repeat']) || $obj['image-background-repeat'] == 'no-repeat') {
-				elem_css($elem, 'background-repeat', 'no-repeat');
-				// set hardcoded background-size as well
-				elem_css($elem, 'background-size', '100% 100%');
-				// this is for Firefox 3.6
-				elem_css($elem, '-moz-background-size', '100% 100%');
-			} else {
-				elem_css($elem, 'background-repeat', $obj['image-background-repeat']);
-			}
-			if (!empty($obj['image-background-position'])) {
-				elem_css($elem, 'background-position', $obj['image-background-position']);
-			}
-		}
+		return true;
 	}
-	
+
+	// accessibility (SOW-accessibility.md): image-alt is the description,
+	// image-decorative marks the image as pure decoration. The legacy
+	// image-title still acts as the fallback description.
+	$decorative = !empty($obj['image-decorative']);
+	$alt = isset($obj['image-alt']) ? $obj['image-alt']
+		: (isset($obj['image-title']) ? $obj['image-title'] : '');
+
+	// the picture is always a child img filling the frame (danja's call,
+	// 2026-09-23). The object's own background-image used to carry it,
+	// which put the picture and the object's background section in each
+	// other's way - the panel had to skip the section for image objects,
+	// and an unproportionally resized frame could leave the picture at
+	// its natural size with bars where the background showed through.
+	// The img stretches with the frame, and the background properties
+	// belong to the background section alone.
+	$i = elem('img');
+	elem_attr($i, 'src', $url);
+	if ($decorative) {
+		// a decorative image must have EMPTY alt text and the role
+		// says so explicitly, so screen readers skip it
+		elem_attr($i, 'alt', '');
+		elem_attr($i, 'role', 'presentation');
+	} else {
+		elem_attr($i, 'alt', $alt);
+	}
+	elem_css($i, 'width', '100%');
+	elem_css($i, 'height', '100%');
+	// the picture fills the frame, stretching with it - object-fit is left at
+	// its default (fill) on purpose. That is what every page made before the
+	// child-img rewrite stores: the frame's shape IS the stretch, there is no
+	// flag, so a letterboxing default (object-fit: contain, 2026-09-23) drew
+	// every image whose frame was not the picture's own shape with bars -
+	// 2105 of 6019 images in the 2025 corpus (see image-resize-shift.spec.js)
+	// in the editor the picture must not swallow the clicks meant for the
+	// object (select, menus) - the img fills the frame, so it covers
+	// every pixel; a visitor's page never needs to click through it
+	if ($args['edit']) {
+		elem_css($i, 'pointer-events', 'none');
+	}
+	// make sure you only append to the element in alter_render_early
+	// handlers, don't assume that nothing is in there yet
+	elem_append($elem, $i);
+
 	// additional properties for both
 	if (!empty($obj['image-title'])) {
 		elem_attr($elem, 'title', $obj['image-title']);
 	}
-	
+
 	return true;
 }
 
@@ -188,24 +297,41 @@ function image_alter_save($args)
 	}
 	
 	// update the object based on the element's properties
-	// by convention all properties are prefixed with the module name, in order 
+	// by convention all properties are prefixed with the module name, in order
 	// to prevent any naming collisions
-	if (elem_css($elem, 'background-repeat') !== NULL) {
-		$val = elem_css($elem, 'background-repeat');
-		// normalize
-		if ($val == 'no-repeat no-repeat') {
-			$val = 'no-repeat';
+	// note: the legacy image-background-repeat/-position are not written any
+	// more; image_alter_render_early() still draws them for pages that have them
+	// (and they stay stored as they are)
+
+	// accessibility round-trip (SOW-accessibility.md): the serialized DOM
+	// carries role/alt on the img child (the picture is always a child
+	// img). save_state() parses the object non-recursively, so the img
+	// child has to be fished out of the raw inner HTML.
+	$stored_alt = '';
+	if (is_string(elem_val($elem)) && preg_match('#<img\b[^>]*>#i', elem_val($elem), $m)) {
+		$img = html_parse_elem($m[0]);
+		if (elem_attr($img, 'role') === 'presentation') {
+			$obj['image-decorative'] = 'yes';
+			unset($obj['image-alt']);	// decorative implies empty alt
+		} else {
+			unset($obj['image-decorative']);
+			$stored_alt = elem_attr($img, 'alt');
+			if ($stored_alt !== '' && $stored_alt !== @$obj['image-title']) {
+				$obj['image-alt'] = $stored_alt;
+			} else {
+				// empty, or identical to the legacy image-title (the render
+				// fallback covers that) - keep the file byte-idempotent
+				unset($obj['image-alt']);
+			}
 		}
-		$obj['image-background-repeat'] = $val;
+	} elseif (elem_css($elem, 'background-image') !== NULL) {
+		// a tiled legacy picture (see image_alter_render_early()): it has no
+		// img child to read the description from, so what is stored stays
 	} else {
-		unset($obj['image-background-repeat']);
+		unset($obj['image-decorative']);
+		unset($obj['image-alt']);
 	}
-	if (elem_css($elem, 'background-position') !== NULL) {
-		$obj['image-background-position'] = elem_css($elem, 'background-position');
-	} else {
-		unset($obj['image-background-position']);
-	}
-	
+
 	// this is more out of courtesy than anything else
 	return true;
 }
@@ -227,12 +353,12 @@ function image_delete_object($args)
 	// delete original file
 	if (!empty($obj['image-file'])) {
 		$a = expl('.', $obj['name']);
-		delete_upload(array('pagename'=>$a[0], 'file'=>$obj['image-file'], 'max_cnt'=>1));
+		delete_upload(['pagename'=>$a[0], 'file'=>$obj['image-file'], 'max_cnt'=>1]);
 	}
 	// and resized one
 	if (!empty($obj['image-resized-file'])) {
 		$a = expl('.', $obj['name']);
-		delete_upload(array('pagename'=>$a[0], 'file'=>$obj['image-resized-file'], 'max_cnt'=>1));
+		delete_upload(['pagename'=>$a[0], 'file'=>$obj['image-resized-file'], 'max_cnt'=>1]);
 	}
 }
 
@@ -272,8 +398,11 @@ function image_render_object($args)
 	if (!isset($obj['type']) || $obj['type'] != 'image') {
 		return false;
 	}
-	
-	// the outer element must be a div or something else that can contain 
+	// must happen before the hook dispatch below - see
+	// _image_finalize_dimensions()
+	$obj = _image_finalize_dimensions($obj);
+
+	// the outer element must be a div or something else that can contain
 	// other elements
 	// we only set up the most basic element here - all the other work is 
 	// done inside the alter_render_early hook
@@ -289,11 +418,11 @@ function image_render_object($args)
 	// elem is passed as reference here
 	// it is suggested that we first call our own function before any others 
 	// that might want to modify the element that is being set up
-	invoke_hook_first('alter_render_early', 'image', array('obj'=>$obj, 'elem'=>&$e, 'edit'=>$args['edit']));
+	invoke_hook_first('alter_render_early', 'image', ['obj'=>$obj, 'elem'=>&$e, 'edit'=>$args['edit']]);
 	$html = elem_finalize($e);
 	// html is passed as reference here
 	// it is suggested that we call our own function after all others
-	invoke_hook_last('alter_render_late', 'image', array('obj'=>$obj, 'html'=>&$html, 'elem'=>$e, 'edit'=>$args['edit']));
+	invoke_hook_last('alter_render_late', 'image', ['obj'=>$obj, 'html'=>&$html, 'elem'=>$e, 'edit'=>$args['edit']]);
 	
 	return $html;
 }
@@ -321,6 +450,9 @@ function image_render_page_early($args)
 		}
 		html_add_js_var('$.glue.conf.image.upload_resize_larger', IMAGE_UPLOAD_RESIZE_LARGER);
 		html_add_js_var('$.glue.conf.image.upload_resize_to', IMAGE_UPLOAD_RESIZE_TO);
+		html_add_js_var('$.glue.conf.image.upload_max_width', IMAGE_UPLOAD_MAX_WIDTH);
+		html_add_js_var('$.glue.conf.image.upload_max_height', IMAGE_UPLOAD_MAX_HEIGHT);
+		html_add_js_var('$.glue.conf.image.resize_max_dpr', IMAGE_RESIZE_MAX_DPR);
 	}
 }
 
@@ -364,14 +496,14 @@ function image_resize($args)
 {
 	// check for gd
 	if (!_gd_available()) {
-		return response(t('image.no_gd'), 500);
+		return response('Host does not have gd', 500);
 	}
 	// set requested width & height
 	if (($width = @intval($args['width'])) == 0) {
-		return response(t('image.width_zero'), 400);
+		return response('Required argument "width" is zero or does not exist', 400);
 	}
 	if (($height = @intval($args['height'])) == 0) {
-		return response(t('image.height_zero'), 400);
+		return response('Required argument "height" is zero or does not exist', 400);
 	}
 	load_modules('glue');
 	// resolve symlinks
@@ -390,13 +522,18 @@ function image_resize($args)
 		$obj = $obj['#data'];
 	}
 	if (@intval($obj['image-file-width']) == 0 || @intval($obj['image-file-height']) == 0) {
-		return response(t('image.no_orig_dims'), 500);
+		return response('Original dimensions are not available', 500);
+	}
+	// SVG is vector: the original scales losslessly to any frame, and GD
+	// cannot read it to rasterize anyway - no resized variant, ever
+	if (filext($obj['image-file']) == 'svg') {
+		return response(false);
 	}
 	// set pagename
 	$pn = get_first_item(expl('.', $obj['name']));
 	
 	// resizing might not be necessary at all
-	if (!empty($obj['image-resized-file']) && @intval($obj['image-resized-width']) == $width && @intval($obj['image-resized-height'] == $height)) {
+	if (!empty($obj['image-resized-file']) && @intval($obj['image-resized-width']) == $width && @intval($obj['image-resized-height']) == $height) {
 		log_msg('debug', 'image_resize: width and height match the current resized file, no resize necessary');
 		return response(false);
 	}
@@ -404,12 +541,12 @@ function image_resize($args)
 	// else remove any currently resized file
 	if (!empty($obj['image-resized-file'])) {
 		log_msg('info', 'image_resize: dropping reference to previous resized file '.quot($obj['image-resized-file']));
-		delete_upload(array('pagename'=>$pn, 'file'=>$obj['image-resized-file'], 'max_cnt'=>1));
+		delete_upload(['pagename'=>$pn, 'file'=>$obj['image-resized-file'], 'max_cnt'=>1]);
 		unset($obj['image-resized-file']);
 		unset($obj['image-resized-width']);
 		unset($obj['image-resized-height']);
 		// update object file as well
-		$ret = object_remove_attr(array('name'=>$obj['name'], 'attr'=>array('image-resized-file', 'image-resized-width', 'image-resized-height')));
+		$ret = object_remove_attr(['name'=>$obj['name'], 'attr'=>['image-resized-file', 'image-resized-width', 'image-resized-height']]);
 		if ($ret['#error']) {
 			return $ret;
 		}
@@ -439,7 +576,7 @@ function image_resize($args)
 	// load source file
 	$ext = filext($obj['image-file']);
 	$fn = CONTENT_DIR.'/'.$pn.'/shared/'.$obj['image-file'];
-	if ($obj['image-file-mime'] == 'image/jpeg' || in_array($ext, array('jpg', 'jpeg'))) {
+	if ($obj['image-file-mime'] == 'image/jpeg' || in_array($ext, ['jpg', 'jpeg'])) {
 		$orig = @imagecreatefromjpeg($fn);
 		$dest_ext = 'jpg';
 	} elseif ($obj['image-file-mime'] == 'image/png' || $ext == 'png') {
@@ -454,24 +591,21 @@ function image_resize($args)
 		// save gifs as png
 		// TODO (later): check for animated gif (see php.net/manual/en/function.imagecreatefromgif.php)
 		$dest_ext = 'png';
-	} elseif ($obj['image-file-mime'] == 'image/webp' || $ext == 'webp') {
+	} elseif (($obj['image-file-mime'] == 'image/webp' || $ext == 'webp') && function_exists('imagecreatefromwebp')) {
 		$orig = @imagecreatefromwebp($fn);
-		// keep webp on resize (preserves alpha and small size)
-		// ponytail: animated webp is not detected by is_ani() (gif-only), so it
-		// would be resized to its first frame; acceptable until anyone hits it
 		$dest_ext = 'webp';
 	} else {
-		return response(t('image.unsupported_format', quot($obj['image-file'])), 500);
+		return response('Unsupported source file format '.quot($obj['image-file']), 500);
 	}
 	if ($orig === false) {
-		return response(t('image.load_error', quot($obj['image-file'])), 500);
+		return response('Error loading source file '.quot($obj['image-file']), 500);
 	}
 	// get source file dimensions
 	$orig_size = @getimagesize($fn);
 	// create resized image
 	if (($resized = @imagecreatetruecolor($width, $height)) === false) {
 		@imagedestroy($orig);
-		return response(t('image.create_error'), 500);
+		return response('Error creating the resized image', 500);
 	}
 	// preserve any alpha channel
 	@imagealphablending($resized, false);
@@ -480,7 +614,7 @@ function image_resize($args)
 	if (!@imagecopyresampled($resized, $orig, 0, 0, 0, 0, $width, $height, $orig_size[0], $orig_size[1])) {
 		@imagedestroy($resized);
 		@imagedestroy($orig);
-		return response(t('image.resize_error'), 500);
+		return response('Error resizing the source image', 500);
 	}
 	// setup destination filename
 	$a = expl('.', $obj['image-file']);
@@ -509,14 +643,14 @@ function image_resize($args)
 	@imagedestroy($resized);
 	@imagedestroy($orig);
 	if (!$ret) {
-		return response(t('image.save_error'), 500);
+		return response('Error saving the resized image', 500);
 	} else {
 		log_msg('info', 'image_resize: created a resized image of '.quot($obj['name']).' -> '.quot(basename($fn)));
 	}
 	
 	// the code above can take a while, so read in the object anew via 
 	// update_object()
-	$update = array();
+	$update = [];
 	$update['name'] = $obj['name'];
 	$update['image-resized-file'] = basename($fn);
 	$update['image-resized-width'] = $width;
@@ -529,7 +663,7 @@ function image_resize($args)
 	return update_object($update);
 }
 
-register_service('image.resize', 'image_resize', array('auth'=>true));
+register_service('image.resize', 'image_resize', ['auth'=>true]);
 
 
 /**
@@ -555,7 +689,7 @@ function image_save_state($args)
 	// notice: obj is passed as reference here
 	// obj might be (almost) empty for newly created objects, so rely only 
 	// on $elem
-	invoke_hook('alter_save', array('obj'=>&$obj, 'elem'=>$elem));
+	invoke_hook('alter_save', ['obj'=>&$obj, 'elem'=>$elem]);
 	// see image_alter_save() above
 	
 	// we could do some overriding here if we wanted to
@@ -621,6 +755,17 @@ function image_serve_resource($args)
 		if (empty($obj['image-file-mime'])) {
 			$obj['image-file-mime'] = '';
 		}
+		// an SVG served inline is an active document: a script inside it
+		// would run in the site's own origin when the URL is opened
+		// directly (the render only ever shows it through an <img>, where
+		// scripts never execute, but the direct URL is anyone's to visit).
+		// The sandbox CSP renders the document inert - no scripts, no
+		// navigation - while it still paints inside an <img> or a
+		// background, and the download path (an attachment, not a
+		// document) is unaffected.
+		if ($obj['image-file-mime'] == 'image/svg+xml' && !$args['dl']) {
+			header('Content-Security-Policy: sandbox');
+		}
 		serve_file(CONTENT_DIR.'/'.$pn.'/shared/'.$obj['image-file'], $args['dl'], $obj['image-file-mime']);
 	}
 	
@@ -630,76 +775,12 @@ function image_serve_resource($args)
 
 
 /**
- *	implements snapshot_symlink
- *
- *	see snapshot() in module_glue.inc.php
- */
-function image_snapshot_symlink($args)
-{
-	$obj = $args['obj'];
-	if (!isset($obj['type']) || $obj['type'] != 'image') {
-		return false;
-	}
-	
-	// consider the following:
-	// * an image object is on page a, which at some point got distributed to all 
-	// other pages through symlinks
-	// * we are now creating a snapshot of any page b, come across the symlink 
-	// pointing to an object and page a
-	// in this case we don't copy the symlink but the current content of the 
-	// object, as we by all means want to preserve the current _state_ we copy 
-	// the symlink's content (this happens in snapshot() in module_glue.inc.php) 
-	// - thus turning it into a first-class object on the new snapshot-page
-	// because of this we need to copy any referenced files as well from the 
-	// shared directory in page a to the one on page b, this happens in this 
-	// hook
-	
-	$dest_dir = CONTENT_DIR.'/'.get_first_item(expl('.', $obj['name'])).'/shared';
-	$src_dir = CONTENT_DIR.'/'.get_first_item(expl('.', $args['origin'])).'/shared';
-	
-	// we do this for image-file and image-resized-file
-	// .. to add a bit of complexity ;)
-	foreach (array('image-file', 'image-resized-file') as $field) {
-		if (empty($obj[$field])) {
-			continue;
-		} else {
-			$src_file = $src_dir.'/'.$obj[$field];
-		}
-		if (($f = dir_has_same_file($dest_dir, $src_file)) !== false) {
-			$obj[$field] = $f;
-		} else {
-			// copy file
-			$dest_file = $dest_dir.'/'.unique_filename($dest_dir, $src_file);
-			$m = umask(0111);
-			if (!(@copy($src_file, $dest_file))) {
-				umask($m);
-				log_msg('error', 'image_snapshot_symlink: error copying referenced file '.quot($src_file).' to '.quot($dest_file));
-				return false;
-			}
-			umask($m);
-			$obj[$field] = basename($dest_file);
-			log_msg('info', 'image_snapshot_symlink: copied referenced file to '.quot($dest_file));
-		}
-	}
-	
-	// save changes in the object
-	$ret = save_object($obj);
-	if ($ret['#error']) {
-		log_msg('error', 'image_snapshot_symlink: error saving object '.quot($obj['name']));
-		return false;
-	} else {
-		return true;
-	}
-}
-
-
-/**
  *	implements upload
  */
 function image_upload($args)
 {
 	// check if supported file
-	if (!in_array($args['mime'], array('image/jpeg', 'image/png', 'image/gif', 'image/webp')) || ($args['mime'] == '' && !in_array(filext($args['file']), array('jpg', 'jpeg', 'png', 'gif', 'webp')))) {
+	if (!in_array($args['mime'], ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']) || ($args['mime'] == '' && !in_array(filext($args['file']), ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']))) {
 		return false;
 	}
 
@@ -717,9 +798,9 @@ function image_upload($args)
 	$obj['image-file'] = $args['file'];
 	$obj['image-file-mime'] = $args['mime'];
 	// save original-{width,height} if we can calculate it
-	if (_gd_available()) {
-		$a = expl('.', $args['page']);
-		$size = _gd_get_imagesize(CONTENT_DIR.'/'.$a[0].'/shared/'.$obj['image-file']);
+	$a = expl('.', $args['page']);
+	$size = _image_size(CONTENT_DIR.'/'.$a[0].'/shared/'.$obj['image-file']);
+	if ($size !== false) {
 		$obj['image-file-width'] = $size[0];
 		$obj['object-width'] = $size[0].'px';
 		$obj['image-file-height'] = $size[1];
@@ -728,7 +809,7 @@ function image_upload($args)
 	save_object($obj);
 	
 	// render object and return html
-	$ret = render_object(array('name'=>$obj['name'], 'edit'=>true));
+	$ret = render_object(['name'=>$obj['name'], 'edit'=>true]);
 	log_msg('debug', 'image_upload: '.print_r($ret, 1));
 	if ($ret['#error']) {
 		return false;

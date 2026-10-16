@@ -1,4 +1,4 @@
-Hotglue 1.0.4
+Hotglue 1.9.0
 
 developed by Gottfried Haider and Danja Vasiliev
 and the people from WORM (worm.org)
@@ -21,12 +21,345 @@ HOW TO INSTALL ADDITIONAL MODULES
 
 BUNDLED THIRD-PARTY CODE
 
-  * jQuery (MIT, BSD and GPL licensed)
-  * jQuery UI (MIT, GPLv2 licensed)
-  * Farbtastic: JQuery color picker plug-in (GPL licensed)
-  * jQuery xcolor (MIT, GPLv2 licensed)
+  * Moveable by Daybrush (MIT licensed)
+  * Alpine.js (MIT licensed)
+  * vanilla-picker by Andreas Borgen & Adam Brooks (ISC licensed)
   * DejaVu Fonts (Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved. Bitstream Vera is a trademark of Bitstream, Inc.)
   * the file icon has been taken from gnome-icon-theme (GPL licensed)
+
+
+RECENT CHANGES (2026-08)
+
+  * Pages can now be CENTERED. A page is either "infinite" - hotglue's
+    original unbounded canvas, still the default and unchanged for every
+    existing page - or "centered", where the content sits in a fixed-width
+    container that stays in the middle of the window and re-centers as the
+    window is resized. The button is in the page menu (double-click the
+    background); in centered mode two dashed handles at the container's
+    edges show the boundary and set its width by dragging.
+
+    Objects keep their exact coordinates either way: centering wraps them
+    in a container rather than moving them, so switching modes changes no
+    object file and nothing has to be migrated. Content positioned beyond
+    the container is not clipped or moved - it simply extends past it. The
+    page background still spans the full window; only the content is
+    centered.
+
+  * The color picker now opens next to the button that was clicked, and
+    above the object it is recoloring. It used to appear wherever the page
+    had last been scrolled to, could open off the top of the window, and
+    was painted over by the object being colored.
+
+  * Objects: a new button in the object context menu toggles whether content
+    bigger than the object's box is cut off or spills out of it. Objects
+    have always spilled, which stays the default - the setting is only
+    stored once you turn clipping on.
+
+  * Text objects: selecting text and clicking the link button in the text
+    context menu now opens a small dialog instead of a browser prompt. It
+    validates the URL (refusing javascript: and data:), adds https:// to a
+    bare domain while leaving anchors and page names alone, escapes the URL
+    into the href, optionally puts a class on the link, and can edit or
+    remove a link you already made.
+
+  * Text objects are now edited WYSIWYG: the markup stays hidden and a link
+    shows as underlined text, so editing looks like the published page. The
+    HTML source is still what gets stored - the </> button in the text menu
+    switches to editing it directly, which is also how to fix anything the
+    visual editor rewrites. Note the browser's HTML parser canonicalises
+    markup it round-trips: an unquoted attribute gains quotes and an
+    uppercase tag becomes lowercase, both of which render identically.
+
+  * Objects: the context menu's id button is now an Object Properties
+    dialog, showing the object as the <div> it renders as - id read-only,
+    hotglue's own classes fixed with a field for your own, and custom
+    attributes you can add. Attribute names are restricted and a denylist
+    (id, class, style, on*, contenteditable, draggable) is enforced both on
+    save and again when the page renders.
+
+  * Video module upgrade: uploaded videos (.mp4, .webm, .ogg/.ogv, .h264,
+    .mov) are now automatically re-encoded server-side via ffmpeg into a
+    single web-optimized variant, capped at 720p on the short side
+    (landscape or portrait, never upscaled) and trimmed to the first 60
+    seconds (VIDEO_MAX_HEIGHT/VIDEO_MAX_DURATION in config.inc.php), with a
+    poster frame generated automatically. Every upload is re-encoded
+    uniformly for predictable size/quality. Encoding happens in the
+    background; while pending, a lightweight "processing" placeholder is
+    shown instead of the raw original (so nothing large gets served before
+    it's ready), and the editor polls quietly and swaps in the finished
+    video without needing a page reload. Requires ffmpeg to be installed;
+    falls back to serving the original unmodified if it isn't
+    (VIDEO_ENCODING config constant). A dedicated "add video" icon was
+    added to the object-creation menu (previously videos could only be
+    added through the generic file-upload button).
+
+  * Removed the automatic page-snapshot/revision-history system
+    (check_auto_snapshot(), snapshot(), revert(), and the whole
+    revisions-browser UI) and the SNAPSHOT_MIN_AGE/SNAPSHOT_MAX_AGE config
+    constants. It only ran when the editor happened to be reopened for a
+    page, made no real undo guarantees, and Ctrl+Z previously did nothing
+    but suggest browsing it. Replaced with a proper, lightweight undo
+    stack in the editor: move, resize, z-order, create, delete, and any
+    property toggle that already saves through the normal object-save
+    path are now undoable via Ctrl+Z or a new undo icon in the
+    single-click menu (a few levels deep, purely in-browser-memory, reset
+    on page reload - not a replacement for backups). Attribute-only
+    changes that bypass the normal save path (e.g. page background/title,
+    a couple of per-module toggles) are not covered by this pass.
+    Existing leftover auto-* snapshot directories from before this change
+    are not cleaned up automatically anymore; run
+    `php tools/cleanup_auto_snapshots.php` (dry run by default, pass
+    --confirm to actually delete) if you want to reclaim that space.
+
+  * Raising a video's/large file's upload size limit is a php.ini setting,
+    not a Hotglue one - see KNOWN ISSUES below.
+
+  * Fixed: the undo stack above didn't capture deletions made via an
+    object's own context-menu delete icon (modules/object/object-edit.js) -
+    only the Delete key was wired up, so Ctrl+Z appeared to do nothing for
+    the more commonly-used delete button.
+
+  * Added redo (Ctrl+Y, or a new redo icon next to Undo in the single-click
+    menu) to the same undo stack - undoing and redoing can be freely mixed
+    and repeated in either direction. Performing a new action clears
+    whatever was available to redo, same as any standard undo/redo.
+
+  * Newly-uploaded images larger than IMAGE_UPLOAD_MAX_WIDTH/
+    IMAGE_UPLOAD_MAX_HEIGHT (default 512x512) now display at a capped size
+    on the canvas, in addition to the existing window-relative auto-shrink.
+    The original file and its recorded resolution are untouched - the
+    existing "reset image size" icon still restores the object to the
+    image's true full resolution.
+
+  * Image uploads now also accept .webp (image/webp), including server-side
+    resizing if the installed GD build supports it (IMAGE_WEBP_QUAL config
+    constant) - falls back gracefully (upload still works, just unresized)
+    if GD lacks webp support.
+
+  * Applied the same capped-display-size treatment to video
+    (VIDEO_DISPLAY_MAX_WIDTH/VIDEO_DISPLAY_MAX_HEIGHT, default 512x512,
+    independent of VIDEO_MAX_HEIGHT which caps the actual encoded
+    resolution) - "reset video size" restores the object to the encoded
+    video's real dimensions, same relationship as image's reset button.
+
+  * Fixed a real bug surfaced while adding the above: once a video finished
+    encoding, its corrected on-canvas size was written to disk, but an
+    already-open editor session kept showing the placeholder's leftover
+    default size (e.g. 480x360) until the page was reloaded. Two causes,
+    both fixed: video_render_object() finalized a pending encode too late
+    for the generic object-sizing hook to see the corrected dimensions
+    within that same render pass (module_video.inc.php), and video-edit.js's
+    completion poll only swapped the inner <video> tag, never the
+    container's own width/height style.
+
+  * Replaced the native <input type="color"> color picker with the vendored
+    vanilla-picker library (js/vanilla-picker.js), behind the same
+    $.glue.colorpicker API used by page-edit.js/text-edit.js. The native
+    picker's platform-dependent UI (a swatch grid on some Linux/Chromium
+    setups) made trying out shades require repeatedly reopening/confirming
+    rather than a continuous drag-to-preview.
+
+  * Removed the long-dead IE8_COMPAT config constant and its associated
+    fallback rendering code (module_image.inc.php, module_iframe.inc.php) -
+    Internet Explorer was already out of scope per the modern-evergreen
+    browser baseline. Updated INSTALL accordingly.
+
+  * Fixed same-site links/URLs (page links via "make the object a link",
+    links typed directly into rich text, the page browser listing, and
+    image/video/download/page-background-image URLs) being hard-coded to
+    whatever domain BASE_URL is configured/detected as, instead of staying
+    relative. This broke navigation and asset loading whenever a page was
+    accessed through a different domain than the configured one (e.g. a
+    custom domain pointed at the same Hotglue install) - links and embedded
+    media would silently jump back to the original domain. All of these are
+    now emitted as plain relative URLs, which resolve correctly against
+    whatever domain/path the page is actually being viewed on.
+
+  * Extended the same relative-URL fix to every static asset (all CSS/JS
+    file references, the favicon, @font-face URLs, and the error/create-page
+    templates' logo images and "take me home" link) via a single
+    centralized fix in html_add_css()/html_add_js()/html_favicon()
+    (html.inc.php) rather than touching each of the ~20 files that load
+    them, plus the client-side $.glue.base_url variable every module's
+    editor JS uses for its own icon/link URLs.
+
+  * Added a custom-class field to the "get id" context-menu icon (any
+    object): opens a small modal showing the object's id (read-only, for
+    linking to it) and an editable class field. The value is stored as
+    object-custom-class and appended alongside the object's own internal
+    classes when the page renders, so it's usable as a normal CSS/JS
+    selector without touching the object's real id.
+
+  * Fixed the XSRF referer check (controller.inc.php and json.php, guarding
+    every authenticated write action - saving, editing, uploads, creating
+    pages) comparing against the fixed base_url() instead of the domain the
+    request actually arrived on. Under a custom domain with BASE_URL
+    configured to the primary one, this rejected every legitimate editor
+    action as "possible xsrf" - likely the most disruptive of this whole
+    batch of custom-domain issues. Added request_base_url() (config.inc.php),
+    always derived from the current request, for this and similar checks to
+    use instead of base_url(). Also fixed the two login/create-page redirect
+    Location headers using the same fixed-domain pattern, and a latent bug
+    in the underlying host/port detection this surfaced (a non-standard
+    port could end up duplicated, e.g. "localhost:8931:8931").
+
+  * Auth hardening: HTTP Basic and Digest credential comparisons now use
+    hash_equals() instead of ==/!= (common.inc.php, util.inc.php), avoiding
+    timing side-channels. Added an optional AUTH_METHOD 'db', authenticating
+    against a UserCake-compatible accounts table via mysqli (DB_AUTH_HOST/
+    USER/PASSWORD/NAME/TABLE config constants, all empty/off by default) -
+    the authenticated account must match the site's own AUTH_USER, since one
+    database can back many sites. HTTP Digest's use of MD5 was left as-is:
+    that's the wire protocol itself (RFC 2617), not a code choice, and
+    there's no widely-supported alternative - treat 'digest' as legacy in
+    favor of 'basic' behind HTTPS if that's a concern.
+
+  * Fixed a hook-dispatch bug in image rendering, the same class of bug
+    fixed for video above: image_alter_render_early() backfilled
+    image-file-width/height (and default object-width/height) locally when
+    missing - e.g. images uploaded while GD was unavailable - but
+    invoke_hook() passes its $args array by value to every alter_render_early
+    hook, so object_alter_render_early() (which sets the container div's
+    CSS width/height, dispatched afterwards in the same pass) saw the
+    pre-backfill values on that first render. Moved the backfill
+    (_image_finalize_dimensions()) to the top of image_render_object(),
+    before the hook dispatch, mirroring video's fix.
+
+  * Added a click shield to video and webvideo (YouTube/Vimeo embed)
+    objects in edit mode: clicking one to select it or open its menu was
+    getting swallowed by the <video> tag's own playback/controls handling,
+    or - for webvideo - lost entirely inside the embed's cross-origin
+    <iframe> document, which can never bubble a click to the parent page at
+    all. A same-document overlay (glue-video-shield / glue-webvideo-shield)
+    covering the top 40% of the object intercepts the click instead,
+    transparent until hovered so it doesn't obscure the video, leaving the
+    rest of the object clickable so playback can still be tested while
+    editing. This replaces webvideo's old small corner drag handle
+    (glue-webvideo-handle) with the same, much larger shield.
+
+  * Added 90-degree object rotation: a new context-menu button next to the
+    existing flip button cycles 0/90/180/270deg in one click each,
+    composing a rotate(Ndeg) term into the same CSS transform string flip
+    already reads/writes (modules/transform/transform.js) - no PHP changes
+    needed. Known limitation: rotating and then flipping the same object
+    discards the rotation, since flip only recognizes its own 4 fixed
+    matrices - rotating after flipping works fine.
+
+  * Added site-wide settings, reachable at /pages (aliased /options) above
+    the existing page list:
+      - A site favicon, uploaded once and served at every page regardless
+        of which one is being viewed (stored as page-favicon-file/-mime on
+        the startpage's own page-object; served at the new /favicon route).
+      - Up to 10 custom fonts (.woff/.woff2/.ttf), listed with a hover-
+        revealed remove action (matching the existing page-list style).
+        Each uploaded font automatically becomes available in text objects'
+        "change typeface" button - it discovers typefaces by scanning the
+        page's CSS for .glue-font* rules, so uploading one just means
+        emitting a matching @font-face plus that companion rule
+        (module_text.inc.php's _include_custom_font()). Custom fonts sort
+        first in the cycle order, ahead of the 4 built-in WOFF fonts
+        (though still after the 6 plain system fonts, which live in a
+        separate static stylesheet that structurally can't be reordered
+        without moving them to generated CSS too).
+      - The "change typeface" button's tooltip is now just "<font name> |
+        add fonts ⚙", and the double-click ("page") menu's link to /pages
+        is now a plain gear glyph instead of a binary icon, matching the
+        undo/redo buttons' convention.
+      - The last font, font size, and line height picked via their
+        respective "change ..." controls are remembered site-wide and
+        applied as the default for newly created text objects, so you
+        don't have to dial them in again on every new one.
+    Found and fixed two real bugs along the way: module_page.inc.php was
+    missing require_once('controller.inc.php') (harmless via normal page
+    loads, which already pull it in first, but fatal-erroring the first
+    time the module loaded via json.php's upload endpoint instead); and the
+    favicon/font upload validation used && where it needed || (a non-empty-
+    but-unrecognized mime type slipped through unrejected) - then, once
+    fixed to ||, still wrongly rejected a valid file whenever the browser
+    reported an empty mime type (common for less-common font formats),
+    since the empty-mime branch never got a chance to run. Rewritten with
+    explicit $mime_ok/$ext_ok checks.
+
+  * Text editing improvements: default padding (12px 15px) and font-size
+    (18px) via a CSS class rule (modules/text/text.css, previously created
+    but never actually loaded) rather than inline styles, so the existing
+    "change padding"/"change font size" controls still reset to it
+    instantly with no reload; dragging font size now scales line-height
+    proportionally alongside it, preserving whatever ratio was already in
+    effect; the textarea's edit-mode focus indicator uses CSS outline
+    instead of border (border participates in the box model and shifts
+    text position by its own width even with box-sizing:border-box, outline
+    doesn't); and the selected-object border is now black instead of red.
+
+  * Added a "make link" button to text objects: select some text, click it,
+    enter a URL, and that selection gets wrapped in <a href="...">. No
+    rendering changes were needed for this - html_encode_str_smart()
+    (html_parse.inc.php) already passes well-formed HTML tags through
+    unescaped rather than encoding them, and text-edit.js's stop_editing()
+    already anticipated <a> tags inside text content (disabling their click
+    behavior while editing) - a hand-typed link already worked today, this
+    just gives an easier way to insert one. Also fixed: inline links inside
+    text content weren't visibly underlined, because of the global
+    `a { text-decoration: inherit; }` rule (css/main.css) that intentionally
+    keeps object-level links - e.g. a whole linked image - from forcing an
+    underline where there's no text to underline; added a scoped
+    `.text a { text-decoration: underline; }` override for inline links
+    specifically.
+
+
+RECENT CHANGES (2026-07)
+
+  * jQuery and jQuery UI have been removed entirely from the editor
+    frontend, which is now plain vanilla JavaScript. Drag/resize is handled
+    by Moveable, a handful of reactive context-menu icons use Alpine.js, and
+    the color picker is a native <input type="color">. See MODERNIZATION.md
+    and handover.md for the full write-up of the migration.
+
+  * Fixed a bug in json.php where an unconditional stripslashes() call
+    (added for PHP8 compatibility) corrupted every saved object containing
+    escaped quotes.
+
+  * Fixed a bug in module_download.inc.php that called an undefined
+    log_error() function, causing an error when deleting a page containing
+    a download object.
+
+  * Fixed a module-name typo in webvideo-edit.js's register_alter_pre_save()
+    call (was registered under 'iframe' instead of 'webvideo').
+
+  * Fixed a misplaced parenthesis in module_image.inc.php's image resize
+    comparison.
+
+  * Added a feature: holding shift while dragging an object's resize handle
+    now preserves its aspect ratio.
+
+  * Fixed images looking blurry after being resized in the editor. The
+    resize was requested at CSS pixel dimensions rather than device pixel
+    dimensions, so on any HiDPI/Retina display (devicePixelRatio 2 or 3 -
+    most phones, laptops and monitors today) the browser stretched a
+    same-resolution image to fill a box rendered at 2-3x that many
+    physical pixels. Now capped/scaled via the new IMAGE_RESIZE_MAX_DPR
+    config constant (default 2).
+
+  * Restyled the object resize handles: a plain square with a black
+    outline, a light grey semi-transparent backdrop, and a smaller white
+    square centered inside, matching the look of the toolbar/context-menu
+    icons instead of Moveable's default blue circles.
+
+  * PHP 8+ modernization pass: error_reporting no longer references the
+    long-deprecated E_STRICT constant; removed dead PHP<7.1 compatibility
+    code (an is_iterable() polyfill and version_compare() branches that
+    were always-true on any supported PHP 8.x); modernized the PHPUnit
+    test suite's deprecated @expectedException annotation; mechanically
+    converted array(...) to [...] throughout the codebase; fixed a null-
+    safety bug in save_state() where a malformed save request with no id
+    attribute could propagate null into several string functions; replaced
+    32 sites of @is_array()/@is_string()/@is_numeric() error-suppression
+    with explicit isset() checks.
+
+  * Removed a handful of orphaned files no longer referenced anywhere:
+    the Farbtastic color-picker icons (dead since the color picker was
+    replaced with a native <input type="color">), two unused text-object
+    icons, and a stale unminified-only welcome.min.js.
 
 
 KNOWN ISSUES
@@ -46,7 +379,7 @@ KNOWN ISSUES
 
   * Rewrite rules in the Apache configuration or in any parent directory .htaccess file can clash with the Hotglue one.
 
-  * If you receive an error message while uploading a large file this 
+  * If you receive an error message while uploading a large file this
     might  be due to the limits set in the servers's php.ini file.
     You might want to change the values of these settings:
     - post_max_size
@@ -54,6 +387,9 @@ KNOWN ISSUES
     - memory-limit (if memory limits have been enabled)
     - max_input_time
     - max_file_uploads
+    When running via the built-in PHP dev server (php -S), these can be
+    overridden per-invocation without touching php.ini, e.g.:
+    php -S localhost:8000 -d upload_max_filesize=200M -d post_max_size=220M
 
   * For now, caching or seeking is not implemented for retrieval of uploaded files. 
     This might be an issue when embedding large video files.

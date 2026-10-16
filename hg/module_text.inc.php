@@ -31,7 +31,7 @@ require_once('util.inc.php');
  */
 function _include_woff_font($font_family, $style_to_include = '')
 {
-	static $already_included = array();
+	static $already_included = [];
 	
 	// strip quotation marks
 	// TODO (later): do proper parsing of font-family string
@@ -65,12 +65,16 @@ function _include_woff_font($font_family, $style_to_include = '')
 		} else {
 			$rule .= tab().'font-weight: normal;'.nl();
 		}
-		$rule .= tab().'src: url('.base_url().'img/'.$woff.') format("woff");'.nl();
+		// the paths are site-root-relative (fonts/...), and the format
+		// follows the extension: woff2 for the bundle, woff for the legacy
+		// faces it absorbed
+		$ext = filext($woff);
+		$rule .= tab().'src: url('.$woff.') format("'.($ext == 'woff2' ? 'woff2' : 'woff').'");'.nl();
 		$rule .= '}';
 		html_add_css_inline($rule, 5);
 		// add to list of already included font styles
 		if (!isset($already_included[$font_family])) {
-			$already_included[$font_family] = array();
+			$already_included[$font_family] = [];
 		}
 		$already_included[$font_family][$style] = true;
 	}
@@ -92,6 +96,81 @@ function _is_woff_font($font_family)
 	$font_family = str_replace('"', '', $font_family);
 	$font_family = str_replace('\'', '', $font_family);
 	return array_key_exists($font_family, $woff_fonts);
+}
+
+
+/**
+ *	include the font-face css for a user-uploaded custom font (site
+ *	settings, see /pages) - counterpart to _include_woff_font() for
+ *	site_custom_fonts() instead of the hardcoded _woff_fonts()
+ *
+ *	@param string $font_family font family (as returned by site_custom_fonts())
+ *	@return true if successful, false if not
+ */
+function _include_custom_font($font_family)
+{
+	static $already_included = [];
+	// normalize before checking/setting the cache - checking the raw
+	// (possibly quoted) value but caching under the normalized one meant
+	// the two could never match, so the cache never actually hit for any
+	// quoted font-family value (e.g. a computed style of '"Quicksand-Bold"'
+	// with literal quotes, which is what gets stored/reused for this
+	// object attribute)
+	$font_family = str_replace('"', '', $font_family);
+	$font_family = str_replace('\'', '', $font_family);
+	if (isset($already_included[$font_family])) {
+		return true;
+	}
+
+	foreach (site_custom_fonts() as $font) {
+		if (empty($font['name']) || empty($font['file']) || $font['name'] != $font_family) {
+			continue;
+		}
+		switch (strtolower(filext($font['file']))) {
+			case 'woff2':
+				$format = 'woff2';
+				break;
+			case 'ttf':
+				$format = 'truetype';
+				break;
+			case 'otf':
+				$format = 'opentype';
+				break;
+			default:
+				$format = 'woff';
+		}
+		$rule = '@font-face {'.nl();
+		$rule .= tab().'font-family: \''.$font_family.'\';'.nl();
+		// kept relative (not prefixed with base_url()) so it still resolves
+		// correctly when viewed through a different domain than the one
+		// configured/detected as the base url - see
+		// module_object.inc.php's object_alter_render_late() for the full rationale
+		$rule .= tab().'src: url('.CONTENT_DIR.'/'.get_first_item(expl('.', site_options_page())).'/shared/'.rawurlencode($font['file']).') format("'.$format.'");'.nl();
+		$rule .= '}';
+		html_add_css_inline($rule, 5);
+		$already_included[$font_family] = true;
+		return true;
+	}
+	return false;
+}
+
+
+/**
+ *	return if the font-family is a user-uploaded custom font
+ *
+ *	@param string $font_family font family
+ *	@return true if it is a custom font, false if not
+ */
+function _is_custom_font($font_family)
+{
+	$font_family = str_replace('"', '', $font_family);
+	$font_family = str_replace('\'', '', $font_family);
+	foreach (site_custom_fonts() as $font) {
+		if (!empty($font['name']) && $font['name'] == $font_family) {
+			return true;
+		}
+	}
+	return false;
 }
 
 
@@ -125,37 +204,96 @@ function _text_render_content($s, $name)
 /**
  *	return an array of all available woff-fonts
  *
+ *	the bundled font set (SOW-font-bundle.md plus the legacy defaults it
+ *	absorbed): every family self-hosted under fonts/, keyed by family name
+ *	(the value text-font-family stores) with the styles it ships, each
+ *	style's file relative to the site root. The array order is the picker
+ *	order. Licenses travel with the files (fonts/MANIFEST.md records
+ *	font -> license -> source).
+ *
  *	@return array
  */
 function _woff_fonts()
 {
-	// use a hardcoded array of woff fonts for now
-	return array(
-		'LatinModern' => array(
-			'normal' => 'lmsans10-regular-webfont.woff',
-			'italic' => 'lmsans10-oblique-webfont.woff',
-			'bold' => 'lmsans10-bold-webfont.woff',
-			'bolditalic' => 'lmsans10-boldoblique-webfont.woff'
-		),
-		'DejaVuSans' => array(
-			'normal' => 'dejavusans-webfont.woff',
-			'italic' => 'dejavusans-oblique-webfont.woff',
-			'bold' => 'dejavusans-bold-webfont.woff',
-			'bolditalic' => 'dejavusans-boldoblique-webfont.woff'
-		),
-		'DejaVuSerif' => array(
-			'normal' => 'dejavuserif-webfont.woff',
-			'italic' => 'dejavuserif-italic-webfont.woff',
-			'bold' => 'dejavuserif-bold-webfont.woff',
-			'bolditalic' => 'dejavuserif-bolditalic-webfont.woff'
-		),
-		'DejaVuSansMono' => array(
-			'normal' => 'dejavusansmono-webfont.woff',
-			'italic' => 'dejavusansmono-oblique-webfont.woff',
-			'bold' => 'dejavusansmono-bold-webfont.woff',
-			'bolditalic' => 'dejavusansmono-boldoblique-webfont.woff'
-		)
-	);
+	return [
+		'Inter' => [
+			'normal' => 'fonts/inter/inter-400.woff2',
+			'italic' => 'fonts/inter/inter-400i.woff2',
+			'bold' => 'fonts/inter/inter-700.woff2',
+			'bolditalic' => 'fonts/inter/inter-700i.woff2'
+		],
+		'Lora' => [
+			'normal' => 'fonts/lora/lora-400.woff2',
+			'italic' => 'fonts/lora/lora-400i.woff2',
+			'bold' => 'fonts/lora/lora-700.woff2',
+			'bolditalic' => 'fonts/lora/lora-700i.woff2'
+		],
+		'Space Mono' => [
+			'normal' => 'fonts/spacemono/spacemono-400.woff2',
+			'italic' => 'fonts/spacemono/spacemono-400i.woff2',
+			'bold' => 'fonts/spacemono/spacemono-700.woff2',
+			'bolditalic' => 'fonts/spacemono/spacemono-700i.woff2'
+		],
+		'Press Start 2P' => [
+			'normal' => 'fonts/pressstart2p/pressstart2p-400.woff2'
+		],
+		'VT323' => [
+			'normal' => 'fonts/vt323/vt323-400.woff2'
+		],
+		'Silkscreen' => [
+			'normal' => 'fonts/silkscreen/silkscreen-400.woff2',
+			'bold' => 'fonts/silkscreen/silkscreen-700.woff2'
+		],
+		'UnifrakturMaguntia' => [
+			'normal' => 'fonts/unifrakturmaguntia/unifrakturmaguntia-400.woff2'
+		],
+		'Anton' => [
+			'normal' => 'fonts/anton/anton-400.woff2'
+		],
+		'Archivo Black' => [
+			'normal' => 'fonts/archivoblack/archivoblack-400.woff2'
+		],
+		'Caveat' => [
+			'normal' => 'fonts/caveat/caveat-400.woff2',
+			'bold' => 'fonts/caveat/caveat-700.woff2'
+		],
+		'Shadows Into Light' => [
+			'normal' => 'fonts/shadowsintolight/shadowsintolight-400.woff2'
+		],
+		'Rubik Glitch' => [
+			'normal' => 'fonts/rubikglitch/rubikglitch-400.woff2'
+		],
+		'Rubik Wet Paint' => [
+			'normal' => 'fonts/rubikwetpaint/rubikwetpaint-400.woff2'
+		],
+		'Rubik Puddles' => [
+			'normal' => 'fonts/rubikpuddles/rubikpuddles-400.woff2'
+		],
+		'LatinModern' => [
+			'normal' => 'fonts/latinmodern/lmsans10-regular-webfont.woff',
+			'italic' => 'fonts/latinmodern/lmsans10-oblique-webfont.woff',
+			'bold' => 'fonts/latinmodern/lmsans10-bold-webfont.woff',
+			'bolditalic' => 'fonts/latinmodern/lmsans10-boldoblique-webfont.woff'
+		],
+		'DejaVuSans' => [
+			'normal' => 'fonts/dejavusans/dejavusans-webfont.woff',
+			'italic' => 'fonts/dejavusans/dejavusans-oblique-webfont.woff',
+			'bold' => 'fonts/dejavusans/dejavusans-bold-webfont.woff',
+			'bolditalic' => 'fonts/dejavusans/dejavusans-boldoblique-webfont.woff'
+		],
+		'DejaVuSerif' => [
+			'normal' => 'fonts/dejavuserif/dejavuserif-webfont.woff',
+			'italic' => 'fonts/dejavuserif/dejavuserif-italic-webfont.woff',
+			'bold' => 'fonts/dejavuserif/dejavuserif-bold-webfont.woff',
+			'bolditalic' => 'fonts/dejavuserif/dejavuserif-bolditalic-webfont.woff'
+		],
+		'DejaVuSansMono' => [
+			'normal' => 'fonts/dejavusansmono/dejavusansmono-webfont.woff',
+			'italic' => 'fonts/dejavusansmono/dejavusansmono-oblique-webfont.woff',
+			'bold' => 'fonts/dejavusansmono/dejavusansmono-bold-webfont.woff',
+			'bolditalic' => 'fonts/dejavusansmono/dejavusansmono-boldoblique-webfont.woff'
+		]
+	];
 }
 
 
@@ -205,6 +343,25 @@ function text_alter_save($args)
 	} else {
 		unset($obj['text-font-weight']);
 	}
+	// the text shadow's ingredients (see text_render_object) - the glow's
+	// three, and since 2026-09-28 the drop shadow's distance, angle and spread
+	foreach (['radius', 'alpha', 'color', 'distance', 'angle', 'spread'] as $part) {
+		if (elem_css($elem, '--glue-shadow-'.$part) !== NULL) {
+			$obj['text-shadow-'.$part] = elem_css($elem, '--glue-shadow-'.$part);
+		} else {
+			unset($obj['text-shadow-'.$part]);
+		}
+	}
+	// text-decoration - underline and strikethrough, which share one CSS
+	// property and are therefore stored as one value ('underline',
+	// 'line-through', or both). Nothing stored this before the font popover
+	// existed, and a property that is not on this list is dropped on save, so
+	// without it the two toggles would look right until the page reloaded.
+	if (elem_css($elem, 'text-decoration') !== NULL) {
+		$obj['text-text-decoration'] = elem_css($elem, 'text-decoration');
+	} else {
+		unset($obj['text-text-decoration']);
+	}
 	// letter-spacing
 	if (elem_css($elem, 'letter-spacing') !== NULL) {
 		$obj['text-letter-spacing'] = elem_css($elem, 'letter-spacing');
@@ -217,33 +374,85 @@ function text_alter_save($args)
 	} else {
 		unset($obj['text-line-height']);
 	}
+	// padding: the x/y pair while the sides are symmetric, the four sides
+	// individually when they are not (the padding panel's "more knobs"). The
+	// renderer below applies the per-side attributes first and falls back to
+	// the pair, so objects saved as x/y keep rendering exactly as before.
+	$pad = array('top' => NULL, 'right' => NULL, 'bottom' => NULL, 'left' => NULL);
 	if (elem_css($elem, 'padding') !== NULL) {
-		// parse padding
-		// this is needed for Firefox
+		// parse the shorthand - this is needed for Firefox, which serialises
+		// inline padding as shorthand rather than longhands
 		$s = expl(' ', elem_css($elem, 'padding'));
 		if (count($s) == 1) {
-			// padding-x = padding-y
-			$obj['text-padding-x'] = $s[0];
-			$obj['text-padding-y'] = $s[0];
-		} elseif (1 < count($s)) {
-			// padding-x
-			$obj['text-padding-x'] = $s[1];
-			// padding-y
-			$obj['text-padding-y'] = $s[0];
+			$pad['top'] = $pad['right'] = $pad['bottom'] = $pad['left'] = $s[0];
+		} elseif (count($s) == 2) {
+			$pad['top'] = $pad['bottom'] = $s[0];
+			$pad['left'] = $pad['right'] = $s[1];
+		} elseif (count($s) == 3) {
+			$pad['top'] = $s[0];
+			$pad['left'] = $pad['right'] = $s[1];
+			$pad['bottom'] = $s[2];
+		} else {
+			$pad['top'] = $s[0];
+			$pad['right'] = $s[1];
+			$pad['bottom'] = $s[2];
+			$pad['left'] = $s[3];
 		}
 	} else {
-		// padding-x
-		if (elem_css($elem, 'padding-left') !== NULL) {
-			$obj['text-padding-x'] = elem_css($elem, 'padding-left');
+		foreach ($pad as $side => $v) {
+			$pad[$side] = elem_css($elem, 'padding-'.$side);
+		}
+	}
+	// left/right -> text-padding-x, or the two longhands when they differ -
+	// and whichever form is written, the other one goes: the render reads
+	// the longhands first, so a stale text-padding-left outranked the pair,
+	// and a padding dragged back to 0 came back on reload (2026-09-27)
+	if ($pad['left'] !== NULL || $pad['right'] !== NULL) {
+		if ($pad['left'] !== NULL && $pad['right'] !== NULL && $pad['left'] == $pad['right']) {
+			$obj['text-padding-x'] = $pad['left'];
+			unset($obj['text-padding-left']);
+			unset($obj['text-padding-right']);
 		} else {
 			unset($obj['text-padding-x']);
+			if ($pad['left'] !== NULL) {
+				$obj['text-padding-left'] = $pad['left'];
+			} else {
+				unset($obj['text-padding-left']);
+			}
+			if ($pad['right'] !== NULL) {
+				$obj['text-padding-right'] = $pad['right'];
+			} else {
+				unset($obj['text-padding-right']);
+			}
 		}
-		// padding-y
-		if (elem_css($elem, 'padding-top') !== NULL) {
-			$obj['text-padding-y'] = elem_css($elem, 'padding-top');
+	} else {
+		unset($obj['text-padding-x']);
+		unset($obj['text-padding-left']);
+		unset($obj['text-padding-right']);
+	}
+	// top/bottom likewise
+	if ($pad['top'] !== NULL || $pad['bottom'] !== NULL) {
+		if ($pad['top'] !== NULL && $pad['bottom'] !== NULL && $pad['top'] == $pad['bottom']) {
+			$obj['text-padding-y'] = $pad['top'];
+			unset($obj['text-padding-top']);
+			unset($obj['text-padding-bottom']);
 		} else {
 			unset($obj['text-padding-y']);
+			if ($pad['top'] !== NULL) {
+				$obj['text-padding-top'] = $pad['top'];
+			} else {
+				unset($obj['text-padding-top']);
+			}
+			if ($pad['bottom'] !== NULL) {
+				$obj['text-padding-bottom'] = $pad['bottom'];
+			} else {
+				unset($obj['text-padding-bottom']);
+			}
 		}
+	} else {
+		unset($obj['text-padding-y']);
+		unset($obj['text-padding-top']);
+		unset($obj['text-padding-bottom']);
 	}
 	// text-align
 	if (elem_css($elem, 'text-align') !== NULL) {
@@ -257,11 +466,14 @@ function text_alter_save($args)
 	} else {
 		unset($obj['text-word-spacing']);
 	}
-	// scrolling: keep the box size, show a vertical scrollbar on overflow
-	if (elem_css($elem, 'overflow-y') == 'auto') {
-		$obj['text-scroll'] = 'scroll';
+
+	// accessibility round-trip (SOW-accessibility.md): the serialized tag
+	// itself carries the heading level (html_parse_elem lowercases it)
+	$tag = elem_tag($elem);
+	if (in_array($tag, array('h1', 'h2', 'h3', 'h4', 'h5', 'h6'))) {
+		$obj['text-heading-level'] = $tag;
 	} else {
-		unset($obj['text-scroll']);
+		unset($obj['text-heading-level']);
 	}
 
 	return true;
@@ -275,17 +487,33 @@ function text_alter_render_early($args)
 	if (!elem_has_class($elem, 'text')) {
 		return false;
 	}
-	
+
+	// accessibility (SOW-accessibility.md): a semantic heading level turns
+	// the wrapper into h1..h6. reset.css already neutralises the browser's
+	// heading defaults (margin, size, weight), and every visual property
+	// still comes from the author's own text-* keys below, so the change is
+	// structure-only - appearance is untouched and the author stays in
+	// control of how a heading looks.
+	if (!empty($obj['text-heading-level']) &&
+			in_array($obj['text-heading-level'], array('h1', 'h2', 'h3', 'h4', 'h5', 'h6'))) {
+		$elem['tag'] = $obj['text-heading-level'];
+	}
+
+	// The text module deliberately ships no stylesheet, like the historical
+	// engine: a text object without stored text-font-size/text-padding-*
+	// keys renders with the page's inherited font-size and no padding, and
+	// links inside text inherit the main.css a-reset (no underline, no blue)
+	// exactly as they did in 2010 (parity A/B, F2/F3). The padding rows and
+	// the "change font size" control reset by clearing their own inline
+	// override, which then immediately falls back to that inherent default
+	// (no reload needed, and nothing to keep in sync here). The padding rows
+	// are the object properties panel's section, not a text control of their
+	// own, since 2026-09-16 - the storage is unchanged, which is why this file
+	// still owns the keys
+
 	// background-color
 	if (!empty($obj['text-background-color'])) {
 		elem_css($elem, 'background-color', $obj['text-background-color']);
-	}
-	// scrolling: keep the box size; wrap to width; vertical scrollbar on overflow.
-	// Applied in both edit and show so the editor preview matches the visitor view.
-	if (isset($obj['text-scroll']) && $obj['text-scroll'] == 'scroll') {
-		elem_css($elem, 'overflow-y', 'auto');
-		elem_css($elem, 'overflow-x', 'hidden');
-		elem_css($elem, 'overflow-wrap', 'break-word');
 	}
 	// content
 	if (!isset($obj['content'])) {
@@ -329,9 +557,11 @@ function text_alter_render_early($args)
 		elem_css($elem, 'font-family', $obj['text-font-family']);
 		if (TEXT_USE_WOFF_FONTS) {
 			if (_is_woff_font($obj['text-font-family'])) {
-				// include all styles of the font because of inline html 
+				// include all styles of the font because of inline html
 				// (<strong>, etc)
 				_include_woff_font($obj['text-font-family']);
+			} elseif (_is_custom_font($obj['text-font-family'])) {
+				_include_custom_font($obj['text-font-family']);
 			}
 		}
 	}
@@ -347,6 +577,29 @@ function text_alter_render_early($args)
 	if (!empty($obj['text-font-weight'])) {
 		elem_css($elem, 'font-weight', $obj['text-font-weight']);
 	}
+	// text-decoration (see text_alter_save)
+	if (!empty($obj['text-text-decoration'])) {
+		elem_css($elem, 'text-decoration', $obj['text-text-decoration']);
+	}
+	// a shadow behind the text - see .glue-text-shadow in css/main.css. The
+	// ingredients are stored and the shadow is composed there, so the value
+	// exists in one place rather than in the editor and the renderer both.
+	// It is on while it has a blur, a distance or a spread: a hard drop
+	// shadow is a distance with no blur (2026-09-28). A part that is absent
+	// is the rule's own default, and the spread draws its ring of copies
+	// only under its own class.
+	if (!empty($obj['text-shadow-radius']) || !empty($obj['text-shadow-distance'])
+			|| !empty($obj['text-shadow-spread'])) {
+		foreach (['radius', 'alpha', 'color', 'distance', 'angle', 'spread'] as $part) {
+			if (!empty($obj['text-shadow-'.$part])) {
+				elem_css($elem, '--glue-shadow-'.$part, $obj['text-shadow-'.$part]);
+			}
+		}
+		elem_add_class($elem, 'glue-text-shadow');
+		if (!empty($obj['text-shadow-spread'])) {
+			elem_add_class($elem, 'glue-text-shadow-spread');
+		}
+	}
 	// letter-spacing
 	if (!empty($obj['text-letter-spacing'])) {
 		elem_css($elem, 'letter-spacing', $obj['text-letter-spacing']);
@@ -355,13 +608,27 @@ function text_alter_render_early($args)
 	if (!empty($obj['text-line-height'])) {
 		elem_css($elem, 'line-height', $obj['text-line-height']);
 	}
-	// padding-x
-	if (!empty($obj['text-padding-x'])) {
+	// padding: the four longhands when the object was saved with per-side
+	// values ("more knobs" in the padding panel), the x/y pair as the
+	// fallback for objects saved the older way. A side that is in neither is
+	// left alone and falls back to the CSS class default.
+	if (!empty($obj['text-padding-left'])) {
+		elem_css($elem, 'padding-left', $obj['text-padding-left']);
+	}
+	if (!empty($obj['text-padding-right'])) {
+		elem_css($elem, 'padding-right', $obj['text-padding-right']);
+	}
+	if (empty($obj['text-padding-left']) && empty($obj['text-padding-right']) && !empty($obj['text-padding-x'])) {
 		elem_css($elem, 'padding-left', $obj['text-padding-x']);
 		elem_css($elem, 'padding-right', $obj['text-padding-x']);
 	}
-	// padding-y
-	if (!empty($obj['text-padding-y'])) {
+	if (!empty($obj['text-padding-top'])) {
+		elem_css($elem, 'padding-top', $obj['text-padding-top']);
+	}
+	if (!empty($obj['text-padding-bottom'])) {
+		elem_css($elem, 'padding-bottom', $obj['text-padding-bottom']);
+	}
+	if (empty($obj['text-padding-top']) && empty($obj['text-padding-bottom']) && !empty($obj['text-padding-y'])) {
 		elem_css($elem, 'padding-top', $obj['text-padding-y']);
 		elem_css($elem, 'padding-bottom', $obj['text-padding-y']);
 	}
@@ -392,9 +659,9 @@ function text_render_object($args)
 	elem_add_class($e, 'object');
 	
 	// hooks
-	invoke_hook_first('alter_render_early', 'text', array('obj'=>$obj, 'elem'=>&$e, 'edit'=>$args['edit']));
+	invoke_hook_first('alter_render_early', 'text', ['obj'=>$obj, 'elem'=>&$e, 'edit'=>$args['edit']]);
 	$html = elem_finalize($e);
-	invoke_hook_last('alter_render_late', 'text', array('obj'=>$obj, 'html'=>&$html, 'elem'=>$e, 'edit'=>$args['edit']));
+	invoke_hook_last('alter_render_late', 'text', ['obj'=>$obj, 'html'=>&$html, 'elem'=>$e, 'edit'=>$args['edit']]);
 	
 	return $html;
 }
@@ -403,24 +670,60 @@ function text_render_object($args)
 function text_render_page_early($args)
 {
 	if ($args['edit']) {
-		// Cache-buster: append the file's mtime so browsers (and any CDN in
-		// front of the origin) refetch the script/style when it changes. The
-		// hotglue asset URLs are otherwise unversioned, so an edited module JS
-		// stays hidden behind a stale cached copy.
-		$dir = dirname(__FILE__).'/modules/text/';
-		$js = USE_MIN_FILES ? 'text-edit.min.js' : 'text-edit.js';
-		$jsv = @filemtime($dir.$js);
-		html_add_js(base_url().'modules/text/'.$js.($jsv ? '?v='.$jsv : ''));
-		$cssv = @filemtime($dir.'text-edit.css');
-		html_add_css(base_url().'modules/text/text-edit.css'.($cssv ? '?v='.$cssv : ''));
+		if (USE_MIN_FILES) {
+			html_add_js(base_url().'modules/text/text-edit.min.js');
+		} else {
+			html_add_js(base_url().'modules/text/text-edit.js');
+		}
+		html_add_css(base_url().'modules/text/text-edit.css');
 		html_add_js_var('$.glue.conf.text.auto_br', TEXT_AUTO_BR);
-		
+
+		// last typeface/font size/line height picked via "change typeface"/
+		// "change font size"/"change line height" (site-wide, see
+		// page_set_last_font()/page_set_last_font_size()/
+		// page_set_last_line_height()) - applied as the default for newly
+		// created text objects, see text-edit.js's "new text" handler
+		$site_obj = site_options_load();
+		if (!$site_obj['#error'] && !empty($site_obj['#data']['page-last-text-font'])) {
+			html_add_js_var('$.glue.conf.text.last_font', $site_obj['#data']['page-last-text-font']);
+		}
+		if (!$site_obj['#error'] && !empty($site_obj['#data']['page-last-text-font-size'])) {
+			html_add_js_var('$.glue.conf.text.last_font_size', $site_obj['#data']['page-last-text-font-size']);
+		}
+		if (!$site_obj['#error'] && !empty($site_obj['#data']['page-last-text-line-height'])) {
+			html_add_js_var('$.glue.conf.text.last_line_height', $site_obj['#data']['page-last-text-line-height']);
+		}
+
 		if (TEXT_USE_WOFF_FONTS) {
+			// user-uploaded custom fonts (site settings, see /pages) go
+			// first in the "change typeface" cycle button's order - it
+			// discovers typefaces by scanning document.styleSheets for
+			// .glue-font* selectors in order (see text-edit.js's
+			// get_fonts()), so a lower priority here (5, vs 6 below)
+			// guarantees these sort first regardless of insertion order -
+			// usort() isn't guaranteed stable for equal priorities (see
+			// html.inc.php's _array_sort_by_prio())
+			foreach (site_custom_fonts() as $font) {
+				if (empty($font['name'])) {
+					continue;
+				}
+				_include_custom_font($font['name']);
+				$rule = '.glue-font-custom-'.$font['name'].' {'.nl();
+				$rule .= tab().'font-family: \''.$font['name'].'\';'.nl();
+				$rule .= '}';
+				html_add_css_inline($rule, 5);
+			}
 			$woff_fonts = _woff_fonts();
 			foreach ($woff_fonts as $font=>$styles) {
 				_include_woff_font($font);
 				// TODO (later): check css encoding
-				$rule = '.glue-font-woff-'.$font.' {'.nl();
+				// the picker marker class takes a slug of the family name:
+				// the bundle's names carry spaces and digits (Press Start
+				// 2P), which a class selector cannot hold unescaped - the
+				// font-family inside the rule is still the real name, and
+				// that is what the picker reads and what gets stored
+				$slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', $font));
+				$rule = '.glue-font-woff-'.$slug.' {'.nl();
 				// we use single quotes as they don't clash with inline styles
 				$rule .= tab().'font-family: \''.$font.'\';'.nl();
 				$rule .= '}';
@@ -444,7 +747,7 @@ function text_save_state($args)
 	$obj['module'] = 'text';
 	
 	// hook
-	invoke_hook('alter_save', array('obj'=>&$obj, 'elem'=>$elem));
+	invoke_hook('alter_save', ['obj'=>&$obj, 'elem'=>$elem]);
 	
 	load_modules('glue');
 	$ret = save_object($obj);

@@ -1,35 +1,32 @@
 .download {
-	background-image:url('download-file.png');
-	background-size: 100%;
-	height: 48px;
-	max-height: 48px;
-	max-width: 48px;
-	width: 48px;
+	/* the 50x50 download box (2026-09-22, danja's call): 2px border, 80%
+	   transparent background, the file's type inside. The size is
+	   CSS-driven on purpose - download_save_state strips object-width and
+	   object-height, so the box is always exactly this. */
+	background-color: rgba(255, 255, 255, 0.2);
+	border: 2px solid rgba(0, 0, 0, 0.35);
+	box-sizing: border-box;
+	width: 50px;
+	height: 50px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
-.download-ext {
-	bottom: 5px;
-	font-size: 8px;
-	max-height: 38px;
-	max-width: 26px;
-	overflow: hidden;
-	position: absolute;
-	right: 12px;
-	text-align: right;
-	/* TODO (later): this does not work in viewing mode on Chrome */
-	text-decoration: none;
-	width: 26px;
+.download-mime {
+	/* the file's type: the MIME subtype where it fits, the extension
+	   otherwise - full MIMEs do not fit at 50x50, and the full string is
+	   the title. */
+	font-size: 9px;
+	line-height: 1;
+	text-align: center;
 	word-break: break-all;
+	max-width: 44px;
+	color: rgba(0, 0, 0, 0.75);
 }
 
-#glue-contextmenu-download-public {
-	background-color: transparent;
-}
-
-#glue-contextmenu-download-public.glue-menu-disabled {
-	background-image: url(download-public-off.png);
-}
-
-#glue-contextmenu-download-public.glue-menu-enabled {
-	background-image: url(download-public-on.png);
+.glue-download-wrapped {
+	/* the editor's hidden form of a wrapped download box: the object must
+	   exist for undo and detach to reach it, but it stays off-screen */
+	display: none;
 }

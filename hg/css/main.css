@@ -12,3 +12,252 @@ a, a:link, a:visited, a:active, a:hover {
 	color: inherit;
 	text-decoration: inherit;
 }
+
+#hg-centered-wrapper {
+	/* Centered layout mode's container (module_page.inc.php).
+
+	   pointer-events:none is load bearing, not decoration: the container spans
+	   the canvas, so without it every click meant for the page background hits
+	   the container instead of body - and the editor decides what is a
+	   background click by testing e.target == document.body. That silently
+	   breaks opening the page menu and deselecting objects. Events pass
+	   through the container and are picked up by the objects themselves. */
+	pointer-events: none;
+}
+
+/* not '>': an object with a link is wrapped in <a>, so it is a grandchild and
+   would inherit the container's none - its link dead in centered mode */
+#hg-centered-wrapper .object {
+	pointer-events: auto;
+}
+
+.object > img, .object > video, .object > iframe {
+	/* Rounded corners (object-border-radius) apply to the OBJECT, and
+	   border-radius does not clip children - so a text object rounds
+	   correctly, because it paints its own background, while an image or a
+	   video keeps square corners inside the rounded box. Inheriting the
+	   radius rounds the media with the object without reaching for
+	   overflow:hidden, which is the author's own separate decision (the
+	   clip/show toggle). */
+	border-radius: inherit;
+}
+
+.glue-edge-fade {
+	/* A soft edge: the object's content fades out towards its edges instead
+	   of stopping at them. module_object.inc.php stores only the DISTANCE, as
+	   --glue-fade, and adds this class; the gradient lives here so there is
+	   one of it rather than one in the editor and one in the renderer.
+
+	   Two gradients, one per axis, INTERSECTED. Each one on its own fades
+	   only two opposite edges and leaves a band straight through the middle
+	   untouched; intersecting them - a pixel is opaque only where both say
+	   opaque - is what fades all four evenly and keeps the feel of a
+	   rectangle. Compositing is the whole mechanism, not a detail: with the
+	   default (add) the two bands union instead, and the left and right edges
+	   never fade at all. mask-composite: intersect is Firefox 53+ and Chrome
+	   120+; -webkit-mask-composite: source-in is the older Blink spelling of
+	   the same thing.
+
+	   The class is on the object rather than the rule being on every .object
+	   because a mask costs a compositing layer, and because a mask that goes
+	   wrong hides its element entirely - not something to hand to objects
+	   nobody has touched. */
+	--glue-fade: 0px;
+	--glue-fade-x: linear-gradient(to right, transparent, #000 var(--glue-fade),
+		#000 calc(100% - var(--glue-fade)), transparent);
+	--glue-fade-y: linear-gradient(to bottom, transparent, #000 var(--glue-fade),
+		#000 calc(100% - var(--glue-fade)), transparent);
+	-webkit-mask-image: var(--glue-fade-x), var(--glue-fade-y);
+	mask-image: var(--glue-fade-x), var(--glue-fade-y);
+	-webkit-mask-composite: source-in;
+	mask-composite: intersect;
+}
+
+.glue-glow {
+	/* The whole box-shadow family behind an object, composed here, once:
+	   the soft halo (the glow) and a directional drop shadow. That is the
+	   difference between this and the edge fade below - the fade is a mask,
+	   so it takes the text with it; shadows paint outside (or inside) the
+	   box and never touch the content.
+
+	   Only ingredients are stored, never a shadow: colours, the halo's
+	   reach and strength, and the drop's distance, angle, blur and spread.
+	   The class is on the element whenever any
+	   member is, and the members nobody set stay invisible (a zero size,
+	   a transparent colour, or an alpha that color-mix multiplies to
+	   nothing), so adding one shadow never invents another. Everything
+	   composes into this one box-shadow, so no member can ever become a
+	   second declaration that overwrites the others.
+
+	   The glow is three concentric layers (reach, twice reach, four times
+	   reach) at falling alphas - one layer reads as a hard edge, the stack
+	   as a soft halo. An optional second colour (--glue-glow-color2) puts
+	   the halo's side layers into a duotone, and --glue-glow-inner gates
+	   the inside layers (by alpha, not by size: a zero-sized layer is not
+	   invisible, it is a solid box). The drop shadow is a distance in a
+	   direction, resolved to x/y offsets HERE via cos()/sin() of the
+	   stored angle - the angle keeps its unit, so the trig sees an angle
+	   rather than a number.
+
+	   Every variable used below has a default here, and every one must: a
+	   single undefined variable makes the whole box-shadow invalid at
+	   computed-value time and every layer vanishes at once. color-mix is
+	   what lets a stored colour take an alpha without splitting it into
+	   channels first (Chrome 111+, Firefox 113+); cos()/sin() are Chrome
+	   111+/Firefox 108+. */
+	--glue-glow-color: transparent;
+	--glue-glow-spread: 0;
+	--glue-glow-alpha: 80;
+	--glue-glow-inner: 0;
+	--glue-glow-color2: transparent;
+	--glue-drop-color: transparent;
+	--glue-drop-distance: 0;
+	--glue-drop-angle: 0deg;
+	--glue-drop-blur: 0;
+	--glue-drop-spread: 0;
+	/* 1 everywhere but the editor: a selected, faded object drops its OUTER
+	   layers (css/edit.css, .glue-selected.glue-edge-fade) */
+	--glue-outer: 1;
+	box-shadow:
+		0 0 calc(var(--glue-glow-spread) * 1px)
+			color-mix(in srgb, var(--glue-glow-color) calc(var(--glue-glow-alpha) * var(--glue-outer) * 1%),
+				transparent),
+		0 0 calc(var(--glue-glow-spread) * 2px)
+			color-mix(in srgb, var(--glue-glow-color) calc(var(--glue-glow-alpha) * var(--glue-outer) * 0.6%),
+				transparent),
+		0 0 calc(var(--glue-glow-spread) * 4px)
+			color-mix(in srgb, var(--glue-glow-color) calc(var(--glue-glow-alpha) * var(--glue-outer) * 0.35%),
+				transparent),
+		inset 0 0 calc(var(--glue-glow-spread) * 1px)
+			color-mix(in srgb, var(--glue-glow-color)
+				calc(var(--glue-glow-alpha) * var(--glue-glow-inner) * 1%), transparent),
+		inset 0 0 calc(var(--glue-glow-spread) * 2px)
+			color-mix(in srgb, var(--glue-glow-color)
+				calc(var(--glue-glow-alpha) * var(--glue-glow-inner) * 0.6%), transparent),
+		inset 0 0 calc(var(--glue-glow-spread) * 4px)
+			color-mix(in srgb, var(--glue-glow-color)
+				calc(var(--glue-glow-alpha) * var(--glue-glow-inner) * 0.35%), transparent),
+		inset calc(var(--glue-glow-spread) * 0.4px) 0 calc(var(--glue-glow-spread) * 1.6px)
+			color-mix(in srgb, var(--glue-glow-color2) calc(100% * var(--glue-glow-inner)),
+				transparent),
+		inset calc(var(--glue-glow-spread) * -0.4px) 0 calc(var(--glue-glow-spread) * 6px)
+			color-mix(in srgb, var(--glue-glow-color2) calc(100% * var(--glue-glow-inner)),
+				transparent),
+		calc(var(--glue-glow-spread) * -0.2px) 0 calc(var(--glue-glow-spread) * 1.6px)
+			color-mix(in srgb, var(--glue-glow-color2) calc(100% * var(--glue-outer)), transparent),
+		calc(var(--glue-glow-spread) * 0.2px) 0 calc(var(--glue-glow-spread) * 6px)
+			color-mix(in srgb, var(--glue-glow-color2) calc(100% * var(--glue-outer)), transparent),
+		calc(var(--glue-drop-distance) * cos(var(--glue-drop-angle)) * 1px)
+			calc(var(--glue-drop-distance) * sin(var(--glue-drop-angle)) * 1px)
+			calc(var(--glue-drop-blur) * 1px) calc(var(--glue-drop-spread) * 1px)
+			color-mix(in srgb, var(--glue-drop-color) calc(100% * var(--glue-outer)), transparent);
+}
+
+.glue-text-shadow {
+	/* A shadow behind the text itself. Like the glow above it, what is stored
+	   is the ingredients - a radius, a strength and a colour, and since
+	   2026-09-28 the drop shadow's distance, angle and spread - and the value
+	   is composed here, once. The radius is the blur and the strength is the
+	   colour's alpha.
+
+	   A single blur at any radius reads as a soft fog - the ink is spread
+	   over the whole blur - so the SAME shadow is layered at half and
+	   quarter radii: dense at the glyph, fading outward. That is what makes
+	   a heavy shadow achievable from the same three ingredients (2026-09-22,
+	   danja's "cannot achieve heavy text shadow").
+
+	   The distance moves all three layers together, in the direction of the
+	   stored angle resolved to x/y offsets by cos()/sin() here, as the drop
+	   shadow's is (the angle keeps its unit, so the trig sees an angle). At
+	   distance 0 it is the halo it always was. The radius defaults to 0
+	   because a shadow can be on without one now: a hard drop shadow is a
+	   distance and no blur. Every variable has a default, and must - a
+	   single undefined one invalidates the whole text-shadow. */
+	--glue-shadow-radius: 0;
+	--glue-shadow-alpha: 80;
+	--glue-shadow-color: #000;
+	--glue-shadow-distance: 0;
+	--glue-shadow-angle: 0deg;
+	--glue-shadow-spread: 0;
+	--glue-shadow-x: calc(var(--glue-shadow-distance) * cos(var(--glue-shadow-angle)) * 1px);
+	--glue-shadow-y: calc(var(--glue-shadow-distance) * sin(var(--glue-shadow-angle)) * 1px);
+	--glue-shadow-ink: color-mix(in srgb, var(--glue-shadow-color)
+		calc(var(--glue-shadow-alpha) * 1%), transparent);
+	/* the quarter-radius layer: the dense core, and what the spread copies */
+	--glue-shadow-core: calc(var(--glue-shadow-radius) * 0.25px) var(--glue-shadow-ink);
+	text-shadow:
+		var(--glue-shadow-x) var(--glue-shadow-y)
+			calc(var(--glue-shadow-radius) * 1px) var(--glue-shadow-ink),
+		var(--glue-shadow-x) var(--glue-shadow-y)
+			calc(var(--glue-shadow-radius) * 0.5px) var(--glue-shadow-ink),
+		var(--glue-shadow-x) var(--glue-shadow-y) var(--glue-shadow-core);
+}
+
+.glue-text-shadow.glue-text-shadow-spread {
+	/* text-shadow has no spread of its own, so the spread is drawn: sixteen
+	   copies of the core layer in a ring around it, --glue-shadow-reach out,
+	   which thickens the shadow the way a box-shadow's spread does. Clean up
+	   to a few pixels; past 10 the copies begin to show as copies, which is
+	   where the panel's drag stops. The class is on only while a spread is
+	   stored, so a shadow without one draws its three layers and no more -
+	   and so a spread of 0 cannot stack sixteen copies on the core. With a
+	   spread the copies overlap, so the strength reads heavier than the same
+	   number without one. */
+	--glue-shadow-reach: calc(var(--glue-shadow-spread) * 1px);
+	text-shadow:
+		var(--glue-shadow-x) var(--glue-shadow-y)
+			calc(var(--glue-shadow-radius) * 1px) var(--glue-shadow-ink),
+		var(--glue-shadow-x) var(--glue-shadow-y)
+			calc(var(--glue-shadow-radius) * 0.5px) var(--glue-shadow-ink),
+		var(--glue-shadow-x) var(--glue-shadow-y) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) + var(--glue-shadow-reach) * 1) var(--glue-shadow-y) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) + var(--glue-shadow-reach) * 0.9239) calc(var(--glue-shadow-y) + var(--glue-shadow-reach) * 0.3827) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) + var(--glue-shadow-reach) * 0.7071) calc(var(--glue-shadow-y) + var(--glue-shadow-reach) * 0.7071) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) + var(--glue-shadow-reach) * 0.3827) calc(var(--glue-shadow-y) + var(--glue-shadow-reach) * 0.9239) var(--glue-shadow-core),
+		var(--glue-shadow-x) calc(var(--glue-shadow-y) + var(--glue-shadow-reach) * 1) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) - var(--glue-shadow-reach) * 0.3827) calc(var(--glue-shadow-y) + var(--glue-shadow-reach) * 0.9239) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) - var(--glue-shadow-reach) * 0.7071) calc(var(--glue-shadow-y) + var(--glue-shadow-reach) * 0.7071) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) - var(--glue-shadow-reach) * 0.9239) calc(var(--glue-shadow-y) + var(--glue-shadow-reach) * 0.3827) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) - var(--glue-shadow-reach) * 1) var(--glue-shadow-y) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) - var(--glue-shadow-reach) * 0.9239) calc(var(--glue-shadow-y) - var(--glue-shadow-reach) * 0.3827) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) - var(--glue-shadow-reach) * 0.7071) calc(var(--glue-shadow-y) - var(--glue-shadow-reach) * 0.7071) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) - var(--glue-shadow-reach) * 0.3827) calc(var(--glue-shadow-y) - var(--glue-shadow-reach) * 0.9239) var(--glue-shadow-core),
+		var(--glue-shadow-x) calc(var(--glue-shadow-y) - var(--glue-shadow-reach) * 1) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) + var(--glue-shadow-reach) * 0.3827) calc(var(--glue-shadow-y) - var(--glue-shadow-reach) * 0.9239) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) + var(--glue-shadow-reach) * 0.7071) calc(var(--glue-shadow-y) - var(--glue-shadow-reach) * 0.7071) var(--glue-shadow-core),
+		calc(var(--glue-shadow-x) + var(--glue-shadow-reach) * 0.9239) calc(var(--glue-shadow-y) - var(--glue-shadow-reach) * 0.3827) var(--glue-shadow-core);
+}
+
+.text ul, .text ol {
+	/* Lists inside text objects. css/reset.css strips list markers AND all
+	   margin/padding, so a list built with the panel's list buttons would
+	   render on the published page as bare, markerless text. Re-assert the
+	   indent under .text, which contains both the published render
+	   (module_text.inc.php appends the content directly into the object
+	   element) and the editing render (.glue-text-render is a child of the
+	   object), so one rule serves both. The author's own CSS loads after
+	   main.css and can override. padding-left rather than margin: an
+	   authored object padding is the object's own.
+
+	   The indent is in em, not px: an outside marker hangs to the LEFT of
+	   the item, as wide as its digits, and that width grows with the font. A
+	   fixed 20px held the default 13px font's marker and let a larger one
+	   poke out of the object's left edge - at 28px the "1." of a numbered list
+	   was already outside the box, and "10." at 56px was far out. 2.5em is
+	   room for a three-character marker such as "99." with its gap, at any
+	   size. */
+	list-style-position: outside;
+	padding-left: 2.5em;
+	margin: 0;
+}
+
+.text ul li {
+	/* The marker belongs to the item, and reset.css's li { list-style:
+	   none; } targets it directly - an inherited value from the ul would
+	   lose to that rule, so the marker is re-asserted on the li itself. */
+	list-style: disc;
+}
+
+.text ol li {
+	list-style: decimal;
+}

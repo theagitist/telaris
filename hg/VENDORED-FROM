@@ -1,105 +1,22 @@
 Vendored from github.com/theagitist/hotglue2 (fork of k0a1a/hotglue2)
-branch telaris @ c367a40 (bumped from cbeee7e; the intervening 90a8a39
-draw-icon recolour was already folded in without a header update)
-GPL-3.0; see hg/COPYING and hg/UPSTREAM.md
+branch telaris-ng, which is upstream k0a1a/hotglue2 ng-dev @ d5a592d
+(2026-10-16) plus three Telaris additions:
+- 78163e2 the Telaris auth bridge (telaris-auth.inc.php; patched config.inc.php,
+  index.php, json.php, controller.inc.php, common.inc.php, js/glue.js,
+  js/edit.js + their .min.js)
+- 838c185 editor UI i18n (module_i18n.inc.php, modules/i18n/, lang/*.json,
+  English-keyed catalogs translated in the browser; no upstream file edited)
+- module_mobile.inc.php: the classic scale-to-fit view module, kept as a drop-in
+  so wide pages still fit desktop windows and the Telaris viewer iframe (on
+  phones ng's guided view takes over); delete the file to drop it
+GPL-3.0; see hg/COPYING
 
-Note: this is a curated vendor, not a full mirror. Local Telaris patches
-(telaris-auth.inc.php and the modified config.inc.php / index.php /
-controller.inc.php / common.inc.php / json.php / js/edit.js / js/glue.js) are
-retained, and the branch's docs, tests/, docker/, doc/ and tools/ (icon-render
-build tooling) are intentionally not vendored. The code and user_code modules
-(arbitrary-code injection) are also intentionally NOT vendored into the
-auth-gated embed, so their assets are skipped on every bump.
+This REPLACES the custom classic-jQuery vendor (fork branch telaris,
+tag telaris-custom-final @ c367a40; Telaris tag hg-custom-final). See ADR-046.
 
-Vendor history:
-- c367a40: upstream-sync port batch (three features, see ADR-044 in the Telaris
-  vault: track upstream by porting, not merging the ng rewrite). (1) upload size
-  cap (bfd68db): UPLOAD_MAX_SIZE define + server enforcement in module_glue
-  upload_files (413) + client refusal in js/edit.js; UPLOAD_MAX_SIZE/
-  PAGE_PASSWORD_* defines applied surgically into the patched config.inc.php.
-  (2) Firefox soundtrack fix (f7b87b4): a video alter_pre_save guard
-  (modules/video/video-edit.js + .min.js) stripping src/poster off the to_html
-  save clone, so a save of a touched video no longer stacks an audio track.
-  (3) per-page password protection (c367a40): bcrypt on the page's settings
-  object, PHP-session gate; new functions + 'asset' proxy controller +
-  page.set_password service appended to module_page.inc.php; the [protected]
-  marker + password action in module_page_browser.inc.php + page_browser.js
-  (+.min); clear_cache() + the 403 error branch added to common.inc.php, the
-  403 case to util.inc.php http_error (it was missing, which would let the
-  asset gate leak), and a session_start in index.php. The patched core files
-  (config.inc.php, common.inc.php, controller.inc.php, index.php, js/edit.js)
-  took these hunks surgically; the rest copied wholesale from the fork. e2e
-  specs skipped as usual. Verified live on starmaps: unprotected pages 200,
-  editor 302 to auth, ?asset -> 403, no log errors.
-- cbeee7e: scroll toggle icon cleanup + asset cache-buster. The toggle now uses
-  a single move-vertical glyph (reused from iframe-scroll) with on/off shown via
-  glue-menu-enabled/disabled + a subtle highlight in text-edit.css (new
-  modules/text/text-scroll.png), replacing the badged text-scroll-on/off.png so
-  it matches the other text tools. module_text.inc.php also appends a filemtime
-  ?v= to the text-edit.js/.css loads so edits are not masked by a stale cache.
-- 65c301e: text module per-box scroll toggle. A context-menu toggle on text
-  objects that keeps the box at its set size and shows a vertical scrollbar when
-  the text overflows (default off = spill, unchanged). module_text.inc.php
-  (text-scroll:scroll persist + render), modules/text/text-edit.js (the toggle,
-  modeled on the iframe one), lang/{en,es,pt,fr}.json (text.toggle_scroll). Reuses
-  the already-shipped text-scroll-on/off.png icons; no core edits.
-- dbc7c350: module_mobile.inc.php (mobile scale-to-fit).
-- 309eeb7: WebP support (module_image.inc.php, module_page.inc.php, plus the
-  IMAGE_WEBP_QUAL define applied surgically into the patched config.inc.php) and
-  PeerTube webvideo provider (module_webvideo.inc.php,
-  modules/webvideo/webvideo-edit{.js,.min.js}). The accompanying
-  tests/ (webp-roundtrip.test.php, peertube-url.test.js) were not vendored.
-- e1314db: soundboard module (module_soundboard.inc.php + modules/soundboard/),
-  a per-page opt-in that mixes parallel video clips through one Web Audio
-  AudioContext. All-new files, no core edits.
-- 7416e8d: soundboard YouTube-embed support (module_soundboard.inc.php,
-  modules/soundboard/soundboard.js) via the YouTube IFrame Player API for
-  cross-origin embeds, alongside the unchanged self-hosted Web Audio path.
-- 9aaf491: editor theme/skin + modern icon set + soundboard simplification.
-  New module_theme.inc.php (loads css/theme.css in edit mode via render_page_early,
-  no core edits) + css/theme.css carrying the Telaris brand skin (Aurora glyphs on
-  translucent HUD chips, mint focus signal). Modernised editor icon PNGs across
-  img/ and modules/*/ (Lucide glyphs; SVG sources + render.sh live under tools/,
-  not vendored). Soundboard embeds now use native controls (provider-agnostic),
-  simplifying module_soundboard.inc.php + modules/soundboard/soundboard.js. The
-  code/user_code module icon PNGs from this commit were skipped (those modules are
-  not vendored).
-- 83925d5: in-app image editor (miniPaint). New module_draw.inc.php +
-  modules/draw/ (draw-edit.{css,js}, draw.png, and the vendored miniPaint tree
-  modules/draw/minipaint/, MIT) - all new files, no core edits. The fork's
-  json.php PHP-8 save fix (drop unconditional stripslashes) was NOT taken: the
-  embedded json.php is a Telaris-auth-patched file that already carries the
-  equivalent PHP-8 fix. (The icon/theme churn seen in the wider main..telaris
-  diff netted to no change in the embedded; only the draw module is new.)
-- 03181f9: editor UI localization (i18n, EN/ES/PT/FR). New module_i18n.inc.php
-  + lang/{en,es,fr,pt}.json + modules/i18n/i18n-edit.{js,css}, and the
-  telaris-only module_telaris_locale.inc.php (reads TELARIS_LOCALE, hides the
-  language selector). Many files gained t()/$.glue.t() wraps (module_glue,
-  module_image, module_page, module_welcome, modules.inc.php, and most
-  modules/*/...-edit.js) copied wholesale; miniPaint follows the locale via
-  ?lang=. The three patched files (js/edit.js, js/glue.js, json.php) were taken
-  from the fork and the local patches re-applied surgically (CSRF upload header,
-  CSRF ajaxSetup header, telaris-auth require + telaris_hg_authorize_json).
-  user_code module + tests/ skipped as usual.
-  Telaris-side wiring (not in hg/): the bridge (telaris-auth.inc.php) defines
-  TELARIS_LOCALE from locale_init_strings()['__locale']; edit/index.php opens the
-  editor/revisions iframes with &lang=<locale>; each instance's
-  user-config.inc.php already has USE_MIN_FILES=false (so the wrapped .js
-  sources load, not the stale .min.js twins).
-  KNOWN LIMITATION: the embed loads the Telaris instance (for auth), whose own
-  t() helper shadows hotglue's guarded t(). So the editor UI localizes via the
-  JS layer ($.glue.t + the injected dict, which do not use t()), but hotglue's
-  PHP-side server-error strings fall back to their catalog keys. Low impact
-  (error paths only); revisit only if those messages need localizing.
-- 6ae4973: editor-init regression fix (load order) + server-message i18n.
-  REGRESSION FIX (module_i18n.inc.php): the 03181f9 vendor added i18n-edit.js at
-  the default prio 5, AFTER edit.js (prio 4). edit.js calls $.glue.t() at load
-  time (the colorpicker IIFE), so $.glue.t was undefined: edit.js threw
-  "$.glue.t is not a function" and aborted editor init, leaving $.glue.menu
-  undefined (no NEW/PAGE menus, no object tools = the embedded editor was
-  unusable). Fix loads i18n-edit.js at prio 3 (with glue.js, before edit.js).
-  SERVER MESSAGES (fork 375af33, merged as bea696a): module_page.inc.php wraps
-  its 4 remaining response() literals in t(), and lang/{en,es,fr,pt}.json each
-  gain page.arg_x_invalid / page.arg_y_invalid / page.grid_save_error. Copied
-  wholesale (no local patches in those files). The PHP t()-shadow limitation
-  above still applies in the embed; this mainly helps the standalone site.
+Not vendored: doc/, docker/, tools/, tests/, README.md, and the user_code
+module (arbitrary-code injection, not wanted in the auth-gated embed).
+
+To update: rebase telaris-ng onto a newer upstream ng-dev, re-run
+tools/make-min.js on js/glue.js + js/edit.js, re-vendor with the same
+exclusions, and add catalog entries for any new editor strings.

@@ -5,13 +5,13 @@
  *	Copyright Gottfried Haider, Danja Vasiliev 2010.
  *	This source code is licensed under the GNU General Public License.
  *	See the file COPYING for more details.
- * 
+ *
  */
 
 $.glue.image = function() {
 	var preload_obj = false;
 	var preload_timer = false;
-	
+
 	return {
 		autoresize: function(obj, mode) {
 			if (mode === undefined) {
@@ -19,50 +19,64 @@ $.glue.image = function() {
 			}
 			var larger = $.glue.conf.image.upload_resize_larger;
 			var to = $.glue.conf.image.upload_resize_to;
-			if (larger == '0%' && to == '0%') {
-				return;
-			}
-			
-			var w = $(obj).width();
-			var h = $(obj).height();
-			var win_w = $(window).width();
-			var win_h = $(window).height();
-			var larger_f = parseFloat(larger);
-			var to_f = parseFloat(to);
-			if (isNaN(larger_f) || isNaN(to_f)) {
-				return;
-			}
+
+			var w = obj.offsetWidth;
+			var h = obj.offsetHeight;
 			var do_resize = false;
 			var target_w = w;
 			var target_h = h;
-			
-			if (win_w*larger_f/100 < w) {
-				target_w = win_w*to_f/100;
-				target_h = target_w*h/w;
-				do_resize = true;
-			}
-			if (win_h*larger_f/100 < h) {
-				// this is here because target_h could also have been 
-				// already been changed by the lines above
-				if (win_h*to_f/100 < target_h) {
-					target_h = win_h*to_f/100;
-					target_w = target_h*w/h;
-					do_resize = true;
+
+			// shrink if larger than a % of the window
+			if (!(larger == '0%' && to == '0%')) {
+				var win_w = window.innerWidth;
+				var win_h = window.innerHeight;
+				var larger_f = parseFloat(larger);
+				var to_f = parseFloat(to);
+				if (!isNaN(larger_f) && !isNaN(to_f)) {
+					if (win_w*larger_f/100 < w) {
+						target_w = win_w*to_f/100;
+						target_h = target_w*h/w;
+						do_resize = true;
+					}
+					if (win_h*larger_f/100 < h) {
+						// this is here because target_h could also have been
+						// already been changed by the lines above
+						if (win_h*to_f/100 < target_h) {
+							target_h = win_h*to_f/100;
+							target_w = target_h*w/h;
+							do_resize = true;
+						}
+					}
 				}
 			}
+
+			// also cap to an absolute maximum pixel size, regardless of
+			// window size or the window-relative resize above - the
+			// original file/resolution is untouched (image-file-width/
+			// -height keep recording it), "reset image size" (the
+			// image-ratio icon) still shows the image at full size
+			var max_w = $.glue.conf.image.upload_max_width;
+			var max_h = $.glue.conf.image.upload_max_height;
+			if (max_w && max_h && (max_w < target_w || max_h < target_h)) {
+				var scale = Math.min(max_w/target_w, max_h/target_h);
+				target_w = target_w*scale;
+				target_h = target_h*scale;
+				do_resize = true;
+			}
+
 			if (do_resize) {
 				// DEBUG
-				//console.log('window is '+$(window).width()+' and '+$(window).height());
+				//console.log('window is '+window.innerWidth+' and '+window.innerHeight);
 				//console.log('resizing to '+target_w+' and '+target_h);
 				// setup element
-				$(obj).css('width', target_w+'px');
-				$(obj).css('height', target_h+'px');
+				obj.style.width = target_w+'px';
+				obj.style.height = target_h+'px';
 				// DEBUG
-				//console.log('moving from '+$(obj).position().left+' and '+$(obj).position().top);
-				//console.log('to '+($(obj).position().left+(w-target_w)/2)+' and '+($(obj).position().top+(h-target_h)/2));
+				//console.log('moving from '+obj.offsetLeft+' and '+obj.offsetTop);
+				//console.log('to '+(obj.offsetLeft+(w-target_w)/2)+' and '+(obj.offsetTop+(h-target_h)/2));
 				if (mode == 'center') {
-					$(obj).css('left', ($(obj).position().left+(w-target_w)/2)+'px');
-					$(obj).css('top', ($(obj).position().top+(h-target_h)/2)+'px');
+					obj.style.left = (obj.offsetLeft+(w-target_w)/2)+'px';
+					obj.style.top = (obj.offsetTop+(h-target_h)/2)+'px';
 				}
 				$.glue.object.resizable_update_tooltip(obj);
 				// call resize
@@ -70,16 +84,38 @@ $.glue.image = function() {
 			}
 		},
 		resize: function(obj, mode) {
-			if (!$.glue.conf.image.resizing || $(obj).css('background-repeat') != 'no-repeat') {
+			if (!$.glue.conf.image.resizing) {
 				return;
 			}
 			if (mode === undefined) {
 				mode = 'center';
 			}
-			
-			var width = $(obj).width();
-			var height = $(obj).height();
-			$.glue.backend({ method: 'image.resize', name: $(obj).attr('id'), 'width': width, 'height': height }, function(data) {
+
+			var width = obj.offsetWidth;
+			var height = obj.offsetHeight;
+			var img = obj.querySelector(':scope > img');
+			if (!img && obj.style.backgroundImage) {
+				// a tiled legacy picture (image-background-repeat, drawn as the
+				// object's own background): the file is the TILE, and a
+				// re-encode to the frame would replace it with one huge copy
+				return;
+			}
+			// the picture fills the frame, so the re-encoded file is the
+			// frame's own size (always cut from the original upload, so a
+			// stretch never compounds)
+			var target_w = width;
+			var target_h = height;
+			// request the resize at device-pixel resolution (capped) rather
+			// than CSS-pixel resolution, so the image the browser gets stays
+			// sharp instead of being upscaled on HiDPI/Retina displays -
+			// width/height (CSS pixels) below are left as-is for the preload
+			// clone's positioning and the cache-busting query string, since
+			// image_serve_resource() ignores those query params anyway and
+			// just serves whatever resized file image.resize() produced
+			var dpr = Math.min(window.devicePixelRatio || 1, $.glue.conf.image.resize_max_dpr);
+			var req_width = Math.round(target_w*dpr);
+			var req_height = Math.round(target_h*dpr);
+			$.glue.backend({ method: 'image.resize', name: obj.id, 'width': req_width, 'height': req_height }, function(data) {
 				if (!data) {
 					// DEBUG
 					console.error('image.resize returned null');
@@ -89,42 +125,51 @@ $.glue.image = function() {
 				} else if (!data['#data']) {
 					// no refresh necessary
 				} else {
-					// try to preload the file to prevent flicker
+					// try to preload the file to prevent flicker - the
+					// picture is the img child, so the swap retargets its
+					// src rather than the object's backgroundImage
 					clearTimeout(preload_timer);
 					// DEBUG
 					//console.log('clearing timeout');
-					var temp_elem = $(obj).clone();
-					$(temp_elem).attr('id', '');
-					$(temp_elem).attr('class', 'glue-object-copy');
+					if (!img) {
+						return;
+					}
+					var temp_elem = obj.cloneNode(true);
+					temp_elem.id = '';
+					temp_elem.className = 'glue-object-copy';
 					// this assumes that the borders are equally spaced..
 					if (mode == 'center') {
-						$(temp_elem).css('left', ($(obj).position().left+($(obj).outerWidth()-width)/2)+'px');
-						$(temp_elem).css('top', ($(obj).position().top+($(obj).outerHeight()-height)/2)+'px');
+						temp_elem.style.left = (obj.offsetLeft+(obj.offsetWidth-width)/2)+'px';
+						temp_elem.style.top = (obj.offsetTop+(obj.offsetHeight-height)/2)+'px';
 					}
 					// set new url (w & h are only here to prevent caching)
-					$(temp_elem).css('background-image', 'url('+$.glue.base_url+'?'+$(obj).attr('id')+'&w='+width+'&h='+height+')');
-					$(obj).before(temp_elem);
+					var new_url = $.glue.base_url+'?'+obj.id+'&w='+width+'&h='+height;
+					var clone_img = temp_elem.querySelector(':scope > img');
+					if (clone_img) {
+						clone_img.src = new_url;
+					}
+					obj.before(temp_elem);
 					// destroy element on move or resize
-					$(obj).one('glue-movestart', function() {
+					obj.addEventListener('glue-movestart', function() {
 						// remove any copies still left
-						$('.glue-object-copy').remove();
-					});
-					$(obj).one('glue-resizestart', function() {
+						document.querySelectorAll('.glue-object-copy').forEach(function(el) { el.remove(); });
+					}, { once: true });
+					obj.addEventListener('glue-resizestart', function() {
 						// remove any copies still left
-						$('.glue-object-copy').remove();
-					});
-					$(obj).one('glue-unregister', function() {
+						document.querySelectorAll('.glue-object-copy').forEach(function(el) { el.remove(); });
+					}, { once: true });
+					obj.addEventListener('glue-unregister', function() {
 						// remove any copies still left
-						$('.glue-object-copy').remove();
-					});
+						document.querySelectorAll('.glue-object-copy').forEach(function(el) { el.remove(); });
+					}, { once: true });
 					preload_obj = temp_elem;
 					preload_timer = setTimeout(function() {
 						// DEBUG
 						//console.log('outer timeout');
-						$(obj).css('background-image', 'url('+$.glue.base_url+'?'+$(obj).attr('id')+'&w='+width+'&h='+height+')');
+						img.src = new_url;
 						var remove = preload_obj;
 						setTimeout(function() {
-							$(remove).remove();
+							remove.remove();
 							// DEBUG
 							//console.log('inner timeout');
 						}, 500);
@@ -137,134 +182,178 @@ $.glue.image = function() {
 }();
 
 
-$('.image').live('glue-resizestop', function(e) {
-	$.glue.image.resize($(this));
+$.glue.live('.image', 'glue-resizestop', function(e) {
+	$.glue.image.resize(this);
 });
 
-$('.image').live('glue-upload-dynamic-late', function(e, loaded) {
+$.glue.live('.image', 'glue-upload-dynamic-late', function(e, loaded) {
 	var img = loaded;
-	if ($(img).is('img')) {
+	if (img.matches('img')) {
 		// we should have the exact dimensions of the image by now
 		// resize object
-		$(this).css('width', $(img).width()+'px');
-		$(this).css('height', $(img).height()+'px');
+		this.style.width = img.offsetWidth+'px';
+		this.style.height = img.offsetHeight+'px';
 		// update object file
-		$.glue.backend({ method: 'glue.update_object', name: $(this).attr('id'), 'image-file-width': $(img).width(), 'image-file-height': $(img).height() });
-		// set the defaults
-		$(this).css('background-image', 'url('+$(img).attr('src')+')');
-		$(this).css('background-repeat', 'no-repeat');
-		$(this).css('background-size', '100% 100%');
-		$(this).css('-moz-background-size', '100% 100%');
-		// remove the img
-		$(img).remove();
+		$.glue.backend({ method: 'glue.update_object', name: this.id, 'image-file-width': img.offsetWidth, 'image-file-height': img.offsetHeight });
+		// the img child IS the picture now and stays in place, filling
+		// the frame - no background conversion, no removal
 		// automatically resize
 		$.glue.image.autoresize(this);
 	}
 });
 
-$('.image').live('glue-upload-static', function(e, mode) {
-	// this is only getting triggered when the object width and height is set 
+$.glue.live('.image', 'glue-upload-static', function(e, mode) {
+	// this is only getting triggered when the object width and height is set
 	// immediately after uploading, i.e. when gd is available on the server
 	$.glue.image.autoresize(this, mode);
 });
 
 
-$(document).ready(function() {
+function image_properties_popover(obj)
+{
+	var pop = $.glue.popover.open(obj, 'glue-image-properties-popover');
+	if (!pop) {
+		return;
+	}
+	var save = function() {
+		$.glue.object.save(obj);
+	};
+
+	// the node carrying the description: the img child in the unsized
+	// case, the object itself in the sized (background-image) case - must
+	// mirror the render branch in module_image.inc.php
+	var t = obj.querySelector('img') || obj;
+	var dec_row, alt_row, input, nudge, toggle;
+
+	var sync = function() {
+		var decorative = t.getAttribute('role') == 'presentation';
+		toggle.classList.toggle('glue-font-toggle-on', decorative);
+		alt_row.style.display = decorative ? 'none' : '';
+		// the nudge appears only for meaningful images without a description
+		var has_alt = (t.tagName.toLowerCase() == 'img') ?
+			(t.getAttribute('alt') || '').length :
+			(obj.getAttribute('aria-label') || '').length;
+		nudge.style.display = !decorative && !has_alt ? '' : 'none';
+	};
+
+	// --- decorative ------------------------------------------------------
+	dec_row = $.glue.popover.row('decorative');
+	toggle = document.createElement('div');
+	toggle.className = 'glue-font-toggle';
+	// the empty square, the same glyph the heading panel's first option
+	// wears (danja's call, 2026-09-24)
+	var glyph = document.createElement('span');
+	glyph.className = 'glue-glyph-empty-square';
+	toggle.appendChild(glyph);
+	toggle.title = 'decorative image - screen readers skip it';
+	toggle.addEventListener('click', function() {
+		if (t.getAttribute('role') == 'presentation') {
+			t.removeAttribute('role');
+		} else {
+			t.setAttribute('role', 'presentation');
+			if (t.tagName.toLowerCase() == 'img') {
+				// a decorative image must have EMPTY alt text
+				t.setAttribute('alt', '');
+			} else {
+				obj.removeAttribute('aria-label');
+			}
+		}
+		sync();
+		save();
+	});
+	dec_row.appendChild(toggle);
+	pop.appendChild(dec_row);
+
+	// --- alt text --------------------------------------------------------
+	alt_row = $.glue.popover.row('alt text');
+	input = document.createElement('input');
+	input.type = 'text';
+	input.className = 'glue-popover-field glue-image-alt-field';
+	// seed from what the renderer emits (image-alt, falling back to the
+	// legacy image-title)
+	input.value = (t.tagName.toLowerCase() == 'img') ?
+		(t.getAttribute('alt') || '') :
+		(obj.getAttribute('aria-label') || '');
+	input.addEventListener('change', function() {
+		if (t.tagName.toLowerCase() == 'img') {
+			t.setAttribute('alt', input.value);
+		} else {
+			if (input.value.length) {
+				obj.setAttribute('role', 'img');
+				obj.setAttribute('aria-label', input.value);
+			} else {
+				obj.removeAttribute('role');
+				obj.removeAttribute('aria-label');
+			}
+		}
+		sync();
+		save();
+	});
+	alt_row.appendChild(input);
+	pop.appendChild(alt_row);
+
+	// --- nudge -----------------------------------------------------------
+	nudge = document.createElement('div');
+	nudge.className = 'glue-popover-problem';
+	// innerHTML so the <br> breaks the line - textContent would show it as
+	// text (the string is editor chrome, never author content)
+	nudge.innerHTML = 'this image has no description<br>screen readers will skip it';
+	pop.appendChild(nudge);
+
+
+	sync();
+	$.glue.popover.show(pop);
+}
+
+
+document.addEventListener('DOMContentLoaded', function() {
 	$.glue.contextmenu.veto('iframe', 'object-link');
+	//
+	// the image class has no veto in this file any more, and the one it had is
+	// worth a line because it went somewhere rather than away. An image object
+	// used to be barred from the object background panel: a sized image object
+	// *is* a background - the module paints the picture with the object's own
+	// background-image at background-size 100% 100%, and image_alter_save()
+	// reads background-repeat and -position back out of the element
+	// (module_image.inc.php) - so the panel would have found the picture where
+	// it looks for a background, offered to clear it, and written its tiling
+	// and position into the image's own settings. Two owners for one
+	// background.
+	//
+	// The panel is the object properties panel now, and the background is a
+	// section of it rather than the whole of it: object_properties_popover()
+	// does not build that section for an image object, so the two owners are
+	// still impossible and the class keeps the rest of the panel - the flip,
+	// the transparency. A veto could not do that, because a veto is per class
+	// and all or nothing: it would have taken the flip off image objects too,
+	// and it could not have told a sized image object from an unsized one
+	// (which keeps its picture in an img child and has no background to
+	// collide with) without the button coming and going with the object's
+	// size.
 	//
 	// register menu items
 	//
-	var elem = $('<img src="'+$.glue.base_url+'modules/image/image-tile.png" alt="btn" title="'+$.glue.t('image.toggle_tiling')+'" width="32" height="32">');
-	$(elem).bind('click', function(e) {
-		var obj = $(this).data('owner');
-		if ($(obj).css('background-repeat') != 'no-repeat') {
-			$(obj).css('background-repeat', 'no-repeat');
-			$(obj).css('background-size', '100% 100%');
-			$(obj).css('-moz-background-size', '100% 100%');
-		} else {
-			$(obj).css('background-repeat', 'repeat');
-			// background-size is automatically set with background-repeat
-			// so no need to remove this attribute in the backend here
-			$(obj).css('background-size', '');
-			$(obj).css('-moz-background-size', '');
-		}
-		$.glue.object.save(obj);
+	// the tiling, ratio and position adjustments of an image object have no
+	// buttons here any more. They left when the object background panel took
+	// them over, and nothing in the editor writes image-background-repeat or
+	// -position now. The module still reads and renders them, and a picture
+	// drawn at exactly the object's size has nothing to tile and nowhere to be
+	// positioned, so the loss is on paper only
+
+	var elem;
+	// image-class items always sit in the top row; prio 11 puts this one
+	// right of everything else there (download is the default 10)
+	elem = $.glue.icon('description', 'image description - alt text and decorative');
+	elem.addEventListener('click', function(e) {
+		image_properties_popover($.glue.owner(this));
 	});
-	$.glue.contextmenu.register('image', 'image-tile', elem);
-	
-	elem = $('<img src="'+$.glue.base_url+'modules/image/image-ratio.png" alt="btn" title="'+$.glue.t('image.reset_size')+'" width="32" height="32">');
-	$(elem).bind('click', function(e) {
-		var obj = $(this).data('owner');
-		// get original-{width,height} from backend
-		$.glue.backend({ method: 'glue.load_object', name: $(obj).attr('id') }, function(data) {
-			if (data['image-file-width'] && data['image-file-height']) {
-				var aspect = data['image-file-width']/data['image-file-height'];
-				$(obj).trigger('glue-resizestart');
-				if (e.shiftKey) {
-					// shift: only change aspect ratio
-					// fit height to width
-					$(obj).css('height', ($(obj).width()/aspect)+'px');
-				} else if (e.ctrlKey) {
-					// ctrl: only change aspect ratio
-					// fit width to heigth
-					$(obj).css('width', ($(obj).height()*aspect)+'px');
-				} else {
-					$(obj).css('width', data['image-file-width']+'px');
-					$(obj).css('height', data['image-file-height']+'px');
-				}
-				$(obj).trigger('glue-resize');
-				$.glue.object.resizable_update_tooltip(obj);
-				$.glue.object.save(obj);
-				$(obj).trigger('glue-resizestop');
-				$.glue.canvas.update(obj);
-			}
-		});
-	});
-	$.glue.contextmenu.register('image', 'image-ratio', elem);
-	
-	elem = $('<img src="'+$.glue.base_url+'modules/image/image-pos.png" alt="btn" title="'+$.glue.t('image.adjust_selection')+'" width="32" height="32">');
-	$(elem).bind('mousedown', function(e) {
-		var obj = $(this).data('owner');
-		var a = $(obj).css('background-position').split(' ');
-		if (a.length != 2) {
-			var prev_x_pos = 0;
-			var prev_y_pos = 0;
-		} else {
-			// we assume px (or 0%..)
-			var prev_x_pos = parseInt(a[0]);
-			if (isNaN(prev_x_pos)) {
-				prev_x_pos = 0;
-			}
-			var prev_y_pos = parseInt(a[1]);
-			if (isNaN(prev_y_pos)) {
-				prev_y_pos = 0;
-			}
-		}
-		var no_change = true;
-		$.glue.slider(e, function(x, y) {
-			// background-position-{x,y} does not work in Firefox (but seems to be faster)
-			$(obj).css('background-position', (prev_x_pos+x)+'px '+(prev_y_pos+y)+'px');
-			if (x != 0 || y != 0) {
-				no_change = false;
-			}
-		}, function(x, y) {
-			// reset background position if there was no change at all
-			if (no_change) {
-				$(obj).css('background-position', '');
-				$.glue.backend({ method: 'glue.object_remove_attr', name: $(obj).attr('id'), attr: 'image-background-position' });
-			} else {
-				$.glue.object.save(obj);
-			}
-		});
-		return false;
-	});
-	$.glue.contextmenu.register('image', 'image-pos', elem);
-	
-	elem = $('<img src="'+$.glue.base_url+'img/download.png" alt="btn" title="'+$.glue.t('image.download_original')+'" width="32" height="32">');
-	$(elem).bind('click', function(e) {
-		var obj = $(this).data('owner');
+	$.glue.contextmenu.register('image', 'image-properties', elem, 11);
+
+	elem = $.glue.icon('download', 'download original file');
+	elem.addEventListener('click', function(e) {
+		var obj = $.glue.owner(this);
 		// initiate download
-		window.location = $.glue.base_url+'?'+$(obj).attr('id')+'&download=1';
+		window.location = $.glue.base_url+'?'+obj.id+'&download=1';
 	});
 	$.glue.contextmenu.register('image', 'image-download', elem);
 });

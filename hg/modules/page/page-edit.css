@@ -1,12 +1,39 @@
-#glue-menu-page-background-scroll {
-	/* overwrite the default greenish hue for .glue-menu-enabled */
-	background-color: transparent;
+.glue-container-handle {
+	/* the centered container's boundary while authoring: a visible edge and
+	   the grip that sets the container width. Fixed, so it stays reachable
+	   however far the page is scrolled vertically. */
+	border-left: 1px dashed rgba(0, 0, 0, 0.5);
+	bottom: 0;
+	cursor: ew-resize;
+	margin-left: -4px;
+	position: fixed;
+	top: 0;
+	width: 9px;
+	z-index: 400;
 }
 
-#glue-menu-page-background-scroll.glue-menu-disabled {
-	background-image: url(page-background-scroll-off.png);
+.glue-container-handle:hover {
+	border-left-color: #c00;
 }
 
-#glue-menu-page-background-scroll.glue-menu-enabled {
-	background-image: url(page-background-scroll-on.png);
+.glue-page-settings-popover input[type="text"] {
+	/* the title and url fields need more room than the panels' 44px number
+	   fields */
+	width: 170px;
+}
+
+.glue-reading-order-btn {
+	/* the up/down reorder buttons in the reading-order panel */
+	cursor: pointer;
+	flex: 0 0 auto;
+	padding: 0 6px;
+	color: #333;
+}
+.glue-reading-order-btn:hover {
+	color: #000;
+}
+.glue-reading-order-btn-off {
+	/* the boundary buttons: nothing to move past */
+	color: #bbb;
+	cursor: default;
 }

@@ -12,7 +12,7 @@
 @require_once('config.inc.php');
 require_once('util.inc.php');
 
-$single_tags = array('br', 'hr', 'img', 'input', 'link', 'meta', 'param');
+$single_tags = ['br', 'hr', 'img', 'input', 'link', 'meta', 'param'];
 
 if (!isset($html)) {
 	html_flush();
@@ -80,7 +80,7 @@ function body_append($c)
  */
 function elem($tag)
 {
-	return array('tag'=>$tag);
+	return ['tag'=>$tag];
 }
 
 
@@ -92,8 +92,8 @@ function elem($tag)
  */
 function elem_add_class(&$elem, $c)
 {
-	if (!@is_array($elem['class'])) {
-		$elem['class'] = array();
+	if ((!isset($elem['class']) || !is_array($elem['class']))) {
+		$elem['class'] = [];
 	}
 	$elem['class'][] = $c;
 	$elem['class'] = array_unique($elem['class']);
@@ -111,14 +111,14 @@ function elem_append(&$elem, $c)
 {
 	if (!isset($elem['val'])) {
 		if (is_array($c)) {
-			$elem['val'] = array($c);
+			$elem['val'] = [$c];
 		} else {
 			$elem['val'] = $c;
 		}
 	} elseif (is_array($c) && is_array($elem['val'])) {
 		$elem['val'][] = $c;
 	} elseif (is_array($c) && is_string($elem['val'])) {
-		$elem['val'] = array($elem['val'], $c);
+		$elem['val'] = [$elem['val'], $c];
 	} elseif (is_string($c) && is_array($elem['val'])) {
 		$elem['val'][] = $c;
 	} elseif (is_string($c) && is_string($elem['val'])) {
@@ -156,10 +156,10 @@ function elem_attr(&$elem)
  */
 function elem_classes($elem)
 {
-	if (@is_array($elem['class'])) {
+	if ((isset($elem['class']) && is_array($elem['class']))) {
 		return $elem['class'];
 	} else {
-		return array();
+		return [];
 	}
 }
 
@@ -174,14 +174,14 @@ function elem_classes($elem)
 function elem_css(&$elem)
 {
 	if (func_num_args() == 2) {
-		if (@is_array($elem['style']) && isset($elem['style'][func_get_arg(1)])) {
+		if ((isset($elem['style']) && is_array($elem['style'])) && isset($elem['style'][func_get_arg(1)])) {
 			return $elem['style'][func_get_arg(1)];
 		} else {
 			return NULL;
 		}
 	} elseif (2 < func_num_args()) {
-		if (!@is_array($elem['style'])) {
-			$elem['style'] = array();
+		if ((!isset($elem['style']) || !is_array($elem['style']))) {
+			$elem['style'] = [];
 		}
 		if (func_get_arg(2) === '') {
 			// clear css property
@@ -208,7 +208,7 @@ function elem_finalize($elem)
 		$ret .= ' id="'.htmlspecialchars($elem['id'], ENT_COMPAT, 'UTF-8').'"';
 		unset($elem['id']);
 	}
-	if (@is_array($elem['class'])) {
+	if ((isset($elem['class']) && is_array($elem['class']))) {
 		$ret .= ' class="'.htmlspecialchars(implode(' ', $elem['class']), ENT_COMPAT, 'UTF-8').'"';
 		unset($elem['class']);
 	}
@@ -231,7 +231,7 @@ function elem_finalize($elem)
 	$ret .= '>';
 	
 	// make block elements have a newline after the opening tag
-	$block_tags = array('blockquote', 'body', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'li', 'ol', 'p', 'pre', 'script', 'ul');
+	$block_tags = ['blockquote', 'body', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'li', 'ol', 'p', 'pre', 'script', 'ul'];
 	if (in_array($elem['tag'], $block_tags)) {
 		$block_tag = true;
 		$ret .= nl();
@@ -246,12 +246,12 @@ function elem_finalize($elem)
 	
 	// handle text, an element array or an array of both
 	$content = '';
-	if (@is_string($elem['val'])) {
+	if ((isset($elem['val']) && is_string($elem['val']))) {
 		$content = $elem['val'];
-	} elseif (@is_array($elem['val']) && isset($elem['val']['tag'])) {
+	} elseif ((isset($elem['val']) && is_array($elem['val'])) && isset($elem['val']['tag'])) {
 		// this is recursive
 		$content = elem_finalize($elem['val']);
-	} elseif (@is_array($elem['val'])) {
+	} elseif ((isset($elem['val']) && is_array($elem['val']))) {
 		foreach ($elem['val'] as $v) {
 			if (is_string($v)) {
 				$content .= $v;
@@ -324,7 +324,7 @@ function elem_remove_attr(&$elem, $a)
  */
 function elem_remove_class(&$elem, $c)
 {
-	if (@is_array($elem['class'])) {
+	if ((isset($elem['class']) && is_array($elem['class']))) {
 		if (($k = array_search($c, $elem['class'])) !== false) {
 			array_splice($elem['class'], $k, 1);
 		}
@@ -359,7 +359,7 @@ function elem_tag($elem)
 function elem_val(&$elem)
 {
 	if (func_num_args() == 1) {
-		if (@is_string($elem['val'])) {
+		if ((isset($elem['val']) && is_string($elem['val']))) {
 			return $elem['val'];
 		} else {
 			return '';
@@ -380,10 +380,77 @@ function elem_val(&$elem)
 function html_add_alternate($type, $url, $title)
 {
 	global $html;
-	if (!@is_array($html['header']['alternate'])) {
-		$html['header']['alternate'] = array();
+	if ((!isset($html['header']['alternate']) || !is_array($html['header']['alternate']))) {
+		$html['header']['alternate'] = [];
 	}
-	$html['header']['alternate'][] = array('type'=>$type, 'url'=>$url, 'title'=>$title);
+	$html['header']['alternate'][] = ['type'=>$type, 'url'=>$url, 'title'=>$title];
+}
+
+
+/**
+ *	turn an asset url into a domain-relative one: the site's own path in
+ *	front, no scheme or host
+ *
+ *	every asset-loading call site builds its url as base_url().'some/path'
+ *	(or hands in a bare 'img/x.png' or '?favicon') - centralizing the fix
+ *	here, rather than at each of those many sites, means assets keep
+ *	resolving when a page is viewed through a different domain than the one
+ *	BASE_URL is configured/detected as, and when it is opened under a path
+ *	that is not the site root (/plot, see base_path()). Urls that already have
+ *	a scheme or start with a slash are left alone.
+ *
+ *	@param string $url
+ *	@return string
+ */
+function _relativize_asset_url($url)
+{
+	$bu = base_url();
+	if (!empty($bu) && strpos($url, $bu) === 0) {
+		return base_path().substr($url, strlen($bu));
+	}
+	if ($url === '' || $url[0] == '/' || $url[0] == '#' || preg_match('#^[a-z][a-z0-9+.-]*:#i', $url)) {
+		return $url;
+	}
+	return base_path().$url;
+}
+
+
+/**
+ *	put a version on the url of one of this install's own css or js files
+ *
+ *	The web server lets browsers keep css and js for a day (Cache-Control
+ *	max-age=86400), and these urls never changed, so after an update a returning
+ *	visitor ran the OLD script against the NEW page for up to 24 hours - a
+ *	settings checkbox that did nothing, for one. The file's modification time
+ *	goes on as ?v=: it changes exactly when the file does, and costs one stat
+ *	(cached for the request). Only local .css/.js urls that map to a real file
+ *	under this install are touched; an external url, one that already has a
+ *	query, or a missing file is returned as it came.
+ *
+ *	@param string $url a domain-relative url (see _relativize_asset_url())
+ *	@return string
+ */
+function _asset_version_url($url)
+{
+	static $cache = [];
+	if (isset($cache[$url])) {
+		return $cache[$url];
+	}
+	$ret = $url;
+	if ($url !== '' && $url[0] == '/' && substr($url, 0, 2) != '//' && strpos($url, '?') === false &&
+			preg_match('#\.(css|js)$#i', $url)) {
+		$bp = base_path();
+		if (strpos($url, $bp) === 0) {
+			$rel = rawurldecode(substr($url, strlen($bp)));
+			if ($rel !== '' && strpos($rel, '..') === false && strpos($rel, '\\') === false) {
+				$fn = __DIR__.'/'.$rel;
+				if (is_file($fn) && ($m = @filemtime($fn))) {
+					$ret = $url.'?v='.$m;
+				}
+			}
+		}
+	}
+	return $cache[$url] = $ret;
 }
 
 
@@ -397,10 +464,10 @@ function html_add_alternate($type, $url, $title)
 function html_add_css($url, $prio = 5, $media = '')
 {
 	global $html;
-	if (!@is_array($html['header']['css'])) {
-		$html['header']['css'] = array();
+	if ((!isset($html['header']['css']) || !is_array($html['header']['css']))) {
+		$html['header']['css'] = [];
 	}
-	$html['header']['css'][] = array('url'=>$url, 'prio'=>$prio, 'media'=>$media);
+	$html['header']['css'][] = ['url'=>_asset_version_url(_relativize_asset_url($url)), 'prio'=>$prio, 'media'=>$media];
 }
 
 
@@ -413,10 +480,10 @@ function html_add_css($url, $prio = 5, $media = '')
 function html_add_css_inline($rule, $prio = 5)
 {
 	global $html;
-	if (!@is_array($html['header']['css_inline'])) {
-		$html['header']['css_inline'] = array();
+	if ((!isset($html['header']['css_inline']) || !is_array($html['header']['css_inline']))) {
+		$html['header']['css_inline'] = [];
 	}
-	$html['header']['css_inline'][] = array('rule'=>$rule, 'prio'=>$prio);
+	$html['header']['css_inline'][] = ['rule'=>$rule, 'prio'=>$prio];
 }
 
 /**
@@ -428,10 +495,10 @@ function html_add_css_inline($rule, $prio = 5)
 function html_add_head_inline($def, $prio = 5)
 {
 	global $html;
-	if (!@is_array($html['header']['head_inline'])) {
-		$html['header']['head_inline'] = array();
+	if ((!isset($html['header']['head_inline']) || !is_array($html['header']['head_inline']))) {
+		$html['header']['head_inline'] = [];
 	}
-	$html['header']['head_inline'][] = array('def'=>$def, 'prio'=>$prio);
+	$html['header']['head_inline'][] = ['def'=>$def, 'prio'=>$prio];
 }
 
 /**
@@ -443,10 +510,10 @@ function html_add_head_inline($def, $prio = 5)
 function html_add_body_inline($def, $prio = 5)
 {
 	global $html;
-	if (!@is_array($html['body']['body_inline'])) {
-		$html['body']['body_inline'] = array();
+	if ((!isset($html['body']['body_inline']) || !is_array($html['body']['body_inline']))) {
+		$html['body']['body_inline'] = [];
 	}
-	$html['body']['body_inline'][] = array('def'=>$def, 'prio'=>$prio);
+	$html['body']['body_inline'][] = ['def'=>$def, 'prio'=>$prio];
 }
 /**
  *	add a reference to a javascript file to the html header
@@ -455,13 +522,31 @@ function html_add_body_inline($def, $prio = 5)
  *	@param string $url url attribute (url-encoded if necessary)
  *	@param int $prio when to insert reference (0 - very early to 9 - late)
  */
-function html_add_js($url, $prio = 5)
+function html_add_js($url, $prio = 5, $defer = false)
 {
 	global $html;
-	if (!@is_array($html['header']['js'])) {
-		$html['header']['js'] = array();
+	if ((!isset($html['header']['js']) || !is_array($html['header']['js']))) {
+		$html['header']['js'] = [];
 	}
-	$html['header']['js'][] = array('url'=>$url, 'prio'=>$prio);
+	$html['header']['js'][] = ['url'=>_asset_version_url(_relativize_asset_url($url)), 'prio'=>$prio, 'defer'=>$defer];
+}
+
+
+/**
+ *	drop the scripts already queued whose url contains $needle (a page
+ *	decides late that it does not want one a site-wide default added)
+ */
+function html_remove_js($needle)
+{
+	global $html;
+	if (!isset($html['header']['js']) || !is_array($html['header']['js'])) {
+		return;
+	}
+	foreach ($html['header']['js'] as $k=>$e) {
+		if (strpos($e['url'], $needle) !== false) {
+			unset($html['header']['js'][$k]);
+		}
+	}
 }
 
 
@@ -475,10 +560,10 @@ function html_add_js($url, $prio = 5)
 function html_add_js_inline($code, $prio = 5, $reason = '')
 {
 	global $html;
-	if (!@is_array($html['header']['js_inline'])) {
-		$html['header']['js_inline'] = array();
+	if ((!isset($html['header']['js_inline']) || !is_array($html['header']['js_inline']))) {
+		$html['header']['js_inline'] = [];
 	}
-	$html['header']['js_inline'][] = array('code'=>$code, 'prio'=>$prio, 'reason'=>$reason);
+	$html['header']['js_inline'][] = ['code'=>$code, 'prio'=>$prio, 'reason'=>$reason];
 }
 
 
@@ -491,8 +576,8 @@ function html_add_js_inline($code, $prio = 5, $reason = '')
 function html_add_js_var($key, $val)
 {
 	global $html;
-	if (!@is_array($html['header']['js_var'])) {
-		$html['header']['js_var'] = array();
+	if ((!isset($html['header']['js_var']) || !is_array($html['header']['js_var']))) {
+		$html['header']['js_var'] = [];
 	}
 	$html['header']['js_var'][$key] = $val;
 }
@@ -508,14 +593,14 @@ function html_css($prop)
 {
 	global $html;
 	if (func_num_args() == 1) {
-		if (@is_array($html['header']['style']) && isset($html['header']['style'][$prop])) {
+		if ((isset($html['header']['style']) && is_array($html['header']['style'])) && isset($html['header']['style'][$prop])) {
 			return $html['header']['style'][$prop];
 		} else {
 			return NULL;
 		}
 	} elseif (1 < func_num_args()) {
-		if (!@is_array($html['header']['style'])) {
-			$html['header']['style'] = array();
+		if ((!isset($html['header']['style']) || !is_array($html['header']['style']))) {
+			$html['header']['style'] = [];
 		}
 		if (func_get_arg(1) === '') {
 			// clear css property
@@ -552,14 +637,90 @@ function html_favicon()
 {
 	global $html;
 	if (func_num_args() == 0) {
-		if (@is_string($html['header']['favicon'])) {
+		if ((isset($html['header']['favicon']) && is_string($html['header']['favicon']))) {
 			return $html['header']['favicon'];
 		} else {
 			return '';
 		}
 	} elseif (0 < func_num_args()) {
-		$html['header']['favicon'] = func_get_arg(0);
+		$html['header']['favicon'] = _relativize_asset_url(func_get_arg(0));
 	}
+}
+
+
+/**
+ *	set the site's own uploaded favicon: the ONLY icon the page declares
+ *
+ *	A favicon the owner uploaded for the whole site is the owner's deliberate
+ *	choice, so it has to win over an icon that only turned up in a page's
+ *	custom HEAD (a hard-coded <link rel="icon">, say, kept from before the site
+ *	had one). Order is not enough to make it win: a browser offered several
+ *	icons chooses mostly by size, and a 16x16 icon beats a large one however
+ *	late the large one is declared (measured: an inline, fully transparent
+ *	16x16 data: icon won, and the tab showed an empty icon). So the page's
+ *	other icon links - rel icon, shortcut icon, apple-touch-icon - are dropped
+ *	from the user HEAD definitions when the page is written (see
+ *	_strip_icon_links(); what is stored is not touched), and this one is
+ *	emitted after them. html_favicon() and html_add_icon() write the
+ *	installation's defaults (FAVICON, FAVICON_SET) early and are not used when
+ *	a site favicon is set, so an owner's own icon still beats those.
+ *
+ *	@param string $url (url-encoded if necessary)
+ *	@param string $type mime type, optional
+ */
+function html_site_favicon($url, $type = '')
+{
+	global $html;
+	$html['header']['site_favicon'] = ['url'=>_relativize_asset_url($url), 'type'=>$type];
+}
+
+
+/**
+ *	remove the icon links from a piece of user HEAD html
+ *
+ *	Drops <link> tags whose rel names an icon (icon, shortcut icon,
+ *	apple-touch-icon, apple-touch-icon-precomposed) and leaves everything else
+ *	in the string as it was. Quoted attribute values are skipped as a unit, so a
+ *	'>' inside one (an inline svg icon) does not end the tag early.
+ *
+ *	@param string $html
+ *	@return string
+ */
+function _strip_icon_links($html)
+{
+	return preg_replace_callback('#<link\b(?:[^>"\']|"[^"]*"|\'[^\']*\')*>#i', function ($m) {
+		if (!preg_match('#\brel\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>"\']+))#i', $m[0], $r)) {
+			return $m[0];
+		}
+		$rel = isset($r[3]) ? $r[3] : (isset($r[2]) && $r[2] !== '' ? $r[2] : $r[1]);
+		$tokens = preg_split('#\s+#', strtolower(trim($rel)));
+		if (array_intersect($tokens, ['icon', 'apple-touch-icon', 'apple-touch-icon-precomposed'])) {
+			return '';
+		}
+		return $m[0];
+	}, $html);
+}
+
+
+/**
+ *	add an icon link to the page head
+ *
+ *	html_favicon() above sets the one legacy "shortcut icon"; this appends to
+ *	the set of rel="icon"/"apple-touch-icon" links that goes with it, which is
+ *	how the svg and its png fallbacks are declared (see FAVICON_SET).
+ *
+ *	@param string rel "icon", "apple-touch-icon", ...
+ *	@param string url
+ *	@param string type mime type, optional
+ *	@param string sizes e.g. "32x32", optional
+ */
+function html_add_icon($rel, $url, $type = '', $sizes = '')
+{
+	global $html;
+	if ((!isset($html['header']['icons']) || !is_array($html['header']['icons']))) {
+		$html['header']['icons'] = [];
+	}
+	$html['header']['icons'][] = ['rel'=>$rel, 'url'=>_relativize_asset_url($url), 'type'=>$type, 'sizes'=>$sizes];
 }
 
 
@@ -576,7 +737,7 @@ function html_finalize(&$cache = false)
 	// return html5
 	$ret = '<!DOCTYPE html>'.nl();
 	$ret .= '<html';
-	if (@is_array($html['header']['style'])) {
+	if ((isset($html['header']['style']) && is_array($html['header']['style']))) {
 		$ret .= ' style="';
 		ksort($html['header']['style']);
 		foreach ($html['header']['style'] as $key=>$val) {
@@ -590,7 +751,29 @@ function html_finalize(&$cache = false)
 	$ret .= '<head>'.nl();
 	$ret .= '<title>'.htmlspecialchars($html['header']['title'], ENT_NOQUOTES, 'UTF-8').'</title>'.nl();
 	$ret .= '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">'.nl();
-	if (@is_array($html['header']['alternate'])) {
+	// which engine generated this page - the ng lineage (this one) stamps it
+	// so its renders can be told apart from the historical engine's in a
+	// source-level A/B inspection (parity stage). Render-inert: no paint, no
+	// layout, no script reads it
+	$ret .= '<meta name="generator" content="hotglue-ng">'.nl();
+	// without this, mobile browsers shrink the whole (typically much wider
+	// than the screen) absolutely-positioned canvas to fit, scaling every
+	// font down with it - this makes text render at its real size instead,
+	// relying on native horizontal/vertical scrolling (and pinch-zoom,
+	// deliberately not disabled here) rather than a shrunk-to-fit page
+	//
+	// No minimum-scale. One was declared here at 0.1, believing the default
+	// zoom-out stop was around 25% and that the spec's 0.1 would beat it.
+	// Measured on device, both blink and gecko, with it declared and with it
+	// omitted: the floor is a flat 0.25 either way, and it does not depend on
+	// document width. Engines clamp a declared minimum-scale into [0.25, 5], so
+	// 0.1 was silently becoming 0.25 and the line did nothing at all.
+	// See SOW-mobile-guided-view.md - the guided view works within that floor
+	// rather than trying to argue with it.
+	//
+	// Never add user-scalable=no or maximum-scale: zoom must stay free.
+	$ret .= '<meta name="viewport" content="width=device-width, initial-scale=1">'.nl();
+	if ((isset($html['header']['alternate']) && is_array($html['header']['alternate']))) {
 		foreach ($html['header']['alternate'] as $e) {
 			$ret .= '<link rel="alternate" type="'.htmlspecialchars($e['type'], ENT_COMPAT, 'UTF-8').'" href="'.htmlspecialchars($e['url'], ENT_COMPAT, 'UTF-8').'" title="'.htmlspecialchars($e['title'], ENT_COMPAT, 'UTF-8').'">'.nl();
 		}
@@ -598,7 +781,19 @@ function html_finalize(&$cache = false)
 	if (!empty($html['header']['favicon'])) {
 		$ret .= '<link rel="shortcut icon" href="'.htmlspecialchars($html['header']['favicon'], ENT_COMPAT, 'UTF-8').'">'.nl();
 	}
-	if (@is_array($html['header']['css'])) {
+	if ((isset($html['header']['icons']) && is_array($html['header']['icons']))) {
+		foreach ($html['header']['icons'] as $e) {
+			$ret .= '<link rel="'.htmlspecialchars($e['rel'], ENT_COMPAT, 'UTF-8').'" href="'.htmlspecialchars($e['url'], ENT_COMPAT, 'UTF-8').'"';
+			if (!empty($e['type'])) {
+				$ret .= ' type="'.htmlspecialchars($e['type'], ENT_COMPAT, 'UTF-8').'"';
+			}
+			if (!empty($e['sizes'])) {
+				$ret .= ' sizes="'.htmlspecialchars($e['sizes'], ENT_COMPAT, 'UTF-8').'"';
+			}
+			$ret .= '>'.nl();
+		}
+	}
+	if ((isset($html['header']['css']) && is_array($html['header']['css']))) {
 		_array_sort_by_prio($html['header']['css']);
 		// removed the removal of duplicates here as two different media might point to the same url
 		//array_unique_element($html['header']['css'], 'url');
@@ -610,7 +805,7 @@ function html_finalize(&$cache = false)
 			$ret .= '>'.nl();
 		}
 	}
-	if (@is_array($html['header']['css_inline'])) {
+	if ((isset($html['header']['css_inline']) && is_array($html['header']['css_inline']))) {
 		_array_sort_by_prio($html['header']['css_inline']);
 		if (0 < count($html['header']['css_inline'])) {
 			$ret .= '<style type="text/css">'.nl();
@@ -629,17 +824,17 @@ function html_finalize(&$cache = false)
 			$ret .= '</style>'.nl();
 		}
 	}
-	if (@is_array($html['header']['js'])) {
+	if ((isset($html['header']['js']) && is_array($html['header']['js']))) {
 		_array_sort_by_prio($html['header']['js']);
 		array_unique_element($html['header']['js'], 'url');
 		foreach ($html['header']['js'] as $e) {
-			$ret .= '<script type="text/javascript" src="'.htmlspecialchars($e['url'], ENT_COMPAT, 'UTF-8').'"></script>'.nl();
+			$ret .= '<script type="text/javascript"'.(!empty($e['defer']) ? ' defer' : '').' src="'.htmlspecialchars($e['url'], ENT_COMPAT, 'UTF-8').'"></script>'.nl();
 		}
 	}
-	if (@is_array($html['header']['js_var'])) {
+	if ((isset($html['header']['js_var']) && is_array($html['header']['js_var']))) {
 		$ret .= array_to_js($html['header']['js_var']);
 	}
-	if (@is_array($html['header']['js_inline'])) {
+	if ((isset($html['header']['js_inline']) && is_array($html['header']['js_inline']))) {
 		_array_sort_by_prio($html['header']['js_inline']);
 		foreach ($html['header']['js_inline'] as $c) {
 			if (!empty($c['reason'])) {
@@ -656,7 +851,7 @@ function html_finalize(&$cache = false)
 			}
 		}
 	}
-	if (@is_array($html['header']['head_inline'])) {
+	if ((isset($html['header']['head_inline']) && is_array($html['header']['head_inline']))) {
 		_array_sort_by_prio($html['header']['head_inline']);
 		if (0 < count($html['header']['head_inline'])) {
 			$ret .= '<!-- user HEAD definitions -->'.nl();
@@ -668,12 +863,26 @@ function html_finalize(&$cache = false)
 				$def = substr($def, 0, -1);
 			}
 			// $rule = str_replace("\n", "\n\t", $def);
+			if (!empty($html['header']['site_favicon'])) {
+				// the site's own favicon is the only icon (see html_site_favicon())
+				$def = _strip_icon_links($def);
+			}
 			$ret .= $def.nl();
 		}
 	}
+	// the site's uploaded favicon goes after everything a page brought along,
+	// see html_site_favicon()
+	if (!empty($html['header']['site_favicon'])) {
+		$u = htmlspecialchars($html['header']['site_favicon']['url'], ENT_COMPAT, 'UTF-8');
+		$t = !empty($html['header']['site_favicon']['type']) ?
+			' type="'.htmlspecialchars($html['header']['site_favicon']['type'], ENT_COMPAT, 'UTF-8').'"' : '';
+		$ret .= '<link rel="shortcut icon" href="'.$u.'"'.$t.'>'.nl();
+		$ret .= '<link rel="icon" href="'.$u.'"'.$t.'>'.nl();
+		$ret .= '<link rel="apple-touch-icon" href="'.$u.'">'.nl();
+	}
 	$ret .= '</head>'.nl();
 	// load user body definitions
-	if (@is_array($html['body']['body_inline'])) {
+	if ((isset($html['body']['body_inline']) && is_array($html['body']['body_inline']))) {
 		_array_sort_by_prio($html['body']['body_inline']);
 		if (0 < count($html['body']['body_inline'])) {
 			$user_body = '<!-- user BODY definitions -->'.nl();
@@ -709,9 +918,9 @@ function html_finalize(&$cache = false)
 function html_flush()
 {
 	global $html;
-	$html = array();
-	$html['header'] = array('title'=>'');
-	$html['body'] = array('tag'=>'body');
+	$html = [];
+	$html['header'] = ['title'=>''];
+	$html['body'] = ['tag'=>'body'];
 	$html['cache'] = true;
 }
 

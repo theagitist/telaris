@@ -10,7 +10,7 @@
  */
 
 @require_once('config.inc.php');
-require_once('telaris-auth.inc.php');	// Telaris session + auth bridge
+require_once('telaris-auth.inc.php');	// Telaris session + auth bridge; starts the session before any output
 require_once('common.inc.php');
 require_once('html.inc.php');
 require_once('log.inc.php');
@@ -19,7 +19,7 @@ require_once('modules.inc.php');
 require_once('util.inc.php');
 
 if (!isset($controllers)) {
-	$controllers = array();
+	$controllers = [];
 }
 
 
@@ -27,8 +27,27 @@ if (!isset($controllers)) {
 /**
  *	show a site where authenticated users can create new pages
  */
+/**
+ *	refuse the request when it is for the site options page: it is not a page
+ *	a visitor or an author can see, edit or create (see site_options_page())
+ *
+ *	@return bool true if the request was refused (a 404 was sent)
+ */
+function controller_refuse_site_options($args)
+{
+	if (!empty($args[0][0]) && get_first_item(expl('.', $args[0][0])) == '_options') {
+		hotglue_error(404);
+		return true;
+	}
+	return false;
+}
+
+
 function controller_create_page($args)
 {
+	if (controller_refuse_site_options($args)) {
+		return;
+	}
 	page_canonical($args[0][0]);
 	$page = $args[0][0];
 	if (page_exists($page)) {
@@ -46,17 +65,17 @@ function controller_create_page($args)
 		html_add_js(base_url().'js/create_page.js');
 	}
 	html_add_js_var('$.glue.page', $page);
+	html_add_js_var('$.glue.q', (SHORT_URLS ? '' : '?'));
 	// hand the Telaris CSRF token to hotglue's AJAX layer (create_page.js POSTs
 	// glue.create_page through json.php, which the bridge CSRF-checks)
 	html_add_js_var('$.glue.csrf_token', $_SESSION['csrf_token'] ?? '');
-	html_add_js_var('$.glue.q', (SHORT_URLS ? '' : '?'));
 	$bdy = &body();
 	elem_attr($bdy, 'id', 'create_page');
 	body_append(tab(1).'<div id="paper">'.nl());
 	body_append(tab(2).'<div id="wrapper">'.nl());
 	body_append(tab(3).'<div id="content">'.nl());
 	body_append(tab(4).'<div id="left-nav">'.nl());
-	body_append(tab(5).'<img src="'.htmlspecialchars(base_url(), ENT_COMPAT, 'UTF-8').'img/hotglue-logo.png" alt="logo">'.nl());
+	body_append(tab(5).'<img src="'.htmlspecialchars(base_path(), ENT_COMPAT, 'UTF-8').'img/hotglue-logo.png" alt="logo">'.nl());
 	body_append(tab(4).'</div>'.nl());
 	body_append(tab(4).'<div id="main">'.nl());
 	body_append(tab(5).'<h1 id="error-title">Page does not exist yet!</h1>'.nl());
@@ -69,13 +88,13 @@ function controller_create_page($args)
 	body_append(tab(3).'</div>'.nl());
 	body_append(tab(2).'</div>'.nl());
 	body_append(tab(2).'<div style="position: absolute; left: 200px; top: -10px; z-index: 2;">'.nl());
-	body_append(tab(3).'<img src="'.htmlspecialchars(base_url(), ENT_COMPAT, 'UTF-8').'img/hotglue-404.png" alt="404">'.nl());
+	body_append(tab(3).'<img src="'.htmlspecialchars(base_path(), ENT_COMPAT, 'UTF-8').'img/hotglue-404.png" alt="404">'.nl());
 	body_append(tab(2).'</div>'.nl());
 	body_append(tab(1).'</div>'.nl());
 	echo html_finalize();
 }
 
-register_controller('*', 'create_page', 'controller_create_page', array('auth'=>true));
+register_controller('*', 'create_page', 'controller_create_page', ['auth'=>true]);
 
 
 /**
@@ -83,6 +102,9 @@ register_controller('*', 'create_page', 'controller_create_page', array('auth'=>
  */
 function controller_edit($args)
 {
+	if (controller_refuse_site_options($args)) {
+		return;
+	}
 	handle_updates();
 	// this is a good spot to log the server's php version as well
 	log_msg('debug', 'controller_edit: running on php version '.phpversion());
@@ -99,7 +121,7 @@ function controller_edit($args)
 		// editor on the now-empty canvas. Fall back to the create UI only if
 		// the auto-create fails for some reason.
 		load_modules('glue');
-		$created = create_page(array('page' => $page));
+		$created = create_page(['page' => $page]);
 		if (!empty($created['#error'])) {
 			log_msg('warn', 'controller_edit: auto-create of '.quot($page).' failed, invoking controller_create_page');
 			controller_create_page($args);
@@ -107,43 +129,45 @@ function controller_edit($args)
 		}
 		log_msg('info', 'controller_edit: auto-created '.quot($page));
 	}
-
+	
 	// create page on the fly
 	load_modules('glue');
 	default_html(true);
 	html_add_js_var('$.glue.page', $page);
 	// hand the Telaris CSRF token to hotglue's AJAX layer (see glue.js/edit.js)
 	html_add_js_var('$.glue.csrf_token', $_SESSION['csrf_token'] ?? '');
-	html_add_css(base_url().'css/farbtastic.css', 2);
 	html_add_css(base_url().'css/edit.css', 5);
 	if (USE_MIN_FILES) {
-		html_add_js(base_url().'js/jquery-ui-1.8.6.custom.min.js', 2);
+		html_add_js(base_url().'js/moveable.min.js', 3);
 	} else {
-		html_add_js(base_url().'js/jquery-ui-1.8.6.custom.js', 2);
+		html_add_js(base_url().'js/moveable.js', 3);
+	}
+	// deferred per Alpine's own recommendation: without it, the script runs
+	// as soon as it's parsed (still inside <head>, before <body> exists),
+	// forcing Alpine to fall back to retrying initialization later - a
+	// race that can intermittently affect the context-menu toggle buttons
+	// (loop/controls/autoplay/mute etc.) built on its x-data/x-bind/x-on
+	// plumbing (see $.glue.toggle_button in js/glue.js)
+	if (USE_MIN_FILES) {
+		html_add_js(base_url().'js/alpine.min.js', 3, true);
+	} else {
+		html_add_js(base_url().'js/alpine.js', 3, true);
 	}
 	if (USE_MIN_FILES) {
-		html_add_js(base_url().'js/farbtastic.min.js', 2);
+		html_add_js(base_url().'js/vanilla-picker.min.js', 3);
 	} else {
-		html_add_js(base_url().'js/farbtastic.js', 2);
-	}
-	if (USE_MIN_FILES) {
-		html_add_js(base_url().'js/jquery.xcolor-1.2.1.min.js', 2);
-	} else {
-		html_add_js(base_url().'js/jquery.xcolor-1.2.1.js', 2);
+		html_add_js(base_url().'js/vanilla-picker.js', 3);
 	}
 	if (USE_MIN_FILES) {
 		html_add_js(base_url().'js/edit.min.js', 4);
 	} else {
 		html_add_js(base_url().'js/edit.js', 4);
 	}
-	render_page(array('page'=>$page, 'edit'=>true));
+	render_page(['page'=>$page, 'edit'=>true]);
 	echo html_finalize();
-	
-	log_msg('debug', 'controller_edit: invoking check_auto_snapshot');
-	check_auto_snapshot(array('page'=>$page));
 }
 
-register_controller('*', 'edit', 'controller_edit', array('auth'=>true));
+register_controller('*', 'edit', 'controller_edit', ['auth'=>true]);
 
 
 /**
@@ -168,6 +192,9 @@ function controller_default($args)
 	
 	page_canonical($args[0][0]);
 	$obj = expl('.', $args[0][0]);
+	if (controller_refuse_site_options($args)) {
+		return;
+	}
 	if (count($obj) == 2) {
 		// page requested
 		if (page_exists($args[0][0])) {
@@ -223,11 +250,14 @@ function controller_login($args)
 	if (!is_auth()) {
 		prompt_auth();
 	} else {
-		// redirect
+		// redirect - kept relative (not prefixed with base_url()) so it
+		// stays on whatever domain the request actually came in on, see
+		// module_object.inc.php's object_alter_render_late() for the full
+		// rationale
 		if (SHORT_URLS) {
-			header('Location: '.base_url().'pages');		
+			header('Location: '.base_path().'pages');
 		} else {
-			header('Location: '.base_url().'?pages');
+			header('Location: '.base_path().'?pages');
 		}
 		die();
 	}
@@ -241,6 +271,9 @@ register_controller('login', '', 'controller_login');
  */
 function controller_show($args)
 {
+	if (controller_refuse_site_options($args)) {
+		return;
+	}
 	// most of these checks are only necessary if the client calls 
 	// page/show directly
 	page_canonical($args[0][0]);
@@ -273,7 +306,7 @@ function controller_show($args)
 	// protected pages are never cached: the cached html would outlive the
 	// password and serve the content to whoever came next
 	$cache_page = !$gated;
-	render_page(array('page'=>$page, 'edit'=>false));
+	render_page(['page'=>$page, 'edit'=>false]);
 	// the $cache_page parameter is set by the html_finalize()
 	$html = html_finalize($cache_page);
 	if ($gated) {
@@ -309,9 +342,9 @@ function invoke_controller($args)
 	
 	// change query-arguments so that we always have a arg0 and arg1
 	if (!isset($args[0])) {
-		$args[0] = array('', '');
+		$args[0] = ['', ''];
 	} elseif (is_string($args[0])) {
-		$args[0] = array($args[0], '');
+		$args[0] = [$args[0], ''];
 	}
 	
 	// load all modules
@@ -344,8 +377,8 @@ function invoke_controller($args)
 			// Telaris bridge replaces hotglue's global is_auth()/prompt_auth():
 			// requires an editor session + a seat on the node's galaxy, and
 			// rejects read-only/mirrored galaxies. args[0][0] is the page
-			// (node-<id> for edit/create_page/revisions; non-node controllers
-			// like the page browser are denied).
+			// (node-<id> for edit/create_page; non-node controllers like the
+			// page browser are denied).
 			telaris_hg_authorize_get($args[0][0]);
 
 			// Telaris: hotglue's referer XSRF check is intentionally NOT applied
@@ -379,9 +412,9 @@ function parse_query_string()
 {
 	// QUERY_STRING per se seems not to be affected by magic quotes, only 
 	// the derived $_GET, $_POST etc
-	$q = $_SERVER['QUERY_STRING'];
-	$args = array();
-	$num_args = array();
+	$q = $_SERVER['QUERY_STRING'] ?? '';
+	$args = [];
+	$num_args = [];
 	// strip a tailing slash
 	if (substr($q, -1) == '/') {
 		$q = substr($q, 0, -1);
@@ -417,10 +450,10 @@ function parse_query_string()
  *	@param string $func function name
  *	@param array $args optional arguments
  */
-function register_controller($arg0, $arg1, $func, $args = array())
+function register_controller($arg0, $arg1, $func, $args = [])
 {
 	global $controllers;
-	$controllers[$arg0.'-'.$arg1] = array_merge($args, array('func'=>$func));
+	$controllers[$arg0.'-'.$arg1] = array_merge($args, ['func'=>$func]);
 	log_msg('debug', 'controller: registered controller '.quot($arg0.'/'.$arg1).' => '.$func);
 }
 
@@ -438,13 +471,13 @@ function serve_resource($s, $dl)
 	load_modules('glue');
 	
 	// resolve symlinks
-	$ret = object_get_symlink(array('name'=>$s));
+	$ret = object_get_symlink(['name'=>$s]);
 	if ($ret['#error'] == false && $ret['#data'] !== false) {
 		log_msg('debug', 'controller: resolved resource '.quot($s).' into '.quot($ret['#data']));
 		$s = $ret['#data'];
 	}
 	
-	$obj = load_object(array('name'=>$s));
+	$obj = load_object(['name'=>$s]);
 	if ($obj['#error']) {
 		return false;
 	} else {
@@ -461,8 +494,8 @@ function serve_resource($s, $dl)
 			hotglue_error(403);
 		}
 	}
-
-	$ret = invoke_hook_while('serve_resource', false, array('obj'=>$obj, 'dl'=>$dl));
+	
+	$ret = invoke_hook_while('serve_resource', false, ['obj'=>$obj, 'dl'=>$dl]);
 	// this is probably not needed as the module will most likely call 
 	// serve_file() on success, which does not return
 	foreach ($ret as $key=>$val) {

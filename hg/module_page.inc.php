@@ -7,15 +7,11 @@
  *	Copyright Gottfried Haider, Danja Vasiliev 2010.
  *	This source code is licensed under the GNU General Public License.
  *	See the file COPYING for more details.
- *
- *	Modified 2026-06-25 by the theagitist/hotglue2 fork: accept WebP page
- *	background uploads; and wrap user-facing response() messages in t()
- *	(module_i18n) for UI localization (English catalog values byte-identical).
  */
 
 @require_once('config.inc.php');
 require_once('common.inc.php');
-require_once('controller.inc.php');	// register_controller() for the gated-asset controller below; json.php does not pull this in on its own
+require_once('controller.inc.php');
 require_once('html.inc.php');
 require_once('util.inc.php');
 
@@ -34,14 +30,14 @@ require_once('util.inc.php');
 function page_clear_background_img($args)
 {
 	if (!isset($args['page'])) {
-		return response(t('errors.arg_page_missing'), 400);
+		return response('Required argument "page" missing', 400);
 	}
 	if (!page_exists($args['page'])) {
-		return response(t('page.not_exist', quot($args['page'])), 400);
+		return response('Page '.quot($args['page']).' does not exist', 400);
 	}
 	
 	load_modules('glue');
-	$obj = load_object(array('name'=>$args['page'].'.page'));
+	$obj = load_object(['name'=>$args['page'].'.page']);
 	if ($obj['#error']) {
 		// page object does not exist, hence no background image to clear
 		return response(true);
@@ -51,36 +47,130 @@ function page_clear_background_img($args)
 	
 	if (!empty($obj['page-background-file'])) {
 		// delete file
-		delete_upload(array('pagename'=>get_first_item(expl('.', $args['page'])), 'file'=>$obj['page-background-file'], 'max_cnt'=>1));
+		delete_upload(['pagename'=>get_first_item(expl('.', $args['page'])), 'file'=>$obj['page-background-file'], 'max_cnt'=>1]);
 		// and remove attributes
-		return object_remove_attr(array('name'=>$obj['name'], 'attr'=>array('page-background-file', 'page-background-mime')));
+		return object_remove_attr(['name'=>$obj['name'], 'attr'=>['page-background-file', 'page-background-mime']]);
+	} elseif (!empty($obj['page-background-video-file'])) {
+		// same for the video background (2026-09-24)
+		delete_upload(['pagename'=>get_first_item(expl('.', $args['page'])), 'file'=>$obj['page-background-video-file'], 'max_cnt'=>1]);
+		return object_remove_attr(['name'=>$obj['name'], 'attr'=>['page-background-video-file', 'page-background-video-mime']]);
 	} else {
 		return response(true);
 	}
 }
 
-register_service('page.clear_background_img', 'page_clear_background_img', array('auth'=>true));
+register_service('page.clear_background_img', 'page_clear_background_img', ['auth'=>true]);
+
+
+/**
+ *	clear the site's favicon (site settings, see /pages)
+ *
+ *	@return array response
+ */
+function page_clear_favicon($args)
+{
+	$page = site_options_page();
+	$obj = site_options_load();
+	if ($obj['#error']) {
+		return response(true);
+	}
+	$obj = $obj['#data'];
+	if (!empty($obj['page-favicon-file'])) {
+		delete_upload(['pagename'=>get_first_item(expl('.', $page)), 'file'=>$obj['page-favicon-file'], 'max_cnt'=>1]);
+		return object_remove_attr(['name'=>$obj['name'], 'attr'=>['page-favicon-file', 'page-favicon-mime']]);
+	} else {
+		return response(true);
+	}
+}
+
+register_service('page.clear_favicon', 'page_clear_favicon', ['auth'=>true]);
+
+
+/**
+ *	remove one of the site's uploaded custom fonts (site settings, see /pages)
+ *
+ *	@param array $args arguments
+ *		key 'file' the font's stored filename, as returned in the fonts list
+ *	@return array response
+ */
+function page_remove_font($args)
+{
+	if (empty($args['file'])) {
+		return response('Required argument "file" missing', 400);
+	}
+	$page = site_options_page();
+	$obj = site_options_load();
+	if ($obj['#error'] || empty($obj['#data']['page-custom-fonts'])) {
+		return response(true);
+	}
+	$obj = $obj['#data'];
+	$fonts = @json_decode($obj['page-custom-fonts'], true);
+	if (!is_array($fonts)) {
+		return response(true);
+	}
+
+	$found = false;
+	$remaining = [];
+	foreach ($fonts as $f) {
+		if (isset($f['file']) && $f['file'] == $args['file']) {
+			$found = true;
+			continue;
+		}
+		$remaining[] = $f;
+	}
+	if (!$found) {
+		return response(true);
+	}
+
+	delete_upload(['pagename'=>get_first_item(expl('.', $page)), 'file'=>$args['file'], 'max_cnt'=>1]);
+
+	if (empty($remaining)) {
+		return object_remove_attr(['name'=>$obj['name'], 'attr'=>['page-custom-fonts']]);
+	} else {
+		return update_object(['name'=>$obj['name'], 'page-custom-fonts'=>json_encode($remaining)]);
+	}
+}
+
+register_service('page.remove_font', 'page_remove_font', ['auth'=>true]);
 
 
 function page_delete_page($args)
 {
 	$page = $args['page'];
-	
+
 	// check if there is a page object
-	$obj = load_object(array('name'=>$page.'.page'));
+	$obj = load_object(['name'=>$page.'.page']);
 	if ($obj['#error']) {
 		return false;
 	} else {
 		$obj = $obj['#data'];
 	}
+	$deleted = false;
 	// check if there is a background-image
 	if (!empty($obj['page-background-file'])) {
 		// delete it
-		delete_upload(array('pagename'=>get_first_item(expl('.', $page)), 'file'=>$obj['page-background-file'], 'max_cnt'=>1));
-		return true;
-	} else {
-		return false;
+		delete_upload(['pagename'=>get_first_item(expl('.', $page)), 'file'=>$obj['page-background-file'], 'max_cnt'=>1]);
+		$deleted = true;
 	}
+	// check if there is a site favicon/custom fonts (only ever set on the
+	// startpage, but no harm checking any page - it'll simply never be set
+	// on others)
+	if (!empty($obj['page-favicon-file'])) {
+		delete_upload(['pagename'=>get_first_item(expl('.', $page)), 'file'=>$obj['page-favicon-file'], 'max_cnt'=>1]);
+		$deleted = true;
+	}
+	if (!empty($obj['page-custom-fonts'])) {
+		$fonts = @json_decode($obj['page-custom-fonts'], true);
+		if (is_array($fonts)) {
+			foreach ($fonts as $f) {
+				if (!empty($f['file'])) {
+					delete_upload(['pagename'=>get_first_item(expl('.', $page)), 'file'=>$f['file'], 'max_cnt'=>1]);
+					$deleted = true;
+				}
+			}
+		}
+	}
+	return $deleted;
 }
 
 
@@ -91,12 +181,25 @@ function page_has_reference($args)
 	if (array_pop($tmp) != 'page') {
 		return false;
 	}
-	
+
 	if (!empty($obj['page-background-file']) && $obj['page-background-file'] == $args['file']) {
 		return true;
-	} else {
-		return false;
+	} elseif (!empty($obj['page-background-video-file']) && $obj['page-background-video-file'] == $args['file']) {
+		return true;
+	} elseif (!empty($obj['page-favicon-file']) && $obj['page-favicon-file'] == $args['file']) {
+		return true;
 	}
+	if (!empty($obj['page-custom-fonts'])) {
+		$fonts = @json_decode($obj['page-custom-fonts'], true);
+		if (is_array($fonts)) {
+			foreach ($fonts as $f) {
+				if (!empty($f['file']) && $f['file'] == $args['file']) {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
 }
 
 
@@ -111,9 +214,9 @@ function page_get_grid($args)
 {
 	if (($s = @file_get_contents(CONTENT_DIR.'/grid')) !== false) {
 		$a = expl(' ', $s);
-		return response(array('x'=>intval($a[0]), 'y'=>intval($a[1])));
+		return response(['x'=>intval($a[0]), 'y'=>intval($a[1])]);
 	} else {
-		return response(array('x'=>PAGE_DEFAULT_GRID_X, 'y'=>PAGE_DEFAULT_GRID_Y));
+		return response(['x'=>PAGE_DEFAULT_GRID_X, 'y'=>PAGE_DEFAULT_GRID_Y]);
 	}
 }
 
@@ -136,13 +239,24 @@ function page_render_object($args)
 	if (!empty($obj['page-background-color'])) {
 		html_css('background-color', $obj['page-background-color']);
 	}
-	// background-image
+	// background-image - kept relative (not prefixed with base_url()) so it
+	// still resolves correctly when viewed through a different domain than
+	// the one configured/detected as the base url - see
+	// module_object.inc.php's object_alter_render_late() for the full rationale
 	if (!empty($obj['page-background-file'])) {
 		if (SHORT_URLS) {
-			html_css('background-image', 'url('.base_url().htmlspecialchars(urlencode($obj['name']), ENT_NOQUOTES, 'UTF-8').')');
+			html_css('background-image', 'url('.base_path().htmlspecialchars(urlencode($obj['name']), ENT_NOQUOTES, 'UTF-8').')');
 		} else {
-			html_css('background-image', 'url('.base_url().'?'.htmlspecialchars(urlencode($obj['name']), ENT_NOQUOTES, 'UTF-8').')');
+			html_css('background-image', 'url('.base_path().'?'.htmlspecialchars(urlencode($obj['name']), ENT_NOQUOTES, 'UTF-8').')');
 		}
+	}
+	// background-image-repeat
+	if (!empty($obj['page-background-repeat'])) {
+		html_css('background-repeat', $obj['page-background-repeat']);
+	}
+	// background-image-size
+	if (!empty($obj['page-background-size'])) {
+		html_css('background-size', $obj['page-background-size']);
 	}
 	// background-image-position
 	if (!empty($obj['page-background-image-position'])) {
@@ -155,6 +269,274 @@ function page_render_object($args)
 }
 
 
+/**
+ *	the page's layout mode and container width
+ *
+ *	@param string $page page name (page.revision)
+ *	@return array keys 'mode' ('infinite'|'centered') and 'width' (int px)
+ */
+function page_layout($page)
+{
+	$mode = 'infinite';
+	$width = PAGE_DEFAULT_CONTAINER_WIDTH;
+	$obj = load_object(['name'=>$page.'.page']);
+	if (!$obj['#error']) {
+		$obj = $obj['#data'];
+		if (!empty($obj['page-layout-mode']) && $obj['page-layout-mode'] == 'centered') {
+			$mode = 'centered';
+		}
+		if (!empty($obj['page-container-width'])) {
+			$width = intval($obj['page-container-width']);
+		}
+	}
+	if ($width < PAGE_MIN_CONTAINER_WIDTH) {
+		$width = PAGE_MIN_CONTAINER_WIDTH;
+	} elseif (PAGE_MAX_CONTAINER_WIDTH < $width) {
+		$width = PAGE_MAX_CONTAINER_WIDTH;
+	}
+	return ['mode'=>$mode, 'width'=>$width];
+}
+
+
+/**
+ *	remember where the page's objects begin in the body
+ *
+ *	render_object() appends each object to the body as an HTML STRING, not as an
+ *	element tree, so the container cannot be built by moving child elements
+ *	around - it has to be spliced into the markup. This runs before any object
+ *	is rendered, so whatever is in the body now is what comes before them.
+ */
+function _page_body_offset($set = NULL)
+{
+	static $offset = 0;
+	if ($set !== NULL) {
+		$offset = $set;
+	}
+	return $offset;
+}
+
+
+/**
+ *	on a phone, the centered page's container IS what fits the screen: the
+ *	author's container width decides how the site looks there. The viewport
+ *	is laid out at the container's width, so the browser scales the whole
+ *	page (background included) to the screen - and nothing needs a script
+ *	running on the page, which is why the guided view is not loaded for it.
+ *	Three parts:
+ *	- a head script sets the viewport to `width=<container>` only while the
+ *	  device is NARROWER than the container. A wider device (a tablet, a
+ *	  landscape phone) keeps device-width, so the page never scales UP past
+ *	  1:1 - a viewport meta alone cannot cap that. screen.width is orientation
+ *	  dependent on Android only, so the orientation picks min or max of the
+ *	  two sides. No initial-scale: it would stop the fit-to-width.
+ *	- objects sticking out past the container are clipped (touch devices
+ *	  only), otherwise ONE of them makes the browser shrink the whole page to
+ *	  fit it and the container no longer fills the screen. Vertical overflow
+ *	  scrolls as before. The wrapper has no height, its children are absolute.
+ *	- the guided view is not loaded (the site's guided switch still rules: off
+ *	  means no fit either, plain device-width as before).
+ */
+function page_centered_fit($width)
+{
+	$opts = site_options_load();
+	if (!$opts['#error'] && @$opts['#data']['page-guided'] === 'off') {
+		return;
+	}
+	$w = intval($width);
+	html_remove_js('mobile-guided');
+	html_add_css_inline('@media (max-width: '.$w.'px) and (pointer: coarse) {'.nl().
+		"\t#hg-centered-wrapper { overflow-x: clip; }".nl().'}', 5);
+	html_add_js_inline(
+		"(function () {".nl().
+		"\tvar W = ".$w.", M = document.querySelector('meta[name=viewport]');".nl().
+		"\tif (!M || !window.matchMedia || !matchMedia('(pointer: coarse)').matches) return;".nl().
+		"\tfunction fit() {".nl().
+		"\t\tvar land = matchMedia('(orientation: landscape)').matches,".nl().
+		"\t\t\td = Math[land ? 'max' : 'min'](screen.width, screen.height);".nl().
+		"\t\tM.setAttribute('content', d < W ? 'width=' + W : 'width=device-width, initial-scale=1');".nl().
+		"\t}".nl().
+		"\tfit();".nl().
+		"\taddEventListener('orientationchange', fit);".nl().
+		"})();", 1, 'centered page: the container width is what fits a phone');
+}
+
+
+/**
+ *	wrap the page's objects in a centering container, in centered layout mode
+ *
+ *	The objects keep their exact stored coordinates: they stay
+ *	position:absolute, and the wrapper is position:relative, so the origin they
+ *	are measured from moves with the wrapper instead of being the page origin.
+ *	Nothing about an object file changes, and switching modes is only a question
+ *	of whether this wrapper is emitted.
+ *
+ *	margin:0 auto does the centering, in CSS, including on resize - but only for
+ *	as long as nothing pins a pixel width on body. In the EDITOR something does:
+ *	$.glue.canvas.update() sizes body to the content bounding box, which would
+ *	center the container once and never again. js/edit.js branches on the mode
+ *	for exactly that reason.
+ *
+ *	In INFINITE mode this emits nothing at all, so existing pages render exactly
+ *	as they always have.
+ */
+function page_render_page_late($args)
+{
+	// a video background is an element, not a css property: it sits behind
+	// the objects (their z-index starts well above 0), goes with the page
+	// unless the attachment says fixed, and honours the same position and
+	// scale keys the picture does (danja's call, 2026-09-24)
+	load_modules('glue');
+	$page_obj = load_object(['name'=>$args['page'].'.page']);
+	if (!$page_obj['#error'] && !empty($page_obj['#data']['page-background-video-file'])) {
+		$o = $page_obj['#data'];
+		$tiled = !empty($o['page-background-repeat']) && $o['page-background-repeat'] == 'repeat';
+		// the video source is shared by both looks; the tiled one keeps it
+		// offscreen and paints its frames through a canvas instead
+		$v = elem('video');
+		if ($tiled) {
+			elem_add_class($v, 'page-background-video-source');
+		} else {
+			elem_add_class($v, 'page-background-video');
+		}
+		// kept relative (not prefixed with base_url()) so it still resolves
+		// correctly when viewed through a different domain than the one
+		// configured/detected as the base url - the same rationale as the
+		// image background above
+		if (SHORT_URLS) {
+			elem_attr($v, 'src', base_path().urlencode($args['page'].'.page'));
+		} else {
+			elem_attr($v, 'src', base_path().'?'.urlencode($args['page'].'.page'));
+		}
+		elem_attr($v, 'autoplay', 'autoplay');
+		elem_attr($v, 'muted', 'muted');
+		elem_attr($v, 'loop', 'loop');
+		elem_attr($v, 'playsinline', 'playsinline');
+		if (!empty($o['page-background-attachment']) && $o['page-background-attachment'] == 'fixed') {
+			$pos = 'fixed';
+		} else {
+			$pos = 'absolute';
+		}
+		if ($tiled) {
+			// offscreen: it feeds the canvas, nobody looks at it
+			elem_css($v, 'position', 'absolute');
+			elem_css($v, 'left', '-10000px');
+			elem_css($v, 'top', '0px');
+			elem_css($v, 'width', '320px');
+			elem_css($v, 'z-index', '-1');
+		} else {
+			// the untiled look: the video FILLS the page, cropping to the
+			// frame (danja's call, 2026-09-24)
+			elem_css($v, 'position', $pos);
+			elem_css($v, 'left', '0px');
+			elem_css($v, 'top', '0px');
+			elem_css($v, 'width', '100%');
+			elem_css($v, 'height', '100%');
+			elem_css($v, 'object-fit', 'cover');
+			elem_css($v, 'z-index', '0');
+			if (!empty($o['page-background-image-position'])) {
+				$p = expl(' ', $o['page-background-image-position']);
+				if (2 <= count($p)) {
+					elem_css($v, 'left', $p[0]);
+					elem_css($v, 'top', $p[1]);
+				}
+			}
+			if (!empty($o['page-background-size'])) {
+				$s = expl(' ', $o['page-background-size']);
+				// the scale zooms the cover: both sides grow together
+				elem_css($v, 'width', $s[0]);
+				elem_css($v, 'height', $s[0]);
+			}
+			// in the editor the video must never swallow the clicks meant
+			// for the canvas and the objects
+			if ($args['edit']) {
+				elem_css($v, 'pointer-events', 'none');
+			}
+		}
+		$bdy = &body();
+		elem_append($bdy, $v);
+
+		if ($tiled) {
+			// the wallpaper canvas: the whole page, the frames painted in a
+			// grid by js/page-background-video.js
+			$c = elem('canvas');
+			elem_add_class($c, 'page-background-video');
+			elem_css($c, 'position', $pos);
+			elem_css($c, 'left', '0px');
+			elem_css($c, 'top', '0px');
+			elem_css($c, 'width', '100%');
+			elem_css($c, 'height', '100%');
+			elem_css($c, 'z-index', '0');
+			if (!empty($o['page-background-image-position'])) {
+				$p = expl(' ', $o['page-background-image-position']);
+				if (2 <= count($p)) {
+					elem_css($c, 'left', $p[0]);
+					elem_css($c, 'top', $p[1]);
+				}
+			}
+			if (!empty($o['page-background-size'])) {
+				$s = expl(' ', $o['page-background-size']);
+				elem_attr($c, 'data-scale', rtrim($s[0], '%'));
+			}
+			if ($args['edit']) {
+				elem_css($c, 'pointer-events', 'none');
+			}
+			elem_append($bdy, $c);
+		}
+		// the tiler only acts when the pair exists - safe to ship on every
+		// page that has any video background (the editor gets it for every
+		// page in page_render_page_early, pair or no pair)
+		if (empty($args['edit'])) {
+			html_add_js(base_url().'js/page-background-video.js');
+		}
+	}
+
+	$layout = page_layout($args['page']);
+	if ($args['edit']) {
+		html_add_js_var('$.glue.conf.page.layout_mode', $layout['mode']);
+		html_add_js_var('$.glue.conf.page.container_width', $layout['width']);
+		html_add_js_var('$.glue.conf.page.container_min', PAGE_MIN_CONTAINER_WIDTH);
+		html_add_js_var('$.glue.conf.page.container_max', PAGE_MAX_CONTAINER_WIDTH);
+		// the last few colours used on THIS page, shown as swatches in the
+		// colour picker ($.glue.colorpicker in js/edit.js, which writes them
+		// back through glue.update_object). Per page, unlike the last
+		// typeface/font size memory in module_text.inc.php which is
+		// site-wide: a palette belongs to the design of one page.
+		if (!$page_obj['#error'] && !empty($page_obj['#data']['page-recent-colors'])) {
+			html_add_js_var('$.glue.conf.page.recent_colors',
+				$page_obj['#data']['page-recent-colors']);
+		}
+	}
+	if ($layout['mode'] != 'centered') {
+		return false;
+	}
+
+	$bdy = &body();
+	if (!isset($bdy['val']) || !is_string($bdy['val'])) {
+		return false;
+	}
+	$offset = _page_body_offset();
+	if (strlen($bdy['val']) <= $offset) {
+		// no objects on this page - nothing to center
+		return false;
+	}
+	$before = substr($bdy['val'], 0, $offset);
+	$objects = substr($bdy['val'], $offset);
+
+	if (empty($args['edit'])) {
+		page_centered_fit($layout['width']);
+	}
+
+	// position:relative is load bearing - without it the absolutely positioned
+	// objects inside would resolve against the viewport instead of the container
+	$bdy['val'] = $before.
+		'<div id="hg-centered-wrapper" style="position: relative; width: '.
+		intval($layout['width']).'px; margin: 0 auto;">'.nl().
+		$objects.
+		'</div>'.nl();
+	return true;
+}
+
+
 function page_render_page_early($args)
 {
 	if ($args['edit']) {
@@ -164,12 +546,36 @@ function page_render_page_early($args)
 			html_add_js(base_url().'modules/page/page-edit.js');
 		}
 		html_add_css(base_url().'modules/page/page-edit.css');
-		
-		// set default grid
-		$grid = page_get_grid(array());
-		$grid = $grid['#data'];
-		html_add_js_var('$.glue.conf.page.default_grid_x', $grid['x']);
-		html_add_js_var('$.glue.conf.page.default_grid_y', $grid['y']);
+
+		// the tiled-video tiler ships with EVERY edited page, not only the
+		// ones that loaded WITH a video background: the background panel
+		// can build the canvas + feeder pair long after the render ran,
+		// and its tile toggle calls the tiler to start it - a page opened
+		// without a video background that gets one and is tiled in the
+		// same session must be able to paint (a no-op without a pair, so
+		// shipping it everywhere is harmless)
+		html_add_js(base_url().'js/page-background-video.js');
+
+		// set grid: the page's own stored size (page-grid-x/y on the page
+		// pseudo-object, written by the grid panel), falling back to the
+		// config default. The old global CONTENT_DIR/grid file is retired -
+		// the size is remembered per page now.
+		$grid_x = PAGE_DEFAULT_GRID_X;
+		$grid_y = PAGE_DEFAULT_GRID_Y;
+		if (isset($args['page'])) {
+			$p = load_object(['name'=>$args['page'].'.page']);
+			if (!$p['#error']) {
+				$p = $p['#data'];
+				if (!empty($p['page-grid-x'])) {
+					$grid_x = intval($p['page-grid-x']);
+				}
+				if (!empty($p['page-grid-y'])) {
+					$grid_y = intval($p['page-grid-y']);
+				}
+			}
+		}
+		html_add_js_var('$.glue.conf.page.grid_x', $grid_x);
+		html_add_js_var('$.glue.conf.page.grid_y', $grid_y);
 				
 		// set guides
 		$guide = expl(' ', PAGE_GUIDES_X);
@@ -186,6 +592,10 @@ function page_render_page_early($args)
 
 	// set the html title to the page name by default
 	html_title(page_short($args['page']));
+
+	// note where the objects will start, for the centering container
+	$bdy = &body();
+	_page_body_offset(isset($bdy['val']) && is_string($bdy['val']) ? strlen($bdy['val']) : 0);
 }
 
 
@@ -202,6 +612,15 @@ function page_serve_resource($args)
 		$fn = CONTENT_DIR.'/'.$pn.'/shared/'.$obj['page-background-file'];
 		if (isset($obj['page-background-mime'])) {
 			$mime = $obj['page-background-mime'];
+		} else {
+			$mime = '';
+		}
+		serve_file($fn, false, $mime);
+	} elseif (!empty($obj['page-background-video-file'])) {
+		// the video background is served the same way (2026-09-24)
+		$fn = CONTENT_DIR.'/'.$pn.'/shared/'.$obj['page-background-video-file'];
+		if (isset($obj['page-background-video-mime'])) {
+			$mime = $obj['page-background-video-mime'];
 		} else {
 			$mime = '';
 		}
@@ -224,23 +643,342 @@ function page_serve_resource($args)
 function page_set_grid($args)
 {
 	if (($x = @intval($args['x'])) == 0) {
-		return response(t('page.arg_x_invalid'), 400);
+		return response('Required argument "x" missing or invalid', 400);
 	}
 	if (($y = @intval($args['y'])) == 0) {
-		return response(t('page.arg_y_invalid'), 400);
+		return response('Required argument "y" missing or invalid', 400);
 	}
 	
 	$m = umask(0111);
 	if (!@file_put_contents(CONTENT_DIR.'/grid', $x.' '.$y)) {
 		umask($m);
-		return response(t('page.grid_save_error'), 500);
+		log_user_issue('save', 'could not save grid');
+		return response('Error saving to global grid file', 500);
 	} else {
 		umask($m);
 		return response(true);
 	}
 }
 
-register_service('page.set_grid', 'page_set_grid', array('auth'=>true));
+register_service('page.set_grid', 'page_set_grid', ['auth'=>true]);
+
+
+/**
+ *	set a page's layout mode and container width
+ *
+ *	@param array $args arguments
+ *		key 'page' is the page (page.revision)
+ *		key 'mode' is 'infinite' or 'centered' (optional)
+ *		key 'width' is the container width in px (optional)
+ *	@return array response
+ *		true if successful
+ */
+function page_set_layout($args)
+{
+	if (empty($args['page'])) {
+		return response('Required argument "page" missing', 400);
+	}
+	load_modules('glue');
+	$update = ['name'=>$args['page'].'.page'];
+	$remove = [];
+
+	if (isset($args['mode'])) {
+		if ($args['mode'] == 'centered') {
+			$update['page-layout-mode'] = 'centered';
+		} elseif ($args['mode'] == 'infinite') {
+			// infinite is the default, so it is stored by ABSENCE - a page that
+			// has never been switched keeps exactly the file it had
+			$remove[] = 'page-layout-mode';
+		} else {
+			return response('Invalid layout mode '.quot($args['mode']), 400);
+		}
+	}
+
+	if (isset($args['width'])) {
+		$width = intval($args['width']);
+		if ($width < PAGE_MIN_CONTAINER_WIDTH || PAGE_MAX_CONTAINER_WIDTH < $width) {
+			return response('Container width must be between '.PAGE_MIN_CONTAINER_WIDTH.
+				' and '.PAGE_MAX_CONTAINER_WIDTH.'px', 400);
+		}
+		$update['page-container-width'] = $width;
+	}
+
+	if (1 < count($update)) {
+		$ret = update_object($update);
+		if ($ret['#error']) {
+			return $ret;
+		}
+	}
+	foreach ($remove as $attr) {
+		$ret = object_remove_attr(['name'=>$args['page'].'.page', 'attr'=>$attr]);
+		if ($ret['#error']) {
+			return $ret;
+		}
+	}
+	return response(true);
+}
+
+register_service('page.set_layout', 'page_set_layout', ['auth'=>true]);
+
+
+/**
+ *	set the zoom of the mobile guided view for the whole site (site settings,
+ *	see /pages): percent of the default reading scale, one of
+ *	guided_zoom_choices(). The default is stored by absence. Pages may be
+ *	cached with the attribute the front end reads (common.inc.php), so the
+ *	page cache is dropped.
+ *
+ *	@param array $args arguments
+ *		key 'zoom' int one of guided_zoom_choices()
+ *	@return array response
+ */
+function page_set_guided_zoom($args)
+{
+	$zoom = isset($args['zoom']) ? intval($args['zoom']) : 0;
+	if (!in_array($zoom, guided_zoom_choices(), true)) {
+		return response('Invalid zoom '.quot(@$args['zoom']).', must be one of '.implode(', ', guided_zoom_choices()), 400);
+	}
+	if ($zoom == guided_zoom_default()) {
+		// the default: nothing to remove if it was never written
+		$ret = site_options_remove('page-guided-zoom');
+	} else {
+		$ret = site_options_update(['page-guided-zoom'=>(string)$zoom]);
+	}
+	if ($ret['#error']) {
+		return $ret;
+	}
+	drop_cache('page');
+	return response(true);
+}
+
+register_service('page.set_guided_zoom', 'page_set_guided_zoom', ['auth'=>true]);
+
+
+/**
+ *	switch the mobile guided view on or off for the whole site (site settings,
+ *	see /pages). On is the default and is stored by ABSENCE; only
+ *	page-guided = off is written, on the startpage's own page-object. While it
+ *	is off the front end does not load the script at all (common.inc.php), so
+ *	the page cache is dropped here too.
+ *
+ *	@param array $args arguments
+ *		key 'enabled' bool
+ *	@return array response
+ */
+function page_set_guided($args)
+{
+	if (!isset($args['enabled'])) {
+		return response('Required argument "enabled" missing', 400);
+	}
+	$enabled = filter_var($args['enabled'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+	if ($enabled === NULL) {
+		return response('Argument "enabled" must be a boolean', 400);
+	}
+	if ($enabled) {
+		// the default: nothing to remove if it was never switched off
+		$ret = site_options_remove('page-guided');
+	} else {
+		$ret = site_options_update(['page-guided'=>'off']);
+	}
+	if ($ret['#error']) {
+		return $ret;
+	}
+	drop_cache('page');
+	return response(true);
+}
+
+register_service('page.set_guided', 'page_set_guided', ['auth'=>true]);
+
+
+/**
+ *	remember the last typeface picked via "change typeface", applied as
+ *	the default for newly created text objects (see
+ *	modules/text/text-edit.js) instead of the browser default - site-wide,
+ *	stored on the startpage's own page-object like the other site settings
+ *
+ *	@param array $args arguments
+ *		key 'font' the font-family string last selected
+ *	@return array response
+ */
+function page_set_last_font($args)
+{
+	if (!isset($args['font']) || $args['font'] === '') {
+		return response('Required argument "font" missing', 400);
+	}
+	return site_options_update(['page-last-text-font'=>$args['font']]);
+}
+
+register_service('page.set_last_font', 'page_set_last_font', ['auth'=>true]);
+
+
+/**
+ *	remember the last font size picked via "change font size", applied as
+ *	the default for newly created text objects - same rationale as
+ *	page_set_last_font()
+ *
+ *	@param array $args arguments
+ *		key 'size' the font-size string last selected (e.g. '18px')
+ *	@return array response
+ */
+function page_set_last_font_size($args)
+{
+	if (!isset($args['size']) || $args['size'] === '') {
+		return response('Required argument "size" missing', 400);
+	}
+	return site_options_update(['page-last-text-font-size'=>$args['size']]);
+}
+
+register_service('page.set_last_font_size', 'page_set_last_font_size', ['auth'=>true]);
+
+
+/**
+ *	remember the last line height picked via "change line height", applied
+ *	as the default for newly created text objects - same rationale as
+ *	page_set_last_font()
+ *
+ *	@param array $args arguments
+ *		key 'height' the line-height string last selected (e.g. '1.2em')
+ *	@return array response
+ */
+function page_set_last_line_height($args)
+{
+	if (!isset($args['height']) || $args['height'] === '') {
+		return response('Required argument "height" missing', 400);
+	}
+	return site_options_update(['page-last-text-line-height'=>$args['height']]);
+}
+
+register_service('page.set_last_line_height', 'page_set_last_line_height', ['auth'=>true]);
+
+
+/**
+ *	implements upload for preferred_module 'page_favicon'
+ *
+ *	kept as its own top-level function (rather than a branch inside
+ *	page_upload()) because upload_files() resolves its fast path by
+ *	literally calling "{preferred_module}_upload" - a branch inside
+ *	page_upload() would never be reached that way for this preferred_module
+ *	value, falling through to the generic per-module upload loop instead,
+ *	where e.g. image_upload() (which does no preferred_module check of its
+ *	own) could wrongly claim a plain .png/.gif favicon before this ever got
+ *	a chance to
+ */
+function page_favicon_upload($args)
+{
+	// site-wide favicon: stored with the site options (see
+	// site_options_page()) regardless of which page it's viewed from, since
+	// it applies to every page - only accepted when uploaded to the site
+	// options page itself (the upload button is on the options page)
+	if (empty($args['page']) || $args['page'] != site_options_page()) {
+		return false;
+	}
+	// check if supported file: accept a recognized mime, or (since
+	// browsers are inconsistent about reporting mime types for less common
+	// formats, often falling back to a generic type that upload_files()
+	// already clears to '') an empty mime paired with a recognized
+	// extension - reject anything else, including an unrecognized *non*-
+	// empty mime regardless of extension
+	$mime_ok = in_array($args['mime'], ['image/x-icon', 'image/vnd.microsoft.icon', 'image/png', 'image/gif', 'image/svg+xml']);
+	$ext_ok = in_array(filext($args['file']), ['ico', 'png', 'gif', 'svg']);
+	if (!$mime_ok && !($args['mime'] == '' && $ext_ok)) {
+		return false;
+	}
+
+	// check if there is already a favicon and delete it
+	$obj = site_options_load();
+	if (!$obj['#error']) {
+		$obj = $obj['#data'];
+		if (!empty($obj['page-favicon-file'])) {
+			delete_upload(['pagename'=>get_first_item(expl('.', $args['page'])), 'file'=>$obj['page-favicon-file'], 'max_cnt'=>1]);
+		}
+	}
+
+	$ret = site_options_update(['page-favicon-file'=>$args['file'], 'page-favicon-mime'=>$args['mime']]);
+	if ($ret['#error']) {
+		log_msg('error', 'page_favicon_upload: error updating page object: '.quot($ret['#data']));
+		return false;
+	} else {
+		return true;
+	}
+}
+
+
+/**
+ *	implements upload for preferred_module 'page_font'
+ *
+ *	same rationale as page_favicon_upload() for being a standalone
+ *	top-level function rather than a branch inside page_upload() - see its
+ *	docblock
+ */
+function page_font_upload($args)
+{
+	// site-wide custom fonts: same storage/restriction rationale as
+	// page_favicon_upload()
+	if (empty($args['page']) || $args['page'] != site_options_page()) {
+		return false;
+	}
+	// woff/woff2/ttf/otf accepted - see module_text.inc.php's
+	// _include_custom_font() for the format() mapping used when declaring
+	// these via @font-face. The EXTENSION is the authoritative signal:
+	// browsers report font mimes wildly inconsistently (Chromium calls an
+	// .otf application/vnd.ms-opentype, Firefox something else again), and
+	// trusting the mime here would knock those uploads off this module and
+	// into the generic fallback, which stores the font as a download object
+	// instead. A known font mime is still accepted on its own, for uploads
+	// that come with a recognized mime but an unusual extension.
+	$mime_ok = in_array($args['mime'], ['font/woff', 'application/font-woff', 'application/x-font-woff',
+		'font/woff2', 'application/font-woff2', 'application/x-font-woff2',
+		'font/ttf', 'font/sfnt', 'application/x-font-ttf', 'application/x-font-truetype',
+		'font/otf', 'application/x-font-opentype', 'application/x-font-otf']);
+	$ext_ok = in_array(filext($args['file']), ['woff', 'woff2', 'ttf', 'otf']);
+	if (!$ext_ok && !$mime_ok) {
+		return false;
+	}
+
+	$obj = site_options_load();
+	$fonts = [];
+	if (!$obj['#error'] && !empty($obj['#data']['page-custom-fonts'])) {
+		$fonts = @json_decode($obj['#data']['page-custom-fonts'], true);
+		if (!is_array($fonts)) {
+			$fonts = [];
+		}
+	}
+
+	if (10 <= count($fonts)) {
+		// reject cleanly rather than returning false, which would fall
+		// through to another module's generic upload handler and silently
+		// store this as an unrelated object (e.g. a plain download) - the
+		// file was already saved to disk by upload_files() before this
+		// function was called, so it needs cleaning up here
+		delete_upload(['pagename'=>get_first_item(expl('.', $args['page'])), 'file'=>$args['file'], 'max_cnt'=>1]);
+		return 'limit';
+	}
+
+	// derive a font-family name from the filename, deduplicating against
+	// any already-uploaded font of the same name
+	$name = preg_replace('/[^A-Za-z0-9_-]/', '', pathinfo($args['file'], PATHINFO_FILENAME));
+	if (empty($name)) {
+		$name = 'Font';
+	}
+	$base = $name;
+	$i = 2;
+	while (in_array($name, array_column($fonts, 'name'))) {
+		$name = $base.'-'.$i;
+		$i++;
+	}
+	$fonts[] = ['file'=>$args['file'], 'name'=>$name];
+
+	$ret = site_options_update(['page-custom-fonts'=>json_encode($fonts)]);
+	if ($ret['#error']) {
+		log_msg('error', 'page_font_upload: error updating page object: '.quot($ret['#data']));
+		return false;
+	} else {
+		// the frontend needs both to show the new entry (and later remove
+		// it) without a reload - $args['file'] is the server-assigned
+		// stored filename, which can differ from the originally uploaded one
+		return ['file'=>$args['file'], 'name'=>$name];
+	}
+}
 
 
 function page_upload($args)
@@ -249,38 +987,89 @@ function page_upload($args)
 	if (empty($args['preferred_module']) || $args['preferred_module'] != 'page') {
 		return false;
 	}
-	// check if supported file
-	if (!in_array($args['mime'], array('image/jpeg', 'image/png', 'image/gif', 'image/webp')) || ($args['mime'] == '' && !in_array(filext($args['file']), array('jpg', 'jpeg', 'png', 'gif', 'webp')))) {
+	// images set the picture, videos the moving picture - each replaces
+	// the other, and the old file goes with it (danja's call, 2026-09-24)
+	if (in_array($args['mime'], ['image/jpeg', 'image/png', 'image/gif']) || ($args['mime'] == '' && in_array(filext($args['file']), ['jpg', 'jpeg', 'png', 'gif']))) {
+		$video = false;
+	} elseif (in_array($args['mime'], ['video/mp4', 'video/webm', 'video/ogg']) || ($args['mime'] == '' && in_array(filext($args['file']), ['mp4', 'webm', 'ogg']))) {
+		// the formats browsers play natively; a background video is served
+		// as-is, not transcoded
+		$video = true;
+	} elseif (in_array($args['mime'], ['video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/x-ms-wmv']) || in_array(filext($args['file']), ['mov', 'qt', 'avi', 'mkv', 'wmv'])) {
+		// a video, but not one browsers play: claimed here so it does not
+		// fall through to the video module and become an object while the
+		// author is in the background panel - and the uploaded file goes
+		// with the refusal
+		load_modules('glue');
+		delete_upload(['pagename'=>get_first_item(expl('.', $args['page'])), 'file'=>$args['file'], 'max_cnt'=>0]);
+		return response('This video format cannot be a page background - use mp4 or webm', 400);
+	} else {
 		return false;
 	}
 
-	// check if there is already a background-image and delete it
-	$obj = load_object(array('name'=>$args['page'].'.page'));
+	// check if there is already a background and delete its file
+	$obj = load_object(['name'=>$args['page'].'.page']);
 	if (!$obj['#error']) {
 		$obj = $obj['#data'];
-		if (!empty($obj['page-background-file'])) {
-			delete_upload(array('pagename'=>get_first_item(expl('.', $args['page'])), 'file'=>$obj['page-background-file'], 'max_cnt'=>1));
+		foreach (['page-background-file', 'page-background-video-file'] as $attr) {
+			if (!empty($obj[$attr])) {
+				delete_upload(['pagename'=>get_first_item(expl('.', $args['page'])), 'file'=>$obj[$attr], 'max_cnt'=>1]);
+			}
 		}
 	}
-	
-	// set as background-image in page object
-	$obj = array();
+
+	// set as background in page object
+	$obj = [];
 	$obj['name'] = $args['page'].'.page';
-	$obj['page-background-file'] = $args['file'];
-	$obj['page-background-mime'] = $args['mime'];
-	
-	// update page object
-	load_modules('glue');
-	$ret = update_object($obj);
+	if ($video) {
+		$obj['page-background-video-file'] = $args['file'];
+		$obj['page-background-video-mime'] = $args['mime'];
+		load_modules('glue');
+		$ret = update_object($obj);
+		if (!$ret['#error']) {
+			$ret = object_remove_attr(['name'=>$args['page'].'.page',
+				'attr'=>['page-background-file', 'page-background-mime']]);
+		}
+	} else {
+		$obj['page-background-file'] = $args['file'];
+		$obj['page-background-mime'] = $args['mime'];
+		load_modules('glue');
+		$ret = update_object($obj);
+		if (!$ret['#error']) {
+			$ret = object_remove_attr(['name'=>$args['page'].'.page',
+				'attr'=>['page-background-video-file', 'page-background-video-mime']]);
+		}
+	}
 	if ($ret['#error']) {
-		log_msg('page_upload: error updating page object: '.quot($ret['#data']));
+		log_msg('error', 'page_upload: error updating page object: '.quot($ret['#data']));
 		return false;
 	} else {
-		// we don't actually render the object here, but signal the 
+		// we don't actually render the object here, but signal the
 		// frontend that everything went okay
 		return true;
 	}
 }
+
+
+/**
+ *	serve the site-wide favicon (uploaded on the startpage, applies to
+ *	every page - see default_html()'s use of this same startpage lookup)
+ */
+function controller_favicon($args)
+{
+	$obj = site_options_load();
+	if ($obj['#error'] || empty($obj['#data']['page-favicon-file'])) {
+		hotglue_error(404);
+		return;
+	}
+	$obj = $obj['#data'];
+	$pn = get_first_item(expl('.', $obj['name']));
+	$fn = CONTENT_DIR.'/'.$pn.'/shared/'.$obj['page-favicon-file'];
+	$mime = !empty($obj['page-favicon-mime']) ? $obj['page-favicon-mime'] : '';
+	serve_file($fn, false, $mime);
+}
+
+register_controller('favicon', '', 'controller_favicon');
 
 
 /*
@@ -440,7 +1229,7 @@ function page_password_verify($page, $pw)
  */
 function page_password_prompt($page, $error)
 {
-	$url = '?'.htmlspecialchars($page, ENT_QUOTES, 'UTF-8');
+	$url = base_path().'?'.htmlspecialchars($page, ENT_QUOTES, 'UTF-8');
 	echo '<!DOCTYPE html>'.nl();
 	echo '<html>'.nl();
 	echo '<head>'.nl();

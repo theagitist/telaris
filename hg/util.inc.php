@@ -20,7 +20,7 @@ function array_to_js($container)
 	$ret = '<script type="text/javascript">'.nl();
 	// sort container by keys
 	ksort($container);
-	$exists = array();
+	$exists = [];
 	foreach ($container as $key=>$val) {
 		// make sure the keys exist
 		$objs = expl('.', $key);
@@ -108,47 +108,6 @@ function dir_has_same_file($dir, $fn, $orig_fn = '')
 
 
 /**
- *	check if two directories are different
- *
- *	@param string $a filename
- *	@param string $b filename
- *	@return bool
- */
-function dir_is_different($a, $b)
-{
-	if (substr($a, -1) == '/') {
-		$a = substr($a, 0, -1);
-	}
-	if (substr($b, -1) == '/') {
-		$b = substr($b, 0, -1);
-	}
-	
-	$a_fns = @scandir($a);
-	$b_fns = @scandir($b);
-	if ($a_fns !== $b_fns) {
-		return true;
-	}
-	
-	foreach ($a_fns as $fn) {
-		if ($fn == '.' || $fn == '..') {
-			continue;
-		}
-		if (is_dir($a.'/'.$fn) || is_dir($b.'/'.$fn)) {
-			if (dir_is_different($a.'/'.$fn, $b.'/'.$fn)) {
-				return true;
-			}
-		} else {
-			if (file_is_different($a.'/'.$fn, $b.'/'.$fn)) {
-				return true;
-			}
-		}
-	}
-	
-	return false;
-}
-
-
-/**
  *	split a string by string
  *
  *	like php's explode() but handles empty strings better.
@@ -160,7 +119,7 @@ function expl($delimiter, $string)
 {
 	$ret = explode($delimiter, $string);
 	if (count($ret) == 1 && empty($ret[0])) {
-		return array();
+		return [];
 	} else {
 		return $ret;
 	}
@@ -177,9 +136,9 @@ function expl($delimiter, $string)
 function expl_whitesp($s, $honor_quot = false)
 {
 	// same characters as trim() uses
-	$whitesp = array(' ', "\t", "\n", "\r", "\0", "\x0B");
-	$quot = array('"', "'");
-	$ret = array();
+	$whitesp = [' ', "\t", "\n", "\r", "\0", "\x0B"];
+	$quot = ['"', "'"];
+	$ret = [];
 
 	$prev = -1;
 	$cur_quot = false;
@@ -331,7 +290,7 @@ function http_digest_check($users, $realm = '')
 	}
 	
 	// taken from one of the comments
-	$data = array();
+	$data = [];
 	preg_match("/username=\"([^\"]+)\"/i", $auth, $match);
 	if (isset($match[1])) {
 		$data['username'] = $match[1];
@@ -387,7 +346,9 @@ function http_digest_check($users, $realm = '')
 	$a2 = md5($_SERVER['REQUEST_METHOD'].':'.$data['uri']);
 	$valid_response = md5($a1.':'.$data['nonce'].':'.$data['nc'].':'.$data['cnonce'].':'.$data['qop'].':'.$a2);
 	
-	if ($data['response'] != $valid_response) {
+	// constant-time comparison to avoid leaking response length/content
+	// through response-time differences
+	if (!hash_equals($valid_response, $data['response'])) {
 		return -4;
 	} else {
 		return 0;
@@ -424,19 +385,6 @@ function is_url($s)
 	}
 }
 
-if (!function_exists('is_iterable'))
-{
-	/**
-	 * determine if a variable is iterable (already implemented in PHP 7.1+)
-	 *
-	 * @param mixed $var the variable to check
-	 * @return bool
-	 */
-	function is_iterable($var)
-	{
-		return is_array($var) || $var instanceof Traversable;
-	}
-}
 
 
 /**
@@ -630,4 +578,59 @@ function var_dump_inl($var)
 		$ret = str_replace('  ', ' ', $ret, $cnt);
 	} while (0 < $cnt);
 	return trim($ret);
+}
+
+/**
+ *	order objects into the visual reading order
+ *
+ *	Sorts objects by their object-top coordinate, grouping objects whose
+ *	tops are within $row_threshold pixels of each other into a "row", and
+ *	ordering each row left-to-right. This is the automatic reading order
+ *	for screen readers (SOW-accessibility.md, Feature 1): source order
+ *	follows visual flow, while the objects' absolute positioning keeps the
+ *	visual layout exactly as it was.
+ *
+ *	The name tie-break makes the result deterministic regardless of PHP
+ *	version (usort is only guaranteed stable from PHP 8 on).
+ *
+ *	@param array $objs array of arrays with 'name', 'top' and 'left' (int)
+ *	@param int $row_threshold px within which two tops count as one row
+ *	@return array the 'name' values in reading order
+ */
+function a11y_order_objects($objs, $row_threshold)
+{
+	// first sort top-down; left within equal tops is applied per-row below
+	usort($objs, function($a, $b) {
+		if ($a['top'] != $b['top']) {
+			return ($a['top'] < $b['top']) ? -1 : 1;
+		}
+		return strcmp($a['name'], $b['name']);
+	});
+	
+	// group into rows: an object joins the current row while its top is
+	// within the threshold of the row's first (topmost) object
+	$rows = array();
+	$row_top = null;
+	foreach ($objs as $o) {
+		if ($row_top === null || $o['top'] - $row_top > $row_threshold) {
+			$rows[] = array();
+			$row_top = $o['top'];
+		}
+		$rows[count($rows)-1][] = $o;
+	}
+	
+	// each row left-to-right, the name tie-break for identical positions
+	$ret = array();
+	foreach ($rows as $row) {
+		usort($row, function($a, $b) {
+			if ($a['left'] != $b['left']) {
+				return ($a['left'] < $b['left']) ? -1 : 1;
+			}
+			return strcmp($a['name'], $b['name']);
+		});
+		foreach ($row as $o) {
+			$ret[] = $o['name'];
+		}
+	}
+	return $ret;
 }

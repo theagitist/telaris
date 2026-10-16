@@ -1,33 +1,119 @@
 /* this file is being included for editing a page */
 
-#glue-colorpicker {
-	/* colorpicker used for page and objects alike */
-	bottom: 20px;
-	position: fixed;
-	right: 20px;
+.moveable-line {
+	/* Moveable renders a bounding-box outline around every registered
+	   object (draggable or not) by default; jQuery UI's draggable/resizable
+	   never showed one outside of an active drag, only small resize-handle
+	   squares, so it's hidden here to match */
+	display: none !important;
 }
 
-#glue-colorpicker-transparent {
-	/* icon for transparency inside the colorpicker element */
-	background-image: url(../img/colorpicker-transparent.png);
-	border-style: solid;
-	border-width: 1px;
-	bottom: 6px;
-	cursor: pointer;
-	height: 10px;
+.moveable-rotation-line {
+	/* Moveable's rotation handle hangs off the box on a connector that
+	   carries .moveable-line as well, which the rule above hides outright -
+	   put this one back, and in the same black as the handles rather than
+	   Moveable's blue */
+	display: block !important;
+	background: #000 !important;
+}
+
+.moveable-rotation-control {
+	/* Moveable's default for the knob is cursor: alias; draw our own
+	   rotation cursor instead - a white-outlined ring with an arrowhead at
+	   the top (the classic rotate glyph), hotspot at its centre. !important
+	   like the rules above: the injected stylesheet's .moveable-rotation-
+	   control outranks the plain selector. */
+	cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><circle cx='16' cy='16' r='9.5' fill='none' stroke='white' stroke-width='4.4'/><circle cx='16' cy='16' r='9.5' fill='none' stroke='%23111' stroke-width='2.4'/><path d='M 14.5 3.5 L 19.8 6 L 14.5 8.5 Z' fill='%23111' stroke='white' stroke-width='1.4' stroke-linejoin='round'/></svg>") 16 16, alias !important;
+}
+
+.moveable-control-box {
+	/* objects can have a z-index up to 199 ($.glue.stack); Moveable's
+	   control box defaults to z-index 10, which a same-position object can
+	   then win the hit-test against at their shared corner/edge pixels,
+	   making resize handles unclickable. jQuery UI's own resize handles used
+	   99999 and that was matched here at first, which put the handles above
+	   every piece of editor UI as well: the colour picker (450) is opened
+	   from the menu of the very object whose handles then painted over it.
+	   300 keeps them clear of any object while leaving the editor's own
+	   layers - menus at 200/201, container handles at 400, picker at 450,
+	   modals at 500 - on top, where they belong. */
+	z-index: 300 !important;
+	/* a long-press on a handle pops the browser's own long-press UI - on
+	   Android that is the round, green text-selection magnifier with the
+	   arrow, drawn over the page at the press point. None of it is ours:
+	   user-select:none stops the selection gesture at the source, and
+	   touch-action:none hands the whole gesture (long-press included) to
+	   the page, so Moveable's drag listeners see it instead of the browser */
+	-webkit-touch-callout: none !important;
+	user-select: none !important;
+	touch-action: none !important;
+}
+
+.moveable-control {
+	/* Moveable's default resize handle is a 14px blue circle with a white
+	   border - restyled to a square outline with a light grey, semi-
+	   transparent backdrop and a smaller white square (see ::after below)
+	   centered inside it, matching the toolbar icon PNGs' look */
+	background: rgba(204, 204, 204, 0.5) !important;
+	border: 1px solid #000 !important;
+	border-radius: 0 !important;
+}
+
+/* Handles sit OUTSIDE the object rather than straddling its edge: "no menu or
+   interface shall interfere with page elements" (the hotglue design codex -
+   the early menu mock-up in hotglue-misc, visuals/hotglue-menu-early-sq.jpg,
+   has every control outside the box). Moveable centres each 14px control on
+   the edge with margin: -7px, leaving half of it over the content; these push
+   each handle back out along its own axis, -19px to clear the edge on the
+   near side and 5px on the far side, the extra 5px being the gap.
+
+   This is the UNROTATED case only. A margin shifts a control in the control
+   box's coordinates, which are screen-aligned, so "push the east handle
+   right" buries it inside an object turned 180°; place_handles() in
+   js/edit.js turns these offsets with the object and overrides what is here.
+   Keeping the straight case in CSS means it is right in the frame the handles
+   first paint in, rather than jumping once script catches up.
+
+   !important for the same reason the rules above need it: Moveable's own
+   stylesheet is injected by css-styled, which prefixes every selector with a
+   generated class, so its .moveable-control outranks .moveable-control.
+   moveable-e here no matter how specific this side gets. That is also why
+   place_handles() sets its margins as important - it has to beat this. */
+.moveable-control.moveable-n,
+.moveable-control.moveable-ne,
+.moveable-control.moveable-nw {
+	margin-top: -19px !important;
+}
+
+.moveable-control.moveable-s,
+.moveable-control.moveable-se,
+.moveable-control.moveable-sw {
+	margin-top: 5px !important;
+}
+
+.moveable-control.moveable-w,
+.moveable-control.moveable-nw,
+.moveable-control.moveable-sw {
+	margin-left: -19px !important;
+}
+
+.moveable-control.moveable-e,
+.moveable-control.moveable-ne,
+.moveable-control.moveable-se {
+	margin-left: 5px !important;
+}
+
+.moveable-control::after {
+	/* the smaller white square centered inside the handle */
+	content: '';
 	position: absolute;
-	right: 215px;
-	width: 10px;
-}
-
-.glue-colorpicker-transparent-set {
-	/* set when color is set to transparent */
-	border-color: red;
-}
-
-.glue-colorpicker-transparent-notset {
-	/* set when color is set to all other colors */
-	border-color: white;
+	top: 25%;
+	left: 25%;
+	width: 50%;
+	height: 50%;
+	background: #fff;
+	border: 1px solid #000;
+	box-sizing: border-box;
 }
 
 .glue-file-upload {
@@ -39,26 +125,35 @@
 
 .glue-contextmenu-left {
 	/* a context menu item to the object's left */
-	margin-bottom: 10px;
+	margin-bottom: 5px;
 	margin-right: 20px;
 }
 
 .glue-contextmenu-top {
 	/* a context menu item on top of the object */
 	margin-bottom: 20px;
-	margin-right: 10px;
+	margin-right: 5px;
 }
 
 .glue-grid {
-	/* a grid line */
+	/* a grid line, drawn as a row of dots (the colour is computed per
+	   background and passed in as --glue-grid-color); the line is 1px
+	   thick, the dots 1px across */
+	background-image: radial-gradient(circle, var(--glue-grid-color) 0.5px, transparent 0.6px);
 }
 
 .glue-grid-x {
-	/* a horizontal grid line */
+	/* a horizontal grid line: dots repeated along x */
+	height: 1px;
+	background-size: 8px 1px;
+	background-repeat: repeat-x;
 }
 
 .glue-grid-y {
-	/* a vertical grid line */
+	/* a vertical grid line: dots repeated along y */
+	width: 1px;
+	background-size: 1px 8px;
+	background-repeat: repeat-y;
 }
 
 .glue-guide {
@@ -85,6 +180,11 @@
 .glue-menu-enabled {
 	/* menu items that have an enabled/disabled state should use these classes */
 	/* this only works with images that are a bit transparent at least */
+	/* note: this never paints on a .glue-btn-icon - one class each, and the
+	   frame's pale fill is set in a rule further down, so it wins the
+	   background and the icon looks switched off. An icon button that wants a
+	   state needs a two-class rule (the copy button's clipboard dot is the
+	   one that exists, and it went its own way rather than green) */
 	background-color: rgba(0, 255, 0, 0.5);
 }
 
@@ -102,14 +202,132 @@
 }
 
 .glue-selected {
-	/* class for selected objects */
-	border-color: red;
-	border-style: dashed;
-	border-width: 1px;
+	/* Class for selected objects.
+	   An OUTLINE, not a border. A border was what this used since 2010, and
+	   it cost more than it looked: a border is part of the box, so adding one
+	   on select moved the object's content by a pixel, and select(),
+	   deselect() and the pre-save alter each had to shift the object by half
+	   of it to compensate - three places holding one number between them. It
+	   also owned the object's border-* properties outright, so an object with
+	   a border of its own could not be selected visibly (its inline colour
+	   and style won) and jumped by half ITS border, not by half of the
+	   selection's. An outline draws outside the box, changes no layout at
+	   all, and follows border-radius. */
+	outline: 1px dashed black;
+}
+
+.glue-selected.glue-anchor {
+	/* The object the others align to, while several are selected: a solid
+	   heavier outline against the others' dashed one, so it is plain which
+	   one the alignment will follow. Only there once there are two selected
+	   (see mark_anchor in $.glue.sel). */
+	outline: 2px solid #000;
+}
+
+.glue-multisel {
+	/* The multi-select toolbar (see $.glue.multisel): buttons in a row, laid
+	   out by js/edit.js on the anchor. Page coordinates, above the objects
+	   (199) and level with the object menus (200/201), below the panels (450) */
+	position: absolute;
+	z-index: 201;
+	display: flex;
+	/* 5px between the buttons, the object menus' own spacing (their buttons
+	   carry a 5px right margin) */
+	gap: 5px;
+}
+
+.glue-multisel .glue-multisel-gap {
+	/* a double gap between the edges and the centres */
+	margin-left: 5px;
+}
+
+.glue-selected.glue-edge-fade {
+	/* The selection outline of a faded object. The fade is a mask on the
+	   object, and a mask clips everything the element paints - the outline
+	   included, which is drawn outside the box and so falls outside the mask
+	   image altogether - so the outline vanished the moment an object was
+	   faded. Here the mask is rebuilt so the outline survives: the fade
+	   inside the object's own shape, plus everything outside that shape up to
+	   2px beyond the box (which is where the outline is, and where the object
+	   paints nothing). The shape is the border-box, which mask-clip follows
+	   round border-radius corners, so the outline follows them too and no
+	   radius is ever read or stored.
+
+	   A mask stack is a left fold of mask-composite from the bottom layer up,
+	   so with S = the object's shape (clipped to the rounded border-box),
+	   B = the box grown by 2px (no-clip) and F = fade-x INTERSECT fade-y:
+	       F                              the two gradients, bottom
+	       F AND S                        intersect S: the fade within the shape
+	       B XOR (F AND S)  = B - F_s     exclude B: all of B except the fade
+	       S XOR (B - F_s)  = F_s OR (B - S)   exclude S: the fade, plus the
+	                                           ring outside the shape
+	   Layers below, top to bottom: S (exclude), B (exclude), S (intersect),
+	   fade-x (intersect), fade-y. (-webkit-mask-composite spells the same
+	   operators xor, xor, source-in, source-in, source-over.) */
+	/* The ring that keeps the outline also lets through whatever the object
+	   paints outside its box - its glow and drop shadow, at full strength,
+	   as a red (or any colour) band round the box the moment the object was
+	   selected, though unselected the mask hides them. So the outer shadow
+	   layers go while it is selected (--glue-outer, css/main.css); the inner
+	   glow, inside the shape and faded with it, stays. */
+	--glue-outer: 0;
+	--glue-sel-fill: linear-gradient(#000, #000);
+	-webkit-mask-image: var(--glue-sel-fill), var(--glue-sel-fill),
+		var(--glue-sel-fill), var(--glue-fade-x), var(--glue-fade-y);
+	mask-image: var(--glue-sel-fill), var(--glue-sel-fill),
+		var(--glue-sel-fill), var(--glue-fade-x), var(--glue-fade-y);
+	-webkit-mask-size: 100% 100%, calc(100% + 4px) calc(100% + 4px),
+		100% 100%, 100% 100%, 100% 100%;
+	mask-size: 100% 100%, calc(100% + 4px) calc(100% + 4px),
+		100% 100%, 100% 100%, 100% 100%;
+	-webkit-mask-position: 0 0, -2px -2px, 0 0, 0 0, 0 0;
+	mask-position: 0 0, -2px -2px, 0 0, 0 0, 0 0;
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	-webkit-mask-clip: border-box, no-clip, border-box, border-box, border-box;
+	mask-clip: border-box, no-clip, border-box, border-box, border-box;
+	-webkit-mask-composite: xor, xor, source-in, source-in, source-over;
+	mask-composite: exclude, exclude, intersect, intersect, add;
 }
 
 .glue-ui {
 	/* all ui elements should use this class */
+}
+
+.object,
+.object * {
+	/* In the editor an object is a thing you drag, wherever you take hold of
+	   it, so the pointer says so over the whole of it. It reaches into the
+	   descendants on purpose: 'move' inherits, but a child that declares its
+	   own cursor keeps it, and the two that do are exactly the ones that lie
+	   here - a link, whose hand says "this goes somewhere" when in the editor
+	   clicking it does nothing at all, and a text object's own surface, whose
+	   I-beam says "this selects text" when a drag from it moves the object. */
+	cursor: move;
+}
+
+.object.locked,
+.object.locked * {
+	/* nothing to drag, and the pointer says so rather than promising */
+	cursor: default;
+}
+
+.object.glue-text-editing,
+.object.glue-text-editing * {
+	/* while a text object is EDITED the caret is in there, so the I-beam does
+	   belong - and inside the contenteditable a link keeps it too, because
+	   there the link really is what is under the pointer. Last of the three,
+	   so it wins over both. */
+	cursor: text;
+}
+
+.glue-upload-input,
+.glue-upload-input::file-selector-button {
+	/* the invisible file input lies over its button, so it is the thing the
+	   pointer is over: it has to say what the button underneath says (the
+	   .glue-btn-icon pointer), or the buttons that are pickers alone read as
+	   dead */
+	cursor: pointer;
 }
 
 .glue-upload-statusbar {
@@ -117,7 +335,7 @@
 	background-color: lightgrey;
 	border-radius: 2px;
 	height: 4px;
-	width: 100px;
+	width: 200px;
 }
 
 .glue-upload-statusbar-done {
@@ -128,21 +346,1483 @@
 	width: 0%;
 }
 
-.ui-draggable-dragging {
-	/* class for object being dragged */
+.glue-upload-statusbar-label {
+	/* percentage/speed shown once an upload has been running for a while */
+	color: #333;
+	display: none;
+	font-size: 11px;
+	padding-top: 2px;
+	text-align: center;
+	white-space: nowrap;
 }
 
-/* taken from jquery-ui-1.8.5.custom.css */
+.glue-modal-backdrop {
+	/* full-screen dimmed backdrop behind a modal dialog */
+	background: rgba(0, 0, 0, 0.4);
+	bottom: 0;
+	left: 0;
+	position: fixed;
+	right: 0;
+	top: 0;
+	z-index: 500;
+}
 
-.ui-resizable { position: relative;}
-.ui-resizable-handle { position: absolute;font-size: 0.1px;z-index: 99999; display: block;}
-.ui-resizable-disabled .ui-resizable-handle, .ui-resizable-autohide .ui-resizable-handle { display: none; }
-.ui-resizable-n { cursor: n-resize; height: 7px; width: 100%; top: -5px; left: 0; }
-.ui-resizable-s { cursor: s-resize; height: 7px; width: 100%; bottom: -5px; left: 0; }
-.ui-resizable-e { cursor: e-resize; width: 7px; right: -5px; top: 0; height: 100%; }
-.ui-resizable-w { cursor: w-resize; width: 7px; left: -5px; top: 0; height: 100%; }
-/* this was changed from {right,bottom} 1px */
-.ui-resizable-se { cursor: se-resize; width: 12px; height: 12px; right: -5px; bottom: -5px; }
-.ui-resizable-sw { cursor: sw-resize; width: 9px; height: 9px; left: -5px; bottom: -5px; }
-.ui-resizable-nw { cursor: nw-resize; width: 9px; height: 9px; left: -5px; top: -5px; }
-.ui-resizable-ne { cursor: ne-resize; width: 9px; height: 9px; right: -5px; top: -5px;}
+.glue-modal {
+	background: #fff;
+	border: 1px solid #000;
+	box-sizing: border-box;
+	left: 50%;
+	padding: 15px;
+	position: fixed;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	width: 320px;
+}
+
+.glue-modal-field {
+	display: block;
+	margin-bottom: 10px;
+}
+
+.glue-modal-field span {
+	display: block;
+	font-size: 11px;
+	margin-bottom: 3px;
+}
+
+.glue-modal-field input {
+	box-sizing: border-box;
+	width: 100%;
+}
+
+.glue-modal-buttons {
+	text-align: right;
+}
+
+.glue-modal-buttons button {
+	margin-left: 5px;
+}
+
+
+/* Object Properties modal - the object shown as the <div> it renders as, with
+   the parts hotglue owns as plain text and the editable parts as inputs sitting
+   inline where they belong. Monospace throughout, because it is meant to read
+   as markup rather than as a form. */
+
+.glue-modal-tag {
+	/* wider than the plain modal: a tag with attributes needs the room */
+	min-width: 360px;
+}
+
+.glue-tag {
+	background: #f6f6f6;
+	border: 1px solid #ddd;
+	font-family: monospace;
+	font-size: 12px;
+	/* the lines are spaced like a popout's rows (6px apart, as
+	   .glue-popover-row has it) rather than by a tall line-height; the
+	   attribute rows are in a wrapper of their own, with the same gap */
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	line-height: 1.4;
+	padding: 8px;
+}
+
+.glue-tag-attrs {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.glue-tag-attrs:empty {
+	display: none;
+}
+
+.glue-tag-line {
+	/* each attribute on its own line, so long values don't reflow the tag */
+	align-items: center;
+	display: flex;
+}
+
+.glue-tag-line > span {
+	/* the literal parts carry their own spacing and indentation, and a flex
+	   item collapses leading whitespace - so keep it verbatim */
+	white-space: pre;
+}
+
+.glue-tag-name {
+	color: #000;
+	font-weight: bold;
+}
+
+.glue-tag-punct {
+	color: #999;
+}
+
+.glue-tag-fixed {
+	/* set by hotglue: shown so the user can see it, never editable */
+	color: #666;
+	cursor: text;
+	user-select: all;
+}
+
+.glue-tag-line > .glue-tag-fixed {
+	/* the long parts - the dotted id, a long class list - wrap within
+	   their line instead of scrolling the tag sideways (danja's call,
+	   2026-09-24). Outranks the .glue-tag-line > span pre rule above. */
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+}
+
+.glue-tag-input {
+	background: #fff;
+	border: 1px solid #bbb;
+	box-sizing: border-box;
+	font-family: monospace;
+	font-size: 12px;
+	min-width: 60px;
+	padding: 1px 3px;
+}
+
+.glue-tag-input:focus {
+	/* no focus ring on the dialog's fields (danja's call, 2026-10-06): the
+	   caret says where you are, and the frame stays the plain grey one */
+	outline: none;
+}
+
+.glue-tag-class-input {
+	/* the user's own classes: a line of its own, three quarters of the tag */
+	flex: none;
+	margin-left: 2ch;
+	width: 75%;
+}
+
+.glue-tag-copy {
+	/* the id's copy button: 12px, no frame - a glyph beside the text, not a
+	   button on its own plate. The box is set in JS, the mask here (see the
+	   note on $.glue.icon()'s inline size); the frame comes off here, where
+	   it would beat .glue-btn-icon's one class with two. */
+	flex: none;
+	margin-left: 6px;
+}
+
+.glue-tag .glue-tag-copy,
+.glue-tag .glue-tag-copy:hover {
+	background: none;
+	border: 0;
+}
+
+.glue-tag .glue-tag-copy::before {
+	-webkit-mask-size: 12px 12px;
+	mask-size: 12px 12px;
+	background-color: #333;
+}
+
+.glue-tag .glue-tag-copy:hover::before {
+	background-color: #333;
+}
+
+.glue-tag-attr-name {
+	width: 110px;
+}
+
+.glue-tag-attr-value {
+	width: 150px;
+}
+
+.glue-tag-invalid {
+	background: #ffecec;
+	border-color: #c00;
+}
+
+.glue-tag-remove {
+	background: none;
+	border: 0;
+	color: #999;
+	cursor: pointer;
+	font-size: 14px;
+	line-height: 1;
+	margin-left: 6px;
+	padding: 0 4px;
+}
+
+.glue-tag-remove:hover {
+	color: #c00;
+}
+
+.glue-tag-add {
+	font-size: 11px;
+	margin-left: 2ch;
+}
+
+.glue-tag-problem {
+	color: #c00;
+	font-size: 11px;
+	margin: 6px 0;
+	min-height: 14px;
+}
+
+.glue-modal-note {
+	/* which text a link dialog is about to act on */
+	color: #666;
+	font-size: 11px;
+	margin-bottom: 10px;
+}
+
+/* The colour picker, vendored as vanilla-picker, opens at 250x315 - a big
+   box for one swatch of colour, and it lands on top of the object being
+   coloured. Roughly halved here: the gradient square stops being square (it
+   is a saturation/lightness field, not a picture, and it does not need to be
+   as tall as it is wide), the whole thing narrows, and the controls come down
+   to the size of the rest of the editor's chrome. The hex field is what makes
+   this safe to shrink - an exact colour can always be typed.
+
+   !important throughout: vanilla-picker injects its stylesheet at runtime,
+   after this file, at equal specificity, so nothing here lands without it. */
+.layout_default.picker_wrapper {
+	/* font-size is 10px here, so 180px - a little wider than the 170 it
+	   was, for a picker that leaves a bit more room around the hex field
+	   while still leaving the object visible (the test that guards that
+	   is the picker's width ceiling). */
+	width: 18em !important;
+	padding: 0.3em !important;
+}
+
+.picker_wrapper.popup {
+	/* No speech-bubble tail (see .picker_arrow below), and therefore none of
+	   the 1.5em margin vanilla-picker leaves around the popup to make room
+	   for one: place_popup() in js/edit.js positions the popup itself, and
+	   this is what makes the anchor its exact top-left corner. */
+	margin: 0 !important;
+	/* No drop shadow (danja's call, like every popout): vanilla-picker's
+	   .popup rule swaps its silver hairline for a 10px blurred shadow, so
+	   the hairline is put back to keep an edge. */
+	box-shadow: 0 0 0 1px silver !important;
+}
+
+.picker_arrow {
+	/* The popup no longer opens at the pointer - it is placed in free space
+	   beside the object - so a tail pointing back at a corner of itself says
+	   nothing. */
+	display: none !important;
+}
+
+.layout_default.picker_wrapper > * {
+	margin: 0.3em !important;
+}
+
+.layout_default .picker_sl::before {
+	/* the gradient field's aspect ratio, 100% being square */
+	padding-bottom: 62% !important;
+}
+
+.layout_default .picker_slider,
+.layout_default .picker_selector {
+	padding: 0.7em !important;
+}
+
+.layout_default .picker_selector {
+	/* the gradient field's cursor, a round knob by default (vanilla-picker
+	   sets border-radius:100%); square, to match the slider thumbs above and
+	   the rest of the editor's handles. The white ring and blue glow stay. */
+	border-radius: 0 !important;
+}
+
+.layout_default .picker_alpha {
+	/* vanilla-picker's own alpha bar, replaced by the slider-and-field row
+	   $.glue.colorpicker inserts (.glue-picker-alpha below). The bar showed
+	   the effect of the value but never the value itself, and there was no
+	   way to type one. */
+	display: none !important;
+}
+
+.glue-picker-alpha {
+	/* the transparency row, on its own line above the recent colours. No
+	   horizontal margin: the row is a full-width flex line, and margins on
+	   top of a 100% basis push the field and its unit off the panel. */
+	order: 1;
+	flex: 1 1 100%;
+	min-width: 0;
+	margin: 0.3em 0 !important;
+}
+
+.layout_default .picker_sample {
+	/* square, next to the hex field: a colour swatch is a swatch, not a bar
+	   stretched across whatever space is left */
+	flex: 0 0 auto !important;
+	width: 26px !important;
+	height: 26px !important;
+}
+
+.glue-picker-swatch {
+	/* a swatch can be semi-transparent now, so it is drawn over the same
+	   checkerboard vanilla-picker uses for its alpha slider and sample */
+	background-image:
+		linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%),
+		linear-gradient(45deg, #ccc 25%, #fff 25%, #fff 75%, #ccc 75%);
+	background-position: 0 0, 5px 5px;
+	background-size: 10px 10px;
+}
+
+.layout_default.picker_wrapper input,
+.layout_default.picker_wrapper button {
+	font-size: 11px !important;
+}
+
+.layout_default .picker_editor {
+	/* wide enough for #rrggbbaa - eight digits plus the hash - since the hex
+	   field carries the alpha as well now */
+	width: 7.6em !important;
+}
+
+.glue-picker-blend {
+	/* the blend row: its own full-width line under the recent colours,
+	   same flex discipline as the alpha row above */
+	order: 1;
+	flex: 1 1 100%;
+	min-width: 0;
+	margin: 0.3em 0 !important;
+}
+
+.glue-picker-blend select {
+	font-size: 11px;
+	flex: 0 0 auto;
+}
+
+.glue-picker-recent {
+	/* the last few colours used on this page, on their own line directly
+	   above the hex field / sample / Ok row. order:1 puts it in the wrapped
+	   section with those, and a full-width flex line of its own keeps it
+	   above rather than beside them */
+	order: 1;
+	flex: 1 0 100%;
+	display: flex;
+	gap: 4px;
+	margin: 0.3em !important;
+}
+
+.glue-picker-swatch {
+	width: 18px;
+	height: 18px;
+	box-sizing: border-box;
+	border: 1px solid #000;
+	cursor: pointer;
+}
+
+.glue-popover {
+	/* An editor panel that opens beside the object being edited - the font
+	   popover, and whatever comes after it. It wears the menu elements' own
+	   frame since 2026-09-17: 1px of black and a near-white fill translucent
+	   enough to read the page through, which is what .glue-btn-icon and the
+	   context menu items wear - danja's call, "trying to tie popout with the
+	   main menu elements". Before that it was the colour picker's chrome
+	   (#f2f2f2, a silver hairline drawn as a shadow spread, and a drop shadow),
+	   and the picker still wears that: it is vanilla-picker's own drawing, in
+	   this file only where it has to be restyled. Position comes from
+	   $.glue.popover in js/edit.js; z-index 450 is the picker's, above the
+	   objects (199), the menus (200/201) and the resize handles (300), below
+	   the modal backdrop (500). */
+	position: fixed;
+	z-index: 450;
+	box-sizing: border-box;
+	padding: 6px;
+	border: 1px solid #000;
+	/* 0.95 since 2026-09-28 (danja's call): the page still shows through,
+	   faintly, and the panel's rows read as the panel's rather than as
+	   whatever is under them - it was 0.8, the menu buttons' own fill */
+	background: rgba(255, 255, 255, 0.95);
+	/* As wide and as tall as what is in it, and no more: no panel pins a width
+	   of its own (they all did until 2026-09-17, and a panel that opens on a row
+	   of five icons was carrying the width of the knobs folded away under them).
+	   What a panel comes out at is therefore its widest row - the icon rows and
+	   the button rows are usually the answer, and where a knob row is wider it
+	   is .glue-popover-scrub's field that sets it.
+	   Height was always the content's. max-width so that a row which is wide by
+	   nature (a url field) still cannot push the panel off a narrow viewport. */
+	max-width: calc(100vw - 16px);
+	color: #444;
+	font-family: sans-serif;
+	font-size: 11px;
+	cursor: default;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.glue-popover-header {
+	/* a panel's own head, at its very top - what the panel is, in words.
+	   A little larger and bolder than a field label, and ruled under, so it
+	   reads as the panel's own head rather than as the first of its contents.
+	   The text panel wears it; a panel that is named by its icon row does not. */
+	font-size: 12px;
+	font-weight: bold;
+	margin-bottom: 8px;
+	padding-bottom: 4px;
+	border-bottom: 1px solid #ddd;
+}
+
+.glue-popover-note {
+	/* what a panel is about to act on - which text is being linked, say.
+	   Reads as a caption rather than as a control. */
+	color: #666;
+	margin-bottom: 5px;
+}
+
+.glue-popover-problem {
+	/* why the panel will not commit yet */
+	color: #c00;
+	margin-bottom: 5px;
+	min-height: 14px;
+	/* a two-line note stays two lines (danja's call, 2026-09-24) */
+	white-space: pre-line;
+}
+
+.glue-popover-row {
+	/* one row of a popover: a label, then whatever it names. Built by
+	   $.glue.popover.row() / .number_row(), and shared by every panel and the
+	   colour picker's alpha - they are the same control and should not drift
+	   apart. */
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin-bottom: 6px;
+}
+
+.glue-popover-row:last-child {
+	margin-bottom: 0;
+}
+
+.glue-popover-disabled {
+	/* a control that exists but cannot act on the current target: the
+	   text panel's gray-out (2026-09-18) - the alignment buttons and the
+	   reset while a run is selected, the link row while nothing is. The
+	   whole row or button wears it, and pointer-events: none is what makes
+	   the gray honest rather than just pale. */
+	opacity: 0.4;
+	pointer-events: none;
+}
+
+.glue-popover-pair {
+	/* two of the fold's small controls side by side, each under its own
+	   label: a popover row holding two cells instead of one control. The
+	   edge fold's face controls (the glow, its inside toggle, the duotone
+	   and the drop shadow's colours) are each a label and a 26px button,
+	   too short to own a row, so they sit two to a row here. */
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin-bottom: 6px;
+}
+
+.glue-popover-pair:last-child {
+	margin-bottom: 0;
+}
+
+.glue-popover-pair-cell {
+	/* one slot of a pair: its label, then its control. flex: 1 makes the
+	   two cells equal, so each pair's controls line up in their own column
+	   even where the labels differ in length. */
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	flex: 1 1 0;
+	min-width: 0;
+	padding-block-end: 8px;
+	line-height: 1;
+}
+
+.glue-popover-pair-cell .glue-popover-label {
+	/* a two-word label stays one line - wrapping dropped the second word
+	   onto a line of its own under the button (danja's call, 2026-09-26).
+	   The labels that break on purpose (second<br>glow) ride a half
+	   line-height so the two lines read as the one label they are */
+	white-space: nowrap;
+}
+
+
+.glue-popover-label {
+	/* Content-sized, NO fixed width: a width squeezes the control on the
+	   same row (the colorpicker's opacity slider shrinks to a nub) and
+	   every label is different anyway, so a column gains nothing. Keeps
+	   coming back — see git history, 48px -> 63px -> 60px. */
+	flex: 0 0 auto;
+	padding-right: 4px;
+	color: #666;
+}
+
+.glue-popover-slider {
+	/* A panel's knobs are scrubs since 2026-09-17 (.glue-popover-scrub below) -
+	   a track costs the panel its width and half its height, and it was the
+	   least precise way to set a range like letter-spacing's. What is left on
+	   this rule is the two sliders that kept theirs: the colour picker's alpha,
+	   inside a wrapper of the picker's own size, and the text strip's size
+	   (modules/text/text-edit.css, built inline in the module). So this is no
+	   longer what decides a panel's width; it decides the picker's.
+	   80px is a fixed number on purpose: a range input's own width is the
+	   browser's, and Chrome and Firefox disagree about it by a third.
+	   flex-grow stays 1 so a row that DOES have width to spare - the picker's
+	   alpha - still fills it, as it always did. */
+	width: 80px;
+	flex: 1 1 auto;
+	min-width: 0;
+	/* the browser's own blue thumb against this grey chrome is the one thing
+	   that looks borrowed; the rest of the editor's controls are black */
+	accent-color: #333;
+}
+
+.glue-popover-slider::-webkit-slider-thumb {
+	/* the thumb is taken over from the browser: square, like the editor's
+	   other handles, in the same black. accent-color stops painting the thumb
+	   once it is, and keeps painting the track. */
+	-webkit-appearance: none;
+	appearance: none;
+	width: 12px;
+	height: 12px;
+	background: #333;
+	border-radius: 0;
+}
+
+.glue-popover-slider::-moz-range-thumb {
+	width: 12px;
+	height: 12px;
+	background: #333;
+	border: none;
+	border-radius: 0;
+}
+
+.glue-popover input,
+.glue-popover select,
+.glue-popover textarea,
+.glue-popover button,
+.glue-modal-buttons button,
+.picker_wrapper input,
+.picker_wrapper button {
+	/* square, like the rest of the editor's chrome: the browsers round form
+	   controls by default and nothing here ever set it (danja's call) */
+	border-radius: 0;
+}
+
+.glue-popover input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=file]),
+.glue-popover button,
+.glue-modal-buttons button,
+.glue-popover select,
+.glue-popover textarea,
+.layout_default.picker_wrapper input:not([type=range]) {
+	/* the fields' frame: 1px of mid grey (danja's call - it was black), with
+	   a pixel of room on the left so a number does not sit on the edge. Not
+	   the slider, the toggles or the file picker, which are not fields and
+	   draw their own. */
+	border: 1px solid #999;
+	padding-left: 2px;
+}
+
+.layout_default.picker_wrapper input:not(:focus) {
+	/* vanilla-picker framed its hex field with a silver hairline drawn as a
+	   shadow spread; with a real border that would be a second frame. The
+	   focus glow is left alone. */
+	box-shadow: none;
+}
+
+.glue-popover-field {
+	/* three digits' worth: the field deliberately accepts values past the
+	   slider's end */
+	width: 44px;
+	flex: 0 0 auto;
+	font-size: 11px;
+	box-sizing: border-box;
+}
+
+.glue-popover-scrub {
+	/* A knob row: the label, the field, the arrow and the unit, and the whole
+	   row is the drag handle. Not just the field - the row is what a hand
+	   reaches for, and a label that does nothing when dragged reads as a
+	   label. The cursor is on the row for the same reason: it says the row
+	   can be dragged at all, and it covers the label.
+
+	   grab/grabbing for the row, and ew-resize on the field itself. The hand
+	   is the component's spec, danja's call in it
+	   (SOW-scrubby-number-component.md: "the grabbing hand is fine and
+	   arguably friendlier; use the grab/grabbing pair as specified"), and it
+	   is on the row because the row is what a hand grabs - the label and the
+	   unit are furniture that says "this whole line is the control". The field
+	   is not furniture: it is the thing that moves sideways, and the double
+	   arrow is the conventional cursor for exactly that. Danja asked for it
+	   there on 2026-09-17 - "when hovering over number input change cursor to
+	   ew-resize" - which is what the SOW's "more conventional" line was
+	   offering. The glyph's own zone is inside the field and takes the
+	   field's cursor, so the row's one drawn affordance and its cursor agree.
+
+	   pan-y, NOT none. Every other drag in the editor sets touch-action:
+	   none, because nothing scrolls under it and the browser must not claim
+	   the gesture for a scroll (see $.glue.slider). This row is inside a fold
+	   with max-height: 42vh; overflow-y: auto, so none would take the fold's
+	   scroll away wherever a knob happens to be - a fold of knobs would stop
+	   scrolling, which is the thing the component's spec forbids in the line
+	   above the one that asks for none. pan-y keeps the vertical gesture the
+	   browser's and hands the horizontal one to the scrub: no scroll can
+	   steal a sideways drag, and no knob can steal a scroll. A vertical drag
+	   therefore ends in a pointercancel, which $.glue.slider finishes
+	   cleanly. */
+	cursor: grab;
+	touch-action: pan-y;
+}
+
+.glue-popover-scrub.glue-popover-scrub-dragging,
+.glue-popover-scrub.glue-popover-scrub-dragging .glue-popover-field {
+	/* The hand closes for the length of the drag, and the way back is the
+	   pointer coming up. Set from the row's own drag (js/edit.js) once the
+	   press has travelled far enough to be one - so a click into the field
+	   does not flash a closed hand.
+
+	   The FIELD is named here as well, and not only because the two rules
+	   would otherwise tie on specificity: the drag starts on the field and
+	   usually stays there, so without it the ew-resize above is what a scrub
+	   would wear for its whole length. Held is what the row says while a
+	   value is being dragged, wherever on the row the pointer happens to be;
+	   ew-resize is what it says while the pointer is only passing over. */
+	cursor: grabbing;
+}
+
+.glue-popover-scrub .glue-popover-field {
+	/* The field IS the control now, so it is sized to be one - and sized in
+	   ch, so that it follows the font rather than a browser's idea of how
+	   wide a number field is (the two engines disagree by a third, which is
+	   why every other width here is a number).
+
+	   Measured 2026-09-17, 11px sans-serif: ch is 6.1px in Chromium, 6.3 in
+	   Firefox, the box comes out at 50.6 and 51.5, and the widest value any
+	   row emits is the signed hundredth the two em spacings produce, -0.05,
+	   at 25.1px and 25.4px. Five ch is five characters of digit room, and
+	   the 20 is what makes the content box exactly that: 16 of it is the
+	   padding below, and 4 is the UA's 2px inset border, which neither
+	   engine styles away here.
+
+	   The 16 is where the browser's steppers were. They are gone - danja,
+	   2026-09-17, "number input should not have up/down arrows, instead the
+	   ↔ should take that place" - and the arrow is drawn on that padding
+	   (.glue-popover-scrub-arrow, below). So the FIELD's own box did not
+	   change by a pixel, and the digits lost nothing they had. In Firefox
+	   the pair took 18px out of the content box, which is this room to the
+	   pixel: measured, the same field reports 32px of usable text with the
+	   spinners off and 14 with them back - and 47.5 inside the border less
+	   those 18 is the 30 that field reported before any of this. In Chromium
+	   they are drawn inside the field's right end instead (its clientWidth
+	   is the padding box either way, 47, so there is nothing to subtract),
+	   which is the same corner the arrow now occupies. Five ch is what is
+	   left in both engines, and -0.05 still fits with 5px to spare. */
+	/* 19, not 20, since the border is the editor's own 1px a side and
+	   no longer the UA's 2px inset: the 4px that sum allowed for is 2 now,
+	   plus the 1px of left padding, and the digits keep their five ch */
+	width: calc(5ch + 19px);
+	padding-right: 16px;
+	/* The browser's steppers, off - and BOTH spellings, because each engine
+	   listens to only one. Measured 2026-09-17, three 200px number inputs
+	   hovered side by side: Chromium keeps its ▲▼ with `appearance:
+	   textfield` alone (dark ink 4676, against a plain field's 4651 - the
+	   same buttons) and drops them with the pseudo-element rule below (4225,
+	   and none in the picture), while Firefox ignores the pseudo-elements
+	   outright and drops them with this (usable text 174px to 192). So
+	   neither rule here is a fallback; take either one away and one engine
+	   has the buttons back. -moz-appearance is what Firefox before 80 reads.
+	   Nothing in this is layout: the room they had is the padding above. */
+	appearance: textfield;
+	-moz-appearance: textfield;
+	/* Not the browser's I-beam either - the field does not want a text cursor,
+	   it wants the one that says sideways. See the row's own rule above for
+	   why the hand is on the row and the double arrow here. */
+	cursor: ew-resize;
+}
+
+.glue-popover-scrub .glue-popover-field::-webkit-outer-spin-button,
+.glue-popover-scrub .glue-popover-field::-webkit-inner-spin-button {
+	/* Chromium's half of the above. The buttons are elements of their own,
+	   which the field's own appearance does not reach, and the margin is
+	   part of them: zeroing the appearance alone leaves the box they sat in. */
+	-webkit-appearance: none;
+	margin: 0;
+}
+
+.glue-popover-scrub-box {
+	/* The field and its own arrow as one item of the row, so that what
+	   follows - the gap, the unit - is laid out from the FIELD's edge rather
+	   than from the far side of a glyph that belongs to the field. No size
+	   of its own: the box is the field, which is what makes `right` on the
+	   arrow below mean "this far into the field". */
+	position: relative;
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+}
+
+.glue-popover-scrub-arrow {
+	/* The scrub's own glyph: a hint, not a button. Light enough to read as a
+	   remark on the field rather than as another control (.glue-popover-label
+	   is #666), and the only affordance that survives on a touch screen,
+	   where nothing hovers. Fixed width with the glyph centred, so equal rows
+	   in one fold keep their fields in one column.
+
+	   Drawn inside the field's right end, on the 16px of padding it keeps
+	   there - the room the browser's steppers had until 2026-09-17 - and 4px
+	   in from the field's outer edge, which centres a 12px glyph in that
+	   room with 2px either side of it (the 2px inset border is outside
+	   both). The digits cannot reach it: an input's text scrolls within its
+	   content box, and the content box ends where this padding starts.
+
+	   pointer-events: none, so the glyph is a remark and not a target: a
+	   press on it goes through to the field underneath, which puts the caret
+	   at the end of the number - and the drag is the ROW's handler either
+	   way, so nothing is lost by not being hittable. */
+	position: absolute;
+	right: 4px;
+	top: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+	color: #999;
+	width: 12px;
+	font-size: 11px;
+	line-height: 1;
+}
+
+@media (pointer: coarse) {
+	.glue-popover-scrub {
+		/* A finger's target. Measured on 2026-09-17: the row is 19px tall - the
+		   field's own height, which is what the row is sized by - and 19px is
+		   not something a fingertip can be trusted to land on. The padding
+		   takes it to 27px, padding rather than height so the field stays
+		   centred in the taller row, and it is the row that grows rather than
+		   the field, so the drag handle (the whole row) is what gets easier to
+		   hit. Nothing else changes: the desktop density is the same, the
+		   gesture is read the same way, and the label-and-field geometry is
+		   untouched.
+
+		   Four and not five because of the fold's cap. The properties panel's
+		   fold is nine rows plus the panel's delete/reset, and 42vh of a 780px
+		   phone is 328: at four the fold still fits with nothing to scroll, and
+		   at five or six it overflows by a few pixels - a last row under the
+		   fold's edge, which reads as a bug rather than as the mobile
+		   insurance that rule was written as. */
+		padding-block: 4px;
+	}
+}
+
+.glue-image-alt-field {
+	/* the alt-text input in the image description panel needs room for
+	   an actual sentence, not three digits */
+	width: 180px;
+}
+
+.glue-edge-popover .glue-glow-spread .glue-popover-label {
+	/* 'glow spread' breaks onto two lines (glow<br>spread): the pair
+	   cells' line-height of 1, so the two lines read as one label and the
+	   row stays close to its neighbours' height instead of doubling their
+	   19px line (danja's call, 2026-09-27) */
+	line-height: 1;
+}
+
+.glue-edge-popover .glue-glow-inner-toggle {
+	/* the inside toggle at the swatch's own 20x20 - scoped to beat the
+	   .glue-font-toggle 32px the module css loads after this file
+	   (danja's call, 2026-09-26) */
+	width: 20px;
+	height: 20px;
+	line-height: 18px;
+}
+
+.glue-glyph-empty-square {
+	/* the "nothing set" placeholder of a panel's plain/decorative toggle
+	   (the heading panel's first option, the image panel's decorative):
+	   just an empty square, no letter and no fill inside (danja's call,
+	   2026-09-24). The white fill is what the pressed state
+	   (glue-font-toggle-on) shows as the square. */
+	display: inline-block;
+	width: 14px;
+	height: 14px;
+	border: 1px solid #000;
+	border-radius: 2px;
+	background: #fff;
+	vertical-align: middle;
+}
+
+
+.glue-object-link-field {
+	/* The url field of the object properties panel's link row (the link panel
+	   this field belonged to went away on 2026-09-23, when the link became a
+	   row in the properties panel) - and the same shape
+	   .glue-image-alt-field has above: .glue-popover-field's flex: 0 0 auto
+	   kept, with only the width overridden - 150 here, 180 there.
+
+	   It was sized by the row's remainder until 2026-09-17, when the panels
+	   stopped pinning widths (see .glue-popover above). A remainder needs
+	   something to be a remainder OF: with the panel content-sized and the
+	   field on flex-basis 0, the panel fell back to the BROWSER's own width for
+	   an empty <input> - 150px in Chromium, 143 in Firefox - which is a url
+	   nobody can read, in the panel that exists to make one readable.
+
+	   A number is the fix, and putting it on flex-basis is NOT: measured in
+	   both browsers, flex: 0 0 240px leaves Firefox with a 240px field inside a
+	   182px panel, hanging out through the frame. This is CSS Flexbox's
+	   intrinsic sizing - the max-content width of a single-line container is
+	   pulled back down by an item whose own content is narrower than its base
+	   size, and only Chrome lets the base size win. Width on a flex: 0 0 auto
+	   item is the shape that agrees in both.
+
+	   The number was 240 for the afternoon of 09-17, which read a page with a
+	   path and a query (190px at this font size) whole but made this the widest
+	   panel in the editor: 282 against the font panel's 233, the edge's 177 and
+	   the properties' 172. Danja: "link field width 150px" - the field is a
+	   window onto a url, not a place to read one, and 150 puts the panel at 192
+	   with the rest of the family. A bare domain is 90px at this font size and
+	   still reads whole; a deep path scrolls, as it did at 240. */
+	width: 150px;
+}
+
+.glue-object-link-row {
+	/* the properties panel's link row: the same field-and-button shape as the
+	   font panel's link row (.glue-text-strip-link), without that class's
+	   text-strip name or its spec locators */
+	display: flex;
+	align-items: center;
+	gap: 7px;
+}
+
+.glue-link-target-select {
+	/* the link target as one of three choices, shared by the properties
+	   panel's link row and the font panel's */
+	font-size: 11px;
+}
+
+.glue-popover-unit {
+	/* what follows a number field: em, px, %, or the × of a line-height
+	   multiple */
+	color: #666;
+	flex: 0 0 auto;
+	width: 16px;
+}
+
+.glue-popover-reset {
+	/* small and out of the way, pushed to the end of whatever row it rides
+	   on. It was the reset's frame, and the reset is gone from every popout
+	   (danja's call, 2026-09-28); the page settings panel's password
+	   set/clear button still wears it. */
+	margin-left: auto;
+	padding: 2px 6px;
+	border: 1px solid #999;
+	background: #fff;
+	color: #444;
+	font-size: 10px;
+	cursor: pointer;
+}
+
+.glue-popover-reset:hover {
+	border-color: #000;
+	color: #000;
+}
+
+.glue-popover-delete {
+	/* the destructive sibling of .glue-popover-reset: the same small frame,
+	   in the colour of the panel's problem notes, so the button that takes
+	   things away reads as different from the one that puts them back */
+	margin-left: auto;
+	padding: 2px 6px;
+	border: 1px solid #c00;
+	background: #fff;
+	color: #c00;
+	font-size: 10px;
+	cursor: pointer;
+}
+
+.glue-popover-delete:hover {
+	background: #c00;
+	color: #fff;
+}
+
+.glue-slider {
+	/* the bar $.glue.rangeslider draws next to a menu button while it is
+	   being dragged. Same frame as the icon buttons - 1px black, near-white
+	   fill - so it reads as part of the same toolbar, and it sits above the
+	   menu items themselves (z-index 201, set inline by contextmenu.show) */
+	position: absolute;
+	box-sizing: border-box;
+	border: 1px solid #000;
+	background-color: rgba(255, 255, 255, 0.85);
+	z-index: 202;
+	cursor: default;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.glue-slider-handle {
+	/* one black line across the bar, marking where in the range the value
+	   is. Positioned along the bar by rangeslider itself; the offsets pull
+	   it back by half its own thickness so it straddles the position rather
+	   than starting at it */
+	position: absolute;
+	background-color: #333;
+}
+
+.glue-slider-h .glue-slider-handle {
+	top: 0;
+	bottom: 0;
+	width: 3px;
+	margin-left: -1px;
+}
+
+.glue-slider-v .glue-slider-handle {
+	left: 0;
+	right: 0;
+	height: 3px;
+	margin-top: -1px;
+}
+
+.glue-btn-label {
+	/* Menu buttons still waiting for artwork: the overflow clip/show toggle and
+	   the text source toggle, the two the SuperGlue set does not cover yet.
+	   Text in a div gets the I-beam cursor and can be selected by dragging,
+	   neither of which any other button here does. This makes them behave like
+	   the icons they stand in for. */
+	cursor: default;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.glue-btn-raster {
+	/* a one-off raster artwork on an icon-sized frame - the same chrome as
+	   .glue-btn-icon (border, pale fill, hover), but the artwork is a full-
+	   colour image painted as a background rather than a mask, which masks
+	   cannot be (masks read only alpha and would flatten the colours) */
+	box-sizing: border-box;
+	border: 1px solid #000;
+	background-color: rgba(255, 255, 255, 0.85);
+	background-repeat: no-repeat;
+	background-position: center;
+	background-size: 26px 26px;
+	position: relative;
+	cursor: pointer;
+	user-select: none;
+}
+
+.glue-btn-raster:hover {
+	background-color: #ccc;
+}
+
+.glue-btn-icon {
+	/* SuperGlue SVG icon set (img/icons, generated by tools/prep-icons.js).
+	   The artwork is one colour plus transparency, and that colour is white -
+	   invisible against this editor's light chrome - so the SVG is used as a
+	   mask and the colour comes from CSS. The ~65 PNG buttons around it are
+	   stuck with whatever they were exported as. A stateful button can either
+	   swap its --glue-icon or take a colour class; the page layout toggle
+	   swaps artwork, since it reloads anyway. Each button sets its own
+	   --glue-icon.
+
+	   This element is the FRAME, not the icon: the PNG buttons carry a border
+	   and a pale fill in the artwork itself, and without one the line art
+	   disappears into whatever the object underneath happens to be (a magenta
+	   background, a photograph). The set is a single dark colour with no
+	   highlights of its own, so the fill is near-white for maximum contrast
+	   against it, with just enough transparency to show that there is canvas
+	   underneath.
+
+	   Hover marks the button by its frame, not its glyph: the icon keeps its
+	   colour and the frame's fill goes grey. The pointer cursor says the
+	   button does something, the way it does on a link - the icon buttons are
+	   the part of the editor that behaves like a web page. */
+	box-sizing: border-box;
+	border: 1px solid #000;
+	background-color: rgba(255, 255, 255, 0.85);
+	position: relative;
+	cursor: pointer;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.glue-btn-icon.glue-clipboard-full::after,
+.glue-btn-icon.glue-text-source-on::after {
+	/* The state dots: the copy button's "there is something on the
+	   clipboard" and the source toggle's "the object is in source mode".
+	   A badge in the icon's own ink (#333, the glyph's colour), not a
+	   fill: it says something about the editor's state rather than about
+	   the object whose menu it is in, and a corner mark reads that way
+	   while a green button does not. 2px is small on purpose - it is a
+	   reminder that the slot is not empty, not a control. ::after is free
+	   here: the glyph is ::before, and the only other ::after on an icon
+	   button is the sheep's eyelid, on a class this one never has. */
+	content: '';
+	position: absolute;
+	top: 2px;
+	right: 2px;
+	width: 2px;
+	height: 2px;
+	border-radius: 50%;
+	background-color: #333;
+}
+
+.glue-btn-icon:hover {
+	background-color: #ccc;
+}
+
+/* a pressed-in state for toggles built from icon buttons: the frame thickens
+   (the 1px border doubles), the glyph and the hover fill stay as they are */
+.glue-btn-icon.glue-btn-active {
+	border-width: 2px;
+}
+
+.glue-btn-icon.glue-menu-enabled {
+	/* the menu toggles that keep the old glue-menu-* Alpine plumbing (the
+	   video and webvideo toggles, glue.js's toggle_button): the green fill
+	   .glue-menu-enabled sets never reaches a .glue-btn-icon - the icon's
+	   own frame background wins the cascade - so the enabled state is this
+	   two-class rule, the same pressed frame the panel toggles wear */
+	border-width: 2px;
+}
+
+.glue-btn-icon::before {
+	/* The glyph, on its own box. A mask clips the element it is set on,
+	   border and background included, so the frame above and the icon cannot
+	   be the same box - masking the button itself would cut its own border
+	   into the shape of the icon. Positioned against the padding box, which
+	   the 1px border makes exactly 30x30: the size the art is drawn at. */
+	content: '';
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	background-color: #333;
+	-webkit-mask-image: var(--glue-icon);
+	mask-image: var(--glue-icon);
+	-webkit-mask-position: center;
+	mask-position: center;
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	-webkit-mask-size: 30px 30px;
+	mask-size: 30px 30px;
+}
+
+.glue-btn-icon.glue-sheep::after {
+	/* The sheep's blink. Its eyes are two holes in the mask, so they paint
+	   in the button's own pale fill; the eyelid from the sheep's artwork
+	   (the hidden "eyelids" layer of clone-object, extracted into its own
+	   mask file - sheep-eyelid.svg - because nothing inside an SVG used
+	   as a mask can be shown from outside it) painted in the face's
+	   colour (#333) covers the eye row, making the eyes vanish: that is
+	   what reads as a closed eyelid. At rest the lid is invisible and
+	   nothing animates; the sheep's JS adds .glue-sheep-blinking for the
+	   length of one blink, at random intervals (3-30s) so the pauses
+	   wander instead of ticking like a metronome. The blink is one fixed
+	   0.5s animation, played once - NOT a long cycle whose duration is
+	   rewritten: changing the duration of a running animation keeps the
+	   time already elapsed and recomputes the progress against the new
+	   length, which dropped the lid into the middle of a blink (or into a
+	   run of iterations a frame apart) whenever a roll shortened the cycle.
+	   Purely decorative - the one icon in the set that is a joke tells one
+	   at its own pace. */
+	content: '';
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	background-color: #333;
+	-webkit-mask-image: url('../img/icons/sheep-eyelid.svg');
+	mask-image: url('../img/icons/sheep-eyelid.svg');
+	-webkit-mask-size: 30px 30px;
+	mask-size: 30px 30px;
+	opacity: 0;
+}
+
+.glue-btn-icon.glue-sheep.glue-sheep-blinking::after {
+	animation: glue-sheep-blink 0.5s 1;
+}
+
+/* a third of the blink to close, a third fully down, a third to open */
+@keyframes glue-sheep-blink {
+	0%, 100% { opacity: 0; }
+	33.3333%, 66.6667% { opacity: 1; }
+}
+
+
+
+.glue-border-style {
+	/* the border style dropdown in the edge panel */
+	flex: 1 1 auto;
+	min-width: 0;
+	font-size: 11px;
+	box-sizing: border-box;
+}
+
+.glue-popover-color {
+	/* the colour button every panel puts next to whatever it colours: a
+	   20x20 swatch of the four most recent palette colours, four 10x10
+	   squares (danja's call, 2026-09-26) */
+	width: 20px;
+	height: 20px;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 1fr 1fr;
+	flex: 0 0 auto;
+	cursor: pointer;
+	border: 1px solid #666;
+	box-sizing: content-box;
+}
+
+.glue-popover-color-cell {
+	width: 10px;
+	height: 10px;
+}
+
+.glue-popover-disclosure {
+	/* the "advanced" fold in the edge panel */
+	color: #666;
+	cursor: pointer;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.glue-popover-disclosure:hover {
+	color: #000;
+}
+
+.glue-popover-icons {
+	/* the row of icon buttons a panel opens with - the house style, built by
+	   $.glue.popover.icon_row(). A marker class, and the name the next panel is
+	   told to start from: the row is .glue-popover-row and its buttons are
+	   .glue-popover-icon, so there is nothing to declare here. It exists so a
+	   spec can count a panel's actions, and so that "what is the panel's first
+	   row" has one answer in every panel. */
+}
+
+.glue-popover-icon {
+	/* One action in such a row - see $.glue.popover.icon_button(), which sets
+	   the 26px inline because $.glue.icon() sizes its own box at the toolbar's
+	   32. The PANEL's size, not the toolbar's: every other control a panel has
+	   is 26, from the colour buttons to the font panel's toggles, and a row of
+	   actions belongs to the panel it is in. Three, four or five of them read
+	   as a row, and their names are in their tooltips. flex: 0 0 auto so a full
+	   row cannot be squeezed by the flex row they sit in: the row overflows
+	   instead, which is the visible sign that the panel needs to be wider. */
+	flex: 0 0 auto;
+}
+
+.glue-popover-icon::before {
+	/* the mask rides the box at the menu's own size: the artwork is drawn at
+	   30px and the frame's 1px border leaves 30px of padding box at 32 */
+	-webkit-mask-size: 30px 30px;
+	mask-size: 30px 30px;
+}
+
+.glue-properties-grid {
+	/* the object properties fold's first rows in two columns, laid out row
+	   by row (danja's call, 2026-09-28): the picture's x and y on the left,
+	   its scale and the object's opacity on the right, each level with its
+	   neighbour. The gap between rows is the grid's own - the rows' margins
+	   would unlevel them - and the grid keeps a row's margin below it for
+	   whatever follows (an image's padding rows) */
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	column-gap: 14px;
+	row-gap: 6px;
+	align-items: center;
+	margin-bottom: 6px;
+}
+
+.glue-properties-grid > * {
+	margin-bottom: 0;
+}
+
+.glue-properties-popover .glue-popover-icons > .glue-btn-icon::before {
+	/* the object properties panel's icons - background image, tile and the
+	   two flips - wear danja's 22x22 redraws (img/icons/*-22.svg) at 1:1 in
+	   22x22 boxes, which object_properties_popover() brings down from
+	   $.glue.icon()'s inline 32. Scoped to this panel: the page background
+	   panel shares the image and tile classes and keeps its 30px art
+	   (danja's call, 2026-09-27) */
+	-webkit-mask-size: 22px 22px;
+	mask-size: 22px 22px;
+}
+
+.glue-properties-popover .glue-properties-heading {
+	/* the heading level, set apart from the row's group by the same 12px
+	   the font panel's colour button keeps (.glue-font-color) */
+	margin-left: 12px;
+}
+
+.glue-popover-advanced {
+	/* set off from the rows above it, since it is a different mechanism
+	   rather than more of the same */
+	border-top: 1px solid #666;	/* 50% darker than the old #ddd, danja's call 2026-09-26 */
+	padding-top: 5px;
+	margin-bottom: 5px;
+}
+
+.glue-edge-popover .glue-popover-advanced,
+.glue-properties-popover .glue-popover-advanced {
+	/* The edge fold is now tall enough (glow, bands, drop shadow) to run past
+	   the bottom of a phone screen, and the popover must not push its anchor
+	   off-viewport on mobile - the open() placement runs out of room first
+	   and the fold ends up unreachable. The fold scrolls in place instead;
+	   the font panel shares the class and stays unscoped, because its fold
+	   is short and a scrollbar there would be noise.
+
+	   The properties panel joined it on 2026-09-17, when everything with a
+	   label moved into its fold: ten rows on a text object, which is taller
+	   than the edge fold that rule was written for. Nothing scrolls at a
+	   desktop viewport - the window is taller than the fold - so this is
+	   mobile insurance, the same kind the edge panel carries. */
+	max-height: 42vh;
+	overflow-y: auto;
+}
+
+/* .glue-background-popover and .glue-properties-popover have no width rules of
+   their own any more: both pinned one (200px and 230px) until 2026-09-17, when
+   panels became as wide as their content - see .glue-popover above. The classes
+   stay on the panels, as the name each one is opened by. */
+
+.glue-background-off {
+	/* A control with nothing to act on. The tile and scroll toggles are about
+	   a background picture, and the properties panel's two position rows and
+	   its scale row with them: without a picture there is nothing to tile, move
+	   or size, so they grey out and step out of the pointer's way. The cursor
+	   goes with them (pointer-events: none), so the frame neither lights up on
+	   hover nor promises a click it would not honour - and on a number row,
+	   nothing in it can be dragged or typed into either. Nothing else in that
+	   panel is greyed by it: the padding, the flip and the transparency are
+	   about the object and are there whatever its background is. */
+	opacity: 0.35;
+	pointer-events: none;
+}
+
+.glue-edge-top {
+	/* two columns above "more knobs": the round and width rows left, the
+	   clip icon right, left-aligned in its column (danja's call,
+	   2026-09-26). The rows' own 6px bottom margin, so the disclosure
+	   below sits where it does in every other popout */
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	column-gap: 10px;
+	margin-bottom: 6px;
+}
+
+.glue-edge-clip {
+	/* the label and the button, left-aligned in their column, set off
+	   from the rows on the left by a vertical rule (danja's call,
+	   2026-09-26) */
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	justify-self: start;
+	align-self: center;
+	border-left: 1px solid #666;	/* 50% darker than the old #ddd, danja's call 2026-09-26 */
+	padding-left: 10px;
+}
+
+.glue-edge-clip .glue-btn-icon::before {
+	/* the clip's own 22x22 artwork (img/icons/clip-22.svg) at 1:1 in its
+	   22x22 box - object-edit.js brings the box down from $.glue.icon()'s
+	   32. The art keeps a 3px margin, so a mask centred on the padding box
+	   (20px, or 18px pressed in) loses only empty rows to the frame, the
+	   glyph does not move when the border thickens, and the pressed-in
+	   frame still clears it by a pixel (danja's call, 2026-09-27) */
+	-webkit-mask-size: 22px 22px;
+	mask-size: 22px 22px;
+}
+
+.glue-edge-top-rows {
+	display: flex;
+	flex-direction: column;
+}
+
+.glue-edge-section-title {
+	/* a section says what it is, spanning the columns, bold (danja's
+	   call, 2026-09-26). The object properties panel borrows it for the
+	   title over its first section (2026-09-27) */
+	grid-column: 1 / -1;
+	font-size: 11px;
+	color: #666;
+	font-weight: bold;
+}
+
+.glue-edge-popover > .glue-edge-section-title,
+.glue-properties-popover > .glue-edge-section-title,
+.glue-popover-advanced > .glue-edge-section-title {
+	/* the standalone titles (border, object shadow, object properties,
+	   background properties) keep the grid titles' own 13px row-gap below
+	   them (danja's call, 2026-09-26) */
+	margin-bottom: 13px;
+}
+
+.glue-edge-knobs-grid {
+	/* the edge fold's two columns: the type knobs left, the shadow knobs
+	   right, and below the rule the colours in the same split (danja's
+	   call, 2026-09-26). The row-gap is the number rows' own 13px - the
+	   pair cells keep the same breathing room stacked as the inputs have
+	   (danja's call, 2026-09-26) */
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	column-gap: 14px;
+	row-gap: 13px;
+	align-items: start;
+}
+
+.glue-edge-shadow-grid {
+	/* the blur row keeps the rows' standard 6px from the distance row
+	   below the grid (danja's call, 2026-09-26) */
+	margin-bottom: 6px;
+}
+
+.glue-edge-knobs-col {
+	display: flex;
+	flex-direction: column;
+}
+
+.glue-edge-knobs-rule {
+	border: none;
+	border-top: 1px solid #666;	/* 50% darker than the old #ccc, danja's call 2026-09-26 */
+	margin: 10px 0;
+	width: 100%;
+}
+
+.glue-border-colour {
+	/* the border colour's swatch: a 20x20 square of the four most recent
+	   palette colours, four 10x10 squares (danja's call, 2026-09-26) */
+	width: 20px;
+	height: 20px;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	grid-template-rows: 1fr 1fr;
+	flex: 0 0 auto;
+	cursor: pointer;
+	border: 1px solid #666;
+	box-sizing: content-box;
+}
+
+.glue-border-colour-cell {
+	width: 10px;
+	height: 10px;
+}
+
+
+/* The object's code panel: two text areas, CSS and JavaScript, for the one
+   object. It is deliberately not the icon row and the fold of the other
+   panels (POPOUT-PANELS.md): there is nothing to act on or to scrub, only
+   text to write, and a text area does not belong in a fold. */
+
+.glue-code-popover {
+	width: 380px;
+}
+
+.glue-code-field {
+	margin-bottom: 8px;
+}
+
+.glue-code-label {
+	font-size: 11px;
+	font-weight: bold;
+	margin-bottom: 2px;
+}
+
+.glue-code-hint {
+	color: #666;
+	font-weight: normal;
+	margin-left: 6px;
+}
+
+.glue-code-input {
+	background: #fff;
+	border: 1px solid #bbb;
+	box-sizing: border-box;
+	display: block;
+	font-family: monospace;
+	font-size: 12px;
+	line-height: 1.4;
+	overflow: auto;
+	padding: 3px 5px;
+	resize: vertical;
+	tab-size: 2;
+	white-space: pre;
+	width: 100%;
+}
+
+.glue-code-input:focus {
+	outline: none;
+}
+
+.glue-code-problem {
+	color: #c00;
+	font-size: 11px;
+	min-height: 0;
+}
+
+.glue-code-problem:empty {
+	display: none;
+}
+
+.glue-code-note {
+	color: #666;
+	font-size: 11px;
+	line-height: 1.4;
+	/* a newline in the text is a line break */
+	white-space: pre-line;
+}
+
+.glue-code-examples {
+	/* the examples dropdown, above the two fields */
+	box-sizing: border-box;
+	font-size: 11px;
+	margin-bottom: 8px;
+	width: 100%;
+}
+
+.object.glue-selected,
+.object.glue-selected * {
+	/* An object that an animation keeps moving or resizing is a poor thing to
+	   edit - it slips out from under the pointer, and its menu and panels are
+	   open exactly while it is selected. So while it is selected, the css
+	   animations on it and inside it stand still, and run on from where they
+	   stopped when it is let go. The animations a script started (el.animate)
+	   and the script's timers are held in js/edit.js and by module_user_code. */
+	animation-play-state: paused !important;
+}
+
+.glue-code-help {
+	/* a line of how-to under a field's label */
+	color: #666;
+	font-size: 11px;
+	line-height: 1.4;
+	margin-bottom: 3px;
+}
+
+
+.glue-webvideo-shield,
+.glue-iframe-shield {
+	/* The shield over an embedded page or video. Its <iframe> is a genuine
+	   cross-origin document, so a click landing on it never reaches the page at
+	   all; a div of ours stacked above it takes the click, and the editor's
+	   select, menu and drag handling see it. It covers the upper part of the
+	   embed and leaves the rest uncovered, so playback or the page can still be
+	   tried while editing. The embed modules (webvideo and iframe) share it. */
+	background-color: darkgrey;
+	height: 40%;
+	left: 0;
+	opacity: 0;
+	position: absolute;
+	top: 0;
+	width: 100%;
+}
+
+.glue-iframe-shield {
+	/* a tall embed does not get a tall shield: 40% of a full-page frame would
+	   cover most of the page inside it (danja's call). The webvideo's stays
+	   at its 40%. */
+	max-height: 150px;
+}
+
+.webvideo:hover .glue-webvideo-shield,
+.iframe:hover .glue-iframe-shield {
+	/* shown only while the object is hovered, so it does not obscure the embed
+	   when the user is not interacting with it */
+	opacity: 0.5;
+}

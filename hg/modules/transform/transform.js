@@ -7,86 +7,206 @@
  *	See the file COPYING for more details.
  */
 
-/*
-function matrixToArray(m) {
-	var c = m.substr(7);
-	c = c.substr(0, c.length - 1);
+//
+// An object's flip and its rotation are two terms in ONE css transform
+// property, which module_transform.inc.php stores whole (under the attribute
+// name transform-flip, which predates there being a rotation in it). So the
+// flip toggles (in the adjustment popout, object-edit.js) and the rotation
+// handle below have to edit their own term and leave the other one alone, and
+// neither may go through getComputedStyle(): computed style resolves the
+// function list down to a single matrix(), in which a rotation and a flip are
+// no longer distinguishable - a rotated object would read back as some
+// matrix() that matches none of the flip states, and flipping it would
+// overwrite the rotation. The element's own .style still reflects the
+// function list as it was literally assigned, so that is what is parsed.
+//
 
-	return c.split(', ');
+function transform_term(obj, re)
+{
+	var m = (obj.style.getPropertyValue('transform') || '').match(re);
+	return m ? m[0] : '';
 }
-*/
 
-$(document).ready(function() {
-	//
-	// register menu items
-	//
-	var elem;
-	elem = $('<img src="'+$.glue.base_url+'modules/transform/transform-flip.png" alt="btn" title="flip object" width="32" height="32">');
-	$(elem).bind('click', function(e) {
-		var that = this;
-		var obj = $(this).data('owner');
-/*
-		if ($(obj).css('-moz-transform') != '') {
-			var o = $(obj).css('-moz-transform');
-		} else { var o = $(obj).css('-webkit-transform'); }
+// replaces (or removes, when 'term' is empty) the one function matching 're',
+// keeping everything else in the transform in place
+function transform_set_term(obj, re, term)
+{
+	var cur = obj.style.getPropertyValue('transform') || '';
+	var m = cur.match(re);
+	if (m) {
+		cur = cur.replace(m[0], '');
+	}
+	if (term) {
+		cur += ' '+term;
+	}
+	cur = cur.replace(/\s+/g, ' ').trim();
+	obj.style.setProperty('transform', cur);
+}
 
-		if (o == null || o.length < 6) {
-			o = 'matrix(1, 0, 0, 1, 0, 0)';
-		}
-		var o = matrixToArray(o);
-	
-		$(obj).transform({reflectX: true, matrix: ''+o+''}, {forceMatrix: true});
-*/
-		if ($(obj).css('-moz-transform') != '') {
-			var val = $(obj).css('-moz-transform');
-			if (val == 'matrix(-1, 0, 0, -1, 0, 0)') {
-				$(obj).css('-moz-transform', 'matrix(1, 0, 0, -1, 0, 0)');
-			} else if (val == 'matrix(1, 0, 0, -1, 0, 0)') {
-				$(obj).css('-moz-transform', 'matrix(-1, 0, 0, 1, 0, 0)');
-			} else if (val == 'matrix(-1, 0, 0, 1, 0, 0)') {
-				$(obj).css('-moz-transform', '');
-			} else {
-				$(obj).css('-moz-transform', 'matrix(-1, 0, 0, -1, 0, 0)');
+var TRANSFORM_FLIP_RE = /matrix\([^)]*\)/;
+var TRANSFORM_ROTATE_RE = /rotate\(-?\d+(?:\.\d+)?deg\)/;
+
+function transform_rotation(obj)
+{
+	var m = transform_term(obj, TRANSFORM_ROTATE_RE).match(/-?\d+(?:\.\d+)?/);
+	return m ? parseFloat(m[0]) : 0;
+}
+
+// deg is normalized into 0..359 and rounded: whole degrees keep the stored
+// value short and the regex above simple, and 0 is stored as no term at all
+// so an object that has been rotated back to straight looks exactly like one
+// that never was
+function transform_set_rotation(obj, deg)
+{
+	deg = Math.round(deg) % 360;
+	if (deg < 0) {
+		deg += 360;
+	}
+	transform_set_term(obj, TRANSFORM_ROTATE_RE, deg ? 'rotate('+deg+'deg)' : '');
+}
+
+// Flip used to be a cycling menu button (none -> both axes -> horizontal ->
+// vertical -> none). It is now two independent toggles in the adjustment
+// popout (object-edit.js), so the state reads as h and v booleans. The axes
+// are the a and d entries of the matrix term: a=-1 mirrors horizontally,
+// d=-1 mirrors vertically.
+function transform_flip_axes(obj)
+{
+	var term = transform_term(obj, TRANSFORM_FLIP_RE);
+	var nums = term.match(/-?\d+(?:\.\d+)?/g);
+	if (!nums || nums.length < 4) {
+		return { h: false, v: false };
+	}
+	return { h: nums[0] == '-1', v: nums[3] == '-1' };
+}
+
+function transform_set_flip(obj, h, v)
+{
+	var term = '';
+	if (h || v) {
+		term = 'matrix('+(h ? -1 : 1)+', 0, 0, '+(v ? -1 : 1)+', 0, 0)';
+	}
+	transform_set_term(obj, TRANSFORM_FLIP_RE, term);
+}
+
+//
+// Rotation is direct manipulation only: Moveable's own handle, shown while an
+// object is selected the way the resize handles are (js/edit.js). There was a
+// 90°-per-click button in the object menu until the handle existed, at which
+// point it was a second, worse way to do the same thing - the artwork for it
+// is still in this directory.
+//
+// It snaps to 15° BY DEFAULT and shift releases it to any angle, which is the
+// opposite way round from most editors. The reason is that the thing being
+// rotated is a page element, and the reader will notice a heading that sits
+// at 7° when it was meant to be straight: losing precision by accident is the
+// startling outcome here, so precision is the deliberate one.
+//
+var transform_rotate_bound = new WeakSet();
+
+$.glue.live('.object', 'glue-select', function(e) {
+	var obj = this;
+	var m = $.glue.object.moveable_of(obj);
+	// the attach flow - a download box sharing its selection - draws no
+	// handles on any of the selected objects (js/edit.js), rotation
+	// included. Checked before the download guard below: the box is the
+	// object whose selection completes the pair, so this handler is the one
+	// that has to take the other selected objects' rotation handles away.
+	if (m && 1 < document.querySelectorAll('.glue-selected').length) {
+		document.querySelectorAll('.glue-selected').forEach(function(el) {
+			var mm = $.glue.object.moveable_of(el);
+			if (mm) {
+				mm.rotatable = false;
 			}
-		}
-		if ($(obj).css('-webkit-transform') != '') {
-			var val = $(obj).css('-webkit-transform');
-			if (val == 'matrix(-1, 0, 0, -1, 0, 0)') {
-				$(obj).css('-webkit-transform', 'matrix(1, 0, 0, -1, 0, 0)');
-			} else if (val == 'matrix(1, 0, 0, -1, 0, 0)') {
-				$(obj).css('-webkit-transform', 'matrix(-1, 0, 0, 1, 0, 0)');
-			} else if (val == 'matrix(-1, 0, 0, 1, 0, 0)') {
-				$(obj).css('-webkit-transform', '');
-			} else {
-				$(obj).css('-webkit-transform', 'matrix(-1, 0, 0, -1, 0, 0)');
-			}
-		}
-		$.glue.object.save(obj);
 		});
-	$.glue.contextmenu.register('object', 'object-transform-flip', elem, 5);
-
-/* implement this later */
-/*	elem = $('<img src="'+$.glue.base_url+'modules/transform/transform-rotate.png" alt="btn" title="rotate object" width="32" height="32">');
-	$(elem).bind('mousedown', function(e) {
-		var obj = $(this).data('owner');
-		if ($(obj).css('-moz-transform') != '') {
-			var o = $(obj).css('-moz-transform');
-		} else { var o = $(obj).getAttribute('style'); }
-		if (o == null || o.length < 6) {
-			o = 'matrix(1, 0, 0, 1, 0, 0)';
-		}
-		var o = matrixToArray(o);
-		$.glue.slider(e, function(x, y) {
-			var r = y+'deg';
-			$(obj).transform({rotate: ''+r+'', matrix: ''+o+''}, {forceMatrix: true});
-//			$(obj).css('-webkit-transform','rotate('+r+')');
-
-		}, function(x, y) {
+		return;
+	}
+	// a download box never rotates (danja's call, 2026-09-22) - the
+	// rotation handle has no business on a 50x50 file box
+	if (!m || obj.classList.contains('locked') || obj.classList.contains('download')) {
+		return;
+	}
+	if (!transform_rotate_bound.has(obj)) {
+		transform_rotate_bound.add(obj);
+		var start_deg = 0;
+		// e.dist is the rotation accumulated since rotateStart. Moveable's
+		// absolute e.rotation is NOT usable here: it comes from the matrix it
+		// reads off the element, so a flipped object starts life at 180° as
+		// far as Moveable is concerned and the object would jump on the first
+		// move. Adding the delta to what the element actually stores keeps
+		// the two independent.
+		m.on('rotateStart', function(ev) {
+			start_deg = transform_rotation(obj);
+		}).on('rotate', function(ev) {
+			// The 15° snap is Moveable's throttleRotate rather than a
+			// Math.round here, so that there is ONE angle: Moveable draws its
+			// control box from its own state, so snapping only the value
+			// written to the object would leave the handles sitting a few
+			// degrees off the object they belong to. It throttles the
+			// absolute angle, not the delta, so this lands on multiples of 15
+			// whatever the object started at. Reading shift per event rather
+			// than at rotateStart lets it be pressed mid-drag.
+			m.throttleRotate = (ev.inputEvent && ev.inputEvent.shiftKey) ? 0 : 15;
+			transform_set_rotation(obj, start_deg+ev.dist);
+			// the offsets that keep the handles outside the object turn with
+			// it, so they are recomputed as it turns
+			$.glue.object.place_handles(obj);
+		}).on('rotateEnd', function(ev) {
 			$.glue.object.save(obj);
+			m.updateRect();
+			$.glue.object.place_handles(obj);
+			// the object's visual box has turned with it, and the menu is
+			// placed around that box
+			$.glue.contextmenu.reposition();
 		});
-		return false;
-	});
-	$.glue.contextmenu.register('object', 'object-transform-rotate', elem, 6);
-*/
+	}
+	m.rotatable = true;
+	// 15° steps unless shift is held - see the rotate handler below
+	m.throttleRotate = 15;
+	// Out of the middle of the RIGHT edge, where it emerges from the 'e'
+	// resize handle, rather than Moveable's default position above the box:
+	// that is exactly where contextmenu.show() puts the top row of menu
+	// buttons, so the handle landed among them and the two fought over the
+	// same pixels. The right edge is clear - the left-hand column is on the
+	// other side and the top row stops at the object's corner.
+	m.rotationPosition = 'right';
+});
 
+$.glue.live('.object', 'glue-deselect', function(e) {
+	var m = $.glue.object.moveable_of(this);
+	if (m) {
+		m.rotatable = false;
+	}
+	// leaving the attach-flow selection: exactly one object left gets its
+	// rotation handle back
+	var sel = document.querySelectorAll('.glue-selected');
+	if (sel.length == 1) {
+		var el = sel[0];
+		var mm = $.glue.object.moveable_of(el);
+		if (mm && !el.classList.contains('locked') && !el.classList.contains('download')) {
+			mm.rotatable = true;
+		}
+	}
+});
+
+// The rotation handle hides while the object moves and comes back once it
+// stops, following the resize handles (js/edit.js) and the context menu -
+// every object in a multi-object move drops its handle for the duration
+// (danja's call, 2026-09-24).
+$.glue.live('.object', 'glue-movestart', function(e) {
+	var m = $.glue.object.moveable_of(this);
+	if (m) {
+		m.rotatable = false;
+	}
+});
+
+$.glue.live('.object', 'glue-movestop', function(e) {
+	var m = $.glue.object.moveable_of(this);
+	if (m && !this.classList.contains('locked') && !this.classList.contains('download') && this.classList.contains('glue-selected')) {
+		// no handles while a download shares the selection
+		if (1 < document.querySelectorAll('.glue-selected').length) {
+			return;
+		}
+		m.rotatable = true;
+	}
 });

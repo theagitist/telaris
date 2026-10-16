@@ -9,7 +9,7 @@
  */
 
 
-error_reporting(E_ALL & ~E_STRICT);						// see php documentation
+error_reporting(E_ERROR | E_WARNING | E_PARSE);			// matches production; avoids PHP 8 deprecation/notice noise leaking into output (see php documentation)
 
 // try to include user configuration
 // Telaris change: resolve relative to this file (__DIR__), not the CWD or the
@@ -20,7 +20,18 @@ error_reporting(E_ALL & ~E_STRICT);						// see php documentation
 
 // otherwise fall back to these defaults
 @define('ALWAYS_PROMPT_CREATE_PAGE', false);	// invoke the "create page" controller when trying to access a non-existing page even if the user is not logged in yet (otherwise they receive a 404)
-@define('AUTH_METHOD', 'basic');			// can be digest, basic or none
+@define('AUTH_METHOD', 'basic');			// can be digest, basic, db or none
+
+// DB_AUTH_* only apply when AUTH_METHOD is 'db' - authenticates against a
+// UserCake-compatible accounts table (columns Username_Clean, Password,
+// Active) instead of the fixed AUTH_USER/AUTH_PASSWORD pair above; the
+// authenticated account must still match this site's own AUTH_USER, since
+// one database can back many hotglue sites each with a single owner
+@define('DB_AUTH_HOST', '');				// MySQL host (leave empty to disable 'db' auth)
+@define('DB_AUTH_USER', '');				// MySQL username
+@define('DB_AUTH_PASSWORD', '');			// MySQL password
+@define('DB_AUTH_NAME', '');				// MySQL database name
+@define('DB_AUTH_TABLE', 'userCake_Users');	// table holding user accounts
 
 // DON'T set username and password here!
 // instead rename file user-config.inc.php-dist to user-config.inc.php
@@ -35,40 +46,75 @@ error_reporting(E_ALL & ~E_STRICT);						// see php documentation
 @define('DEFAULT_PAGE', 'start');
 @define('DEFAULT_TO_EDIT', false);			// edit pages by default
 @define('FAVICON', 'img/favicon.ico');		// can be empty or an absolute url
-@define('HOTGLUE_VERSION', '1.0.4pre');		// expected api.version.patchlevel
-@define('IE8_COMPAT', true);				// try to be compatible with Internet Explorer 8 in viewing mode (also make sure that TEXT_USE_WOFF_FONTS is set to false)
-@define('JQUERY', 'js/jquery-1.5.2.min.js');// can be an absolute url
+// the default icon set, emitted after the .ico above: modern browsers use the
+// svg, the pngs cover the ones that do not read svg icons. A favicon uploaded
+// via the startpage's page menu replaces this whole set. Each entry: rel, href
+// (relative to BASE_URL or an absolute url), type and sizes (both optional)
+@define('FAVICON_SET', [
+	['rel'=>'icon',             'href'=>'img/favicon.svg',         'type'=>'image/svg+xml'],
+	['rel'=>'icon',             'href'=>'img/favicon-32.png',      'type'=>'image/png', 'sizes'=>'32x32'],
+	['rel'=>'icon',             'href'=>'img/favicon-16.png',      'type'=>'image/png', 'sizes'=>'16x16'],
+	['rel'=>'apple-touch-icon', 'href'=>'img/apple-touch-icon.png'],
+]);
+@define('HOTGLUE_VERSION', '1.9.0');		// expected api.version.patchlevel
 @define('LOCK_TIME', 5000);					// maximum time in ms to wait for an object lock
 @define('LOG_FILE', 'content/log.txt');		// log file, must be writable
 @define('LOG_LEVEL', 'error');				// minimum log level (can be error, warn, info, debug)
 @define('SHORT_URLS', false);				// use short urls internally
 @define('SHOW_FRONTEND_ERRORS', true);
-@define('SITE_NAME', 'hotglue 1.0');
-@define('SNAPSHOT_MAX_AGE', 60*60*24*7);	// auto- revisions are automatically deleted after n seconds (zero to disable)
-@define('SNAPSHOT_MIN_AGE', 60*60);			// auto- revisions are created every n seconds (zero to disable)
+@define('SITE_NAME', 'hotglue 1.9');
 @define('USE_HOTGLUE_ERRORS', true);		// use hotglue theming for error pages
-@define('USE_MIN_FILES', true);				// use minified files if possible (see also JQUERY define)
+@define('USE_MIN_FILES', true);				// use minified files if possible
 // default modules
 @define('IMAGE_JPEG_QUAL', 90);				// quality for jpeg resizing (0 < 100)
 @define('IMAGE_PNG_QUAL', 7);				// quality for png resizing (9 < 0)
-@define('IMAGE_WEBP_QUAL', 80);				// quality for webp resizing (0 < 100)
+@define('IMAGE_WEBP_QUAL', 90);				// quality for webp resizing (0 < 100)
 @define('IMAGE_RESIZING', true);			// resize uploaded images on the server (needs gd installed)
+@define('IMAGE_RESIZE_MAX_DPR', 2);			// cap on window.devicePixelRatio when requesting a server-side resize, so images stay sharp on HiDPI/Retina displays instead of being upscaled by the browser (1 disables this, higher values trade file size for extra sharpness on very-high-DPR devices)
 @define('IMAGE_UPLOAD_RESIZE_LARGER', '120%');	// automatically resize uploaded image when larger than n% of window width or height (set to 0% to disable)
 @define('IMAGE_UPLOAD_RESIZE_TO', '80%');		// target size in n% of window width or height
+@define('IMAGE_UPLOAD_MAX_WIDTH', 512);		// cap the on-canvas size of a newly-uploaded image to at most this many pixels wide (0 to disable) - the original file/resolution is untouched, "reset image size" still shows it at full size
+@define('IMAGE_UPLOAD_MAX_HEIGHT', 512);		// same as above, for height
 @define('OBJECT_DEFAULT_COLORS', '#61b9cf #ff00ff #ffff00');		// default colors for new objects (space-separated string)
 @define('UPLOAD_MAX_SIZE', 512*1024*1024);		// cap on a single uploaded file, in bytes (0 to disable) - refused before anything touches disk, and announced to the editor for an early client-side refusal
 @define('PAGE_PASSWORD_MAX_TRIES', 5);			// page password attempts allowed per ip and page...
 @define('PAGE_PASSWORD_WINDOW', 10*60);			// ...within this many seconds (SOW-page-password.md: brute-force guard, flat-file counter, no db)
-@define('RESERVED_PAGE_NAMES', 'code edit pages');	// page names used internaly and thus unavailable
-@define('PAGE_DEFAULT_GRID_X', 50);			// default grid x spacing in px
-@define('PAGE_DEFAULT_GRID_Y', 50);			// default grid y spacing in px
+@define('RESERVED_PAGE_NAMES', 'code edit pages favicon');	// page names used internaly and thus unavailable
+// centered layout mode: the content container's width, and the bounds the
+// editor's drag handles may set it to. Only used by pages that opt in to
+// page-layout-mode 'centered'; every page defaults to 'infinite', which is
+// hotglue's original unbounded canvas.
+@define('PAGE_DEFAULT_CONTAINER_WIDTH', 960);	// default centered container width in px
+@define('PAGE_MIN_CONTAINER_WIDTH', 320);		// narrowest the handles may drag to
+@define('PAGE_MAX_CONTAINER_WIDTH', 4000);		// widest the handles may drag to
+@define('PAGE_DEFAULT_GRID_X', 100);		// default grid x spacing in px
+@define('PAGE_DEFAULT_GRID_Y', 100);		// default grid y spacing in px
+@define('A11Y_ROW_THRESHOLD', 16);			// px: objects whose tops are within this distance count as one reading row (SOW-accessibility.md)
 @define('PAGE_GUIDES_X', '');				// show a grid line after n horizontal px (space-separated string)
 @define('PAGE_GUIDES_Y', '');				// show a grid line after n vertical px (space-separated string)
 @define('PAGES_NEED_AUTH', true);			// page browser needs authentication
-@define('REVISIONS_NEED_AUTH', true);		// revisions browser needs authentication
 @define('TEXT_AUTO_BR', true);				// automatically add <br> elements for newlines
 @define('TEXT_USE_WOFF_FONTS', true);		// (experimental) offer woff webfonts (supported by Firefox 3.6+, Chrome 5.0+, Internet Explorer 9)
-@define('VIDEO_START_ON_CLICK', true);		// start video on click when autoplay is off
+@define('VIDEO_ENCODING', true);			// re-encode every uploaded video into a web-optimized, resource-capped 720p variant + poster image (needs ffmpeg installed)
+@define('FFMPEG_BINARY', 'ffmpeg');			// path to the ffmpeg binary
+@define('VIDEO_ENCODE_CRF', 24);			// x264 quality for the encoded variant (lower is higher quality/larger file)
+@define('VIDEO_ENCODE_AUDIO_BITRATE', '64k');	// audio bitrate for the encoded variant
+@define('VIDEO_MAX_HEIGHT', 720);			// cap on the short side of the frame (landscape: height, portrait: width) - never upscales a smaller original
+@define('VIDEO_MAX_DURATION', 60);			// only the first n seconds of an upload are encoded/served, regardless of how long the original is
+@define('VIDEO_DISPLAY_MAX_WIDTH', 512);		// cap the on-canvas size of a newly-encoded video to at most this many pixels wide (0 to disable) - only affects initial display size, not the encoded resolution (VIDEO_MAX_HEIGHT) or file
+@define('VIDEO_DISPLAY_MAX_HEIGHT', 512);		// same as above, for height
+@define('VIDEO_POSTER_TIME', 1);			// second offset into the video to grab the poster frame from - the fallback when no non-empty random frame is found
+@define('VIDEO_POSTER_ATTEMPTS', 5);		// how many random frames to try for a non-empty poster (danja's call, 2026-09-23: a fixed timestamp kept landing on titles or blackness)
+@define('VIDEO_POSTER_EMPTY_YAVG', 16);		// a grabbed frame whose average luma is below this (near-black) or above 256 minus this (near-white) counts as empty and is re-rolled
+@define('VIDEO_ENCODE_TIMEOUT', 60*60*2);	// give up waiting for a background encode after n seconds and fall back to the original upload
+@define('VIDEO_START_ON_CLICK', true);		// clicking a video toggles pause/play when it has no native controls
+@define('AUDIO_ENCODING', true);			// re-encode every uploaded audio file into a web-compliant 44.1kHz stereo 128kbps m4a (needs ffmpeg installed)
+@define('AUDIO_SAMPLE_RATE', 44100);			// sample rate for the encoded variant
+@define('AUDIO_CHANNELS', 2);				// stereo
+@define('AUDIO_BITRATE', '128k');			// audio bitrate for the encoded variant
+@define('AUDIO_MAX_DURATION', 1800);			// only the first n seconds of an upload are encoded/served, regardless of how long the original is (30 minutes)
+@define('AUDIO_ENCODE_TIMEOUT', 60*60*2);		// give up waiting for a background encode after n seconds and fall back to the original upload
+@define('AUDIO_START_ON_CLICK', true);		// clicking an audio object toggles pause/play when it has no native controls
 @define('VIEW_NEEDS_AUTH', false);			// viewing pages requires authentication
 
 /**
@@ -91,10 +137,78 @@ function is_base_url_secure()
 }
 
 /**
+ *	compute the current request's own base url (scheme+host+port+path),
+ *	always derived from the request itself regardless of what BASE_URL is
+ *	configured to
+ *
+ *	used where code specifically needs to know the domain the visitor is
+ *	actually on right now (e.g. validating the Referer header against XSRF -
+ *	see controller.inc.php's invoke_controller()) - base_url() can return a
+ *	fixed, different domain than the current request when BASE_URL is
+ *	explicitly configured (e.g. a custom domain pointed at this install)
+ *
+ *	@return string
+ */
+function request_base_url()
+{
+	// HTTP_HOST already includes a non-standard port per RFC 7230 - strip
+	// it first so it isn't appended twice below (pre-existing bug: e.g.
+	// localhost:8931 becoming localhost:8931:8931 whenever this branch
+	// actually ran on a non-standard port)
+	$host = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST']);
+	if (!is_base_url_secure()) {
+		$ret = 'http://'.$host;
+		if ($_SERVER['SERVER_PORT'] != '80') {
+			$ret .= ':'.$_SERVER['SERVER_PORT'];
+		}
+	} else {
+		$ret = 'https://'.$host;
+		if ($_SERVER['SERVER_PORT'] != '443' && $_SERVER['SERVER_PORT'] != '80') {
+			$ret .= ':'.$_SERVER['SERVER_PORT'];
+		}
+	}
+	$ret .= dirname($_SERVER['PHP_SELF']);
+	// make sure we have a trailing slash at the end
+	if (substr($ret, -1) != '/') {
+		$ret .= '/';
+	}
+	return $ret;
+}
+
+/**
  *	use this function to get the site's base url
  *
  *	@return string base url (not html-encoded)
  */
+/**
+ *	the path part of this install's address, with a trailing slash ('/' for
+ *	an install at the root of its domain)
+ *
+ *	same-site links and assets are written as base_path().'some/path': they
+ *	carry no scheme or host, so they follow whatever domain the page is viewed
+ *	on (a custom domain pointed at this install), and they do not depend on
+ *	the page's own path either - a page reached as /plot (the .htaccess
+ *	rewrite) would resolve a bare '?plot.head.1' to /plot?plot.head.1, which
+ *	that rewrite turns back into the page
+ *
+ *	@return string
+ */
+function base_path()
+{
+	// SCRIPT_NAME, not PHP_SELF: PHP_SELF carries any extra path after the
+	// script (the built-in server's, for one) and would make this follow the
+	// page's own path
+	$p = isset($_SERVER['SCRIPT_NAME']) ? dirname($_SERVER['SCRIPT_NAME']) : '/';
+	if ($p === '' || $p === '.' || $p === '\\') {
+		$p = '/';
+	}
+	if (substr($p, -1) != '/') {
+		$p .= '/';
+	}
+	return $p;
+}
+
+
 function base_url()
 {
 	global $base_url_cached;
@@ -103,22 +217,7 @@ function base_url()
 	if (!empty($temp)) {
 		return $temp;
 	} elseif (!isset($base_url_cached)) {
-		if (!is_base_url_secure()) {
-			$base_url_cached = 'http://'.$_SERVER['HTTP_HOST'];
-			if ($_SERVER['SERVER_PORT'] != '80') {
-				$base_url_cached .= ':' . $_SERVER['SERVER_PORT'];
-			}
-		} else {
-			$base_url_cached = 'https://'.$_SERVER['HTTP_HOST'];
-			if ($_SERVER['SERVER_PORT'] != '443' && $_SERVER['SERVER_PORT'] != '80') {
-				$base_url_cached .= ':' . $_SERVER['SERVER_PORT'];
-			}
-		}
-		$base_url_cached .= dirname($_SERVER['PHP_SELF']);
-		// make sure we have a trailing slash at the end
-		if (substr($base_url_cached, -1) != '/') {
-			$base_url_cached .= '/';
-		}
+		$base_url_cached = request_base_url();
 	}
 
 	return $base_url_cached;

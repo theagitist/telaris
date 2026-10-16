@@ -4,51 +4,21 @@
 	width: 480px;
 }
 
-#glue-contextmenu-video-autoplay {
-	/* overwrite the default greenish hue for .glue-menu-enabled */
-	background-color: transparent;
+.glue-video-shield {
+	/* covers the upper part of the video so clicks reach the editor
+	   instead of triggering native playback/controls - the rest is left
+	   uncovered so playback can still be tested while editing */
+	background-color: darkgrey;
+	height: 40%;
+	left: 0;
+	opacity: 0;
+	position: absolute;
+	top: 0;
+	width: 100%;
 }
 
-#glue-contextmenu-video-autoplay.glue-menu-disabled {
-	background-image: url(video-autoplay-off.png);
-}
-
-#glue-contextmenu-video-autoplay.glue-menu-enabled {
-	background-image: url(video-autoplay-on.png);
-}
-
-#glue-contextmenu-video-controls {
-	background-color: transparent;
-}
-
-#glue-contextmenu-video-controls.glue-menu-disabled {
-	background-image: url(video-controls-off.png);
-}
-
-#glue-contextmenu-video-controls.glue-menu-enabled {
-	background-image: url(video-controls-on.png);
-}
-
-#glue-contextmenu-video-loop {
-	background-color: transparent;
-}
-
-#glue-contextmenu-video-loop.glue-menu-disabled {
-	background-image: url(video-loop-off.png);
-}
-
-#glue-contextmenu-video-loop.glue-menu-enabled {
-	background-image: url(video-loop-on.png);
-}
-
-#glue-contextmenu-video-mute {
-	background-color: transparent;
-}
-
-#glue-contextmenu-video-mute.glue-menu-disabled {
-	background-image: url(video-mute-off.png);
-}
-
-#glue-contextmenu-video-mute.glue-menu-enabled {
-	background-image: url(video-mute-on.png);
+.video:hover .glue-video-shield {
+	/* only show the shield while hovering the object, so it doesn't
+	   obscure the video when the user isn't interacting with it */
+	opacity: 0.5;
 }

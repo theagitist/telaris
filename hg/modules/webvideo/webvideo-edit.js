@@ -7,196 +7,42 @@
  *	See the file COPYING for more details.
  */
 
-$(document).ready(function() {
+document.addEventListener('DOMContentLoaded', function() {
 	//
 	// menu items
 	//
-	var elem = $('<img src="'+$.glue.base_url+'modules/webvideo/webvideo.png" alt="btn" title="'+$.glue.t('webvideo.menu_embed_title')+'" width="32" height="32">');
-	$(elem).bind('click', function(e) {
-		var url = prompt($.glue.t('webvideo.prompt_video_url'));
+	var elem = $.glue.icon('embed-webvideo', 'embed a video or audio track');
+	elem.addEventListener('click', function(e) {
+		var url = prompt('Enter the URL of a video or audio track to embed (YouTube, Vimeo, PeerTube, Bandcamp, SoundCloud, Mixcloud, Spotify)');
 		if (!url) {
 			return;
 		}
-		// determine provider
-		var provider = false;
-		if (url.indexOf('youtube') != -1) {
-			var start = url.indexOf('v=');
-			if (start == -1) {
-				$.glue.error($.glue.t('webvideo.error_youtube_link'));
-			} else {
-				start += 2;
-				var end = url.indexOf('&', start);
-				if (end == -1) {
-					end = url.length;
-				}
-				provider = 'youtube';
-				var id = url.slice(start, end);
+		// the server resolves the url through the oEmbed whitelist (or the
+		// Bandcamp template, or discovery), validates the response, caches
+		// the embed and creates the object - the callback gets the service's
+		// #data, the upload-shaped array of html strings, so it lands in
+		// handle_response exactly like an uploaded file (SOW-oembed-media.md;
+		// errors are toasted by glue.backend itself)
+		$.glue.backend({ method: 'webvideo.resolve', 'url': url, 'page': $.glue.page }, function(data) {
+			if (!data || !data.length) {
+				$.glue.error('There was a problem embedding the link');
+				return;
 			}
-		} else if (url.indexOf('vimeo') != -1) {
-			var start = url.indexOf('.com/');
-			if (start == -1) {
-				$.glue.error($.glue.t('webvideo.error_vimeo_link'));
-			} else {
-				start += 5;
-				provider = 'vimeo';
-				var id = String(parseInt(url.slice(start)));
-			}
-		} else if (url.indexOf('/videos/watch/') != -1 || url.indexOf('/videos/embed/') != -1 || url.indexOf('/w/') != -1) {
-			// PeerTube is federated, so detect by path (any instance host).
-			// Capture host + id; the char class blocks quote/angle injection.
-			var m = url.match(/^(?:https?:)?\/\/([^\/?#"'<>]+)\/(?:videos\/(?:watch|embed)|w)\/([^\/?#"'<>]+)/);
-			if (!m) {
-				$.glue.error($.glue.t('webvideo.error_peertube_link'));
-			} else {
-				provider = 'peertube';
-				var host = m[1];
-				var id = m[2];
-			}
-		} else {
-			$.glue.error($.glue.t('webvideo.error_unsupported_provider'));
-		}
-		
-		if (provider) {
-			// create new object
-			$.glue.backend({ method: 'glue.create_object', 'page': $.glue.page }, function(data) {
-				var elem = $('<div class="webvideo resizable object" style="position: absolute;"></div>');
-				$(elem).attr('id', data['name']);
-				// default width and height is set in the css
-				if (provider == 'youtube') {
-          // use protocol relative url
-					var src = '//';
-        /*
-					if (location.protocol == 'https:') {
-						src = 'https://';
-					} else {
-						src = 'http://';
-					}
-        */
-					var child = $('<iframe class="youtube-player" src="'+src+'www.youtube.com/embed/'+id+'?rel=0" style="border-width: 0px; height: 100%; position: absolute; width: 100%;"></iframe>');
-				} else if (provider == 'vimeo') {
-					var src = '//';
-					var child = $('<iframe src="'+src+'player.vimeo.com/video/'+id+'?title=0&amp;byline=0&amp;portrait=0&amp;color=ffffff" style="border-width: 0px; height: 100%; position: absolute; width: 100%;"></iframe>');
-				} else if (provider == 'peertube') {
-					var src = '//';
-					var child = $('<iframe src="'+src+host+'/videos/embed/'+id+'" style="border-width: 0px; height: 100%; position: absolute; width: 100%;"></iframe>');
-				}
-				$(elem).append(child);
-				// put the iframe behind some shield for editing
-				child = $('<div class="glue-webvideo-handle glue-ui" title="'+$.glue.t('webvideo.drag_here')+'"></div>');
-				$(elem).append(child);
-				$('body').append(elem);				
-				// make width and height explicit
-				$(elem).css('width', $(elem).width()+'px');
-				$(elem).css('height', $(elem).height()+'px');
-				// move to mouseclick
-				$(elem).css('left', (e.pageX-$(elem).outerWidth()/2)+'px');
-				$(elem).css('top', (e.pageY-$(elem).outerHeight()/2)+'px');
-				$.glue.object.register(elem);
-				// set the provider and the id in the object file
-				var attrs = { method: 'glue.update_object', name: $(elem).attr('id'), 'webvideo-provider': provider, 'webvideo-id': id };
-				if (provider == 'peertube') {
-					// federated: persist the instance host too
-					attrs['webvideo-host'] = host;
-				}
-				$.glue.backend(attrs);
-				// and save the element
-				$.glue.object.save(elem);
-			});
-		}
+			$.glue.upload.handle_response({ '#data': data }, e.pageX, e.pageY);
+		});
 		$.glue.menu.hide();
 	});
 	$.glue.menu.register('new', elem, 13);
-	
-	//
-	// context menu items
-	//
-	var elem = $('<div style="height: 32px; width: 32px;" title="'+$.glue.t('webvideo.toggle_autoplay_title')+'">');
-	$(elem).bind('glue-menu-activate', function(e) {
-		var obj = $(this).data('owner');
-		if ($(obj).data('webvideo-autoplay') === undefined) {
-			$(this).removeClass('glue-menu-enabled');
-			$(this).removeClass('glue-menu-disabled');
-			var that = this;
-			$.glue.backend({ method: 'glue.load_object', name: $(obj).attr('id') }, function(data) {
-				if (data['webvideo-autoplay'] == 'autoplay') {
-					$(that).addClass('glue-menu-enabled');
-					$(obj).data('webvideo-autoplay', 'autoplay');
-				} else {
-					$(that).addClass('glue-menu-disabled');
-					$(obj).data('webvideo-autoplay', '');		
-				}
-			});
-		} else {
-			if ($(obj).data('webvideo-autoplay') == 'autoplay') {
-				$(this).addClass('glue-menu-enabled');
-				$(this).removeClass('glue-menu-disabled');
-			} else {
-				$(this).removeClass('glue-menu-enabled');
-				$(this).addClass('glue-menu-disabled');
-			}
-		}
-	});
-	$(elem).bind('click', function(e) {
-		var obj = $(this).data('owner');
-		if ($(this).hasClass('glue-menu-enabled')) {
-			$(this).removeClass('glue-menu-enabled');
-			$(this).addClass('glue-menu-disabled');
-			$(obj).data('webvideo-autoplay', '');
-			$.glue.backend({ method: 'glue.object_remove_attr', name: $(obj).attr('id'), attr: 'webvideo-autoplay' });
-		} else if ($(this).hasClass('glue-menu-disabled')) {
-			$(this).addClass('glue-menu-enabled');
-			$(this).removeClass('glue-menu-disabled');
-			$(obj).data('webvideo-autoplay', '');
-			$.glue.backend({ method: 'glue.update_object', name: $(obj).attr('id'), 'webvideo-autoplay': 'autoplay' });
-		}
-	});
-	$.glue.contextmenu.register('webvideo', 'webvideo-autoplay', elem);
-	
-	elem = $('<div style="height: 32px; width: 32px;" title="'+$.glue.t('webvideo.toggle_loop_title')+'">');
-	$(elem).bind('glue-menu-activate', function(e) {
-		var obj = $(this).data('owner');
-		if ($(obj).data('webvideo-loop') === undefined) {
-			$(this).removeClass('glue-menu-enabled');
-			$(this).removeClass('glue-menu-disabled');
-			var that = this;
-			$.glue.backend({ method: 'glue.load_object', name: $(obj).attr('id') }, function(data) {
-				if (data['webvideo-loop'] == 'loop') {
-					$(that).addClass('glue-menu-enabled');
-					$(obj).data('webvideo-loop', 'loop');
-				} else {
-					$(that).addClass('glue-menu-disabled');
-					$(obj).data('webvideo-loop', '');		
-				}
-			});
-		} else {
-			if ($(obj).data('webvideo-loop') == 'loop') {
-				$(this).addClass('glue-menu-enabled');
-				$(this).removeClass('glue-menu-disabled');
-			} else {
-				$(this).removeClass('glue-menu-enabled');
-				$(this).addClass('glue-menu-disabled');
-			}
-		}
-	});
-	$(elem).bind('click', function(e) {
-		var obj = $(this).data('owner');
-		if ($(this).hasClass('glue-menu-enabled')) {
-			$(this).removeClass('glue-menu-enabled');
-			$(this).addClass('glue-menu-disabled');
-			$(obj).data('webvideo-loop', '');
-			$.glue.backend({ method: 'glue.object_remove_attr', name: $(obj).attr('id'), attr: 'webvideo-loop' });
-		} else if ($(this).hasClass('glue-menu-disabled')) {
-			$(this).addClass('glue-menu-enabled');
-			$(this).removeClass('glue-menu-disabled');
-			$(obj).data('webvideo-loop', 'loop');
-			$.glue.backend({ method: 'glue.update_object', name: $(obj).attr('id'), 'webvideo-loop': 'loop' });
-		}
-	});
-	$.glue.contextmenu.register('webvideo', 'webvideo-loop', elem);
-	
+
 	// make sure we don't send to much over the wire for every save
-	$.glue.object.register_alter_pre_save('iframe', function(obj, orig) {
-		$(obj).children('iframe').html('');
-		$(obj).children('.glue-webvideo-handle').remove();
+	$.glue.object.register_alter_pre_save('webvideo', function(obj, orig) {
+		var child = obj.querySelector(':scope > iframe');
+		if (child) {
+			child.innerHTML = '';
+		}
+		var shield = obj.querySelector(':scope > .glue-webvideo-shield');
+		if (shield) {
+			shield.remove();
+		}
 	});
 });

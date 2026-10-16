@@ -7,11 +7,19 @@
  *	See the file COPYING for more details.
  */
 
-$(document).ready(function() {
-	elem = $('<img src="'+$.glue.base_url+'modules/page_browser/page_browser.png" alt="'+$.glue.t('page_browser.list_all_pages')+'" title="'+$.glue.t('page_browser.list_all_pages')+'" width="32" height="32">');
-	$(elem).bind('click', function(e) {
+document.addEventListener('DOMContentLoaded', function() {
+	// /?options is the same controller as /?pages (module_page_browser.inc.php
+	// registers both), and this button is what the site-wide settings are
+	// reached from - so it names the settings, not the page list that happens
+	// to share the page with them. /?pages stays as it was: it is out there in
+	// links and bookmarks, and an alias is the whole point of it.
+	var elem = $.glue.icon('site-settings', 'site options - favicon, pages, fonts');
+	elem.addEventListener('click', function(e) {
 		$.glue.menu.hide();
-		window.location = $.glue.base_url+'?pages';
+		// a new tab, so the page being worked on stays behind (danja's
+		// call, 2026-09-24) - the click is a user gesture, so no popup
+		// blocker applies
+		window.open($.glue.base_url+'?options', '_blank');
 	});
-	$.glue.menu.register('page', elem, 11);
+	$.glue.menu.register('page', elem, 7);
 });

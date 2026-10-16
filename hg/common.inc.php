@@ -78,12 +78,39 @@ function cache_output($category, $name, $out)
 function default_html($add_glue)
 {
 	html_title(SITE_NAME);
-	$favicon = FAVICON;
-	if (!empty($favicon)) {
-		if (is_url($favicon)) {
-			html_favicon($favicon);
-		} else {
-			html_favicon(base_url().$favicon);
+	// a site-wide favicon can be uploaded on the site options page
+	// (page-favicon-file, stored with the site options - see site_options_page()
+	// - regardless of which page is currently being viewed; module_page.inc.php's
+	// page_favicon_upload()/controller_favicon()) - falls back to the
+	// FAVICON config constant if none has been uploaded
+	$favicon_obj = site_options_load();
+	if (!$favicon_obj['#error'] && !empty($favicon_obj['#data']['page-favicon-file'])) {
+		// written last in the head, so that it beats an icon a page brings in
+		// its own HEAD (see html_site_favicon()). It is also the best
+		// home-screen icon this site has - deliberately no fallback to the
+		// installation's own set here, that would put hotglue's mark on
+		// somebody else's site
+		html_site_favicon('?favicon', @$favicon_obj['#data']['page-favicon-mime']);
+	} else {
+		$favicon = FAVICON;
+		if (!empty($favicon)) {
+			if (is_url($favicon)) {
+				html_favicon($favicon);
+			} else {
+				html_favicon(base_url().$favicon);
+			}
+		}
+		// svg and its png fallbacks, for the browsers that read them
+		// (see FAVICON_SET)
+		if (is_array(FAVICON_SET)) {
+			foreach (FAVICON_SET as $icon) {
+				if (empty($icon['rel']) || empty($icon['href'])) {
+					continue;
+				}
+				html_add_icon($icon['rel'], $icon['href'],
+					(isset($icon['type']) ? $icon['type'] : ''),
+					(isset($icon['sizes']) ? $icon['sizes'] : ''));
+			}
 		}
 	}
 	if (USE_MIN_FILES) {
@@ -97,22 +124,53 @@ function default_html($add_glue)
 		html_add_css(base_url().'css/glue.css', 4);
 	}
 	if ($add_glue) {
-		$jquery = JQUERY;
-		if (is_url($jquery)) {
-			html_add_js($jquery, 1);
-		} else {
-			html_add_js(base_url().$jquery, 1);
-		}
 		// 2 can be used for third-party components
 		if (USE_MIN_FILES) {
 			html_add_js(base_url().'js/glue.min.js', 3);
 		} else {
 			html_add_js(base_url().'js/glue.js', 3);
 		}
-		html_add_js_var('$.glue.base_url', base_url());
+		// domain-relative (base_path(), not the full base_url()) so every module's icon/
+		// link/fetch URL built as `$.glue.base_url+'relative/path'` still
+		// resolves correctly when viewed through a different domain than
+		// the one BASE_URL is configured/detected as - same rationale as
+		// html.inc.php's _relativize_asset_url()
+		html_add_js_var('$.glue.base_url', base_path());
 		html_add_js_var('$.glue.conf.show_frontend_errors', SHOW_FRONTEND_ERRORS);
 		html_add_js_var('$.glue.conf.upload.max_size', UPLOAD_MAX_SIZE);
 		html_add_js_var('$.glue.version', glue_version());
+	} else {
+		// mobile guided view - a pan/zoom viewing layer for small screens (see
+		// SOW-mobile-guided-view.md). VIEWING mode only: the editor is not a
+		// mobile-viewing surface, and the script must never fight the editor's
+		// own drag/resize handling, so it is gated here rather than at runtime.
+		// It decides for itself whether to activate (small viewport, and a
+		// canvas wider than it) and does nothing otherwise. Deferred so the
+		// objects it measures are parsed before it runs.
+		// This is the ONLY script a visitor to a published page downloads -
+		// everything else in js/ is editor-only - so its size is the one that
+		// actually reaches people. The source is 30KB, 59% of it comments;
+		// the copy is 12KB, and 4KB against 11KB once gzipped. Regenerate it
+		// with tools/make-min.js after editing the source.
+		// The site can switch it off (page-guided = off in the site options,
+		// loaded above for the favicon; on is the default and is
+		// stored by absence). Then the script is not loaded at all - a visitor
+		// downloads nothing for it - and ?guided=1 has nothing to force.
+		if (!$favicon_obj['#error'] && @$favicon_obj['#data']['page-guided'] === 'off') {
+			// nothing to add
+		} else {
+			if (USE_MIN_FILES) {
+				html_add_js(base_url().'js/mobile-guided.min.js', 3, true);
+			} else {
+				html_add_js(base_url().'js/mobile-guided.js', 3, true);
+			}
+			// the site's chosen zoom for it; the default is not written at all
+			$guided_zoom = $favicon_obj['#error'] ? guided_zoom_default() : intval(@$favicon_obj['#data']['page-guided-zoom']);
+			if ($guided_zoom != guided_zoom_default() && in_array($guided_zoom, guided_zoom_choices(), true)) {
+				$bdy = &body();
+				elem_attr($bdy, 'data-guided-zoom', (string)$guided_zoom);
+			}
+		}
 	}
 }
 
@@ -132,7 +190,7 @@ function drop_cache($category, $name = '')
 			return;
 		}
 	} else {
-		$d = array($name);
+		$d = [$name];
 	}
 	
 	foreach ($d as $f) {
@@ -155,7 +213,7 @@ function drop_cache($category, $name = '')
 function glue_version()
 {
 	$a = expl('.', HOTGLUE_VERSION);
-	$ret = array(0, 0, 0);
+	$ret = [0, 0, 0];
 	for ($i=0; $i < count($a); $i++) {
 		$ret[$i] = intval($a[$i]);
 	}
@@ -174,7 +232,7 @@ function handle_updates()
 	if (($s = @file_get_contents(CONTENT_DIR.'/version')) !== false) {
 		// parse version
 		$a = expl('.', $s);
-		$old = array(0, 0, 0);
+		$old = [0, 0, 0];
 		for ($i=0; $i < count($a); $i++) {
 			$old[$i] = $a[$i];
 		}
@@ -182,7 +240,7 @@ function handle_updates()
 		if ($old != $new) {
 			log_msg('info', 'common: detected hotglue update from version '.implode('.', $old).' to '.implode('.', $new));
 			// hook
-			invoke_hook('glue_update', array('old'=>$old, 'new'=>$new));
+			invoke_hook('glue_update', ['old'=>$old, 'new'=>$new]);
 			$write_file = true;
 		}
 	} else {
@@ -229,7 +287,7 @@ function hotglue_error($code, $no_header = false)
 	body_append(tab(2).'<div id="wrapper">'.nl());
 	body_append(tab(3).'<div id="content">'.nl());
 	body_append(tab(4).'<div id="left-nav">'.nl());
-	body_append(tab(5).'<img src="'.htmlspecialchars(base_url(), ENT_COMPAT, 'UTF-8').'img/hotglue-logo.png" alt="logo">'.nl());
+	body_append(tab(5).'<img src="'.htmlspecialchars(base_path(), ENT_COMPAT, 'UTF-8').'img/hotglue-logo.png" alt="logo">'.nl());
 	body_append(tab(4).'</div>'.nl());
 	body_append(tab(4).'<div id="main">'.nl());
 	if ($code == 400) {
@@ -259,17 +317,99 @@ function hotglue_error($code, $no_header = false)
 		body_append(tab(6).'Something is causing serious server errors!'.nl());
 	}
 	body_append(tab(5).'</p>'.nl());
-	body_append(tab(6).'<a href="'.htmlspecialchars(base_url(), ENT_COMPAT, 'UTF-8').'" id="home">take me home!</a>'.nl());
+	body_append(tab(6).'<a href="'.htmlspecialchars(base_path(), ENT_COMPAT, 'UTF-8').'" id="home">take me home!</a>'.nl());
 	body_append(tab(4).'</div>'.nl());
 	body_append(tab(3).'</div>'.nl());
 	body_append(tab(2).'</div>'.nl());
 	body_append(tab(2).'<div style="position: absolute; left: 200px; top: -10px; z-index: 2;">'.nl());
-	body_append(tab(3).'<img src="'.htmlspecialchars(base_url(), ENT_COMPAT, 'UTF-8').'img/hotglue-404.png" alt="404">'.nl());
+	body_append(tab(3).'<img src="'.htmlspecialchars(base_path(), ENT_COMPAT, 'UTF-8').'img/hotglue-404.png" alt="404">'.nl());
 	body_append(tab(2).'</div>'.nl());
 	body_append(tab(1).'</div>'.nl());
 	echo html_finalize();
 	
 	die();
+}
+
+
+/**
+ *	compute a UserCake-compatible salted password hash
+ *
+ *	matches UserCake's own generateHash(): a 25-character salt prefix
+ *	(freshly generated, or taken from an existing stored hash when
+ *	verifying) followed by sha1(salt . plaintext) - this specific scheme
+ *	is required to verify against an existing UserCake accounts table
+ *	(see db_auth_check()), not something chosen fresh here
+ *
+ *	@param string $plain_text
+ *	@param string|null $salt existing hash/salt to verify against, or null to generate a new one
+ *	@return string
+ */
+function usercake_hash($plain_text, $salt = null)
+{
+	if ($salt === null) {
+		$salt = substr(md5(uniqid((string)mt_rand(), true)), 0, 25);
+	} else {
+		$salt = substr($salt, 0, 25);
+	}
+	return $salt.sha1($salt.$plain_text);
+}
+
+
+/**
+ *	check a username/password pair against a DB_AUTH_* configured database
+ *
+ *	authenticates against a UserCake-compatible accounts table (columns
+ *	Username_Clean, Password, Active) that can be shared across a
+ *	multi-site installation - the authenticated account must additionally
+ *	match this site's own AUTH_USER (from user-config.inc.php), since one
+ *	database can back many hotglue sites each with a single owner
+ *
+ *	@param string $user
+ *	@param string $pass
+ *	@return bool
+ */
+function db_auth_check($user, $pass)
+{
+	if (!class_exists('mysqli')) {
+		log_msg('error', 'db_auth_check: mysqli extension not available');
+		return false;
+	}
+	if (empty(DB_AUTH_HOST) || empty(DB_AUTH_NAME)) {
+		log_msg('error', 'db_auth_check: DB_AUTH_HOST/DB_AUTH_NAME are not configured');
+		return false;
+	}
+
+	$user = strtolower($user);
+	if ($user !== strtolower(AUTH_USER)) {
+		log_msg('info', 'db_auth_check: user does not match site owner ('.$user.' != '.AUTH_USER.')');
+		return false;
+	}
+
+	static $db = null;
+	if ($db === null) {
+		$db = @new mysqli(DB_AUTH_HOST, DB_AUTH_USER, DB_AUTH_PASSWORD, DB_AUTH_NAME);
+	}
+	if ($db->connect_errno) {
+		log_msg('error', 'db_auth_check: database connection failed: '.$db->connect_error);
+		return false;
+	}
+
+	$stmt = $db->prepare('SELECT Password FROM '.DB_AUTH_TABLE.' WHERE Username_Clean = ? AND Active = 1 LIMIT 1');
+	if (!$stmt) {
+		log_msg('error', 'db_auth_check: query prepare failed: '.$db->error);
+		return false;
+	}
+	$stmt->bind_param('s', $user);
+	$stmt->execute();
+	$row = $stmt->get_result()->fetch_assoc();
+	$stmt->close();
+
+	if (!$row) {
+		log_msg('info', 'db_auth_check: no active account for '.quot($user));
+		return false;
+	}
+
+	return hash_equals($row['Password'], usercake_hash($pass, $row['Password']));
 }
 
 
@@ -285,10 +425,12 @@ function is_auth()
 		return true;
 	} elseif (AUTH_METHOD == 'basic') {
 		if (isset($_SERVER['Authorization'])) {
-			list($_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW']) = explode(':' , base64_decode(substr($_SERVER['Authorization'], 6)));
+			[$_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW']] = explode(':' , base64_decode(substr($_SERVER['Authorization'], 6)));
 		}
 		if (isset($_SERVER['PHP_AUTH_USER']) && isset($_SERVER['PHP_AUTH_PW'])) {
-			if ($_SERVER['PHP_AUTH_USER'] == AUTH_USER && $_SERVER['PHP_AUTH_PW'] == AUTH_PASSWORD) {
+			// constant-time comparison to avoid leaking credential length/
+			// content through response-time differences
+			if (hash_equals(AUTH_USER, $_SERVER['PHP_AUTH_USER']) && hash_equals(AUTH_PASSWORD, $_SERVER['PHP_AUTH_PW'])) {
 				log_msg('debug', 'common: auth success (auth_method basic)');
 				return true;
 			} else {
@@ -306,7 +448,7 @@ function is_auth()
 	} elseif (AUTH_METHOD == 'digest') {
 		if (isset($_SERVER['PHP_AUTH_DIGEST'])) {
 			log_msg('debug', 'common: auth digest '.var_dump_inl($_SERVER['PHP_AUTH_DIGEST']));
-			$res = http_digest_check(array(AUTH_USER=>AUTH_PASSWORD), SITE_NAME);
+			$res = http_digest_check([AUTH_USER=>AUTH_PASSWORD], SITE_NAME);
 			if ($res == 0) {
 				log_msg('debug', 'common: auth success (auth_method digest)');
 				return true;
@@ -319,6 +461,26 @@ function is_auth()
 				log_msg('warn', 'common: no auth data (auth_method digest) but HTTP_AUTHORIZATION is '.quot(var_dump_inl($_SERVER['HTTP_AUTHORIZATION'])));
 			} else {
 				log_msg('debug', 'common: no auth data (auth_method digest)');
+			}
+			return false;
+		}
+	} elseif (AUTH_METHOD == 'db') {
+		if (isset($_SERVER['Authorization'])) {
+			[$_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW']] = explode(':' , base64_decode(substr($_SERVER['Authorization'], 6)));
+		}
+		if (isset($_SERVER['PHP_AUTH_USER']) && isset($_SERVER['PHP_AUTH_PW'])) {
+			if (db_auth_check($_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'])) {
+				log_msg('debug', 'common: auth success (auth_method db)');
+				return true;
+			} else {
+				log_msg('info', 'common: auth failure (auth_method db)');
+				return false;
+			}
+		} else {
+			if (!empty($_SERVER['HTTP_AUTHORIZATION'])) {
+				log_msg('warn', 'common: no auth data (auth_method db) but HTTP_AUTHORIZATION is '.quot(var_dump_inl($_SERVER['HTTP_AUTHORIZATION'])));
+			} else {
+				log_msg('debug', 'common: no auth data (auth_method db)');
 			}
 			return false;
 		}
@@ -350,11 +512,7 @@ function is_cached($category, $name, $max_age)
 		return false;
 	}
 	// check the file's age
-	if (version_compare(PHP_VERSION, '5.3.0', '>=')) {
-		clearstatcache(true, realpath($f));
-	} else {
-		clearstatcache();
-	}
+	clearstatcache(true, realpath($f));
 	$age = filemtime($f);
 	if ($max_age < abs(time()-$age)) {
 		return false;
@@ -471,6 +629,9 @@ function prompt_auth($header_only = false)
 		header($_SERVER['SERVER_PROTOCOL'].' 401 Unauthorized');
 	} elseif (AUTH_METHOD == 'digest') {
 		http_digest_prompt(SITE_NAME);
+	} elseif (AUTH_METHOD == 'db') {
+		header('WWW-Authenticate: Basic realm="'.str_replace("\"", '', SITE_NAME).'"');
+		header($_SERVER['SERVER_PROTOCOL'].' 401 Unauthorized');
 	} else {
 		log_msg('error', 'common: invalid or missing AUTH_METHOD config setting');
 	}
@@ -515,6 +676,94 @@ function resolve_aliases($s, $name = '')
 
 
 /**
+ *	the hosts that mean "this site": the one the visitor is on, with and
+ *	without www., plus whatever the install adds - the SITE_HOSTS constant
+ *	(space or comma separated, for a custom domain pointed at this site that
+ *	is no longer or not yet the current host) and a hosted_site_hosts()
+ *	function if user-config.inc.php defines one (it is only called when a link
+ *	to an absolute address is being looked at, so it can do real work)
+ *
+ *	@return array lower case host names
+ */
+function own_hosts()
+{
+	static $hosts = null;
+	if ($hosts !== null) {
+		return $hosts;
+	}
+	$hosts = [];
+	if (!empty($_SERVER['HTTP_HOST'])) {
+		$hosts[] = strtolower(preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST']));
+	}
+	if (defined('SITE_HOSTS')) {
+		foreach (preg_split('/[\s,]+/', SITE_HOSTS, -1, PREG_SPLIT_NO_EMPTY) as $h) {
+			$hosts[] = strtolower($h);
+		}
+	}
+	if (function_exists('hosted_site_hosts')) {
+		foreach ((array)hosted_site_hosts() as $h) {
+			$hosts[] = strtolower($h);
+		}
+	}
+	foreach ($hosts as $h) {
+		$hosts[] = (strpos($h, 'www.') === 0) ? substr($h, 4) : 'www.'.$h;
+	}
+	$hosts = array_values(array_unique(array_filter($hosts)));
+	return $hosts;
+}
+
+
+/**
+ *	turn an absolute address of this very site into a domain-relative one
+ *
+ *	Links were saved as full addresses (http://user.example/?page) years ago,
+ *	and those pass through the renderer untouched - so a site viewed through
+ *	another domain, or whose old domain is gone, sent its visitors off to
+ *	that other address. An address whose host is one of own_hosts() becomes
+ *	base_path().'?page' (or base_path() for the front page); the fragment is
+ *	kept. Anything that cannot be mapped with certainty - another host, a
+ *	path that is not a plain page name, a query with several parts - is left
+ *	exactly as it was.
+ *
+ *	@param string $url
+ *	@return string|false the domain-relative url, or false when $url is not an
+ *		address of this site (or not one we can map)
+ */
+function localize_url($url)
+{
+	if (!preg_match('#^https?://([^/?\#:]+)(?::\d+)?([^?\#]*)(?:\?([^\#]*))?(\#.*)?$#i', $url, $m)) {
+		return false;
+	}
+	if (!in_array(strtolower($m[1]), own_hosts(), true)) {
+		return false;
+	}
+	$path = $m[2];
+	$query = isset($m[3]) ? $m[3] : '';
+	$frag = isset($m[4]) ? $m[4] : '';
+	// an install in a subdirectory: its own path in front is not part of the page
+	$bp = base_path();
+	if ($bp != '/' && strpos($path, $bp) === 0) {
+		$path = '/'.substr($path, strlen($bp));
+	}
+	if ($query !== '' && ($path === '' || $path === '/')) {
+		// /?page - the query is the page, as long as it is just that
+		if (strpos($query, '&') !== false) {
+			return false;
+		}
+		return $bp.'?'.$query.$frag;
+	}
+	if ($query === '' && ($path === '' || $path === '/')) {
+		return $bp.$frag;
+	}
+	if ($query === '' && preg_match('#^/([^/.]+)/?$#', $path, $p)) {
+		// /page - what the .htaccess rewrite turns into ?page
+		return $bp.(SHORT_URLS ? '' : '?').urlencode(urldecode($p[1])).$frag;
+	}
+	return false;
+}
+
+
+/**
  *	resolve relative urls in various page content to include the pages base 
  *	url
  *
@@ -524,20 +773,29 @@ function resolve_aliases($s, $name = '')
  */
 function resolve_relative_urls($s)
 {
-	$attrs = array('href', 'src');
+	$attrs = ['href', 'src'];
 	
 	foreach ($attrs as $attr) {
 		$start = 0;
 		while (($start = strpos($s, $attr.'="', $start)) !== false) {
 			if (($end = strpos($s, '"', $start+strlen($attr)+2)) !== false) {
 				$link = substr($s, $start+strlen($attr)+2, $end-$start-strlen($attr)-2);
-				if (!is_url($link) && substr($link, 0, 1) != '#') {
-					// add base url for relative links that are not directed towards anchors
+				if (($local = localize_url($link)) !== false) {
+					// an absolute address of this very site: write the
+					// domain-relative one back into the markup
+					log_msg('debug', 'common: localizing url '.quot($link));
+					$s = substr($s, 0, $start+strlen($attr)+2).$local.substr($s, $end);
+					$end = $start+strlen($attr)+2+strlen($local);
+				} elseif (!is_url($link) && substr($link, 0, 1) != '#') {
+					// note: this branch computes the resolved link and has never
+					// written it back (nor did the original) - changing that would
+					// turn every relative asset path in rich text into a page link,
+					// so only the localized case above is written back
 					log_msg('debug', 'common: resolving relative url '.quot($link));
 					if (SHORT_URLS) {
-						$link = base_url().$link;
+						$link = base_path().$link;
 					} else {
-						$link = base_url().'?'.$link;
+						$link = base_path().'?'.$link;
 					}
 				} else {
 					log_msg('debug', 'common: not resolving url '.quot($link));
@@ -552,6 +810,13 @@ function resolve_relative_urls($s)
 }
 
 
+/**
+ *	output a cached page to the client
+ *
+ *	@param string $category cache category (e.g. 'page')
+ *	@param string $name item name
+ *	@return true if successful, false if not
+ */
 /**
  *	drop a cached output
  *
@@ -569,13 +834,6 @@ function clear_cache($category, $name)
 }
 
 
-/**
- *	output a cached page to the client
- *
- *	@param string $category cache category (e.g. 'page')
- *	@param string $name item name
- *	@return true if successful, false if not
- */
 function serve_cached($category, $name)
 {
 	$f = CONTENT_DIR.'/cache/'.$category.'/'.$name;
@@ -606,6 +864,237 @@ function startpage()
 		page_canonical($s);
 		return $s;
 	}
+}
+
+
+/**
+ *	the site options: settings that belong to the whole site rather than to
+ *	one page (favicon, custom fonts, the guided view, the last text font,
+ *	size and line height)
+ *
+ *	They used to be stored on the STARTPAGE's own page-object, which is a page
+ *	like any other: deleting it took every setting and every uploaded file with
+ *	it, writes then failed (the directory was gone), and changing the startpage
+ *	silently left the settings behind. They now live in a reserved page of
+ *	their own, content/_options/ - shaped like a page (head/page plus shared/)
+ *	so the object, upload and shared-directory code works on it unchanged, and
+ *	so tools that scan page directories (cleanup-orphans.php) see the favicon
+ *	and the fonts as referenced. It is not a page a visitor or an author can
+ *	reach: valid_pagename() refuses the name, pagenames() skips it, the
+ *	controller 404s it and delete_page() will not delete it.
+ */
+function site_options_page()
+{
+	return '_options.head';
+}
+
+
+function site_options_name()
+{
+	return site_options_page().'.page';
+}
+
+
+/**
+ *	the attributes that are site options, i.e. the ones that used to be
+ *	stored on the startpage's page-object
+ *
+ *	@return array list of attribute names
+ */
+function site_options_keys()
+{
+	return ['page-favicon-file', 'page-favicon-mime', 'page-custom-fonts',
+		'page-last-text-font', 'page-last-text-font-size', 'page-last-text-line-height',
+		'page-guided', 'page-guided-zoom'];
+}
+
+
+/**
+ *	make sure the site options page's directories exist
+ *
+ *	@return bool
+ */
+function site_options_ensure()
+{
+	$base = CONTENT_DIR.'/'.get_first_item(expl('.', site_options_page()));
+	foreach ([$base, $base.'/head', $base.'/shared'] as $d) {
+		if (!is_dir($d)) {
+			$m = umask(0000);
+			$ok = @mkdir($d, 0777);
+			umask($m);
+			// another request may have made it in between
+			if (!$ok && !is_dir($d)) {
+				log_msg('error', 'site_options_ensure: error creating '.quot($d));
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+
+/**
+ *	bring a site that still has its options on the startpage's page-object
+ *	over to the site options page: copy the settings, and the favicon and font
+ *	files they name. Lazy (the first time anything reads the options), once
+ *	(the options page existing is the marker), and non-destructive - the
+ *	startpage keeps what it had.
+ */
+function site_options_migrate()
+{
+	static $done = false;
+	if ($done) {
+		return;
+	}
+	$done = true;
+	$base = CONTENT_DIR.'/'.get_first_item(expl('.', site_options_page()));
+	if (is_dir($base.'/head')) {
+		return;
+	}
+	load_modules('glue');
+	$sp = startpage();
+	$old = load_object(['name'=>$sp.'.page']);
+	if ($old['#error']) {
+		return;
+	}
+	$move = [];
+	foreach (site_options_keys() as $k) {
+		if (isset($old['#data'][$k]) && $old['#data'][$k] !== '') {
+			$move[$k] = $old['#data'][$k];
+		}
+	}
+	if (empty($move) || !site_options_ensure()) {
+		return;
+	}
+	$files = [];
+	if (!empty($move['page-favicon-file'])) {
+		$files[] = $move['page-favicon-file'];
+	}
+	if (!empty($move['page-custom-fonts'])) {
+		$fonts = @json_decode($move['page-custom-fonts'], true);
+		if (is_array($fonts)) {
+			foreach ($fonts as $f) {
+				if (!empty($f['file'])) {
+					$files[] = $f['file'];
+				}
+			}
+		}
+	}
+	$from = CONTENT_DIR.'/'.get_first_item(expl('.', $sp)).'/shared/';
+	foreach ($files as $f) {
+		$f = basename($f);
+		if (is_file($from.$f)) {
+			$m = umask(0111);
+			if (!@copy($from.$f, $base.'/shared/'.$f)) {
+				log_msg('error', 'site_options_migrate: error copying '.quot($f));
+			}
+			umask($m);
+		}
+	}
+	$ret = update_object(['name'=>site_options_name()] + $move);
+	if ($ret['#error']) {
+		log_msg('error', 'site_options_migrate: error writing the site options: '.quot($ret['#data']));
+	} else {
+		log_msg('info', 'site_options_migrate: moved '.count($move).' setting(s) and '.count($files).' file(s) from '.quot($sp));
+	}
+}
+
+
+/**
+ *	load the site options object
+ *
+ *	@return array like load_object(): '#error', and the attributes in '#data'
+ */
+function site_options_load()
+{
+	load_modules('glue');
+	site_options_migrate();
+	return load_object(['name'=>site_options_name()]);
+}
+
+
+/**
+ *	set site options
+ *
+ *	@param array $attrs attribute => value
+ *	@return array response
+ */
+function site_options_update($attrs)
+{
+	load_modules('glue');
+	site_options_migrate();
+	if (!site_options_ensure()) {
+		return response('Error creating the site options directory', 500);
+	}
+	return update_object(['name'=>site_options_name()] + $attrs);
+}
+
+
+/**
+ *	remove site options
+ *
+ *	@param array|string $attrs attribute name(s)
+ *	@return array response
+ */
+function site_options_remove($attrs)
+{
+	$obj = site_options_load();
+	if ($obj['#error']) {
+		// nothing was ever written
+		return response(true);
+	}
+	return object_remove_attr(['name'=>site_options_name(), 'attr'=>$attrs]);
+}
+
+
+/**
+ *	the choices for the mobile guided view's zoom (site settings, see /pages),
+ *	in percent of a reading scale that is itself 75% of natural size
+ *	(js/mobile-guided.js's READ_BASE). The default, guided_zoom_default(), is
+ *	stored by ABSENCE (page-guided-zoom in the site options), so
+ *	a site that never touched the setting keeps exactly the files and html it
+ *	had. A stored value keeps its meaning whatever the default is.
+ *
+ *	@return array list of ints
+ */
+function guided_zoom_choices()
+{
+	return [25, 50, 75, 100, 125, 150];
+}
+
+
+/**
+ *	the default zoom choice: 75% of the reading scale, 0.5625 of natural size
+ *	(the first default, 100%, read as too zoomed in on a phone)
+ *
+ *	@return int
+ */
+function guided_zoom_default()
+{
+	return 75;
+}
+
+
+/**
+ *	return the site's uploaded custom fonts (site settings, see /pages)
+ *
+ *	stored as a json-encoded list in the site options (page-custom-fonts),
+ *	regardless of which page is currently being rendered - see
+ *	module_page.inc.php's page_font_upload()
+ *
+ *	@return array list of ['file'=>..., 'name'=>...]
+ */
+function site_custom_fonts()
+{
+	$obj = site_options_load();
+	if ($obj['#error'] || empty($obj['#data']['page-custom-fonts'])) {
+		return [];
+	}
+	$fonts = @json_decode($obj['#data']['page-custom-fonts'], true);
+	if (!is_array($fonts)) {
+		return [];
+	}
+	return $fonts;
 }
 
 
@@ -688,6 +1177,63 @@ function upload_file($fn, $page, $orig_fn = '', &$existed = false)
 
 
 /**
+ *	copy a file into the shared directory of a page
+ *
+ *	the same landing rules upload_file() uses, so a copy behaves exactly like
+ *	an upload: an identical file already in the target directory is reused
+ *	(and its name returned), anything else gets a unique name rather than
+ *	overwriting whatever is there. Used by paste_object() to move an object's
+ *	per-page assets along with it.
+ *	@param string $src_path absolute path of the file to copy
+ *	@param string $page target page (i.e. page.rev)
+ *	@return filename inside the shared directory or false in case of error
+ */
+function copy_asset_to_page($src_path, $page)
+{
+	if (!is_file($src_path)) {
+		return false;
+	}
+
+	$a = expl('.', $page);
+	if (count($a) < 1 || !is_dir(CONTENT_DIR.'/'.$a[0])) {
+		log_msg('error', 'common: page '.quot($page).' does not exist, cannot copy asset');
+		return false;
+	}
+
+	// create shared directory if it doesn't exist yet
+	$d = CONTENT_DIR.'/'.$a[0].'/shared';
+	if (!is_dir($d)) {
+		$m = umask(0000);
+		if (!@mkdir($d, 0777)) {
+			umask($m);
+			log_msg('error', 'common: cannot create shared directory '.quot($d).', cannot copy asset');
+			return false;
+		}
+		umask($m);
+	}
+
+	// check if the very same file is already in the shared directory
+	if (($f = dir_has_same_file($d, $src_path, basename($src_path))) !== false) {
+		log_msg('info', 'common: reusing file '.quot($f).' instead of copied file as they don\'t differ');
+		return $f;
+	} else {
+		// at least give it a unique name
+		$f = unique_filename($d, basename($src_path));
+		$m = umask(0111);
+		if (!@copy($src_path, $d.'/'.$f)) {
+			umask($m);
+			log_msg('error', 'common: error copying file to '.quot($d.'/'.$f));
+			return false;
+		} else {
+			umask($m);
+			log_msg('info', 'common: copied file to '.quot($d.'/'.$f));
+			return $f;
+		}
+	}
+}
+
+
+/**
  *	check whether the string is a valid, canonical page name
  *
  *	the function does not check if the page exists or not.
@@ -701,7 +1247,7 @@ function valid_pagename($s)
 		return false;
 	} elseif (empty($a[0]) || empty($a[1])) {
 		return false;
-	} elseif (in_array($a[0], array('cache', 'shared'))) {
+	} elseif (in_array($a[0], ['cache', 'shared', '_options'])) {
 		// reserved page names
 		// TODO (later): we're missing the log file here
 		// TODO (later): we're also missing $arg0 of controllers here
@@ -709,7 +1255,7 @@ function valid_pagename($s)
 		// content directory here (this might not be an issue on all 
 		// os)
 		return false;
-	} elseif (in_array($a[1], array('shared'))) {
+	} elseif (in_array($a[1], ['shared'])) {
 		// reserved revision names
 		return false;
 	} elseif (is_file($a[0]) || is_dir($a[0]) || is_link($a[0])) {

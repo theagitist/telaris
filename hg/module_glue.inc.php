@@ -7,12 +7,6 @@
  *	Copyright Gottfried Haider, Danja Vasiliev 2010.
  *	This source code is licensed under the GNU General Public License.
  *	See the file COPYING for more details.
- *
- *	theagitist/hotglue2 fork, 2026-06-25: user-facing response() messages are
- *	being wrapped in t() (module_i18n) for editor UI localization. The English
- *	catalog values are byte-identical to the original literals, so behaviour is
- *	unchanged for the default locale. (Wrapping is incremental; not every message
- *	is converted yet.)
  */
 
 @require_once('config.inc.php');
@@ -27,22 +21,6 @@ require_once('util.inc.php');
 
 
 // TODO (later): switch services to using $args['args'] for input validation?
-
-
-/**
- *	helper function for revisions_info()
- *
- *	@param array $a array to compare
- *	@param array $b array to compare
- *	@return int comparison result
- */
-function _cmp_time($a, $b)
-{
-	if ($a['time'] == $b['time']) {
-		return 0;
-	}
-	return ($a['time'] < $b['time']) ? 1 : -1;
-}
 
 
 /**
@@ -125,71 +103,6 @@ function _obj_unlock($f)
 
 
 /**
- *	create and delete auto- revisions
- *
- *	this function operates on a specific page and takes SNAPSHOT_MIN_AGE and
- *	SNAPSHOT_MAX_AGE into account.
- *	@param array $args arguments
- *		key 'page' is the page (i.e. page.rev)
- *	@return array response
- *		true if successful
- */
-function check_auto_snapshot($args)
-{
-	if (!isset($args['page'])) {
-		return response(t('errors.arg_page_missing'), 400);
-	}
-	if (!page_exists($args['page'])) {
-		return response(t('page.not_exist', quot($args['page'])), 400);
-	}
-	
-	$a = expl('.', $args['page']);
-	$revs = revisions_info(array('pagename'=>$a[0], 'sort'=>'time'));
-	$revs = $revs['#data'];
-	
-	if ($a[1] == 'head' && SNAPSHOT_MIN_AGE != 0) {
-		// we're dealing with a head revision and taking snapshots
-		// find the previous auto- revision
-		for ($i=0; $i < count($revs); $i++) {
-			if (substr($revs[$i]['revision'], 0, 5) == 'auto-') {
-				// got it, check age
-				if (time()-$revs[$i]['time'] < SNAPSHOT_MIN_AGE) {
-					log_msg('debug', 'check_auto_snapshot: age is '.(time()-$revs[$i]['time']).' seconds, not creating a snapshot');
-					break;
-				}
-				// check if different
-				if (dir_is_different(CONTENT_DIR.'/'.str_replace('.', '/', $args['page']), CONTENT_DIR.'/'.str_replace('.', '/', $revs[$i]['page']))) {
-					snapshot($args);
-				} else {
-					log_msg('debug', 'check_auto_snapshot: head is identical to '.$revs[$i]['revision'].', not creating a snapshot');
-				}
-				break;
-			}
-			if ($i == count($revs)-1) {
-				// no auto- revision?, create one now
-				snapshot($args);
-			}
-		}
-	}
-	
-	// delete old auto- revisions
-	if (SNAPSHOT_MAX_AGE != 0) {
-		for ($i=count($revs)-1; 0 <= $i; $i--) {
-			if (substr($revs[$i]['revision'], 0, 5) == 'auto-' && SNAPSHOT_MAX_AGE < time()-$revs[$i]['time']) {
-				log_msg('info', 'check_auto_snapshot: deleting an old snapshot');
-				delete_page(array('page'=>$revs[$i]['page']));
-				$i--;
-			}
-		}
-	}
-	
-	return response(true);
-}
-
-register_service('glue.check_auto_snapshot', 'check_auto_snapshot', array('auth'=>true));
-
-
-/**
  *	duplicate an object
  *
  *	@param array $args arguments
@@ -209,7 +122,7 @@ function clone_object($args)
 	
 	// create new object
 	$a = expl('.', $old['name']);
-	$new = create_object(array('page'=>$a[0].'.'.$a[1]));
+	$new = create_object(['page'=>$a[0].'.'.$a[1]]);
 	if ($new['#error']) {
 		return $new;
 	} else {
@@ -222,12 +135,296 @@ function clone_object($args)
 	if ($ret['#error']) {
 		return $ret;
 	} else {
+		// whatever a module keeps for the object elsewhere (its code) is
+		// copied for the clone
+		invoke_hook('clone_object', ['old'=>$old['name'], 'new'=>$new['name']]);
 		// return name
 		return response($new['name']);
 	}
 }
 
-register_service('glue.clone_object', 'clone_object', array('auth'=>true));
+register_service('glue.clone_object', 'clone_object', ['auth'=>true]);
+register_hook('clone_object', 'invoked when an object has been cloned, should be used for copying what the object keeps elsewhere');
+
+
+/**
+ *	hand an object over for copying
+ *
+ *	returns everything the object file holds - attributes and content - so the
+ *	client can hold it as a clipboard snapshot and send it back to
+ *	paste_object(). Attributes are NOT filtered through the dom: fields that
+ *	never render (image-file-mime, image-file-width, ...) travel too, which is
+ *	what makes a pasted object identical to the one it was copied from.
+ *
+ *	a symlinked object is handed over as the object it points at: the assets
+ *	it uses live on the page the target is on, not on the page the link is.
+ *
+ *	@param array $args arguments
+ *		key 'name' name of the object to hand over
+ *	@return array response
+ *		key 'name' resolved object name
+ *		key 'page' page the object (and its assets) really live on
+ *		key 'attrs' all attributes but name and content
+ *		key 'content' the object's content
+ */
+function get_object($args)
+{
+	if (empty($args['name'])) {
+		return response('Required argument "name" missing or empty', 400);
+	}
+	$name = $args['name'];
+
+	$link = object_get_symlink(['name'=>$name]);
+	if ($link['#error']) {
+		return $link;
+	} elseif ($link['#data'] === '') {
+		// object_get_symlink() has logged the target
+		return response('Cannot copy '.quot($name).': its target is outside the content directory', 400);
+	} elseif ($link['#data'] !== false) {
+		$name = $link['#data'];
+	}
+
+	if (!object_exists($name)) {
+		return response('Object '.quot($name).' does not exist', 404);
+	}
+
+	$obj = load_object(['name'=>$name]);
+	if ($obj['#error']) {
+		return $obj;
+	}
+	$obj = $obj['#data'];
+
+	$attrs = $obj;
+	unset($attrs['name']);
+	// content may come back as false - load_object() reads it that way when a
+	// file ends straight after its attributes - and it travels to the client
+	// as json, where it should be an empty string, not a boolean
+	$content = '';
+	if (isset($attrs['content'])) {
+		$content = strval($attrs['content']);
+		unset($attrs['content']);
+	}
+
+	// what modules keep for the object outside its file (its code) travels
+	// with it; the keys of the object itself cannot be overridden
+	$extra = [];
+	foreach (invoke_hook('export_object', ['name'=>$name]) as $e) {
+		if (is_array($e)) {
+			$extra = array_merge($extra, $e);
+		}
+	}
+
+	$a = expl('.', $name);
+	return response(array_merge($extra, [
+		'name'=>$name,
+		'page'=>$a[0].'.'.$a[1],
+		'attrs'=>$attrs,
+		'content'=>$content,
+	]));
+}
+
+register_service('glue.get_object', 'get_object', ['auth'=>true]);
+register_hook('export_object', 'invoked when an object is handed over for copying, returns extra keys for the clipboard');
+register_hook('import_object', 'invoked when a copied object has been pasted, gets the new name and the clipboard');
+
+
+/**
+ *	write a copied object into a page
+ *
+ *	takes a snapshot as returned by get_object() and recreates the object in
+ *	the target page under a fresh name, at its original coordinates. the
+ *	assets it references (images, backgrounds, uploads) are copied along with
+ *	it, under names that never overwrite what the target page already has;
+ *	fonts are site-global and are deliberately not copied. a missing or
+ *	unreachable source asset does not fail the paste - the object is written
+ *	either way.
+ *
+ *	@param array $args arguments
+ *		key 'page' page to paste into (i.e. page.rev)
+ *		key 'clipboard' the snapshot: source_page, name, attrs, content
+ *	@return array response
+ *		key 'name' name of the object created
+ *		key 'html' the object as rendered, ready to be added to the editor
+ */
+// The asset attrs a pasted object may name - the same set the has_reference
+// hooks answer for (image, download, video and the object's background
+// picture, whatever the editor calls the panel it is set in). Note that
+// page-level attributes and the custom font list are deliberately absent: a
+// font resolves by family name against the whole site, so there is nothing
+// to copy.
+function _paste_object_asset_attrs()
+{
+	return [
+		'image-file',
+		'image-resized-file',
+		'download-file',
+		'video-file',
+		'video-poster-file',
+		'video-encode-file',
+		'video-encode-poster-file',
+		'object-background-file',
+	];
+}
+
+// Copy every asset a pasted object's attrs name, from the source page's
+// shared directory into the target page's, renaming on collision.
+function _paste_object_copy_assets(&$attrs, $source_name, $source_page, $target_page, $have_source)
+{
+	foreach (_paste_object_asset_attrs() as $attr) {
+		if (empty($attrs[$attr])) {
+			continue;
+		}
+		$f = $attrs[$attr];
+		// an upload is always a bare filename inside the page's shared
+		// directory; anything else did not come from one and is left alone
+		if (basename($f) !== $f) {
+			log_msg('warn', 'paste_object: not a plain filename, not copying '.quot($attr).' '.quot($f));
+			continue;
+		}
+		if (!$have_source) {
+			continue;
+		}
+		$src = CONTENT_DIR.'/'.expl('.', $source_page)[0].'/shared/'.$f;
+		if (!is_file($src)) {
+			log_msg('warn', 'paste_object: cannot find '.quot($src).', pasting '.quot($source_name).' without it');
+			continue;
+		}
+		$new_f = copy_asset_to_page($src, $target_page);
+		if ($new_f === false) {
+			continue;
+		}
+		if ($new_f != $f) {
+			$attrs[$attr] = $new_f;
+		}
+	}
+}
+
+// A pasted object carrying download-wrap brings its wrapped download with
+// it: the pair pastes together, the file travels with the download, and the
+// two references are rewritten to the new names (2026-09-22,
+// SOW-download-object). Soft-fails to a plain paste when the download is
+// gone - a dangling wrap would render a broken anchor.
+function _paste_object_wrap(&$attrs, $source_name, $source_page, $target_page, $have_source, $new_target)
+{
+	if (empty($attrs['download-wrap'])) {
+		return;
+	}
+	$ref = $attrs['download-wrap'];
+	if (expl('.', $ref)[0] != expl('.', $source_page)[0]) {
+		log_msg('warn', 'paste_object: '.quot($source_name).' wraps a download on another page, pasting without the wrap');
+		unset($attrs['download-wrap']);
+		return;
+	}
+	$dl = load_object(['name'=>$ref]);
+	if ($dl['#error'] || $dl['#data']['type'] != 'download') {
+		log_msg('warn', 'paste_object: cannot find the wrapped download '.quot($ref).', pasting without the wrap');
+		unset($attrs['download-wrap']);
+		return;
+	}
+	$dl_attrs = $dl['#data'];
+	unset($dl_attrs['name']);
+	_paste_object_copy_assets($dl_attrs, $ref, $source_page, $target_page, $have_source);
+	$new_dl = create_object(['page'=>$target_page]);
+	if ($new_dl['#error']) {
+		unset($attrs['download-wrap']);
+		return;
+	}
+	$new_dl = $new_dl['#data']['name'];
+	$dl_obj = array_merge($dl_attrs, ['name'=>$new_dl, 'download-wrap-target'=>$new_target]);
+	$ret = save_object($dl_obj);
+	if ($ret['#error']) {
+		unset($attrs['download-wrap']);
+		return;
+	}
+	$attrs['download-wrap'] = $new_dl;
+	log_msg('info', 'paste_object: pasted the wrapped download '.quot($ref).' as '.quot($new_dl));
+}
+
+function paste_object($args)
+{
+	if (empty($args['page'])) {
+		return response('Required argument "page" missing or empty', 400);
+	}
+	if (!valid_pagename($args['page']) || !page_exists($args['page'])) {
+		return response('Page '.quot($args['page']).' does not exist', 404);
+	}
+	if (empty($args['clipboard']) || !is_array($args['clipboard'])) {
+		return response('Required argument "clipboard" missing or empty', 400);
+	}
+	$clip = $args['clipboard'];
+	if (empty($clip['name'])) {
+		return response('Required argument "clipboard.name" missing or empty', 400);
+	}
+	if (!isset($clip['attrs']) || !is_array($clip['attrs'])) {
+		return response('Required argument "clipboard.attrs" missing or not an array', 400);
+	}
+	// the page pseudo-object is page-level state wearing an object's clothes,
+	// and the clipboard we hand out never holds one
+	if (expl('.', $clip['name'])[2] == 'page') {
+		return response('Cannot paste '.quot($clip['name']).' as it is not an object', 400);
+	}
+
+	$attrs = $clip['attrs'];
+	unset($attrs['name']);
+	$content = isset($clip['content']) ? $clip['content'] : '';
+
+	// assets are copied from the page the source object lived on; when that
+	// page is gone (or was never one of ours) the object still pastes, it just
+	// arrives without its files
+	$source_page = isset($clip['source_page']) ? $clip['source_page'] : '';
+	$have_source = (valid_pagename($source_page) && page_exists($source_page));
+	if (!$have_source) {
+		log_msg('warn', 'paste_object: source page '.quot($source_page).' is unavailable, pasting '.quot($clip['name']).' without its assets');
+	}
+
+	_paste_object_copy_assets($attrs, $clip['name'], $source_page, $args['page'], $have_source);
+
+	// create the new object - create_object() picks a name that is unique in
+	// the target page, and the clipboard's name is deliberately not reused
+	$new = create_object(['page'=>$args['page']]);
+	if ($new['#error']) {
+		return $new;
+	}
+	$new = $new['#data']['name'];
+
+	// a wrapped pair pastes whole (2026-09-22): the download object travels
+	// with the target, and the references are rewritten to the new names
+	_paste_object_wrap($attrs, $clip['name'], $source_page, $args['page'], $have_source, $new);
+
+	$obj = array_merge($attrs, ['name'=>$new, 'content'=>$content]);
+	$ret = save_object($obj);
+	if ($ret['#error']) {
+		return $ret;
+	}
+	invoke_hook('import_object', ['name'=>$new, 'clipboard'=>$clip]);
+
+	// Keep the author's reading order complete: an object missing from the
+	// list still renders (it lands after the listed ones), but a screen
+	// reader would meet it last rather than where it sits. Only touched when
+	// the page actually has an order stored - pages that use the automatic
+	// one stay absent.
+	$page_name = $args['page'].'.page';
+	$page_obj = load_object(['name'=>$page_name]);
+	if (!$page_obj['#error'] && !empty($page_obj['#data']['page-reading-order'])) {
+		$order = json_decode($page_obj['#data']['page-reading-order'], true);
+		if (is_array($order)) {
+			$order[] = expl('.', $new)[2];
+			update_object(['name'=>$page_name, 'page-reading-order'=>json_encode($order)]);
+		}
+	}
+
+	// render it the way a page load would, so the client inserts exactly what
+	// a reload would produce
+	$render = render_object(['name'=>$new, 'edit'=>true, 'obj'=>$obj]);
+	if ($render['#error']) {
+		return $render;
+	}
+
+	log_msg('info', 'paste_object: pasted '.quot($clip['name']).' as '.quot($new).' into '.quot($args['page']));
+	return response(['name'=>$new, 'html'=>$render['#data']]);
+}
+
+register_service('glue.paste_object', 'paste_object', ['auth'=>true]);
 
 
 /**
@@ -241,10 +438,10 @@ register_service('glue.clone_object', 'clone_object', array('auth'=>true));
 function create_object($args)
 {
 	if (!isset($args['page'])) {
-		return response(t('errors.arg_page_missing'), 400);
+		return response('Required argument "page" missing', 400);
 	}
 	if (!page_exists($args['page'])) {
-		return response(t('page.not_exist', quot($args['page'])), 400);
+		return response('Page '.quot($args['page']).' does not exist', 400);
 	}
 	
 	// try to create new file
@@ -261,15 +458,15 @@ function create_object($args)
 	while ($f === false && $tries++ < 9);
 	
 	if (!$f) {
-		return response(t('object.create_error', quot($args['page'])), 500);
+		return response('Error creating an object in page '.quot($args['page']), 500);
 	} else {
 		fclose($f);
 		log_msg('info', 'create_object: created '.quot($name));
-		return response(array('name'=>$name));
+		return response(['name'=>$name]);
 	}
 }
 
-register_service('glue.create_object', 'create_object', array('auth'=>true));
+register_service('glue.create_object', 'create_object', ['auth'=>true]);
 
 
 /**
@@ -282,13 +479,13 @@ register_service('glue.create_object', 'create_object', array('auth'=>true));
 function create_page($args)
 {
 	if (empty($args['page'])) {
-		return response(t('errors.arg_page_missing_empty'), 400);
+		return response('Required argument "page" missing or empty', 400);
 	}
 	if (page_exists($args['page'])) {
-		return response(t('page.already_exists', quot($args['page'])), 400);
+		return response('Page '.quot($args['page']).' already exists', 400);
 	}
 	if (!valid_pagename($args['page'])) {
-		return response(t('page.invalid_name', quot($args['page'])), 400);	
+		return response('Invalid page name '.quot($args['page']), 400);	
 	}
 	
 	$a = expl('.', $args['page']);	
@@ -297,7 +494,7 @@ function create_page($args)
 		$m = umask(0000);
 		if (!@mkdir($d, 0777)) {
 			umask($m);
-			return response(t('errors.create_dir', quot($d)), 500);
+			return response('Error creating directory '.quot($d), 500);
 		}
 		umask($m);
 	}
@@ -307,17 +504,17 @@ function create_page($args)
 		$m = umask(0000);
 		if (!@mkdir($d, 0777)) {
 			umask($m);
-			return response(t('errors.create_dir', quot($d)), 500);
+			return response('Error creating directory '.quot($d), 500);
 		}
 		umask($m);
 	}
 
 	log_msg('info', 'create_page: created '.quot($args['page']));
-	invoke_hook('create_page', array('page'=>$args['page']));
+	invoke_hook('create_page', ['page'=>$args['page']]);
 	return response(true);
 }
 
-register_service('glue.create_page', 'create_page', array('auth'=>true));
+register_service('glue.create_page', 'create_page', ['auth'=>true]);
 register_hook('create_page', 'invoked when a page has been created');
 
 
@@ -331,16 +528,16 @@ register_hook('create_page', 'invoked when a page has been created');
 function delete_object($args)
 {
 	if (empty($args['name'])) {
-		return response(t('errors.arg_name_missing_empty'), 400);
+		return response('Required argument "name" missing or empty', 400);
 	}
 	if (!object_exists($args['name'])) {
-		return response(t('object.not_exist', quot($args['name'])), 404);
+		return response('Object '.quot($args['name']).' does not exist', 404);
 	}
 	// check if the object file is writable
 	// this allows us to make singular objects read-only by setting the file 
 	// permissions to 0444 or similar
 	if (!is_writable(CONTENT_DIR.'/'.str_replace('.', '/', $args['name']))) {
-		return response(t('object.read_only', quot($args['name'])), 500);
+		return response('Object '.quot($args['name']).' is read-only, not deleting it', 500);
 	}
 	
 	// call delete_object unless the object is a symlink
@@ -355,11 +552,11 @@ function delete_object($args)
 		} else {
 			$obj = $obj['#data'];
 		}
-		invoke_hook('delete_object', array('obj'=>$obj));
+		invoke_hook('delete_object', ['obj'=>$obj]);
 	}
 	
 	if (!@unlink(CONTENT_DIR.'/'.str_replace('.', '/', $args['name']))) {
-		return response(t('object.delete_error', quot($args['name'])), 500);
+		return response('Error deleting object '.quot($args['name']), 500);
 	} else {
 		log_msg('info', 'delete_object: deleted '.quot($args['name']));
 		// drop the all pages from the cache (since the object could have been 
@@ -369,7 +566,7 @@ function delete_object($args)
 	}
 }
 
-register_service('glue.delete_object', 'delete_object', array('auth'=>true));
+register_service('glue.delete_object', 'delete_object', ['auth'=>true]);
 register_hook('delete_object', 'invoked when an object is going to be deleted, should be used for deleting referenced resources');
 
 
@@ -383,14 +580,19 @@ register_hook('delete_object', 'invoked when an object is going to be deleted, s
 function delete_page($args)
 {
 	if (empty($args['page'])) {
-		return response(t('errors.arg_page_missing_empty'), 400);
+		return response('Required argument "page" missing or empty', 400);
 	}
 	if (!page_exists($args['page'])) {
-		return response(t('page.not_exist', quot($args['page'])), 404);
+		return response('Page '.quot($args['page']).' does not exist', 404);
 	}
+	if (get_first_item(expl('.', $args['page'])) == '_options') {
+		return response('The site options are not a page and cannot be deleted', 400);
+	}
+	// remember before it is gone: deleting the startpage hands it on
+	$was_startpage = ($args['page'] == startpage());
 	
 	log_msg('info', 'delete_page: deleting '.quot($args['page']));
-	invoke_hook('delete_page', array('page'=>$args['page']));
+	invoke_hook('delete_page', ['page'=>$args['page']]);
 	
 	// TODO (later): make it possible to delete all revisions at once 
 	// (optimization for frontend)
@@ -413,7 +615,7 @@ function delete_page($args)
 			}
 		} else {
 			// and everything else through delete_object
-			$ret = delete_object(array('name'=>$args['page'].'.'.$f));
+			$ret = delete_object(['name'=>$args['page'].'.'.$f]);
 			if ($ret['#error']) {
 				log_msg('error', 'delete_object: '.$ret['#data']);
 			}
@@ -422,7 +624,7 @@ function delete_page($args)
 	
 	// then the revision directory
 	if (!@rmdir(CONTENT_DIR.'/'.str_replace('.', '/', $args['page']))) {
-		return response(t('page.delete_error', $args['page']), 500);
+		return response('Error deleting page '.$args['page'], 500);
 	} else {
 		log_msg('debug', 'delete_page: deleted '.quot($args['page']));
 		// drop the page from cache
@@ -435,11 +637,33 @@ function delete_page($args)
 	if (@rmdir(CONTENT_DIR.'/'.$a[0])) {
 		log_msg('info', 'delete_page: parent page directory empty, removing '.quot($a[0]));
 	}
+
+	// the startpage is gone: the first page that is left takes over (and with
+	// no page left the pointer goes, so startpage() falls back to the default)
+	if ($was_startpage) {
+		$next = false;
+		$all = pagenames([]);
+		foreach ($all['#data'] as $pn) {
+			if (is_dir(CONTENT_DIR.'/'.$pn.'/head')) {
+				$next = $pn.'.head';
+				break;
+			}
+		}
+		$m = umask(0111);
+		if ($next !== false) {
+			@file_put_contents(CONTENT_DIR.'/startpage', $next);
+			log_msg('info', 'delete_page: the startpage was deleted, '.quot($next).' is the startpage now');
+		} else {
+			@unlink(CONTENT_DIR.'/startpage');
+			log_msg('info', 'delete_page: the last page was deleted, no startpage left');
+		}
+		umask($m);
+	}
 	
 	return response(true);
 }
 
-register_service('glue.delete_page', 'delete_page', array('auth'=>true));
+register_service('glue.delete_page', 'delete_page', ['auth'=>true]);
 register_hook('delete_page', 'invoked when a page is going to be deleted');
 register_hook('has_reference', 'used for deleting referenced resources');
 
@@ -459,13 +683,13 @@ register_hook('has_reference', 'used for deleting referenced resources');
  */
 function delete_upload($args)
 {
-	if (@is_numeric($args['max_cnt'])) {
+	if ((isset($args['max_cnt']) && is_numeric($args['max_cnt']))) {
 		$max_cnt = intval($args['max_cnt']);
 	} else {
 		$max_cnt = 0;
 	}
 	
-	$refs = upload_references(array_merge($args, array('stop_after'=>$max_cnt+1)));
+	$refs = upload_references(array_merge($args, ['stop_after'=>$max_cnt+1]));
 	if ($refs['#error']) {
 		return $refs;
 	} else {
@@ -480,7 +704,7 @@ function delete_upload($args)
 			@rmdir(CONTENT_DIR.'/'.$args['pagename'].'/shared');
 			return response(true);
 		} else {
-			return response(t('upload.delete_error', quot($f)), 500);
+			return response('Error deleting '.quot($f), 500);
 		}
 	} else {
 		log_msg('info', 'delete_upload: not deleting '.quot($f).' because there are still other objects referencing it');
@@ -488,7 +712,7 @@ function delete_upload($args)
 	}
 }
 
-register_service('glue.delete_upload', 'delete_upload', array('auth'=>true));
+register_service('glue.delete_upload', 'delete_upload', ['auth'=>true]);
 
 
 /**
@@ -521,17 +745,17 @@ register_service('glue.get_startpage', 'get_startpage');
 function load_object($args)
 {
 	if (empty($args['name'])) {
-		return response(t('errors.arg_name_missing_empty'), 400);
+		return response('Required argument "name" missing or empty', 400);
 	}
 	
 	// open file for reading
 	if (($f = @fopen(CONTENT_DIR.'/'.str_replace('.', '/', $args['name']), 'rb')) === false) {
-		return response(t('object.open_read_error', quot($args['name'])), 404);
+		return response('Error opening '.quot($args['name']).' for reading', 404);
 	}
 	
 	// set the name attribute
 	// TODO (later): declaring arrays like this is probably unnecessary
-	$ret = array();
+	$ret = [];
 	$ret['name'] = $args['name'];
 	
 	// read lines and fill object array
@@ -572,7 +796,7 @@ function load_object($args)
 	return response($ret);
 }
 
-register_service('glue.load_object', 'load_object', array('auth'=>true));
+register_service('glue.load_object', 'load_object', ['auth'=>true]);
 
 
 /**
@@ -588,7 +812,7 @@ register_service('glue.load_object', 'load_object', array('auth'=>true));
 function object_get_symlink($args)
 {
 	if (empty($args['name'])) {
-		return response(t('errors.arg_name_missing_empty'), 400);
+		return response('Required argument "name" missing or empty', 400);
 	}
 	
 	// TODO (later): think the symlink situation on Windows through
@@ -605,7 +829,7 @@ function object_get_symlink($args)
 	}
 }
 
-register_service('glue.object_get_symlink', 'object_get_symlink', array('auth'=>true));
+register_service('glue.object_get_symlink', 'object_get_symlink', ['auth'=>true]);
 
 
 /**
@@ -618,10 +842,10 @@ register_service('glue.object_get_symlink', 'object_get_symlink', array('auth'=>
 function object_make_symlink($args)
 {
 	if (empty($args['name'])) {
-		return response(t('errors.arg_name_missing_empty'), 400);
+		return response('Required argument "name" missing or empty', 400);
 	}
 	if (!object_exists($args['name'])) {
-		return response(t('object.not_exist', quot($args['name'])), 404);
+		return response('Object '.quot($args['name']).' does not exist', 404);
 	}
 
 	$a = expl('.', $args['name']);
@@ -633,13 +857,13 @@ function object_make_symlink($args)
 		$target = '../../'.str_replace('.', '/', $ret);
 		// skip both the original object's pagename and the new target's pagename
 		$a_target = expl('.', $ret);
-		$skip_pns = array($a[0], $a_target[0]);
+		$skip_pns = [$a[0], $a_target[0]];
 	} else {
 		$target = '../../'.str_replace('.', '/', $args['name']);
-		$skip_pns = array($a[0]);
+		$skip_pns = [$a[0]];
 	}
 	
-	$pns = pagenames(array());
+	$pns = pagenames([]);
 	$pns = $pns['#data'];
 	// for every pagename
 	foreach ($pns as $pn) {
@@ -653,7 +877,7 @@ function object_make_symlink($args)
 				// delete objects with the same name
 				// these should have been created when shapshotting and the 
 				// revision has later been reverted to
-				delete_object(array('name'=>$pn.'.head.'.$a[2]));
+				delete_object(['name'=>$pn.'.head.'.$a[2]]);
 			} elseif (is_link($link) && !is_file($link) && !is_dir($link)) {
 				// delete dangling symlinks too
 				if (@unlink($link)) {
@@ -675,7 +899,7 @@ function object_make_symlink($args)
 	return response(true);
 }
 
-register_service('glue.object_make_symlink', 'object_make_symlink', array('auth'=>true));
+register_service('glue.object_make_symlink', 'object_make_symlink', ['auth'=>true]);
 
 
 /**
@@ -691,14 +915,14 @@ register_service('glue.object_make_symlink', 'object_make_symlink', array('auth'
 function object_remove_attr($args)
 {
 	if (!isset($args['attr'])) {
-		return response(t('errors.arg_attr_missing'), 400);
+		return response('Required argument "attr" missing', 400);
 	}
 	
 	// LOCK
 	// TODO (later): $args['name'] might not be set
 	$_l = _obj_lock($args['name'], LOCK_TIME);
 	if ($_l === false) {
-		return response(t('lock.acquire_failed', quot($args['name']), LOCK_TIME), 500);
+		return response('Could not acquire lock to '.quot($args['name']).' in '.LOCK_TIME.'ms', 500);
 	}
 	$obj = load_object($args);
 	if ($obj['#error']) {
@@ -722,7 +946,7 @@ function object_remove_attr($args)
 	} else {
 		// UNLOCK
 		_obj_unlock($_l);
-		return response(t('errors.attr_type'), 400);
+		return response('Argument "attr" need to be either array or string', 400);
 	}
 	
 	$ret = save_object($obj);
@@ -731,7 +955,7 @@ function object_remove_attr($args)
 	return $ret;
 }
 
-register_service('glue.object_remove_attr', 'object_remove_attr', array('auth'=>true));
+register_service('glue.object_remove_attr', 'object_remove_attr', ['auth'=>true]);
 
 
 /**
@@ -744,9 +968,10 @@ function pagenames($args)
 {
 	if (is_dir(CONTENT_DIR)) {
 		$files = @scandir(CONTENT_DIR);
-		$ret = array();
+		$ret = [];
 		foreach ($files as $f) {
-			if ($f == '.' || $f == '..' || $f == 'cache' || $f == 'shared') {
+			if ($f == '.' || $f == '..' || $f == 'cache' || $f == 'shared' || $f == '_options') {
+				// (_options: the site options, not a page - see common.inc.php)
 				continue;
 			} elseif (!is_dir(CONTENT_DIR.'/'.$f)) {
 				// skip files
@@ -760,7 +985,7 @@ function pagenames($args)
 		}
 		return response($ret);
 	} else {
-		return response(array());
+		return response([]);
 	}
 }
 
@@ -780,16 +1005,23 @@ register_service('glue.pagenames', 'pagenames');
  */
 function render_object($args)
 {
-	// maybe move this to common.inc.php in the future and get rid of some of 
+	// maybe move this to common.inc.php in the future and get rid of some of
 	// these checks in the beginning
-	$obj = load_object($args);
-	if ($obj['#error']) {
-		return $obj;
+	if (isset($args['obj'])) {
+		// a preloaded object (render_page passes it so the page only reads
+		// each object file once); the glue.render_object service callers
+		// never send this and take the load path below
+		$obj = $args['obj'];
 	} else {
-		$obj = $obj['#data'];
+		$obj = load_object($args);
+		if ($obj['#error']) {
+			return $obj;
+		} else {
+			$obj = $obj['#data'];
+		}
 	}
 	if (!isset($args['edit'])) {
-		return response(t('errors.arg_edit_missing'), 400);
+		return response('Required argument "edit" missing', 400);
 	}
 	if ($args['edit']) {
 		$args['edit'] = true;
@@ -798,7 +1030,7 @@ function render_object($args)
 	}
 	
 	log_msg('debug', 'render_object: rendering '.quot($args['name']));
-	$ret = invoke_hook_while('render_object', false, array('obj'=>$obj, 'edit'=>$args['edit']));
+	$ret = invoke_hook_while('render_object', false, ['obj'=>$obj, 'edit'=>$args['edit']]);
 	if (empty($ret)) {
 		log_msg('warn', 'render_object: nobody claimed '.quot($obj['name']));
 		return response('');
@@ -836,13 +1068,13 @@ function render_page($args)
 	// maybe move this to common.inc.php in the future and get rid of some of 
 	// these checks in the beginning
 	if (empty($args['page'])) {
-		return response(t('errors.arg_page_missing_empty'), 400);
+		return response('Required argument "page" missing or empty', 400);
 	}
 	if (!page_exists($args['page'])) {
-		return response(t('page.not_exist', quot($args['page'])), 404);
+		return response('Page '.quot($args['page']).' does not exist', 404);
 	}
 	if (!isset($args['edit'])) {
-		return response(t('errors.arg_edit_missing'), 400);
+		return response('Required argument "edit" missing', 400);
 	}
 	if ($args['edit']) {
 		$args['edit'] = true;
@@ -854,9 +1086,17 @@ function render_page($args)
 	$bdy = &body();
 	elem_add_class($bdy, 'page');
 	elem_attr($bdy, 'id', $args['page']);
-	invoke_hook('render_page_early', array('page'=>$args['page'], 'edit'=>$args['edit']));
+	invoke_hook('render_page_early', ['page'=>$args['page'], 'edit'=>$args['edit']]);
 	
-	// for every file in the page directory
+	// load every object in the page directory first, so the emission order
+	// can follow the visual reading order (top-to-bottom, left-to-right
+	// within a row) instead of the filesystem's scandir order - screen
+	// readers follow source order, and because the objects are absolutely
+	// positioned, reordering the source changes nothing visually
+	// (SOW-accessibility.md, Feature 1)
+	$objs = array();	// name => loaded object
+	$page_obj = null;	// the <page>.page pseudo-object is excluded from the sort
+	$page_obj_name = null;
 	$files = @scandir(CONTENT_DIR.'/'.str_replace('.', '/', $args['page']));
 	foreach ($files as $f) {
 		$fn = CONTENT_DIR.'/'.str_replace('.', '/', $args['page']).'/'.$f;
@@ -871,11 +1111,70 @@ function render_page($args)
 			}
 			continue;
 		}
-		// render object
-		render_object(array('name'=>$args['page'].'.'.$f, 'edit'=>$args['edit']));
+		$name = $args['page'].'.'.$f;
+		$loaded = load_object(['name'=>$name]);
+		if ($loaded['#error']) {
+			// an unreadable entry (e.g. a stray directory) is skipped,
+			// exactly as the old render_object() load did
+			continue;
+		}
+		// same detection page_render_object uses
+		if (expl('.', $name)[2] == 'page') {
+			$page_obj = $loaded['#data'];
+			$page_obj_name = $name;
+		} else {
+			$objs[$name] = $loaded['#data'];
+		}
+	}
+
+	// the page pseudo-object first: it only writes page-level head css/title,
+	// nothing body-visible, so its position is irrelevant either way
+	if ($page_obj !== null) {
+		render_object(['name'=>$page_obj_name, 'edit'=>$args['edit'], 'obj'=>$page_obj]);
+	}
+	// then the objects in reading order
+	$order = a11y_order_objects(
+		array_map(function($name) use ($objs) {
+			return array(
+				'name' => $name,
+				'top' => !empty($objs[$name]['object-top']) ? intval($objs[$name]['object-top']) : 0,
+				'left' => !empty($objs[$name]['object-left']) ? intval($objs[$name]['object-left']) : 0,
+			);
+		}, array_keys($objs)),
+		A11Y_ROW_THRESHOLD
+	);
+
+	// author override (SOW-accessibility.md, Feature 2): a stored reading
+	// order wins over the automatic one for pages where position isn't
+	// reading order (multi-column, grouped, artistic). The list holds
+	// object suffixes, json-encoded, in the page pseudo-object - same
+	// storage shape as page-custom-fonts. Note the 4096-byte fgets line
+	// cap in load_object: a page with hundreds of objects could outgrow
+	// one line.
+	if ($page_obj !== null && !empty($page_obj['page-reading-order'])) {
+		$custom = json_decode($page_obj['page-reading-order'], true);
+		if (is_array($custom)) {
+			$by_suffix = array();
+			foreach ($order as $name) {
+				$by_suffix[expl('.', $name)[2]] = $name;
+			}
+			$overridden = array();
+			foreach ($custom as $suffix) {
+				if (isset($by_suffix[$suffix])) {
+					$overridden[] = $by_suffix[$suffix];
+					unset($by_suffix[$suffix]);	// stale and duplicate names are skipped
+				}
+			}
+			// the listed objects first, then the rest in automatic order
+			$order = array_merge($overridden, array_values($by_suffix));
+		}
+	}
+
+	foreach ($order as $name) {
+		render_object(['name'=>$name, 'edit'=>$args['edit'], 'obj'=>$objs[$name]]);
 	}
 	
-	invoke_hook('render_page_late', array('page'=>$args['page'], 'edit'=>$args['edit']));
+	invoke_hook('render_page_late', ['page'=>$args['page'], 'edit'=>$args['edit']]);
 	log_msg('debug', 'render_page: finished '.quot($args['page']));
 	
 	// return the body element as html-string as well
@@ -897,39 +1196,39 @@ register_hook('render_page_late', 'invoked after the objects have been rendered'
 function rename_page($args)
 {
 	if (empty($args['old'])) {
-		return response(t('errors.arg_old_missing_empty'), 400);
+		return response('Required argument "old" missing or empty', 400);
 	}
-	$pns = pagenames(array());
+	$pns = pagenames([]);
 	$pns = $pns['#data'];
 	if (!in_array($args['old'], $pns)) {
-		return response(t('page.name_not_exist', quot($args['old'])), 404);
+		return response('Page name '.quot($args['old']).' does not exist', 404);
 	}
 	if (empty($args['new'])) {
-		return response(t('errors.arg_new_missing_empty'), 400);
+		return response('Required argument "new" missing or empty', 400);
 	}
 	if (in_array($args['new'], $pns)) {
-		return response(t('page.name_already_exists', quot($args['new'])), 400);
+		return response('Page name '.quot($args['new']).' already exists', 400);
 	}
 	if (!valid_pagename($args['new'].'.head')) {
-		return response(t('page.invalid_name', quot($args['new'])), 400);
+		return response('Invalid page name '.quot($args['new']), 400);
 	}
 	
 	if (!@rename(CONTENT_DIR.'/'.$args['old'], CONTENT_DIR.'/'.$args['new'])) {
-		return response(t('page.rename_error', quot($args['old']), quot($args['new'])), 500);	
+		return response('Error renaming page '.quot($args['old']).' to '.quot($args['new']), 500);	
 	} else {
 		log_msg('info', 'rename_page: renamed '.quot($args['old']).' to '.quot($args['new']));
 		// clean up cache as well
-		$revs = revisions(array('pagename'=>$args['new']));
+		$revs = revisions(['pagename'=>$args['new']]);
 		$revs = $revs['#data'];
 		foreach ($revs as $rev) {
 			drop_cache('page', $args['old'].'.'.$rev);
 		}
-		invoke_hook('rename_page', array('pagename'=>$args['new']));
+		invoke_hook('rename_page', ['pagename'=>$args['new']]);
 		return response(true);
 	}
 }
 
-register_service('glue.rename_page', 'rename_page', array('auth'=>true));
+register_service('glue.rename_page', 'rename_page', ['auth'=>true]);
 register_hook('rename_page', 'invoked when a page has been renamed');
 
 
@@ -944,21 +1243,21 @@ register_hook('rename_page', 'invoked when a page has been renamed');
 function copy_page($args)
 {
 	if (empty($args['old'])) {
-		return response(t('errors.arg_old_missing_empty'), 400);
+		return response('Required argument "old" missing or empty', 400);
 	}
-	$pns = pagenames(array());
+	$pns = pagenames([]);
 	$pns = $pns['#data'];
 	if (!in_array($args['old'], $pns)) {
-		return response(t('page.name_not_exist', quot($args['old'])), 404);
+		return response('Page name '.quot($args['old']).' does not exist', 404);
 	}
 	if (empty($args['new'])) {
-		return response(t('errors.arg_new_missing_empty'), 400);
+		return response('Required argument "new" missing or empty', 400);
 	}
 	if (in_array($args['new'], $pns)) {
-		return response(t('page.name_already_exists', quot($args['new'])), 400);
+		return response('Page name '.quot($args['new']).' already exists', 400);
 	}
 	if (!valid_pagename($args['new'].'.head')) {
-		return response(t('page.invalid_name', quot($args['new'])), 400);
+		return response('Invalid page name '.quot($args['new']), 400);
 	}
 
 	$src = CONTENT_DIR.'/'.$args['old'];
@@ -974,7 +1273,7 @@ function copy_page($args)
 			$m = umask(0000);
 			if (!@mkdir($dest.'/'.$d, 0777, true)) {
 				umask($m);
-				return response(t('errors.create_dir', quot($dest.'/'.$d)), 500);
+				return response('Error creating directory '.quot($dest.'/'.$d), 500);
 			}
 			umask($m);
 			$files = scandir($src.'/'.$d);
@@ -993,79 +1292,12 @@ function copy_page($args)
 		}
 	}
 	log_msg('info', 'copy_page: copied '.quot($args['old']).' to '.quot($args['new']));
-	invoke_hook('copy_page', array('pagename'=>$args['new']));
+	invoke_hook('copy_page', ['pagename'=>$args['new']]);
 	return response(true);
 }
 
-register_service('glue.copy_page', 'copy_page', array('auth'=>true));
+register_service('glue.copy_page', 'copy_page', ['auth'=>true]);
 register_hook('copy_page', 'invoked when a page has been copied');
-
-
-/**
- *	revert to a specific revision of a page
- *
- *	this function makes the revision the page's new head revision by copying it.
- *	@param array $args arguments
- *		key 'page' page to revert to (i.e. page.rev)
- *	@return array response
- */
-function revert($args)
-{
-	if (empty($args['page'])) {
-		return response(t('errors.arg_page_missing_empty'), 400);
-	}
-	if (!page_exists($args['page'])) {
-		return response(t('page.not_exist', quot($args['page'])), 404);
-	}
-	$a = expl('.', $args['page']);
-	if ($a[1] == 'head') {
-		return response(t('revision.cannot_revert_head'), 400);
-	}
-	
-	log_msg('info', 'revert: reverting to '.quot($args['page']));
-	
-	// delete current head revision
-	// TODO (later): create a snapshot of it before doing so?
-	if (page_exists($a[0].'.head')) {
-		$ret = delete_page(array('page'=>$a[0].'.head'));
-		if ($ret['#error']) {
-			return $ret;
-		}
-	}
-	
-	// create new head revision
-	$dest = CONTENT_DIR.'/'.$a[0].'/head';
-	$m = umask(0000);
-	if (!@mkdir($dest, 0777)) {
-		umask($m);
-		return response(t('errors.create_dir', quot($dest)), 500);
-	}
-	umask($m);
-	
-	// copy files
-	$src = CONTENT_DIR.'/'.$a[0].'/'.$a[1];
-	$files = scandir($src);
-	foreach ($files as $f) {
-		if ($f == '.' || $f == '..') {
-			continue;
-		} elseif (is_file($src.'/'.$f)) {
-			// copy file
-			$m = umask(0111);
-			if (!@copy($src.'/'.$f, $dest.'/'.$f)) {
-				log_msg('error', 'revert: error copying '.quot($src.'/'.$f).' to '.quot($dest.'/'.$f).', skipping file');
-			}
-			umask($m);
-		}
-	}
-	
-	log_msg('info', 'revert: reverted to '.quot($args['page']));
-	invoke_hook('revert', array('page'=>$args['page']));
-	
-	return response(true);
-}
-
-register_service('glue.revert', 'revert', array('auth'=>true));
-register_hook('revert', 'invoked after a page has been reverted to');
 
 
 /**
@@ -1078,14 +1310,14 @@ register_hook('revert', 'invoked after a page has been reverted to');
 function revisions($args)
 {
 	if (empty($args['pagename'])) {
-		return response(t('errors.arg_pagename_missing_empty'), 400);
+		return response('Required argument "pagename" missing or empty', 400);
 	}
 	if (!is_dir(CONTENT_DIR.'/'.$args['pagename'])) {
-		return response(t('page.name_not_exist', quot($args['pagename'])), 404);
+		return response('Page name '.quot($args['pagename']).' does not exist', 404);
 	}
 	
 	$files = @scandir(CONTENT_DIR.'/'.$args['pagename']);
-	$ret = array();
+	$ret = [];
 	foreach ($files as $f) {
 		if ($f == '.' || $f == '..' || $f == 'shared') {
 			continue;
@@ -1106,50 +1338,6 @@ register_service('glue.revisions', 'revisions');
 
 
 /**
- *	return an array with information about all revisions of a page
- *
- *	@param array $args arguments
- *		key 'pagename' is the pagename (i.e. page)
- *		key 'sort' can be either 'time' (descending) or 'name' (ascending, the 
- *		default)
- *	@return array response
- */
-function revisions_info($args)
-{
-	$revs = revisions($args);
-	if ($revs['#error']) {
-		return $revs;
-	}
-	
-	$ret = array();
-	foreach ($revs['#data'] as $r) {
-		$d = CONTENT_DIR.'/'.$args['pagename'].'/'.$r;
-		$ret[] = array('revision'=>$r, 'time'=>@filemtime($d), 'num_objs'=>count(@scandir($d))-2, 'page'=>$args['pagename'].'.'.$r);
-	}
-	
-	if (isset($args['sort']) && $args['sort'] == 'time') {
-		// make head revision always most recent one
-		$head = false;
-		for ($i=0; $i < count($ret); $i++) {
-			if ($ret[$i]['revision'] == 'head') {
-				$head = $ret[$i];
-				array_splice($ret, $i, 1);
-				$i--;
-			}
-		}
-		usort($ret, '_cmp_time');
-		if ($head !== false) {
-			$ret = array_merge(array($head), $ret);
-		}
-	}
-	
-	return response($ret);
-}
-
-register_service('glue.revisions_info', 'revisions_info');
-
-
-/**
  *	save an object to the content directory
  *
  *	use update_object() whenever possible as we want to preserve any object 
@@ -1163,14 +1351,14 @@ register_service('glue.revisions_info', 'revisions_info');
 function save_object($args)
 {
 	if (empty($args['name'])) {
-		return response(t('errors.arg_name_missing_empty'), 400);
+		return response('Required argument "name" missing or empty', 400);
 	}
 	
 	// open file for writing
 	$m = umask(0111);
 	if (($f = @fopen(CONTENT_DIR.'/'.str_replace('.', '/', $args['name']), 'wb')) === false) {
 		umask($m);
-		return response(t('object.open_write_error', quot($args['name'])), 500);
+		return response('Error opening '.quot($args['name']).' for writing', 500);
 	}
 	umask($m);
 	
@@ -1204,7 +1392,7 @@ function save_object($args)
 	return response(true);
 }
 
-register_service('glue.save_object', 'save_object', array('auth'=>true));
+register_service('glue.save_object', 'save_object', ['auth'=>true]);
 
 
 /**
@@ -1219,7 +1407,7 @@ register_service('glue.save_object', 'save_object', array('auth'=>true));
 function save_state($args)
 {
 	if (empty($args['html'])) {
-		return response(t('errors.arg_html_missing_empty'), 400);
+		return response('Required argument "html" missing or empty', 400);
 	}
 	
 	require_once('html.inc.php');
@@ -1227,29 +1415,37 @@ function save_state($args)
 	
 	$elem = html_parse_elem($args['html']);
 	if (!elem_has_class($elem, 'object')) {
-		return response(t('state.class_not_set'), 400);
-	} elseif (!object_exists(elem_attr($elem, 'id'))) {
-		return response(t('state.object_not_exist'), 404);
+		return response('Error saving state as class "object" is not set', 400);
 	}
-	
+	// elem_attr() returns NULL if the element has no id attribute at all
+	// (e.g. malformed input) - guard against that before it propagates into
+	// object_exists()/_obj_lock(), which both pass it on to string
+	// functions that don't accept null
+	$id = elem_attr($elem, 'id');
+	if (empty($id)) {
+		return response('Error saving state as object has no id', 400);
+	} elseif (!object_exists($id)) {
+		return response('Error saving state as object does not exist', 404);
+	}
+
 	// LOCK
-	$L = _obj_lock(elem_attr($elem, 'id'), LOCK_TIME);
+	$L = _obj_lock($id, LOCK_TIME);
 	if ($L === false) {
-		return response(t('lock.acquire_failed', quot($args['name']), LOCK_TIME), 500);
+		return response('Could not acquire lock to '.quot($args['name']).' in '.LOCK_TIME.'ms', 500);
 	}
-	$obj = load_object(array('name'=>elem_attr($elem, 'id')));
+	$obj = load_object(['name'=>$id]);
 	if ($obj['#error']) {
 		// UNLOCK
 		_obj_unlock($L);
-		return response(t('state.load_error', quot(elem_attr($elem, 'id'))), 500);
+		return response('Error saving state, cannot load '.quot($id), 500);
 	} else {
 		$obj = $obj['#data'];
 	}
-	$ret = invoke_hook_while('save_state', false, array('elem'=>$elem, 'obj'=>$obj));
+	$ret = invoke_hook_while('save_state', false, ['elem'=>$elem, 'obj'=>$obj]);
 	// UNLOCK
 	_obj_unlock($L);
 	if (count($ret) == 0) {
-		return response(t('state.nobody_claimed'), 500);
+		return response('Error saving state as nobody claimed element', 500);
 	} else {
 		$temp = array_keys($ret);
 		log_msg('info', 'save_state: '.quot($obj['name']).' was handled by '.quot($temp[0]));
@@ -1257,7 +1453,7 @@ function save_state($args)
 	}
 }
 
-register_service('glue.save_state', 'save_state', array('auth'=>true));
+register_service('glue.save_state', 'save_state', ['auth'=>true]);
 // modules handling this hook need to make sure that they are not calling 
 // either update_object() or object_remove_attr(), but rather save_object() 
 // directly
@@ -1275,117 +1471,20 @@ register_hook('save_state', 'save the current state of an object to disk');
 function set_startpage($args)
 {
 	if (!isset($args['page'])) {
-		return response(t('errors.arg_page_missing'), 400);
+		return response('Required argument "page" missing', 400);
 	}
 	
 	$m = umask(0111);
 	if (@file_put_contents(CONTENT_DIR.'/startpage', $args['page']) === false) {
 		umask($m);
-		return response(t('page.set_startpage_error'), 500);
+		return response('Error setting start page', 500);
 	} else {
 		umask($m);
 		return response(true);
 	}
 }
 
-register_service('glue.set_startpage', 'set_startpage', array('auth'=>true));
-
-
-/**
- *	create a snapshot from a page
- *
- *	@param array $args arguments
- *		key 'page' page to shapshot (i.e. page.rev)
- *		key 'rev' (optional) new revision name (i.e. rev2) (if empty or not set 
- *			a revision starting with 'auto-' and the current date will be 
- *			created)
- *	@return array response (holding the page of the newly created revision 
- *		if successful)
- */
-function snapshot($args)
-{
-	if (empty($args['page'])) {
-		return response(t('errors.arg_page_missing_empty'), 400);
-	}
-	if (!page_exists($args['page'])) {
-		return response(t('page.not_exist', quot($args['page'])), 404);
-	}
-	// setup revision name
-	$a = expl('.', $args['page']);
-	if (empty($args['rev'])) {
-		$args['rev'] = 'auto-'.date('YmdHis');
-	} elseif (page_exists($a[0].'.'.$args['rev'])) {
-		return response(t('revision.already_exists', quot($args['rev'])), 400);
-	} elseif (!valid_pagename($a[0].'.'.$args['rev'])) {
-		return response(t('revision.invalid', quot($args['rev'])), 400);
-	}
-	
-	// create revision
-	$dest = CONTENT_DIR.'/'.$a[0].'/'.$args['rev'];
-	$m = umask(0000);
-	if (!@mkdir($dest)) {
-		umask($m);
-		return response(t('errors.create_dir', quot($dest)), 500);
-	}
-	umask($m);
-	
-	// copy files
-	// we go through the files one by one in order to spot symlinks hiding
-	$src = CONTENT_DIR.'/'.str_replace('.', '/', $args['page']);
-	$files = scandir($src);
-	foreach ($files as $f) {
-		if ($f == '.' || $f == '..') {
-			continue;
-		} elseif (is_dir($src.'/'.$f) && substr($f, 0, 1) == '.') {
-			// skip directories that start with a dot (like .svn) without a warning
-			continue;
-		} elseif (is_dir($src.'/'.$f)) {
-			log_msg('warn', 'snapshot: skipping '.quot($src.'/'.$f).' as we don\'t support directories inside pages');
-		} elseif (is_link($src.'/'.$f) && is_file($src.'/'.$f)) {
-			// a proper symlink, copy content
-			$s = @file_get_contents($src.'/'.$f);
-			$m = umask(0111);
-			if (!@file_put_contents($dest.'/'.$f, $s)) {
-				log_msg('error', 'snapshot: error writing to '.quot($dest.'/'.$f). ', skipping file');
-			} else {
-				log_msg('debug', 'snapshot: copied the content of symlink '.quot($args['page'].'.'.$f));
-			}
-			umask($m);
-			// load the newly created snapshot and give modules a chance to 
-			// copy referenced files as well
-			$dest_name = $a[0].'.'.$args['rev'].'.'.$f;
-			$dest_obj = load_object(array('name'=>$dest_name));
-			if ($dest_obj['#error']) {
-				log_msg('error', 'snapshot: error loading snapshotted object '.quot($dest_name).', skipping hook');
-			} else {
-				$dest_obj = $dest_obj['#data'];
-				// get the source object's target
-				$src_name = $args['page'].'.'.$f;
-				$src_target = object_get_symlink(array('name'=>$src_name));
-				if ($src_target['#error']) {
-					log_msg('error', 'snapshot: error getting the symlink target of source object '.quot($src_name).', skipping hook');
-				} else {
-					$src_target = $src_target['#data'];
-					// hook
-					invoke_hook('snapshot_symlink', array('obj'=>$dest_obj, 'origin'=>implode('.', array_slice(expl('.', $src_target), 0, 2))));
-				}
-			}
-		} elseif (is_file($src.'/'.$f)) {
-			// copy file
-			$m = umask(0111);
-			if (!@copy($src.'/'.$f, $dest.'/'.$f)) {
-				log_msg('error', 'snapshot: error copying '.quot($src.'/'.$f).' to '.quot($dest.'/'.$f).', skipping file');
-			}
-			umask($m);
-		}
-	}
-	
-	log_msg('info', 'snapshot: created snapshot '.quot($a[0].'.'.$args['rev']).' from '.quot($args['page']));
-	return response($a[0].'.'.$args['rev']);
-}
-
-register_service('glue.snapshot', 'snapshot', array('auth'=>true));
-register_hook('snapshot_symlink', 'invoked when a symlink is part of a page that gets snapshotted; the module in question is supposed to copy all referenced files to the shared directory of the destination page');
+register_service('glue.set_startpage', 'set_startpage', ['auth'=>true]);
 
 
 /**
@@ -1403,7 +1502,7 @@ register_hook('snapshot_symlink', 'invoked when a symlink is part of a page that
 function update_object($args)
 {
 	if (empty($args['name'])) {
-		return response(t('errors.arg_name_missing_empty'), 400);
+		return response('Required argument "name" missing or empty', 400);
 	}
 	
 	// LOCK
@@ -1411,11 +1510,11 @@ function update_object($args)
 	// the object need not exist, so we're not checking against 
 	// $L being NULL here
 	if ($L === false) {
-		return response(t('lock.acquire_failed', quot($args['name']), LOCK_TIME), 500);
+		return response('Could not acquire lock to '.quot($args['name']).' in '.LOCK_TIME.'ms', 500);
 	}
 	$old = load_object($args);
 	if ($old['#error']) {
-		$old = array();
+		$old = [];
 	} else {
 		$old = $old['#data'];
 	}
@@ -1427,7 +1526,7 @@ function update_object($args)
 	return $ret;
 }
 
-register_service('glue.update_object', 'update_object', array('auth'=>true));
+register_service('glue.update_object', 'update_object', ['auth'=>true]);
 
 
 /**
@@ -1457,16 +1556,73 @@ function _upload_size_str($n)
 }
 
 
+/**
+ *	is this upload a HEIC/HEIF picture (iPhone photos)?
+ */
+function is_heic_upload($name, $type)
+{
+	return in_array(strtolower($type), ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'])
+		|| in_array(strtolower(filext($name)), ['heic', 'heif']);
+}
+
+
+/**
+ *	convert an uploaded HEIC/HEIF picture to a JPEG in place
+ *
+ *	Browsers other than Safari cannot draw HEIC, so it is turned into a JPEG
+ *	before it is stored; everything after this sees an ordinary .jpg. Needs
+ *	the imagick extension built with HEIC support. The first image of a
+ *	multi-image file is used, the camera's rotation is applied to the pixels
+ *	and the metadata (GPS position included) is not carried over.
+ *
+ *	@param string $tmp path of the uploaded file, overwritten with the JPEG
+ *	@return bool success
+ */
+function convert_heic_to_jpeg($tmp)
+{
+	if (!class_exists('Imagick')) {
+		return false;
+	}
+	try {
+		$im = new Imagick();
+		// a decompression bomb costs memory, not disk: cap what it may take
+		$im->setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 256 * 1024 * 1024);
+		$im->setResourceLimit(Imagick::RESOURCETYPE_MAP, 512 * 1024 * 1024);
+		$im->readImageBlob(file_get_contents($tmp));
+		$im->setIteratorIndex(0);
+		$frame = $im->getImage();
+		switch ($frame->getImageOrientation()) {
+			case Imagick::ORIENTATION_BOTTOMRIGHT: $frame->rotateImage('#fff', 180); break;
+			case Imagick::ORIENTATION_RIGHTTOP: $frame->rotateImage('#fff', 90); break;
+			case Imagick::ORIENTATION_LEFTBOTTOM: $frame->rotateImage('#fff', 270); break;
+		}
+		$frame->setImageOrientation(Imagick::ORIENTATION_TOPLEFT);
+		$frame->stripImage();
+		$frame->setImageBackgroundColor('white');
+		$frame->setImageAlphaChannel(Imagick::ALPHACHANNEL_REMOVE);
+		$frame->setImageFormat('jpeg');
+		$frame->setImageCompressionQuality(90);
+		$jpeg = $frame->getImageBlob();
+		$frame->clear();
+		$im->clear();
+		return file_put_contents($tmp, $jpeg) !== false;
+	} catch (Exception $e) {
+		log_msg('warn', 'convert_heic_to_jpeg: '.$e->getMessage());
+		return false;
+	}
+}
+
+
 function upload_files($args)
 {
 	if (empty($args['page'])) {
-		return response(t('errors.arg_page_missing_empty'), 400);
+		return response('Required argument "page" missing or empty', 400);
 	}
 	if (!page_exists($args['page'])) {
-		return response(t('page.not_exist', quot($args['page'])), 404);
+		return response('Page '.quot($args['page']).' does not exist', 404);
 	}
 	
-	$ret = array();
+	$ret = [];
 	
 	log_msg('debug', 'upload_files: $_FILES is '.var_dump_inl($_FILES));
 	foreach ($_FILES as $f) {
@@ -1486,12 +1642,21 @@ function upload_files($args)
 		if (UPLOAD_MAX_SIZE && !empty($f['size']) && intval($f['size']) > UPLOAD_MAX_SIZE) {
 			return response('file too large (max '._upload_size_str(UPLOAD_MAX_SIZE).')', 413);
 		}
+		// HEIC (iPhone photos) is stored as a JPEG
+		if (is_heic_upload($f['name'], $f['type'])) {
+			if (!convert_heic_to_jpeg($f['tmp_name'])) {
+				return response('this server cannot read HEIC pictures - convert it to jpg first', 415);
+			}
+			$f['name'] = preg_replace('/\.[^.]*$/', '', $f['name']).'.jpg';
+			$f['type'] = 'image/jpeg';
+			$f['size'] = filesize($f['tmp_name']);
+		}
 		$existed = false;
 		$fn = upload_file($f['tmp_name'], $args['page'], $f['name'], $existed);
 		if ($fn === false) {
 			continue;
 		} else {
-			$args = array_merge($args, array('file'=>$fn, 'mime'=>$f['type'], 'size'=>$f['size']));
+			$args = array_merge($args, ['file'=>$fn, 'mime'=>$f['type'], 'size'=>$f['size']]);
 			// clear mime type if set to default application/octet-stream
 			if ($args['mime'] == 'application/octet-stream') {
 				$args['mime'] = '';
@@ -1525,8 +1690,13 @@ function upload_files($args)
 		if ($s === false) {
 			$r = invoke_hook_while('upload_fallback', false, $args);
 			if (count($r) == 1) {
-				$s = array_pop(array_values($r));
-				log_msg('info', 'upload_object: '.quot($fn).' was (fallback-) handled by '.quot(array_pop(array_keys($r))));
+				// into variables first: array_pop() takes a reference and
+				// cannot pop the expression array_values($r) directly -
+				// "Only variables should be passed by reference" on PHP 8
+				$tmp_vals = array_values($r);
+				$tmp_keys = array_keys($r);
+				$s = array_pop($tmp_vals);
+				log_msg('info', 'upload_object: '.quot($fn).' was (fallback-) handled by '.quot(array_pop($tmp_keys)));
 			}
 		}
 		
@@ -1545,7 +1715,7 @@ function upload_files($args)
 	return response($ret);
 }
 
-register_service('glue.upload_files', 'upload_files', array('auth'=>true));
+register_service('glue.upload_files', 'upload_files', ['auth'=>true]);
 
 
 /**
@@ -1567,16 +1737,16 @@ function upload_references($args)
 		$revs = $revs['#data'];
 	}
 	if (empty($args['file'])) {
-		return response(t('errors.arg_file_missing_empty'), 400);
+		return response('Required argument "file" missing or empty', 400);
 	}
 	// this is an optimization for delete_upload()
-	if (@is_numeric($args['stop_after'])) {
+	if ((isset($args['stop_after']) && is_numeric($args['stop_after']))) {
 		$stop_after = intval($args['stop_after']);
 	} else {
 		$stop_after = 0;
 	}
 	
-	$ret = array();
+	$ret = [];
 	
 	// for each revision
 	foreach ($revs as $rev) {
@@ -1586,7 +1756,7 @@ function upload_references($args)
 			if ($f == '.' || $f == '..') {
 				continue;
 			}
-			$obj = load_object(array('name'=>$args['pagename'].'.'.$rev.'.'.$f));
+			$obj = load_object(['name'=>$args['pagename'].'.'.$rev.'.'.$f]);
 			if ($obj['#error']) {
 				continue;
 			} else {
@@ -1594,7 +1764,7 @@ function upload_references($args)
 			}
 			// and handle the object to our modules
 			log_msg('debug', 'upload_references: checking '.quot($obj['name']));
-			$revs = invoke_hook_while('has_reference', false, array('file'=>$args['file'], 'obj'=>$obj));
+			$revs = invoke_hook_while('has_reference', false, ['file'=>$args['file'], 'obj'=>$obj]);
 			if (count($revs)) {
 				$ret[] = $args['pagename'].'.'.$rev.'.'.$f;
 				if (count($ret) == $stop_after) {
@@ -1608,5 +1778,5 @@ function upload_references($args)
 	return response($ret);
 }
 
-register_service('glue.upload_references', 'upload_references', array('auth'=>true));
+register_service('glue.upload_references', 'upload_references', ['auth'=>true]);
 register_hook('has_reference', 'check if an object references an uploaded file');

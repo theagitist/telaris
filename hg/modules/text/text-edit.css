@@ -17,19 +17,12 @@
 	*/
 }
 
-#glue-contextmenu-text-font-face.glue-text-font-family {
-	background-image: url(text-font-family.png);
-}
-
-#glue-contextmenu-text-font-face.glue-text-font-face {
-	background-image: url(text-font-face.png);
-}
-
 .glue-text-input {
 	/* this is the textarea for editing */
 	/* inherit as much as possible */
-	background-color: inherit;
+	background: inherit;
 	border: 0px;
+	box-sizing: border-box;
 	color: inherit;
 	font-family: inherit;
 	font-size: inherit;
@@ -39,6 +32,24 @@
 	line-height: inherit;
 	text-align: inherit;
 	word-spacing: inherit;
+}
+
+/* Editing state: no focus ring, border or shadow on the editing surfaces.
+   The browser draws a ring around a focused contenteditable div (WYSIWYG
+   mode) and around the focused textarea (source mode); the editing state
+   is announced by the textarea swapping in instead of by a ring. The
+   object itself keeps box-shadow - that is the edges panel's glow and
+   drop shadow, a design property, not a ring. */
+.text.glue-text-editing {
+	outline: none;
+	border: none;
+}
+
+.text.glue-text-editing .glue-text-render[contenteditable]:focus,
+.text.glue-text-editing .glue-text-input {
+	outline: none;
+	border: none;
+	box-shadow: none;
 }
 
 
@@ -68,15 +79,378 @@
 	font-family: 'Times New Roman', Times, serif;
 }
 
-/* Scroll toggle: a clean move-vertical glyph like the iframe scroll toggle.
-   Off (default) matches the other text tools; On gets a subtle highlight
-   instead of a badge, in keeping with the toolbar's flat style. */
-#glue-contextmenu-text-scroll {
-	/* drop the framework's default greenish enabled hue */
-	background-color: transparent;
+/* --- font popover -------------------------------------------------------
+ *
+ * Face, size and style in one panel (text_font_popover() in text-edit.js).
+ * The frame itself is .glue-popover in css/edit.css - the colour picker's
+ * chrome, since that is the panel this one is meant to match. What is here is
+ * only the three rows.
+ */
+
+/* .glue-font-popover has no rule: it pinned a 250px width until 2026-09-17,
+   when panels became as wide as their content (css/edit.css, .glue-popover).
+   What it comes out at is its widest row - the fold's number rows, at a slider
+   of 80px. */
+
+
+
+.glue-font-face-list {
+	/* the roller (2026-09-21, SOW-font-roller-picker): a fixed 66px
+	   scrollport - three rows of 22px - where the CENTER row is the
+	   selection. Since 2026-09-21 it is ALWAYS present (danja's call):
+	   the button that opened it is gone, and the wheel sits in-flow in
+	   the face row - an iOS picker wheel, not a dropdown.
+	   overscroll-behavior: contain is the hard end - a wheel or pan at
+	   either end of the drum stops there instead of chaining to the page.
+	   scroll-snap proximity rather than mandatory: mandatory would fight
+	   the mouse drag's own scrollTop writes (the browser snapping on
+	   every assignment), while proximity leaves the drum free while the
+	   pointer drives it - the JS owns the final snap. touch-action pan-y
+	   hands the vertical gesture to the reel's native scroll, which is
+	   what gives touch its momentum for free. */
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	position: relative;
+	height: 60px;
+	overflow: hidden;		/* no wheel and no scrollbar - the drag is
+	                           the way around the drum, the click is the
+	                           pick, and the wheel follows the selection */
+	/* the drag needs the whole vertical gesture: none, not pan-y - a pan
+	   would let the page steal what the drum wants */
+	touch-action: none;
+	border: 1px solid #999;
+	background: #fff;
+	/* the vertical double arrow, the number rows' ew-resize stood up:
+	   the drum goes up and down, and the cursor says so */
+	cursor: ns-resize;
 }
 
-#glue-contextmenu-text-scroll.glue-menu-enabled {
-	background-color: rgba(255, 255, 255, 0.18);
-	border-radius: 6px;
+.glue-font-face-list:focus {
+	/* the drum is focusable for the keyboard (tabindex 0), but the pick
+	   is the pointer's - the browser's default focus ring only ever drew
+	   where the selection already was, so it goes the way the panel's
+	   fields' outlines went */
+	outline: none;
+}
+
+.glue-font-face-arrow {
+	/* the up-down affordance, drawn on the wheel's own right end exactly
+	   where the number rows draw their ↔ - and like that one, the
+	   drag goes straight through it. It lives on the face ROW, not on the
+	   list: a child of the scroll container would ride along with the
+	   rows, and a fixed affordance must not move with them (2026-09-22,
+	   danja's call). */
+	position: absolute;
+	right: 3px;
+	top: 50%;
+	transform: translateY(-50%);
+	font-size: 11px;
+	color: #666;
+	pointer-events: none;
+}
+
+
+
+.glue-font-face-pad {
+	/* the spacer at each end of the reel: (60 - 26) / 2, so the FIRST
+	   and LAST rows can reach the centre exactly. Content, not padding:
+	   scroll-container padding-bottom has engine bug history. */
+	height: 17px;
+}
+
+
+.glue-font-face-opt {
+	/* the wheel's row, pinned so the geometry is exact: pad 4 + line 18
+	   + pad 4 - the 11px geometry scaled up with the 13px names
+	   (2026-09-22, danja's call). The row is dragged and clicked, never
+	   "pointed at" - the grabbing hand comes down from the list. */
+	height: 26px;
+	box-sizing: border-box;
+	padding: 4px 6px;
+	font-size: 13px;
+	line-height: 18px;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.glue-font-face-on {
+	/* the face in force, centred by the recentre. The click applies and
+	   the wheel follows, so the applied row is always the middle one. */
+	background: #eef4ff;
+}
+
+.glue-font-size {
+	/* the four sizes the panel shows - small, normal, big and extra, one
+	   click each, with the number in the tooltip. The letters that wore
+	   their own sizes went on 2026-09-21, when danja drew the font_small /
+	   font_normal / font_big / font_extra_big artwork; the buttons are
+	   .glue-btn-icon masks now, like the align row's. Since 2026-09-27
+	   they wear danja's 22x22 redraws (img/icons/font-*-22.svg) at 1:1 in
+	   a 22x22 box, set where they are built since $.glue.icon sizes them
+	   inline; the glyph's mask is sized below. */
+	flex: 0 0 auto;
+	cursor: pointer;
+}
+
+.glue-btn-icon.glue-font-size::before {
+	/* the 22px art at 1:1, centred on the 20px padding box - the art keeps
+	   its own margin, so the frame loses only empty rows of it (danja's
+	   call, 2026-09-27) */
+	-webkit-mask-size: 22px 22px;
+	mask-size: 22px 22px;
+}
+
+.glue-font-size-on::before {
+	/* the size in force. .glue-btn-icon paints the glyph on ::before, so
+	   the on-state has to colour the same layer - the align row's rule */
+	background-color: #fff !important;
+}
+
+.glue-font-size-on {
+	background-color: #333 !important;
+}
+
+.glue-font-toggle {
+	/* each toggle is the letter T wearing the effect it applies - the
+	   popout icons' own 32px box, like the align buttons beside them
+	   (danja's call, 2026-09-25) */
+	width: 32px;
+	height: 32px;
+	box-sizing: border-box;
+	border: 1px solid #000;
+	background: #fff;
+	color: #000;
+	font-family: serif;
+	font-size: 15px;
+	line-height: 30px;
+	text-align: center;
+	cursor: pointer;
+}
+
+.glue-font-toggle-on {
+	/* pressed, and legible as such against the panel */
+	background: #333;
+	color: #fff;
+}
+
+.glue-font-toggle-bold {
+	font-weight: bold;
+}
+
+.glue-font-toggle-italic {
+	font-style: italic;
+}
+
+.glue-font-toggle-underline {
+	text-decoration: underline;
+}
+
+.glue-font-toggle-strike {
+	text-decoration: line-through;
+}
+
+.glue-align-btn {
+	/* the four alignments, .glue-btn-icon masks like the size row's. Since
+	   2026-09-27 they wear danja's 22x22 redraws (img/icons/align-*-22.svg)
+	   at 1:1 in a 22x22 box, set where they are built since $.glue.icon
+	   sizes them inline */
+	flex: 0 0 auto;
+	cursor: pointer;
+}
+
+.glue-btn-icon.glue-align-btn::before {
+	/* the 22px art at 1:1, centred on the 20px padding box - the art keeps
+	   its own margin, so the frame loses only empty rows of it (danja's
+	   call, 2026-09-27) */
+	-webkit-mask-size: 22px 22px;
+	mask-size: 22px 22px;
+}
+
+.glue-align-on::before {
+	/* the alignment in force. .glue-btn-icon paints the glyph on ::before, so
+	   the on-state has to colour the same layer */
+	background-color: #fff !important;
+}
+
+.glue-align-on {
+	background-color: #333 !important;
+}
+
+/* --- link popover ------------------------------------------------------- */
+
+/* .glue-link-popover has no rule: it pinned a 330px width until 2026-09-17, on
+   the reasoning that a url is long and a field it cannot be read in is a field
+   people paste into blind. The panel that carries the link now is
+   .glue-object-link-popover - $.glue.popover's own rows, sized by
+   .glue-object-link-field in css/edit.css. The two rules below it here,
+   .glue-link-buttons and .glue-link-ok, dressed that panel's buttons and are
+   dead now for the same reason; they are left because nothing else has taken
+   their names. */
+
+.glue-link-field {
+	/* The url field of the text panel's link row (text-edit.js,
+	   text_panel_link_build). Not the object panel's field, which is
+	   .glue-object-link-field: this one used to be docked to the object being
+	   edited and stretched to whatever the strip came out at. It is a row of a
+	   panel now, so it is sized the way the panel's other fields are - a
+	   width of its own rather than a share of the row - and 150px is what the
+	   object link panel's field settled on (2026-09-17, the same reasoning:
+	   wide enough to read a url in, narrow enough to leave the button its
+	   room). */
+	width: 150px;
+	flex: 0 0 auto;
+	font-size: 11px;
+	box-sizing: border-box;
+}
+
+.glue-link-buttons {
+	justify-content: flex-end;
+	gap: 6px;
+}
+
+.glue-link-buttons button {
+	font-size: 11px;
+	padding: 2px 8px;
+	cursor: pointer;
+}
+
+.glue-link-ok {
+	/* the commit, at the end of the row */
+	margin-left: auto;
+}
+
+/* --- the text panel's run half ------------------------------------------- */
+
+.glue-text-strip-link {
+	/* The link row of the text panel's run half: the url field and the button
+	   that acts on the selection, under the face and the size. The panel's
+	   last row, and in the open since 2026-09-18 - the run half has no fold -
+	   so it carries no margin of its own: the row above it has one, and the
+	   popover's own padding ends the panel. A plain div rather than a
+	   $.glue.popover.row() - it has no label, and the button's wording is its
+	   own - so its layout lives here. The class still says "text strip"
+	   because it is the same row the strip docked, and it is what the specs
+	   locate it by. */
+	display: flex;
+	align-items: center;
+	gap: 7px;
+}
+
+
+.glue-font-note {
+	/* where the faces in the dropdown come from */
+	margin-top: 2px;
+}
+
+.glue-font-note a {
+	color: #06c;
+	text-decoration: underline;
+}
+
+.text a {
+	/* css/main.css sets text-decoration:inherit globally so an author's
+	   object-level decoration flows into the link; on top of that, a link
+	   inside a text object is underlined WHILE EDITING so the author can
+	   see it - published pages keep the historical a-reset (the author's
+	   own CSS decides there) */
+	text-decoration: underline;
+}
+
+.glue-link-add-class {
+	/* the small button that reveals the link row's class input */
+	font-size: 11px;
+	padding: 2px 8px;
+	cursor: pointer;
+	flex: 0 0 auto;
+}
+
+.glue-btn-icon.glue-font-style::before {
+	/* bold, italic, underline and strikethrough wear their 22x22 redraws
+	   (img/icons/font-style-*-22.svg) at 1:1 in a 22x22 box - text-edit.js
+	   brings the box down from $.glue.icon()'s inline 32. The art keeps a
+	   3px margin, so a mask centred on the padding box (20px, or 18px
+	   pressed in) loses only empty rows to the frame, and the pressed-in
+	   frame still clears the glyph (danja's call, 2026-09-27) */
+	-webkit-mask-size: 22px 22px;
+	mask-size: 22px 22px;
+}
+
+.glue-font-padding,
+.glue-font-color {
+	/* set apart from the row's other buttons, the padding drag on the
+	   size row and the colour button on the style row */
+	margin-left: 12px;
+	flex: 0 0 auto;
+}
+
+.glue-font-padding {
+	/* the drag's own cursor and gesture */
+	cursor: all-scroll;
+	touch-action: none;
+}
+
+.glue-btn-icon.glue-font-padding::before {
+	/* danja's 22x22 redraw (img/icons/padding-22.svg) at 1:1 in its 22x22
+	   box, centred on the 20px padding box - the art keeps its own margin,
+	   so the frame loses only empty rows of it (danja's call, 2026-09-27) */
+	-webkit-mask-size: 22px 22px;
+	mask-size: 22px 22px;
+}
+
+.glue-font-shadow-grid {
+	/* the shadow section in two columns, laid out row by row (danja's call,
+	   2026-09-28): the radius, fade and distance on the left, the colour,
+	   angle and spread on the right. A grid rather than the two stacked
+	   columns above it, so each right-hand control stays level with its
+	   left-hand neighbour; the same 1fr 1fr and gap as that grid, so the
+	   right column starts where the padding rows do. The gap between rows
+	   is the grid's own - the rows' margins would unlevel them */
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	column-gap: 14px;
+	row-gap: 6px;
+	align-items: center;
+}
+
+.glue-font-shadow-grid > * {
+	margin-bottom: 0;
+}
+
+.glue-font-shadow-color {
+	/* the shadow colour and its two-line label, at the head of the shadow
+	   section's right column (danja's call, 2026-09-27/28), the label at
+	   the tight line-height of the edge panel's two-line labels */
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	line-height: 1;
+}
+
+.glue-font-knobs-grid {
+	/* the fold's two columns: the type rows left, the padding rows right
+	   (danja's call, 2026-09-25) */
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	column-gap: 14px;
+}
+
+.glue-font-knobs-col {
+	display: flex;
+	flex-direction: column;
+}
+
+.glue-font-knobs-rule {
+	/* the divider between the columns and the shadow and fade rows */
+	border: none;
+	border-top: 1px solid #666;	/* 50% darker than the old #ccc, danja's call 2026-09-26 */
+	margin: 10px 0;
+	width: 100%;
+}
+
+.glue-font-list {
+	/* the first list button on the align row: set apart from the justify
+	   button the way the colour button is set apart from the toggles */
+	margin-left: 12px;
+	flex: 0 0 auto;
 }
