@@ -3936,7 +3936,12 @@ class TelarisNetwork {
             }
 
             if (c._vein) {
-                this._updateVeinTube(c, p1, p2);
+                // Vine tubes follow the nodes' REST positions, not the drifted ones: the
+                // drift (0.05 units, inside the node spheres) moved an endpoint past the
+                // rebuild threshold every few frames, so ~half the tubes were rebuilt and
+                // re-uploaded per frame. Anchored at rest they build once and stay put.
+                this._updateVeinTube(c, this._restWorldPos(c.node1, c._veinRest1 || (c._veinRest1 = new THREE.Vector3())),
+                    this._restWorldPos(c.node2, c._veinRest2 || (c._veinRest2 = new THREE.Vector3())));
                 continue;
             }
 
@@ -3972,6 +3977,15 @@ class TelarisNetwork {
      * ponytail: constant tube radius (no taper yet) and a fresh TubeGeometry per frame;
      * add a tapered radius and pool/retire the geometry if a large galaxy janks.
      */
+    /** A node's world position without its per-frame drift (its sim rest anchor). */
+    _restWorldPos(n, out) {
+        const d = n.userData;
+        if (!d || !d.originalPosition) return n.getWorldPosition(out);
+        out.copy(d.originalPosition);
+        if (n.parent) out.applyMatrix4(n.parent.matrixWorld);
+        return out;
+    }
+
     _updateVeinTube(c, p1, p2) {
         const dist = p1.distanceTo(p2);
         if (dist < 0.001) { c.mesh.visible = false; return; }
@@ -4000,7 +4014,7 @@ class TelarisNetwork {
             let GPpos = null;
             if (c._veinGP) {
                 if (!this._veinGPpos) this._veinGPpos = new THREE.Vector3();
-                c._veinGP.getWorldPosition(this._veinGPpos);
+                this._restWorldPos(c._veinGP, this._veinGPpos);
                 GPpos = this._veinGPpos;
             }
             this._veinBranchPoint(Ppos, GPpos, c._veinKids, this._veinBP);
@@ -4299,7 +4313,7 @@ class TelarisNetwork {
         const kp = this._veinScB;
         let meanDist = 0, m = 0;
         for (const kid of kids) {
-            kid.getWorldPosition(kp);
+            this._restWorldPos(kid, kp);
             const d = kp.distanceTo(Ppos);
             if (d > 1e-4) { meanDist += d; m++; }
         }
@@ -4311,7 +4325,7 @@ class TelarisNetwork {
         } else {
             dir.set(0, 0, 0); // root: mean child direction
             for (const kid of kids) {
-                kid.getWorldPosition(kp);
+                this._restWorldPos(kid, kp);
                 const d = kp.distanceTo(Ppos);
                 if (d > 1e-4) dir.add(this._veinScC.subVectors(kp, Ppos).multiplyScalar(1 / d));
             }
@@ -5373,7 +5387,17 @@ class TelarisNetwork {
             }
         });
 
+        // The bokeh + bloom chain only changes pixels when the background scene has
+        // something drawn in it (stars, grid, nebulae...). On a bare background (vine)
+        // it would blur and bloom a flat colour into the same flat colour, so render
+        // the background directly and skip the full-screen passes.
+        let bgHasContent = false;
         if (this.bgComposer) {
+            this.bgScene.traverseVisible((o) => {
+                if (!bgHasContent && (o.isMesh || o.isPoints || o.isLine || o.isSprite)) bgHasContent = true;
+            });
+        }
+        if (this.bgComposer && bgHasContent) {
             this.bgComposer.render();
         } else {
             this.bgRenderer.render(this.bgScene, this.camera);
