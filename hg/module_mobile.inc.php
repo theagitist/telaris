@@ -41,7 +41,8 @@
 require_once('html.inc.php');
 
 // minimum scale factor (1.0 = never shrink, 0.0 = always fit exactly).
-@define('MOBILE_MIN_SCALE', '0.4');
+@define('MOBILE_MIN_SCALE', '0.4');	// touch screens (phones, tablets)
+@define('DESKTOP_MIN_SCALE', '0.6');	// mouse screens (unchanged since the original module)
 
 
 /**
@@ -76,15 +77,10 @@ function mobile_render_page_late($args)
 	html_add_head_inline('<meta name="viewport" content="width=device-width, initial-scale=1">', 1);
 
 	// 2) the scaler. sanitise the floor define into a safe JS float literal.
-	$floor = floatval(MOBILE_MIN_SCALE);
-	if ($floor < 0) {
-		$floor = 0;
-	}
-	if (1 < $floor) {
-		$floor = 1;
-	}
+	$floor = max(0, min(1, floatval(MOBILE_MIN_SCALE)));
+	$desk = max(0, min(1, floatval(DESKTOP_MIN_SCALE)));
 
-	html_add_js_inline(mobile_scaler_js($floor), 7, 'mobile scale-to-fit (module_mobile)');
+	html_add_js_inline(mobile_scaler_js($floor, $desk), 7, 'mobile scale-to-fit (module_mobile)');
 
 	return true;
 }
@@ -102,11 +98,12 @@ function mobile_render_page_late($args)
  *	@param float $floor sanitised minimum scale, safe to inline
  *	@return string javascript (without <script> wrapper)
  */
-function mobile_scaler_js($floor)
+function mobile_scaler_js($floor, $desk)
 {
 	return <<<JS
 (function () {
-	var FLOOR = {$floor};
+	// touch screens may shrink further than mouse screens
+	var FLOOR = (window.matchMedia && matchMedia('(pointer: coarse)').matches) ? {$floor} : {$desk};
 	var clip, scale, designW, designH;
 
 	function measure() {
