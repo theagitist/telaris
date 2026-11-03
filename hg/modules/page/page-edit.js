@@ -74,10 +74,11 @@ $(document).ready(function() {
 	
 	elem = $('<img src="'+$.glue.base_url+'img/background-color.png" alt="btn" title="'+$.glue.t('page.change_bg_color')+'" width="32" height="32">');
 	$(elem).bind('click', function(e) {
-		if ($('html').css('background-image').length != 0 && $('html').css('background-image') != 'none') {
+		if (($('html').css('background-image').length != 0 && $('html').css('background-image') != 'none') || $('video.page-background-video').length) {
 			if (confirm($.glue.t('page.clear_bg_confirm'))) {
 				$.glue.backend({ method: 'page.clear_background_img', page: $.glue.page });
 				$('html').css('background-image', '');
+				$('video.page-background-video').remove();
 			} else {
 				$.glue.menu.hide();
 				return;
@@ -158,8 +159,9 @@ $(document).ready(function() {
 			} else if (data['#error']) {
 				$.glue.error($.glue.t('page.upload_problem_data', data['#data']));
 			} else {
-				// the timestamp here is to trick any caching going on
-				$('html').css('background-image', 'url('+$.glue.base_url+'?'+$.glue.page+'.page&'+(new Date().getTime())+')');
+				// reload so an image OR a video background (an element the
+				// server renders) shows exactly as visitors will see it
+				window.location.reload();
 			}
 			$.glue.menu.hide();
 		},

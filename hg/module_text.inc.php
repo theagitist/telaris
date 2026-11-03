@@ -65,7 +65,8 @@ function _include_woff_font($font_family, $style_to_include = '')
 		} else {
 			$rule .= tab().'font-weight: normal;'.nl();
 		}
-		$rule .= tab().'src: url('.base_url().'img/'.$woff.') format("woff");'.nl();
+		// bundled fonts live under fonts/ (woff2, plus the legacy woff faces)
+		$rule .= tab().'src: url('.base_url().$woff.') format("'.(filext($woff) == 'woff2' ? 'woff2' : 'woff').'");'.nl();
 		$rule .= '}';
 		html_add_css_inline($rule, 5);
 		// add to list of already included font styles
@@ -129,33 +130,85 @@ function _text_render_content($s, $name)
  */
 function _woff_fonts()
 {
-	// use a hardcoded array of woff fonts for now
-	return array(
-		'LatinModern' => array(
-			'normal' => 'lmsans10-regular-webfont.woff',
-			'italic' => 'lmsans10-oblique-webfont.woff',
-			'bold' => 'lmsans10-bold-webfont.woff',
-			'bolditalic' => 'lmsans10-boldoblique-webfont.woff'
-		),
-		'DejaVuSans' => array(
-			'normal' => 'dejavusans-webfont.woff',
-			'italic' => 'dejavusans-oblique-webfont.woff',
-			'bold' => 'dejavusans-bold-webfont.woff',
-			'bolditalic' => 'dejavusans-boldoblique-webfont.woff'
-		),
-		'DejaVuSerif' => array(
-			'normal' => 'dejavuserif-webfont.woff',
-			'italic' => 'dejavuserif-italic-webfont.woff',
-			'bold' => 'dejavuserif-bold-webfont.woff',
-			'bolditalic' => 'dejavuserif-bolditalic-webfont.woff'
-		),
-		'DejaVuSansMono' => array(
-			'normal' => 'dejavusansmono-webfont.woff',
-			'italic' => 'dejavusansmono-oblique-webfont.woff',
-			'bold' => 'dejavusansmono-bold-webfont.woff',
-			'bolditalic' => 'dejavusansmono-boldoblique-webfont.woff'
-		)
-	);
+	return [
+		'Inter' => [
+			'normal' => 'fonts/inter/inter-400.woff2',
+			'italic' => 'fonts/inter/inter-400i.woff2',
+			'bold' => 'fonts/inter/inter-700.woff2',
+			'bolditalic' => 'fonts/inter/inter-700i.woff2'
+		],
+		'Lora' => [
+			'normal' => 'fonts/lora/lora-400.woff2',
+			'italic' => 'fonts/lora/lora-400i.woff2',
+			'bold' => 'fonts/lora/lora-700.woff2',
+			'bolditalic' => 'fonts/lora/lora-700i.woff2'
+		],
+		'Space Mono' => [
+			'normal' => 'fonts/spacemono/spacemono-400.woff2',
+			'italic' => 'fonts/spacemono/spacemono-400i.woff2',
+			'bold' => 'fonts/spacemono/spacemono-700.woff2',
+			'bolditalic' => 'fonts/spacemono/spacemono-700i.woff2'
+		],
+		'Press Start 2P' => [
+			'normal' => 'fonts/pressstart2p/pressstart2p-400.woff2'
+		],
+		'VT323' => [
+			'normal' => 'fonts/vt323/vt323-400.woff2'
+		],
+		'Silkscreen' => [
+			'normal' => 'fonts/silkscreen/silkscreen-400.woff2',
+			'bold' => 'fonts/silkscreen/silkscreen-700.woff2'
+		],
+		'UnifrakturMaguntia' => [
+			'normal' => 'fonts/unifrakturmaguntia/unifrakturmaguntia-400.woff2'
+		],
+		'Anton' => [
+			'normal' => 'fonts/anton/anton-400.woff2'
+		],
+		'Archivo Black' => [
+			'normal' => 'fonts/archivoblack/archivoblack-400.woff2'
+		],
+		'Caveat' => [
+			'normal' => 'fonts/caveat/caveat-400.woff2',
+			'bold' => 'fonts/caveat/caveat-700.woff2'
+		],
+		'Shadows Into Light' => [
+			'normal' => 'fonts/shadowsintolight/shadowsintolight-400.woff2'
+		],
+		'Rubik Glitch' => [
+			'normal' => 'fonts/rubikglitch/rubikglitch-400.woff2'
+		],
+		'Rubik Wet Paint' => [
+			'normal' => 'fonts/rubikwetpaint/rubikwetpaint-400.woff2'
+		],
+		'Rubik Puddles' => [
+			'normal' => 'fonts/rubikpuddles/rubikpuddles-400.woff2'
+		],
+		'LatinModern' => [
+			'normal' => 'fonts/latinmodern/lmsans10-regular-webfont.woff',
+			'italic' => 'fonts/latinmodern/lmsans10-oblique-webfont.woff',
+			'bold' => 'fonts/latinmodern/lmsans10-bold-webfont.woff',
+			'bolditalic' => 'fonts/latinmodern/lmsans10-boldoblique-webfont.woff'
+		],
+		'DejaVuSans' => [
+			'normal' => 'fonts/dejavusans/dejavusans-webfont.woff',
+			'italic' => 'fonts/dejavusans/dejavusans-oblique-webfont.woff',
+			'bold' => 'fonts/dejavusans/dejavusans-bold-webfont.woff',
+			'bolditalic' => 'fonts/dejavusans/dejavusans-boldoblique-webfont.woff'
+		],
+		'DejaVuSerif' => [
+			'normal' => 'fonts/dejavuserif/dejavuserif-webfont.woff',
+			'italic' => 'fonts/dejavuserif/dejavuserif-italic-webfont.woff',
+			'bold' => 'fonts/dejavuserif/dejavuserif-bold-webfont.woff',
+			'bolditalic' => 'fonts/dejavuserif/dejavuserif-bolditalic-webfont.woff'
+		],
+		'DejaVuSansMono' => [
+			'normal' => 'fonts/dejavusansmono/dejavusansmono-webfont.woff',
+			'italic' => 'fonts/dejavusansmono/dejavusansmono-oblique-webfont.woff',
+			'bold' => 'fonts/dejavusansmono/dejavusansmono-bold-webfont.woff',
+			'bolditalic' => 'fonts/dejavusansmono/dejavusansmono-boldoblique-webfont.woff'
+		]
+	];
 }
 
 
@@ -420,7 +473,7 @@ function text_render_page_early($args)
 			foreach ($woff_fonts as $font=>$styles) {
 				_include_woff_font($font);
 				// TODO (later): check css encoding
-				$rule = '.glue-font-woff-'.$font.' {'.nl();
+				$rule = '.glue-font-woff-'.preg_replace('/[^A-Za-z0-9_-]/', '-', $font).' {'.nl();
 				// we use single quotes as they don't clash with inline styles
 				$rule .= tab().'font-family: \''.$font.'\';'.nl();
 				$rule .= '}';

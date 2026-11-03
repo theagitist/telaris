@@ -7,6 +7,49 @@
  *	See the file COPYING for more details.
  */
 
+// Telaris: objects can be rotated (transform-flip). jQuery's position() measures
+// the on-screen bounding box, which a rotation changes, so every save or drag
+// of a rotated object would nudge its stored left/top. For hotglue objects,
+// report the layout position (the css left/top) instead; it ignores transforms
+// and is what the object file stores.
+(function() {
+	var orig_position = $.fn.position;
+	$.fn.position = function() {
+		var e = this[0];
+		if (e && $(e).hasClass('object')) {
+			var cs = window.getComputedStyle(e);
+			var l = parseFloat(cs.left), t = parseFloat(cs.top);
+			if (isFinite(l) && isFinite(t)) {
+				return { left: l, top: t };
+			}
+		}
+		return orig_position.apply(this, arguments);
+	};
+	// same for offset() (jQuery UI draggable measures with it): for a
+	// transformed object, return where its untransformed box sits, i.e. the
+	// offset parent's content corner plus the css left/top
+	var orig_offset = $.fn.offset;
+	$.fn.offset = function(opts) {
+		var e = this[0];
+		if (!arguments.length && e && $(e).hasClass('object')) {
+			var cs = window.getComputedStyle(e);
+			if (cs.transform && cs.transform !== 'none') {
+				var par = e.offsetParent || document.body;
+				var po = orig_offset.call($(par));
+				var pcs = window.getComputedStyle(par);
+				var l = parseFloat(cs.left), t = parseFloat(cs.top);
+				if (isFinite(l) && isFinite(t)) {
+					return {
+						left: po.left + (parseFloat(pcs.borderLeftWidth) || 0) + l,
+						top: po.top + (parseFloat(pcs.borderTopWidth) || 0) + t
+					};
+				}
+			}
+		}
+		return orig_offset.apply(this, arguments);
+	};
+})();
+
 $.glue.canvas = function()
 {
 	return {

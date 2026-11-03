@@ -36,6 +36,10 @@ function object_alter_render_early($args)
 	if (!empty($obj['object-opacity'])) {
 		elem_css($elem, 'opacity', $obj['object-opacity']);
 	}
+	// rounded corners (same key as upstream ng, so pages round-trip)
+	if (!empty($obj['object-border-radius'])) {
+		elem_css($elem, 'border-radius', $obj['object-border-radius']);
+	}
 	elem_css($elem, 'position', 'absolute');
 	if (!empty($obj['object-top'])) {
 		elem_css($elem, 'top', $obj['object-top']);
@@ -116,6 +120,12 @@ function object_alter_save($args)
 	} else {
 		unset($obj['object-opacity']);
 	}
+	$radius = elem_css($elem, 'border-radius');
+	if ($radius !== NULL && $radius !== '' && $radius !== '0px' && $radius !== '0') {
+		$obj['object-border-radius'] = $radius;
+	} else {
+		unset($obj['object-border-radius']);
+	}
 	if (elem_css($elem, 'top') !== NULL) {
 		$obj['object-top'] = elem_css($elem, 'top');
 	} else {
@@ -140,9 +150,9 @@ function object_render_page_early($args)
 {
 	if ($args['edit']) {
 		if (USE_MIN_FILES) {
-			html_add_js(base_url().'modules/object/object-edit.min.js');
+			html_add_js(base_url().'modules/object/object-edit.min.js?v='.@filemtime(dirname(__FILE__).'/modules/object/object-edit.min.js'));
 		} else {
-			html_add_js(base_url().'modules/object/object-edit.js');
+			html_add_js(base_url().'modules/object/object-edit.js?v='.@filemtime(dirname(__FILE__).'/modules/object/object-edit.js'));
 		}
 		
 		// add default colors

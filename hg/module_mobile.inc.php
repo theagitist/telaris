@@ -31,7 +31,7 @@
  *	TUNING
  *	Override the floor in user-config.inc.php, e.g.
  *		@define('MOBILE_MIN_SCALE', '0.5');
- *	0.6 keeps text readable while fitting most pages; lower = fits wider pages
+ *	0.4 (Telaris default since 2026-11-02) keeps text readable while fitting most pages; lower = fits wider pages
  *	before horizontal scroll kicks in, at the cost of smaller text.
  *
  *	Same GPL license as the rest of hotglue.
@@ -41,7 +41,7 @@
 require_once('html.inc.php');
 
 // minimum scale factor (1.0 = never shrink, 0.0 = always fit exactly).
-@define('MOBILE_MIN_SCALE', '0.6');
+@define('MOBILE_MIN_SCALE', '0.4');
 
 
 /**
@@ -138,8 +138,14 @@ function mobile_scaler_js($floor)
 		scale.id = 'hg-scale';
 		scale.style.position = 'relative';
 		scale.style.transformOrigin = '0 0';
-		while (document.body.firstChild) {
-			scale.appendChild(document.body.firstChild);
+		// move everything into the scaler except a background video, which
+		// keeps filling the window (Telaris, 2026-11-02)
+		var kids = Array.prototype.slice.call(document.body.childNodes);
+		for (var i = 0; i < kids.length; i++) {
+			if (kids[i].nodeType === 1 && kids[i].classList.contains('page-background-video')) {
+				continue;
+			}
+			scale.appendChild(kids[i]);
 		}
 		clip.appendChild(scale);
 		document.body.appendChild(clip);

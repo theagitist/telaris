@@ -12,3 +12,9 @@ a, a:link, a:visited, a:active, a:hover {
 	color: inherit;
 	text-decoration: inherit;
 }
+
+/* rounded corners (object-border-radius) belong to the object; media inside
+   inherit them so images, videos and iframes round with their box */
+.object > img, .object > video, .object > iframe {
+	border-radius: inherit;
+}

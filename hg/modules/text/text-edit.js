@@ -406,53 +406,48 @@ $(document).ready(function() {
 		$('#glue-contextmenu-text-font-face').addClass('glue-text-font-family');
 		$('#glue-contextmenu-text-font-face').attr('title', $.glue.t('text.change_typeface'));
 	});
+	// Telaris: a picker list instead of cycling one font per click (the font
+	// bundle has ~24 families). Each entry is drawn in its own face.
 	$(elem).bind('click', function(e) {
+		var btn = this;
 		var obj = $(this).data('owner');
 		var fonts = [];
 		var woff_fonts = [];
 		$.glue.text.get_fonts(fonts, woff_fonts);
-		// DEBUG
-		//console.log(fonts);
-		//console.log(woff_fonts);
-		// search for current font
+		$('#glue-text-font-picker').remove();
 		var cur = $(obj).css('font-family');
-		var n = false;
-		for (var i=0; i < fonts.length; i++) {
-			if (cur === fonts[i]) {
-				// pick the next one
-				if (i+1 < fonts.length) {
-					n = i+1;
+		var list = $('<div id="glue-text-font-picker"></div>');
+		$.each(fonts, function(i, f) {
+			var label = f.split(',')[0].replace(/['"]/g, '');
+			var item = $('<div class="glue-text-font-picker-item"></div>').text(label).css('font-family', f);
+			if (f === cur) {
+				item.addClass('glue-text-font-picker-current');
+			}
+			item.bind('click', function(ev) {
+				$(obj).css('font-family', f);
+				var is_woff = $.inArray(f, woff_fonts) !== -1;
+				$(btn).toggleClass('glue-text-font-face', is_woff).toggleClass('glue-text-font-family', !is_woff);
+				$(btn).attr('title', is_woff ? $.glue.t('text.woff_web_font', f) : $.glue.t('text.change_typeface'));
+				$.glue.object.save(obj);
+				list.remove();
+				return false;
+			});
+			list.append(item);
+		});
+		var off = $(btn).offset();
+		list.css({ left: (off.left + 36) + 'px', top: off.top + 'px' });
+		$('body').append(list);
+		// close on the next click anywhere else
+		setTimeout(function() {
+			$(document).one('mousedown', function(ev) {
+				if (!$(ev.target).closest('#glue-text-font-picker').length) {
+					list.remove();
 				} else {
-					n = 0;
+					$(document).one('mousedown', arguments.callee);
 				}
-				break;
-			}
-		}
-		// otherwise fall back to the first one
-		if (n === false && fonts.length) {
-			n = 0;
-		}
-		if (n !== false) {
-			$(obj).css('font-family', fonts[n]);
-			// check if woff-font
-			var is_woff = false;
-			for (var i=0; i < woff_fonts.length; i++) {
-				if (woff_fonts[i] == fonts[n]) {
-					is_woff = true;
-					break;
-				}
-			}
-			if (is_woff) {
-				$(this).addClass('glue-text-font-face');
-				$(this).removeClass('glue-text-font-family');
-				$(this).attr('title', $.glue.t('text.woff_web_font', fonts[n]));
-			} else {
-				$(this).removeClass('glue-text-font-face');
-				$(this).addClass('glue-text-font-family');
-				$(this).attr('title', $.glue.t('text.change_typeface'));
-			}
-			$.glue.object.save(obj);
-		}
+			});
+		}, 0);
+		return false;
 	});
 	$.glue.contextmenu.register('text', 'text-font-face', elem);
 	

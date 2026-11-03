@@ -92,7 +92,7 @@ function default_html($add_glue)
 		html_add_css(base_url().'css/reset.css', 1);
 	}
 	// 2 can be used for third-party components
-	html_add_css(base_url().'css/main.css', 3);
+	html_add_css(base_url().'css/main.css?v='.@filemtime(dirname(__FILE__).'/css/main.css'), 3);
 	if ($add_glue) {
 		html_add_css(base_url().'css/glue.css', 4);
 	}

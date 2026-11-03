@@ -66,6 +66,36 @@ $(document).ready(function() {
 		return false;
 	});
 	$.glue.contextmenu.register('object', 'object-transparency', elem, 2);
+
+	// Telaris: rounded corners. Drag sideways: right rounds more, left less;
+	// the maximum is a circle/ellipse (half the shorter side).
+	elem = $('<img src="'+$.glue.base_url+'modules/object/object-border-radius.png" alt="btn" title="'+$.glue.t('object.border_radius', '0px')+'" width="32" height="32">');
+	$(elem).bind('glue-menu-activate', function(e) {
+		var obj = $(this).data('owner');
+		$(this).attr('title', $.glue.t('object.border_radius', $(obj).css('border-top-left-radius') || '0px'));
+	});
+	$(elem).bind('mousedown', function(e) {
+		var that = this;
+		var obj = $(this).data('owner');
+		var start = parseFloat($(obj).css('border-top-left-radius')) || 0;
+		var max = Math.min($(obj).outerWidth(), $(obj).outerHeight()) / 2;
+		$.glue.slider(e, function(x, y) {
+			var r = start + x / 2;
+			if (r < 0) {
+				r = 0;
+			}
+			if (r >= max) {
+				$(obj).css('border-radius', '50%');
+			} else {
+				$(obj).css('border-radius', Math.round(r) + 'px');
+			}
+		}, function(x, y) {
+			$.glue.object.save(obj);
+			$(that).trigger('glue-menu-activate');
+		});
+		return false;
+	});
+	$.glue.contextmenu.register('object', 'object-border-radius', elem, 4);
 	
 	elem = $('<img src="'+$.glue.base_url+'modules/object/object-zindex.png" alt="btn" title="'+$.glue.t('object.zindex')+'" width="32" height="32">');
 	$(elem).bind('mousedown', function(e) {

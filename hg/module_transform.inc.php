@@ -31,10 +31,6 @@ function transform_alter_render_early($args)
 	if (!empty($obj['transform-flip'])) {
 		$all_transform = $obj['transform-flip'];
 		elem_css($elem, 'transform', $all_transform);
-		elem_css($elem, '-webkit-transform', $all_transform);
-		elem_css($elem, '-moz-transform', $all_transform);
-		elem_css($elem, '-o-transform', $all_transform);
-		elem_css($elem, '-ms-transform', $all_transform);
 	}
 	
 	return true;
@@ -49,14 +45,15 @@ function transform_alter_save($args)
 		return false;
 	}
 
-	if (elem_css($elem, '-webkit-transform') !== NULL) {
-		$obj['transform-flip'] = elem_css($elem, '-webkit-transform');
-	}	
-	else if (elem_css($elem, 'transform') !== NULL) {
-		$moz_transform = elem_css($elem, 'transform');
-		$moz_transform = str_replace("px", "", $moz_transform);
-		$moz_transform = str_replace("pt", "", $moz_transform);
-		$obj['transform-flip'] = $moz_transform;
+	// Telaris: the editor writes the standard property (rotation + flip as
+	// one matrix); older pages still carry the -webkit- copy. Stored under the
+	// same key upstream ng uses, so rotated pages round-trip.
+	$t = elem_css($elem, 'transform');
+	if ($t === NULL || $t === '' || $t === 'none') {
+		$t = elem_css($elem, '-webkit-transform');
+	}
+	if ($t !== NULL && $t !== '' && $t !== 'none' && $t !== 'matrix(1, 0, 0, 1, 0, 0)') {
+		$obj['transform-flip'] = str_replace(array('px', 'pt'), '', $t);
 	} else {
 		unset($obj['transform-flip']);
 	}
@@ -74,8 +71,7 @@ function transform_render_object($args)
 	}
 	
 	if (!empty($obj['transform-flip'])) {
-		elem_css($elem, '-webkit-transform', $obj['transform-flip']);
-		elem_css($elem, '-moz-transform', $obj['transform-flip']);
+		elem_css($elem, 'transform', $obj['transform-flip']);
 	}
 
 }
@@ -85,9 +81,9 @@ function transform_render_page_early($args)
 {
 	if ($args['edit']) {
 		if (USE_MIN_FILES) {
-			html_add_js(base_url().'modules/transform/transform.min.js');
+			html_add_js(base_url().'modules/transform/transform.min.js?v='.@filemtime(dirname(__FILE__).'/modules/transform/transform.min.js'));
 		} else {
-			html_add_js(base_url().'modules/transform/transform.js');
+			html_add_js(base_url().'modules/transform/transform.js?v='.@filemtime(dirname(__FILE__).'/modules/transform/transform.js'));
 		}
 //		html_add_css(base_url().'modules/transform/transform.css');
 //		html_add_js(base_url().'modules/transform/jquery.transform-0.9.3.min.js');

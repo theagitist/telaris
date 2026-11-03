@@ -132,9 +132,9 @@ function controller_edit($args)
 		html_add_js(base_url().'js/jquery.xcolor-1.2.1.js', 2);
 	}
 	if (USE_MIN_FILES) {
-		html_add_js(base_url().'js/edit.min.js', 4);
+		html_add_js(base_url().'js/edit.min.js?v='.@filemtime(dirname(__FILE__).'/js/edit.min.js'), 4);
 	} else {
-		html_add_js(base_url().'js/edit.js', 4);
+		html_add_js(base_url().'js/edit.js?v='.@filemtime(dirname(__FILE__).'/js/edit.js'), 4);
 	}
 	render_page(array('page'=>$page, 'edit'=>true));
 	echo html_finalize();
