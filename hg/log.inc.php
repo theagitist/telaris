@@ -16,7 +16,7 @@ if (!isset($logfile)) {
 	$logfile = false;
 }
 if (!isset($loglevels)) {
-	$loglevels = ['error', 'warn', 'info', 'debug'];
+	$loglevels = array('error', 'warn', 'info', 'debug');
 }
 if (!isset($request_id)) {
 	// mt_rand() is seeded automatically

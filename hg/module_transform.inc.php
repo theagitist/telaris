@@ -29,9 +29,14 @@ function transform_alter_render_early($args)
 	}
 
 	if (!empty($obj['transform-flip'])) {
-		elem_css($elem, 'transform', $obj['transform-flip']);
+		$all_transform = $obj['transform-flip'];
+		elem_css($elem, 'transform', $all_transform);
+		elem_css($elem, '-webkit-transform', $all_transform);
+		elem_css($elem, '-moz-transform', $all_transform);
+		elem_css($elem, '-o-transform', $all_transform);
+		elem_css($elem, '-ms-transform', $all_transform);
 	}
-
+	
 	return true;
 }
 
@@ -44,15 +49,18 @@ function transform_alter_save($args)
 		return false;
 	}
 
-	if (elem_css($elem, 'transform') !== NULL) {
-		$transform = elem_css($elem, 'transform');
-		$transform = str_replace("px", "", $transform);
-		$transform = str_replace("pt", "", $transform);
-		$obj['transform-flip'] = $transform;
+	if (elem_css($elem, '-webkit-transform') !== NULL) {
+		$obj['transform-flip'] = elem_css($elem, '-webkit-transform');
+	}	
+	else if (elem_css($elem, 'transform') !== NULL) {
+		$moz_transform = elem_css($elem, 'transform');
+		$moz_transform = str_replace("px", "", $moz_transform);
+		$moz_transform = str_replace("pt", "", $moz_transform);
+		$obj['transform-flip'] = $moz_transform;
 	} else {
 		unset($obj['transform-flip']);
 	}
-
+	
 	return true;
 }
 
@@ -64,9 +72,10 @@ function transform_render_object($args)
 	if (!elem_has_class($elem, 'object')) {
 		return false;
 	}
-
+	
 	if (!empty($obj['transform-flip'])) {
-		elem_css($elem, 'transform', $obj['transform-flip']);
+		elem_css($elem, '-webkit-transform', $obj['transform-flip']);
+		elem_css($elem, '-moz-transform', $obj['transform-flip']);
 	}
 
 }
@@ -81,6 +90,7 @@ function transform_render_page_early($args)
 			html_add_js(base_url().'modules/transform/transform.js');
 		}
 //		html_add_css(base_url().'modules/transform/transform.css');
+//		html_add_js(base_url().'modules/transform/jquery.transform-0.9.3.min.js');
 		return true;
 	} else {
 		return false;

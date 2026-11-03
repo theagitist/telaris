@@ -1,0 +1,20 @@
+/**
+ *	modules/soundboard/soundboard-edit.css
+ *	Icon for the page-menu "soundboard mode" toggle.
+ *
+ *	This source code is licensed under the GNU General Public License.
+ *	See the file COPYING for more details.
+ */
+
+#glue-menu-page-soundboard {
+	/* overwrite the default greenish hue for .glue-menu-enabled */
+	background-color: transparent;
+}
+
+#glue-menu-page-soundboard.glue-menu-disabled {
+	background-image: url(soundboard-off.png);
+}
+
+#glue-menu-page-soundboard.glue-menu-enabled {
+	background-image: url(soundboard-on.png);
+}

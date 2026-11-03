@@ -1,0 +1,50 @@
+/*
+ * css/theme.css - editor skin (theagitist/hotglue2 fork, TELARIS branch).
+ *
+ * Telaris-embedded brand chrome, per the Telaris brand book (Academia vault,
+ * Projects/Telaris/Documentation/Brand book/{Palette,Iconography}.md): icons are
+ * Aurora white #e8eef0 (rendered by tools/icons/render.sh '#e8eef0'); the menu
+ * buttons are translucent-black HUD chips with a hairline white border and
+ * backdrop blur; Wormhole mint #00ffcc is a signal only (focus outline), never a
+ * fill. This file is the standalone (main) theme.css overridden for Telaris.
+ * Loaded only in edit mode by module_theme.inc.php.
+ *
+ * Licensed under the GNU General Public License. See the file COPYING.
+ */
+
+/* HUD chip behind each button, so the Aurora glyphs read over any page
+ * background. Translucent black + hairline white border (as an inset shadow so
+ * the 32px footprint is unchanged) + backdrop blur, 4px radius - the brand's
+ * HUD-panel vocabulary. Menu items are .glue-menu; context-menu items are
+ * .glue-contextmenu-left / -top. */
+.glue-menu,
+.glue-contextmenu-left,
+.glue-contextmenu-top {
+	background-color: rgba(0, 0, 0, 0.5);
+	border-radius: 4px;
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+}
+
+/* The toggle <div>s render at 64px (2x) and set background-color:transparent at
+ * #id specificity to kill the old green box. Re-assert the HUD chip and pin the
+ * 2x background to 32px. State is shown by the icon's own check/x badge. */
+[id^="glue-contextmenu-"],
+[id^="glue-menu-"] {
+	background-color: rgba(0, 0, 0, 0.5) !important;
+	background-size: 32px 32px;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+
+/* Wormhole mint is the single active signal (brand: focus outline 2px #00ffcc,
+ * offset 2px). Never a fill. */
+.glue-menu:focus,
+.glue-contextmenu-left:focus,
+.glue-contextmenu-top:focus,
+[id^="glue-contextmenu-"]:focus,
+[id^="glue-menu-"]:focus {
+	outline: 2px solid #00ffcc;
+	outline-offset: 2px;
+}

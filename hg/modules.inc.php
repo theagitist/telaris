@@ -7,19 +7,21 @@
  *	Copyright Gottfried Haider, Danja Vasiliev 2010.
  *	This source code is licensed under the GNU General Public License.
  *	See the file COPYING for more details.
+ *
+ *	theagitist/hotglue2 fork, 2026-06-25: user-facing response() messages wrapped in t() (module_i18n) for editor UI localization; English catalog values byte-identical.
  */
 
 @require_once('config.inc.php');
 require_once('log.inc.php');
 
 if (!isset($hooks)) {
-	$hooks = [];
+	$hooks = array();
 }
 if (!isset($modules)) {
-	$modules = [];
+	$modules = array();
 }
 if (!isset($services)) {
-	$services = [];
+	$services = array();
 }
 
 
@@ -77,11 +79,11 @@ function get_service($service)
  *	@param string $last_module last module to call (optional)
  *	@return array of results (module=>result)
  */
-function invoke_hook($hook, $args = [], $first_module = '', $last_module = '')
+function invoke_hook($hook, $args = array(), $first_module = '', $last_module = '')
 {
 	global $modules;
 	
-	$ret = [];
+	$ret = array();
 	// make sure all modules are loaded
 	load_modules();
 	
@@ -130,7 +132,7 @@ function invoke_hook($hook, $args = [], $first_module = '', $last_module = '')
  *	@param array $args arguments-array (can include references)
  *	@return array of results (module=>result)
  */
-function invoke_hook_first($hook, $first_module, $args = [])
+function invoke_hook_first($hook, $first_module, $args = array())
 {
 	return invoke_hook($hook, $args, $first_module, '');
 }
@@ -145,7 +147,7 @@ function invoke_hook_first($hook, $first_module, $args = [])
  *	@param array $args arguments-array (can include references)
  *	@return array of results (module=>result)
  */
-function invoke_hook_last($hook, $last_module, $args = [])
+function invoke_hook_last($hook, $last_module, $args = array())
 {
 	return invoke_hook($hook, $args, '', $last_module);
 }
@@ -160,7 +162,7 @@ function invoke_hook_last($hook, $last_module, $args = [])
  *	@param array $args arguments-array
  *	@return array with result (module=>result) or empty result if there was none
  */
-function invoke_hook_while($hook, $while, $args = [])
+function invoke_hook_while($hook, $while, $args = array())
 {
 	global $modules;
 	
@@ -174,7 +176,7 @@ function invoke_hook_while($hook, $while, $args = [])
 			log_msg('debug', 'modules: invoking hook '.$hook.', calling '.$func);
 			$cur = $func($args);
 			if ($cur !== $while) {
-				$ret = [$m=>$cur];
+				$ret = array($m=>$cur);
 				// DEBUG
 				//log_msg('debug', 'modules: invoke_hook_while on '.$hook.' returned '.var_dump_inl($ret));
 				return $ret;
@@ -182,8 +184,8 @@ function invoke_hook_while($hook, $while, $args = [])
 		}
 	}
 
-	log_msg('debug', 'modules: invoke_hook_while on '.$hook.' returned '.var_dump_inl([]));
-	return [];
+	log_msg('debug', 'modules: invoke_hook_while on '.$hook.' returned '.var_dump_inl(array()));
+	return array();
 }
 
 
@@ -256,11 +258,11 @@ function load_modules($search = '', $optional = false)
  *	@param string $func function name
  *	@param array $args optional arguments
  */
-function register_service($service, $func, $args = [])
+function register_service($service, $func, $args = array())
 {
 	global $services;
 	$trace = debug_backtrace();
-	$services[$service] = array_merge(['args'=>[]], array_merge($args, ['func'=>$func, 'file'=>basename($trace[0]['file']), 'line'=>$trace[0]['line']]));
+	$services[$service] = array_merge(array('args'=>array()), array_merge($args, array('func'=>$func, 'file'=>basename($trace[0]['file']), 'line'=>$trace[0]['line'])));
 	log_msg('debug', 'modules: '.basename($trace[0]['file']).':'.$trace[0]['line'].' registered service '.quot($service));
 }
 
@@ -277,7 +279,7 @@ function register_hook($hook, $info = '')
 {
 	global $hooks;
 	$trace = debug_backtrace();
-	$hooks[$hook] = ['file'=>basename($trace[0]['file']), 'line'=>$trace[0]['line'], 'info'=>$info];
+	$hooks[$hook] = array('file'=>basename($trace[0]['file']), 'line'=>$trace[0]['line'], 'info'=>$info);
 	log_msg('debug', 'modules: '.basename($trace[0]['file']).':'.$trace[0]['line'].' registered hook '.quot($hook));
 }
 
@@ -292,7 +294,7 @@ function register_hook($hook, $info = '')
  */
 function response($data, $error = false)
 {
-	$ret = [];
+	$ret = array();
 	if ($error === false) {
 		$ret['#error'] = false;
 	} else {
@@ -316,19 +318,19 @@ function response($data, $error = false)
  *	@return return value of the service function or a response-array 
  *	in case of an error
  */
-function run_service($service, $args = [])
+function run_service($service, $args = array())
 {
 	global $services;
 	
 	if (!isset($services[$service])) {
-		return response('Unknown service '.quot($service), 400);
+		return response(t('service.unknown', quot($service)), 400);
 	}
 	
 	// check arguments
 	foreach ($services[$service]['args'] as $key=>$val) {
 		if (!isset($args[$key])) {
 			if (isset($val['req']) && $val['req']) {
-				return response('Required argument '.quot($key).' missing', 400);
+				return response(t('service.arg_missing', quot($key)), 400);
 			} elseif (isset($val['def'])) {
 				$args[$key] = $val['def'];
 			}
@@ -341,7 +343,7 @@ function run_service($service, $args = [])
 					// convert to array
 					$args[$key] = (array)$args[$key];
 				} else {
-					return response('Invalid type of argument '.quot($key).', expected array', 400);
+					return response(t('service.arg_type_array', quot($key)), 400);
 				}
 			} elseif ($val['type'] == 'bool') {
 				if (is_bool($args[$key])) {
@@ -351,17 +353,17 @@ function run_service($service, $args = [])
 				} elseif (intval($args[$key]) === 0) {
 					$args[$key] = false;
 				} else {
-					return response('Invalid type of argument '.quot($key).', expected bool', 400);
+					return response(t('service.arg_type_bool', quot($key)), 400);
 				}
 			} elseif ($val['type'] == 'float') {
 				if (!is_numeric($args[$key])) {
-					return response('Invalid type of argument '.quot($key).', expected float', 400);
+					return response(t('service.arg_type_float', quot($key)), 400);
 				} else {
 					$args[$key] = floatval($args[$key]);
 				}
 			} elseif ($val['type'] == 'int') {
 				if (!is_numeric($args[$key])) {
-					return response('Invalid type of argument '.quot($key).', expected int', 400);
+					return response(t('service.arg_type_int', quot($key)), 400);
 				} else {
 					$args[$key] = intval($args[$key]);
 				}

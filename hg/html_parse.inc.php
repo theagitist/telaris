@@ -227,7 +227,7 @@ function html_parse($html, $recursive = false)
 {
 	global $single_tags;		// from html.inc.php
 	
-	$ret = [];
+	$ret = array();
 	
 	$pos = 0;
 	$open_tag = false;
@@ -328,9 +328,9 @@ function html_parse($html, $recursive = false)
 function html_parse_elem($html, $recursive = false)
 {
 	global $single_tags;		// from html.inc.php
-	$quot = ['"', "'"];
+	$quot = array('"', "'");
 	
-	$ret = [];
+	$ret = array();
 	
 	// explode the tag
 	$next = strpos($html, '>', 1);
@@ -377,7 +377,7 @@ function html_parse_elem($html, $recursive = false)
 				$val = expl(' ', $val);
 			} elseif ($attr == 'style') {
 				$styles = expl(';', $val);
-				$val = [];
+				$val = array();
 				foreach ($styles as $style) {
 					$temp = expl(':', $style);
 					if (1 < count($temp)) {
