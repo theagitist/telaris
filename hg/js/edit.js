@@ -59,8 +59,18 @@ $.glue.canvas = function()
 			}
 			var max_x = 0;
 			var max_y = 0;
+			// centered layout: centre the container on the window, not on the
+			// body (which this function widens to the content), so the editor
+			// shows the page where visitors see it
+			var wrap = document.getElementById('hg-centered-wrapper');
+			if (wrap) {
+				$(wrap).css('margin-left', Math.max(0, ($(window).width() - $(wrap).outerWidth()) / 2) + 'px');
+			}
 			$(elem).each(function() {
 				var p = $(this).position();
+				if (wrap && $.contains(wrap, this)) {
+					p = { left: p.left + wrap.offsetLeft, top: p.top + wrap.offsetTop };
+				}
 				if (max_x < p.left+$(this).outerWidth()) {
 					max_x = p.left+$(this).outerWidth();
 				}
@@ -907,6 +917,17 @@ $.glue.object = function()
 				return false;
 			} else {
 				reg_objs[$(obj).attr('id')] = true;
+			}
+			// centered layout (page-layout-mode): a newly created object lands
+			// in body; move it into the centered container, keeping its spot on
+			// screen, so it is saved relative to the container like the rest
+			var wrap = document.getElementById('hg-centered-wrapper');
+			if (wrap && $(obj).parent().is('body')) {
+				var l = parseFloat($(obj).css('left')) || 0;
+				var t = parseFloat($(obj).css('top')) || 0;
+				$(obj).css('left', (l - wrap.offsetLeft) + 'px');
+				$(obj).css('top', (t - wrap.offsetTop) + 'px');
+				$(wrap).append(obj);
 			}
 			// make sure everything has a z-index
 			if (isNaN(parseInt($(obj).css('z-index')))) {

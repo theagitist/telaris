@@ -193,6 +193,87 @@ function page_render_page_early($args)
 
 	// set the html title to the page name by default
 	html_title(page_short($args['page']));
+
+	// note where the objects will start, for the centering container
+	$bdy = &body();
+	_page_body_offset(isset($bdy['val']) && is_string($bdy['val']) ? strlen($bdy['val']) : 0);
+}
+
+
+@define('PAGE_DEFAULT_CONTAINER_WIDTH', 960);
+@define('PAGE_MIN_CONTAINER_WIDTH', 320);
+@define('PAGE_MAX_CONTAINER_WIDTH', 4000);
+
+
+/**
+ *	the page's layout mode and container width (centered layout, ported from
+ *	upstream ng with the same keys: page-layout-mode, page-container-width).
+ *	There is no editor control for it here yet; pages set to centered in ng
+ *	keep rendering centered.
+ *
+ *	@param string $page page name (page.revision)
+ *	@return array keys 'mode' ('infinite'|'centered') and 'width' (int px)
+ */
+function page_layout($page)
+{
+	$mode = 'infinite';
+	$width = PAGE_DEFAULT_CONTAINER_WIDTH;
+	$obj = load_object(array('name'=>$page.'.page'));
+	if (!$obj['#error']) {
+		$obj = $obj['#data'];
+		if (!empty($obj['page-layout-mode']) && $obj['page-layout-mode'] == 'centered') {
+			$mode = 'centered';
+		}
+		if (!empty($obj['page-container-width'])) {
+			$width = intval($obj['page-container-width']);
+		}
+	}
+	$width = max(PAGE_MIN_CONTAINER_WIDTH, min(PAGE_MAX_CONTAINER_WIDTH, $width));
+	return array('mode'=>$mode, 'width'=>$width);
+}
+
+
+/**
+ *	where the page's objects begin in the body markup (objects are appended
+ *	as html strings, so the centering container is spliced into the markup)
+ */
+function _page_body_offset($set = NULL)
+{
+	static $offset = 0;
+	if ($set !== NULL) {
+		$offset = $set;
+	}
+	return $offset;
+}
+
+
+/**
+ *	centered layout: wrap the objects in a container of the page's width,
+ *	centered in the window, in both view and edit (so the editor shows the
+ *	page the way visitors see it)
+ */
+function _page_wrap_centered($args)
+{
+	$layout = page_layout($args['page']);
+	if ($layout['mode'] != 'centered') {
+		return false;
+	}
+	$bdy = &body();
+	if (!isset($bdy['val']) || !is_string($bdy['val'])) {
+		return false;
+	}
+	$offset = _page_body_offset();
+	if (strlen($bdy['val']) <= $offset) {
+		return false;
+	}
+	// position:relative is load bearing: the objects inside are positioned
+	// against the container, not the window
+	$bdy['val'] = substr($bdy['val'], 0, $offset).
+		'<div id="hg-centered-wrapper" style="position: relative; width: '.
+		intval($layout['width']).'px; margin: 0 auto;">'.nl().
+		substr($bdy['val'], $offset).
+		'</div>'.nl();
+	return true;
 }
 
 
@@ -206,6 +287,7 @@ function page_render_page_early($args)
 function page_render_page_late($args)
 {
 	load_modules('glue');
+	_page_wrap_centered($args);
 	$page_obj = load_object(array('name'=>$args['page'].'.page'));
 	if ($page_obj['#error'] || empty($page_obj['#data']['page-background-video-file'])) {
 		return false;

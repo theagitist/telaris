@@ -270,33 +270,85 @@ function text_alter_save($args)
 	} else {
 		unset($obj['text-line-height']);
 	}
+	// padding: the x/y pair while the sides are symmetric, the four sides
+	// individually when they are not (the padding panel's "more knobs"). The
+	// renderer below applies the per-side attributes first and falls back to
+	// the pair, so objects saved as x/y keep rendering exactly as before.
+	$pad = array('top' => NULL, 'right' => NULL, 'bottom' => NULL, 'left' => NULL);
 	if (elem_css($elem, 'padding') !== NULL) {
-		// parse padding
-		// this is needed for Firefox
+		// parse the shorthand - this is needed for Firefox, which serialises
+		// inline padding as shorthand rather than longhands
 		$s = expl(' ', elem_css($elem, 'padding'));
 		if (count($s) == 1) {
-			// padding-x = padding-y
-			$obj['text-padding-x'] = $s[0];
-			$obj['text-padding-y'] = $s[0];
-		} elseif (1 < count($s)) {
-			// padding-x
-			$obj['text-padding-x'] = $s[1];
-			// padding-y
-			$obj['text-padding-y'] = $s[0];
+			$pad['top'] = $pad['right'] = $pad['bottom'] = $pad['left'] = $s[0];
+		} elseif (count($s) == 2) {
+			$pad['top'] = $pad['bottom'] = $s[0];
+			$pad['left'] = $pad['right'] = $s[1];
+		} elseif (count($s) == 3) {
+			$pad['top'] = $s[0];
+			$pad['left'] = $pad['right'] = $s[1];
+			$pad['bottom'] = $s[2];
+		} else {
+			$pad['top'] = $s[0];
+			$pad['right'] = $s[1];
+			$pad['bottom'] = $s[2];
+			$pad['left'] = $s[3];
 		}
 	} else {
-		// padding-x
-		if (elem_css($elem, 'padding-left') !== NULL) {
-			$obj['text-padding-x'] = elem_css($elem, 'padding-left');
+		foreach ($pad as $side => $v) {
+			$pad[$side] = elem_css($elem, 'padding-'.$side);
+		}
+	}
+	// left/right -> text-padding-x, or the two longhands when they differ -
+	// and whichever form is written, the other one goes: the render reads
+	// the longhands first, so a stale text-padding-left outranked the pair,
+	// and a padding dragged back to 0 came back on reload (2026-09-27)
+	if ($pad['left'] !== NULL || $pad['right'] !== NULL) {
+		if ($pad['left'] !== NULL && $pad['right'] !== NULL && $pad['left'] == $pad['right']) {
+			$obj['text-padding-x'] = $pad['left'];
+			unset($obj['text-padding-left']);
+			unset($obj['text-padding-right']);
 		} else {
 			unset($obj['text-padding-x']);
+			if ($pad['left'] !== NULL) {
+				$obj['text-padding-left'] = $pad['left'];
+			} else {
+				unset($obj['text-padding-left']);
+			}
+			if ($pad['right'] !== NULL) {
+				$obj['text-padding-right'] = $pad['right'];
+			} else {
+				unset($obj['text-padding-right']);
+			}
 		}
-		// padding-y
-		if (elem_css($elem, 'padding-top') !== NULL) {
-			$obj['text-padding-y'] = elem_css($elem, 'padding-top');
+	} else {
+		unset($obj['text-padding-x']);
+		unset($obj['text-padding-left']);
+		unset($obj['text-padding-right']);
+	}
+	// top/bottom likewise
+	if ($pad['top'] !== NULL || $pad['bottom'] !== NULL) {
+		if ($pad['top'] !== NULL && $pad['bottom'] !== NULL && $pad['top'] == $pad['bottom']) {
+			$obj['text-padding-y'] = $pad['top'];
+			unset($obj['text-padding-top']);
+			unset($obj['text-padding-bottom']);
 		} else {
 			unset($obj['text-padding-y']);
+			if ($pad['top'] !== NULL) {
+				$obj['text-padding-top'] = $pad['top'];
+			} else {
+				unset($obj['text-padding-top']);
+			}
+			if ($pad['bottom'] !== NULL) {
+				$obj['text-padding-bottom'] = $pad['bottom'];
+			} else {
+				unset($obj['text-padding-bottom']);
+			}
 		}
+	} else {
+		unset($obj['text-padding-y']);
+		unset($obj['text-padding-top']);
+		unset($obj['text-padding-bottom']);
 	}
 	// text-align
 	if (elem_css($elem, 'text-align') !== NULL) {
@@ -408,13 +460,17 @@ function text_alter_render_early($args)
 	if (!empty($obj['text-line-height'])) {
 		elem_css($elem, 'line-height', $obj['text-line-height']);
 	}
-	// padding-x
-	if (!empty($obj['text-padding-x'])) {
+	// padding: per-side values (from the ng editor) first, then the x/y pair
+	foreach (array('left', 'right', 'top', 'bottom') as $side) {
+		if (!empty($obj['text-padding-'.$side])) {
+			elem_css($elem, 'padding-'.$side, $obj['text-padding-'.$side]);
+		}
+	}
+	if (empty($obj['text-padding-left']) && empty($obj['text-padding-right']) && !empty($obj['text-padding-x'])) {
 		elem_css($elem, 'padding-left', $obj['text-padding-x']);
 		elem_css($elem, 'padding-right', $obj['text-padding-x']);
 	}
-	// padding-y
-	if (!empty($obj['text-padding-y'])) {
+	if (empty($obj['text-padding-top']) && empty($obj['text-padding-bottom']) && !empty($obj['text-padding-y'])) {
 		elem_css($elem, 'padding-top', $obj['text-padding-y']);
 		elem_css($elem, 'padding-bottom', $obj['text-padding-y']);
 	}

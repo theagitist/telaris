@@ -57,6 +57,21 @@ function mobile_render_page_late($args)
 		return false;
 	}
 
+
+	// centered pages (page-layout-mode, ported from ng): the container width
+	// is what fits a phone, so lay the viewport out at that width and let the
+	// browser scale the page to the screen (desktop browsers ignore viewport
+	// meta). The scaler below is not used for them.
+	if (function_exists('page_layout') && !empty($args['page'])) {
+		$layout = page_layout($args['page']);
+		if ($layout['mode'] == 'centered') {
+			html_add_head_inline('<meta name="viewport" content="width='.intval($layout['width']).'">', 1);
+			html_add_css_inline('@media (max-width: '.intval($layout['width']).'px) and (pointer: coarse) {'.nl().
+				"\t#hg-centered-wrapper { overflow-x: clip; }".nl().'}', 5);
+			return true;
+		}
+	}
+
 	// 1) responsive viewport (vanilla hotglue emits none). prio 1 = early in <head>.
 	html_add_head_inline('<meta name="viewport" content="width=device-width, initial-scale=1">', 1);
 

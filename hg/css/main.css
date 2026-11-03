@@ -18,3 +18,14 @@ a, a:link, a:visited, a:active, a:hover {
 .object > img, .object > video, .object > iframe {
 	border-radius: inherit;
 }
+
+/* centered layout (page-layout-mode: centered, ported from upstream ng). The
+   container spans the page, so it must not catch clicks meant for the page
+   background (the editor tests e.target == body); its objects take them. */
+#hg-centered-wrapper {
+	pointer-events: none;
+}
+
+#hg-centered-wrapper .object {
+	pointer-events: auto;
+}
