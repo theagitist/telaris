@@ -536,9 +536,27 @@ function serve_file($fn, $dl, $mime = '')
 	// TODO (later): optionally set the mime type based on the file extension only
 	// see http://www.php.net/manual/en/function.readfile.php#52722
 	// TODO (later): handle byte range
-	// TODO (later): handle if-modified-since etc
 	// TODO (later): also check apache_request_headers()
-	
+
+	// index.php's session_start() stamps no-store on every response (PHP's
+	// default cache_limiter), so files were re-downloaded on every view and in
+	// every nested iframe. Let the browser keep them privately (they may belong
+	// to a password-protected page) and revalidate each use: URLs are stable
+	// across edits, so no max-age, and an unchanged file costs a bodiless 304.
+	$mtime = @filemtime($fn);
+	$etag = '"'.dechex($mtime).'-'.dechex($size).'"';
+	header_remove('Pragma');
+	header_remove('Expires');
+	header('Cache-Control: private, no-cache');
+	header('ETag: '.$etag);
+	header('Last-Modified: '.gmdate('D, d M Y H:i:s', $mtime).' GMT');
+	$inm = @$_SERVER['HTTP_IF_NONE_MATCH'];
+	$ims = @$_SERVER['HTTP_IF_MODIFIED_SINCE'];
+	if ($inm !== null ? trim($inm) === $etag : ($ims !== null && strtotime($ims) >= $mtime)) {
+		http_response_code(304);
+		die();
+	}
+
 	if ($dl) {
 		// these are taken from the php documentation (on readfile())
 		header('Content-Description: File Transfer');

@@ -1,6 +1,7 @@
 Vendored from github.com/theagitist/hotglue2 (fork of k0a1a/hotglue2)
-branch telaris @ a0bceaf (2026-11-02: rotation, rounded corners, background
-video, font bundle, centered layout, per-side padding; previously c367a40)
+branch telaris @ 00e79c2 (2026-11-09: serve_file caching, private
+revalidation + 304; previously a0bceaf, 2026-11-02: rotation, rounded corners,
+background video, font bundle, centered layout, per-side padding)
 GPL-3.0; see hg/COPYING and hg/UPSTREAM.md
 
 Note: this is a curated vendor, not a full mirror. Local Telaris patches
