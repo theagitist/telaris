@@ -29,6 +29,9 @@ const RZ_HOVER_HITBOX_PX = 24;
 // Rhizome connection rest colour: gray, a bit darker than the nodes, so the web
 // reads at rest; lines take their real colour in the hovered node's cloud.
 const RZ_LINE_GRAY = [0.58, 0.595, 0.61];
+// Editor-drawn paths in 3D (labyrinth links): line thickness and arrow cone size, world units.
+const DRAWN_PATH_THICKNESS = 0.03;
+const DRAWN_ARROW_SIZE = 0.24;
 // Rhizome background-grid line width in CSS pixels. Uses fat lines (LineSegments2)
 // because WebGL clamps GridHelper's LineBasicMaterial to 1px on Chrome/ANGLE.
 const RZ_GRID_LINE_PX = 2.6;
@@ -589,6 +592,7 @@ class TelarisNetwork {
         }
 
         // Related wormholes (per-galaxy opt-in via TELARIS_RELATED_NODES_ENABLED).
+        this._renderLeadsTo(node);
         this._renderRelatedNodes(node);
 
         // URL / Action Button
@@ -667,6 +671,52 @@ class TelarisNetwork {
     }
 
 /**
+     * "Leads to": buttons for the wormholes this one's editor-drawn paths go to
+     * (one-way paths only from their start; two-way paths both ways). Following
+     * them walks the labyrinth the editors drew. In 2D the grid pans to the next
+     * card; in 3D the camera flies there, as the related chips do.
+     */
+    _renderLeadsTo(currentNode) {
+        const wrap = document.getElementById('rm-leads-wrap');
+        const list = document.getElementById('rm-leads');
+        if (!wrap || !list) return;
+        list.innerHTML = '';
+        const id = currentNode?.userData?.id;
+        const rels = (window.TELARIS_GALAXY_MAP && window.TELARIS_GALAXY_MAP.relations) || [];
+        const byId = new Map((this.nodes || []).map(n => [n.userData && n.userData.id, n]));
+        const targets = [];
+        for (const r of rels) {
+            let to = null;
+            if (r.a === id && r.direction !== -1) to = r.b;
+            else if (r.b === id && r.direction !== 1) to = r.a;
+            const n = to != null && byId.get(to);
+            if (n && !targets.includes(n)) targets.push(n);
+        }
+        wrap.classList.toggle('hidden', targets.length === 0);
+        for (const n of targets) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'px-3 py-1.5 bg-transparent border text-xs font-semibold transition-all hover:bg-white/10';
+            b.style.cssText = 'border-color: var(--node-accent-muted); color: var(--node-accent);';
+            b.textContent = '→ ' + (n.userData.name || window.TELARIS_UNTITLED_TEXT || '');
+            b.addEventListener('click', async () => {
+                this.closeRichMediaWindow();
+                await new Promise(res => setTimeout(res, 400));
+                const grid = window.telarisGrid2D;
+                if (grid && grid.isActive && grid.isActive()) {
+                    if (grid.focusNode) grid.focusNode(n.userData.id);
+                } else {
+                    this._tourSpotlightNode = n;
+                    if (this.networkManager?.setFocusedNode) this.networkManager.setFocusedNode(n);
+                    if (this.tourFocusOnNode) await this.tourFocusOnNode(n, 1400);
+                }
+                this.showRichMediaWindow(n);
+            });
+            list.appendChild(b);
+        }
+    }
+
+    /**
      * Up to 5 wormholes sharing keywords with the current one, drawn from the
      * source galaxy's group (prefix family ∪ tag siblings ∪ cluster co-members
      * ∪ self) — so chips can cross galaxies. The dim set still only covers
@@ -3874,6 +3924,50 @@ class TelarisNetwork {
             this._applyDensityColors();
             this._renderDensityLegend();
         }
+
+        // Added after the keyword analytics above so drawn paths don't skew them.
+        this._addDrawnPaths(geometry, isRhizome);
+    }
+
+    /**
+     * Editor-drawn paths (window.TELARIS_GALAXY_MAP.relations, drawn in the map
+     * editor) as always-visible lines between the wormholes' 3D positions, with
+     * a cone two thirds along one-way paths. While any exist, keyword links are
+     * hover-only. Vault: Features/Drawn links in 3D (labyrinth).md
+     */
+    _addDrawnPaths(geometry, isRhizome) {
+        const rels = (window.TELARIS_GALAXY_MAP && window.TELARIS_GALAXY_MAP.relations) || [];
+        if (!rels.length) return;
+        const byId = new Map(this.nodes.map(n => [n.userData && n.userData.id, n]));
+        const cone = this.geometryManager.getOrCreate('drawn_path_cone', () => new THREE.ConeGeometry(0.5, 1, 12));
+        let added = 0;
+        for (const r of rels) {
+            // node1 -> node2 is the travel direction for one-way paths.
+            const [from, to] = r.direction === -1 ? [r.b, r.a] : [r.a, r.b];
+            const n1 = byId.get(from), n2 = byId.get(to);
+            if (!n1 || !n2) continue; // grouped away or filtered out
+            const material = new THREE.MeshBasicMaterial({
+                color: isRhizome ? 0x475569 : 0xe8eef0, transparent: true, opacity: 0,
+                side: THREE.DoubleSide, depthWrite: false, depthTest: true,
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.visible = false;
+            mesh.renderOrder = 51;
+            let arrow = null;
+            if (r.direction) {
+                arrow = new THREE.Mesh(cone, material); // shared material keeps opacity in step
+                arrow.renderOrder = 51;
+                mesh.add(arrow);
+            }
+            this.connections.push({
+                mesh, node1: n1, node2: n2, sharedCount: 0, thickness: DRAWN_PATH_THICKNESS,
+                baseOpacity: 0.85, currentOpacity: 0, targetOpacity: 0,
+                isBridge: false, rzRealColor: null, _rzLineMix: 0, _vein: false,
+                drawn: true, arrow,
+            });
+            added++;
+        }
+        if (added) for (const c of this.connections) if (!c.drawn) c.hoverOnly = true;
     }
 
     updateConnections(deltaTimeSec) {
@@ -3962,6 +4056,13 @@ class TelarisNetwork {
             // Using a higher multiplier since radius is now 0.5 (diameter 1)
             const t = c.thickness * 2.0;
             c.mesh.scale.set(t, dist, t);
+            if (c.arrow) {
+                // Child of the scaled cylinder (local Y = the path, length 1): undo the
+                // parent scale so the cone keeps a fixed size, two thirds along.
+                const s = DRAWN_ARROW_SIZE;
+                c.arrow.position.set(0, 1 / 6, 0);
+                c.arrow.scale.set(s / t, (s * 1.6) / dist, s / t);
+            }
         }
         this.networkManager.updateVisibility(this.connections, deltaTimeSec, this._portalFadeInMultiplier);
     }
@@ -4104,7 +4205,7 @@ class TelarisNetwork {
         // same set the old `c._vein` filter gave (vine flags exactly the non-bridge links); for
         // other themes _vein is false, so !isBridge is what opens the tree layout to them.
         const isVein = !!(this.currentTheme && this.currentTheme.id === 'vine');
-        const links = this.connections.filter(c => !c.isBridge);
+        const links = this.connections.filter(c => !c.isBridge && !c.drawn);
         if (!links.length) return;
 
         // Weighted adjacency (weight = shared-keyword count).

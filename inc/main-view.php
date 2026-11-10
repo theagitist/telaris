@@ -538,6 +538,12 @@ if (isset($fractalCreditKeys[$constellationTheme ?? ''])):
                             </button>
                         </div>
 
+                        <!-- Leads to: the wormhole's outgoing editor-drawn paths (telaris-3d _renderLeadsTo) -->
+                        <div id="rm-leads-wrap" class="hidden pt-4">
+                            <div class="text-[10px] uppercase tracking-[0.2em] opacity-60 mb-2"><?php echo htmlspecialchars(t('visitor_map_leads_to', 'Leads to')); ?></div>
+                            <div id="rm-leads" class="flex flex-wrap gap-2"></div>
+                        </div>
+
                         <!-- Related nodes (single thin row, populated by telaris-3d when galaxy enables it) -->
                         <div id="rm-related-wrap" class="hidden pt-2">
                             <div class="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1"><?php echo htmlspecialchars($projectRelatedLabelText ?? 'Related'); ?></div>
@@ -698,10 +704,12 @@ if (isset($fractalCreditKeys[$constellationTheme ?? ''])):
         window.TELARIS_GALAXY_LIST = <?php echo json_encode(!empty($galaxyListMembers) ? $galaxyListMembers : null); ?>;
         window.TELARIS_2D_VIEW_ENABLED = <?php echo !empty($show2dView) ? 'true' : 'false'; ?>;
         <?php
-        // Authored map for the 2D (geometric) view: single-galaxy pages only, and
-        // only when an editor has drawn something. Drawn in /edit/keyword-canvas.php?mode=map.
+        // Authored map: positions + routes for the 2D (geometric) view, and drawn
+        // paths for both 2D and 3D (plus "Leads to" on cards). Single-galaxy pages
+        // only, and only when an editor has drawn something. Drawn in
+        // /edit/keyword-canvas.php?mode=map.
         $galaxyMap = null;
-        if (!empty($show2dView) && empty($multiGalaxyIds) && !empty($constellationId)) {
+        if (empty($multiGalaxyIds) && !empty($constellationId)) {
             $gm = db_get_galaxy_map((int)$constellationId, false);
             if (db_galaxy_map_has_content($gm)) {
                 unset($gm['keywords'], $gm['canvas_width'], $gm['canvas_height']);
@@ -714,6 +722,7 @@ if (isset($fractalCreditKeys[$constellationTheme ?? ''])):
             'routes' => t('visitor_map_routes', 'Routes'),
             'prev' => t('visitor_map_prev', 'Previous'),
             'next' => t('visitor_map_next', 'Next'),
+            'leadsTo' => t('visitor_map_leads_to', 'Leads to'),
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?>;
         window.TELARIS_GALAXIES_LABEL = <?php echo json_encode($projectGalaxiesLabelText ?? 'Galaxies'); ?>;
         window.TELARIS_PDF_LOADING_TEXT = <?php echo json_encode($projectPdfLoadingText ?? 'Loading PDF…'); ?>;

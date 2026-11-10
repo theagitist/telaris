@@ -549,6 +549,23 @@
         dot.setAttribute('fill-opacity', '0.45');
         pat.appendChild(dot);
         defs.appendChild(pat);
+        if (MAP) {
+            // Arrowhead for one-way paths; userSpaceOnUse so it scales with the cards.
+            const mk = document.createElementNS(SVG_NS, 'marker');
+            mk.setAttribute('id', 'kc-arrow');
+            mk.setAttribute('viewBox', '0 0 10 10');
+            mk.setAttribute('refX', '10');
+            mk.setAttribute('refY', '5');
+            mk.setAttribute('markerUnits', 'userSpaceOnUse');
+            mk.setAttribute('markerWidth', '22');
+            mk.setAttribute('markerHeight', '22');
+            mk.setAttribute('orient', 'auto-start-reverse');
+            const tip = document.createElementNS(SVG_NS, 'path');
+            tip.setAttribute('d', 'M0,0 L10,5 L0,10 z');
+            tip.setAttribute('fill', '#64748b');
+            mk.appendChild(tip);
+            defs.appendChild(mk);
+        }
         svg.appendChild(defs);
 
         layerBg = document.createElementNS(SVG_NS, 'g');
@@ -778,6 +795,8 @@
             visible.setAttribute('data-kc-relation', String(id));
             visible.setAttribute('data-kc-line-visible', '1');
             visible.setAttribute('data-kc-glow', glowHex);
+            if (MAP && rel.direction === 1) visible.setAttribute('marker-end', 'url(#kc-arrow)');
+            if (MAP && rel.direction === -1) visible.setAttribute('marker-start', 'url(#kc-arrow)');
             visible.style.filter = `drop-shadow(0 0 3px ${glowHex})`;
             visible.style.transition = 'stroke-opacity 160ms ease-out, stroke-width 160ms ease-out, filter 160ms ease-out';
             layerLines.appendChild(visible);
@@ -1386,12 +1405,13 @@
                     anchor_a: sourceSide || 'right',
                     anchor_b: targetSide || 'left',
                     note: note || null,
+                    directed: MAP,
                 }),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             state.relations.set(data.id, {
-                id: data.id, a: data.a, b: data.b,
+                id: data.id, a: data.a, b: data.b, direction: data.direction || 0,
                 anchor_a: data.anchor_a,
                 anchor_b: data.anchor_b,
                 created_by: data.created_by,
@@ -1487,7 +1507,9 @@
             const editBtn = document.getElementById('kc-line-modal-edit');
             const deleteBtn = document.getElementById('kc-line-modal-delete');
             const closeBtn = document.getElementById('kc-line-modal-close');
+            const dirBtn = document.getElementById('kc-line-modal-dir');
             if (!dlg) { resolve(null); return; }
+            if (dirBtn) dirBtn.hidden = !canEdit;
             pairEl.textContent = pairLabel;
             metaEl.textContent = metaLine;
             if (note) {
@@ -1505,8 +1527,10 @@
                 editBtn.removeEventListener('click', onEdit);
                 deleteBtn.removeEventListener('click', onDelete);
                 closeBtn.removeEventListener('click', onClose);
+                dirBtn?.removeEventListener('click', onDir);
                 dlg.removeEventListener('close', onDlgClose);
             };
+            const onDir = () => { if (settled) return; settled = true; cleanup(); dlg.close(); resolve('direction'); };
             const onEdit = () => { if (settled) return; settled = true; cleanup(); dlg.close(); resolve('edit'); };
             const onDelete = () => { if (settled) return; settled = true; cleanup(); dlg.close(); resolve('delete'); };
             const onClose = () => { if (settled) return; settled = true; cleanup(); dlg.close(); resolve(null); };
@@ -1514,6 +1538,7 @@
             editBtn.addEventListener('click', onEdit);
             deleteBtn.addEventListener('click', onDelete);
             closeBtn.addEventListener('click', onClose);
+            dirBtn?.addEventListener('click', onDir);
             dlg.addEventListener('close', onDlgClose);
             dlg.showModal();
         });
@@ -1748,7 +1773,8 @@
         if (!rel) { state.selectedRelId = null; return; }
         const aName = state.keywords.get(rel.a)?.name || '(?)';
         const bName = state.keywords.get(rel.b)?.name || '(?)';
-        const pairLabel = `${label(aName)} ↔ ${label(bName)}`;
+        const arrow = !MAP || !rel.direction ? '↔' : (rel.direction === 1 ? '→' : '←');
+        const pairLabel = `${label(aName)} ${arrow} ${label(bName)}`;
         // Owner check for edit/delete: only author or admin.
         const canEdit = KC.IS_ADMIN || String(rel.created_by) === String(KC.CURRENT_USER_ID);
         const metaLine = (rel.created_by
@@ -1763,6 +1789,26 @@
         renderLines();
         if (!canEdit || !action) return;
 
+        if (action === 'direction') {
+            // Cycle a→b, b→a, two-way.
+            const next = rel.direction === 1 ? -1 : (rel.direction === -1 ? 0 : 1);
+            try {
+                setStatus(KC_STR.statusSaving || 'Saving…', 'saving');
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ action: 'set_path_direction', relation_id: relId, direction: next }),
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                rel.direction = next;
+                renderLines();
+                setStatus(KC_STR.statusSaved || 'Saved', 'saved');
+            } catch (err) {
+                setStatus(tFmt(KC_STR.statusUpdateFailed || 'Update failed: %s', err.message), 'error');
+            }
+            return;
+        }
         if (action === 'edit') {
             const newNote = await openNoteModal({
                 title: KC_STR.modalTitleEditRelation || 'Edit relation note',

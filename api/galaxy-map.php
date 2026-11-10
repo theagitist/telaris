@@ -11,8 +11,11 @@ declare(strict_types=1);
  * POST { action, ... }          requireWriteAccess() + galaxy seat + writable galaxy.
  *   move_node    { node_id, x, y }
  *   unplace_node { node_id }
- *   create_path  { node_a_id, node_b_id, note?, anchor_a?, anchor_b? }
+ *   create_path  { node_a_id, node_b_id, note?, anchor_a?, anchor_b?, directed? }
+ *                (directed: one-way from node_a_id to node_b_id)
  *   update_path  { relation_id, note }        (author or admin)
+ *   set_path_direction { relation_id, direction }  0 two-way, 1 a->b, -1 b->a
+ *                (canonical a < b; author or admin)
  *   delete_path  { relation_id }              (author or admin)
  *   create_route { galaxy_id, name, stops: [node ids] }
  *   rename_route { route_id, name }           (author or admin)
@@ -106,7 +109,7 @@ switch ($action) {
         $anchorA = (string)($in['anchor_a'] ?? 'right');
         $anchorB = (string)($in['anchor_b'] ?? 'left');
         try {
-            $id = db_create_node_path($a, $b, $userId, $note, $anchorA, $anchorB);
+            $id = db_create_node_path($a, $b, $userId, $note, $anchorA, $anchorB, !empty($in['directed']));
         } catch (PDOException $e) {
             if (str_contains($e->getMessage(), 'uk_node_path_pair')) api_error('409.003', 'A path between these wormholes already exists.');
             throw $e;
@@ -114,7 +117,18 @@ switch ($action) {
         $swap = $a > $b;
         $ok(['id' => $id, 'a' => min($a, $b), 'b' => max($a, $b),
              'anchor_a' => $swap ? $anchorB : $anchorA, 'anchor_b' => $swap ? $anchorA : $anchorB,
-             'created_by' => $userId, 'note' => $note]);
+             'created_by' => $userId, 'note' => $note,
+             'direction' => empty($in['directed']) ? 0 : ($swap ? -1 : 1)]);
+        break;
+    }
+    case 'set_path_direction': {
+        $path = db_get_node_path((int)($in['relation_id'] ?? 0));
+        if ($path === null) api_error('404.015', 'Path or route not found.');
+        gm_require_node_galaxy($path['a'], $isAdmin, $userId);
+        gm_require_author($path['created_by'], $isAdmin, $userId);
+        $dir = max(-1, min(1, (int)($in['direction'] ?? 0)));
+        db_set_node_path_direction($path['id'], $dir);
+        $ok(['id' => $path['id'], 'direction' => $dir]);
         break;
     }
     case 'update_path':

@@ -932,10 +932,32 @@ export class WormholeGrid2D {
         const m = this._galaxyMap();
         const dark = !this._isRhizome();
         this.mapLines = [];
+        const ink = dark ? '#e8eef0' : '#475569';
+        // Arrowhead for one-way paths (direction 1 = a to b, -1 = b to a).
+        const svg = this.linesGroup.ownerSVGElement;
+        if (svg && !svg.querySelector('#map-arrow')) {
+            const defs = svg.querySelector('defs') || svg.insertBefore(document.createElementNS(SVG_NS, 'defs'), svg.firstChild);
+            const mk = document.createElementNS(SVG_NS, 'marker');
+            mk.setAttribute('id', 'map-arrow');
+            mk.setAttribute('viewBox', '0 0 10 10');
+            mk.setAttribute('refX', '10');
+            mk.setAttribute('refY', '5');
+            mk.setAttribute('markerUnits', 'userSpaceOnUse');
+            mk.setAttribute('markerWidth', '18');
+            mk.setAttribute('markerHeight', '18');
+            mk.setAttribute('orient', 'auto-start-reverse');
+            const tip = document.createElementNS(SVG_NS, 'path');
+            tip.setAttribute('d', 'M0,0 L10,5 L0,10 z');
+            tip.setAttribute('fill', ink);
+            mk.appendChild(tip);
+            defs.appendChild(mk);
+        }
         for (const r of (m.relations || [])) {
             if (!this.positions.has(r.a) || !this.positions.has(r.b)) continue;
             const line = document.createElementNS(SVG_NS, 'line');
-            line.setAttribute('stroke', dark ? '#e8eef0' : '#475569');
+            if (r.direction === 1) line.setAttribute('marker-end', 'url(#map-arrow)');
+            if (r.direction === -1) line.setAttribute('marker-start', 'url(#map-arrow)');
+            line.setAttribute('stroke', ink);
             line.setAttribute('stroke-opacity', '0.75');
             line.setAttribute('stroke-width', String(MAP_PATH_WIDTH));
             line.setAttribute('stroke-linecap', 'round');
@@ -1100,6 +1122,13 @@ export class WormholeGrid2D {
         this.cardEls.forEach((card, cid) => { card.style.outline = cid === id ? `2px solid ${MAP_ROUTE_COLOR}` : ''; });
         this._animateView(this._computeFit(new Set([id])), 450);
         render();
+    }
+
+    /** Pan to a wormhole's card and outline it (used by the card's "Leads to" buttons). */
+    focusNode(id) {
+        if (!this.cardEls.has(id)) return;
+        this.cardEls.forEach((card, cid) => { card.style.outline = cid === id ? `2px solid ${MAP_ROUTE_COLOR}` : ''; });
+        this._animateView(this._computeFit(new Set([id])), 450);
     }
 
     _endRoute(render) {

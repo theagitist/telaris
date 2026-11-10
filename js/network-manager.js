@@ -36,11 +36,13 @@ export class NetworkManager {
     getTargetOpacityForConnection(connection) {
         if (!connection.node1.visible || !connection.node2.visible) return 0;
         const base = connection.baseOpacity ?? 0.5;
+        // Editor-drawn paths are always visible; when a galaxy has them, keyword
+        // links (hoverOnly) wait for hover even on themes that show every edge.
         // Rhizome theme: every edge between two visible nodes stays lit, with no
         // focused node required. During a focus transition the endpoint nodes carry
         // a per-node fade factor (_rzFade 0..1); multiply it in so edges fade in step
         // with their nodes instead of snapping off.
-        if (this.showAllConnections) {
+        if (connection.drawn || (this.showAllConnections && !connection.hoverOnly)) {
             const f1 = connection.node1.userData ? (connection.node1.userData._rzFade ?? 1) : 1;
             const f2 = connection.node2.userData ? (connection.node2.userData._rzFade ?? 1) : 1;
             return base * Math.min(f1, f2);

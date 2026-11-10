@@ -65,6 +65,18 @@ final class GalaxyMapTest extends TestCase
             $this->assertStringContainsString('uk_node_path_pair', $e->getMessage());
         }
 
+        // Direction: two-way by default; a one-way path keeps the click order
+        // even when the pair is stored swapped, and can be flipped.
+        $this->assertSame(0, db_get_node_path($pid)['direction']);
+        $one = db_create_node_path($c, $a, $uid, null, 'right', 'left', true);
+        $this->assertSame($c > $a ? -1 : 1, db_get_node_path($one)['direction']);
+        db_set_node_path_direction($one, 0);
+        $this->assertSame(0, db_get_node_path($one)['direction']);
+        db_set_node_path_direction($one, -7);
+        $this->assertSame(-1, db_get_node_path($one)['direction']);
+        $rels = array_column(db_get_galaxy_map($this->cid, false)['relations'], 'direction', 'id');
+        $this->assertSame(-1, $rels[$one]);
+
         // Routes keep their stop order.
         $rid = db_create_node_route($this->cid, 'Walk', [$c, $a, $b], $uid);
         $this->assertSame([$c, $a, $b], db_get_galaxy_routes($this->cid)[0]['stops']);

@@ -303,6 +303,7 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
             <p id="kc-line-modal-noauth" class="text-xs text-gray-500 mt-3" hidden><?php echo t_attr('editor_kc_line_modal_noauth', 'Only the original author or an admin can edit or delete this relation.'); ?></p>
             <div class="modal-action">
                 <button type="button" id="kc-line-modal-close" class="btn"><?php echo t_attr('editor_kc_line_modal_close', 'Close'); ?></button>
+                <?php if ($isMap): ?><button type="button" id="kc-line-modal-dir" class="btn btn-outline" hidden><?php echo t_attr('editor_map_line_direction', 'Change direction'); ?></button><?php endif; ?>
                 <button type="button" id="kc-line-modal-edit" class="btn btn-outline" hidden><?php echo t_attr('editor_kc_line_modal_edit', 'Edit note'); ?></button>
                 <button type="button" id="kc-line-modal-delete" class="btn btn-error" hidden><?php echo t_attr('editor_kc_line_modal_delete', 'Delete'); ?></button>
             </div>
@@ -318,6 +319,7 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
             <p class="text-sm text-gray-600 mt-3 font-semibold"><?php echo t_attr('editor_kc_help_intro', 'How to use it:'); ?></p>
             <ul class="mt-3 space-y-2 text-sm">
                 <?php if ($isMap): ?>
+                <li><strong><?php echo t_attr('editor_map_help_direction_label', 'Direction'); ?>.</strong> <?php echo t_attr('editor_map_help_direction_body', 'A new path points from the first wormhole you click to the second.'); ?></li>
                 <li><strong><?php echo t_attr('editor_map_help_route_label', 'Record a route'); ?>.</strong> <?php echo t_attr('editor_map_help_route_body', 'Click New route, click wormholes in order (click the last one again to undo it), then Save route and name it.'); ?></li>
 <?php else: ?>
                 <li><strong><?php echo t_attr('editor_kc_help_move_label', 'Move a keyword'); ?>.</strong> <?php echo t_attr('editor_kc_help_move_body', 'Drag a chip to reposition it.'); ?></li>

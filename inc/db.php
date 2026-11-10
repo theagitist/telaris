@@ -763,7 +763,7 @@ const PROJECT_INFO_KEYS = [
     'editor_kc_help_zoom_label', 'editor_kc_help_zoom_body',
     'editor_kc_help_cancel_label', 'editor_kc_help_cancel_body',
     'editor_kc_help_close',
-    'editor_map_page_title', 'editor_map_page_title_template', 'editor_map_empty_state', 'editor_map_routes_title', 'editor_map_route_new', 'editor_map_route_save', 'editor_map_route_rename', 'editor_map_route_delete_confirm', 'editor_map_route_name_prompt', 'editor_map_route_need_two', 'editor_map_route_rec_hint', 'editor_map_help_purpose', 'editor_map_help_route_label', 'editor_map_help_route_body', 'editor_btn_map', 'editor_btn_map_title', 'visitor_map_routes', 'visitor_map_prev', 'visitor_map_next', 'api_error_400_047', 'api_error_400_048', 'api_error_404_015', 'api_error_409_003',
+    'editor_map_page_title', 'editor_map_page_title_template', 'editor_map_empty_state', 'editor_map_routes_title', 'editor_map_route_new', 'editor_map_route_save', 'editor_map_route_rename', 'editor_map_route_delete_confirm', 'editor_map_route_name_prompt', 'editor_map_route_need_two', 'editor_map_route_rec_hint', 'editor_map_help_purpose', 'editor_map_help_route_label', 'editor_map_help_route_body', 'editor_btn_map', 'editor_btn_map_title', 'visitor_map_routes', 'visitor_map_prev', 'visitor_map_next', 'visitor_map_leads_to', 'editor_map_line_direction', 'editor_map_help_direction_label', 'editor_map_help_direction_body', 'api_error_400_047', 'api_error_400_048', 'api_error_404_015', 'api_error_409_003',
 
     // C7h: operator-only nginx-config warning banner in inc/main-view.php.
     'visitor_nginx_warning_heading', 'visitor_nginx_warning_intro',
@@ -2794,7 +2794,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_map_route_name_prompt' => 'Route name',
             'editor_map_route_need_two' => 'A route needs at least two stops.',
             'editor_map_route_rec_hint' => 'Click wormholes in the order of the route.',
-            'editor_map_help_purpose' => 'Draw the map visitors see in the 2D view. Drag wormholes to place them, draw paths between them, and record routes visitors can follow step by step. Faded wormholes are not placed yet.',
+            'editor_map_help_purpose' => 'Draw the map visitors see in the 2D view (its paths also show in 3D). Drag wormholes to place them, draw paths between them, and record routes visitors can follow step by step. Faded wormholes are not placed yet.',
             'editor_map_help_route_label' => 'Record a route',
             'editor_map_help_route_body' => 'Click New route, click wormholes in order (click the last one again to undo it), then Save route and name it.',
             'editor_btn_map' => 'Map',
@@ -2802,6 +2802,10 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'visitor_map_routes' => 'Routes',
             'visitor_map_prev' => 'Previous',
             'visitor_map_next' => 'Next',
+            'visitor_map_leads_to' => 'Leads to',
+            'editor_map_line_direction' => 'Change direction',
+            'editor_map_help_direction_label' => 'Direction',
+            'editor_map_help_direction_body' => 'A new path points from the first wormhole you click to the second. Click a path, then Change direction to flip it or make it two-way. Visitors follow paths from a wormhole\'s card, in 2D and 3D.',
             'api_error_400_047' => 'Both wormholes must belong to this galaxy.',
             'api_error_400_048' => 'A route needs a name and at least two stops.',
             'api_error_404_015' => 'Path or route not found.',
@@ -4532,7 +4536,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_map_route_name_prompt' => 'Nombre de la ruta',
             'editor_map_route_need_two' => 'Una ruta necesita al menos dos paradas.',
             'editor_map_route_rec_hint' => 'Haz clic en los agujeros de gusano en el orden de la ruta.',
-            'editor_map_help_purpose' => 'Dibuja el mapa que se ve en la vista 2D. Arrastra los agujeros de gusano para ubicarlos, traza caminos entre ellos y graba rutas que se pueden seguir paso a paso. Los agujeros de gusano atenuados aún no están ubicados.',
+            'editor_map_help_purpose' => 'Dibuja el mapa que se ve en la vista 2D (sus caminos también aparecen en 3D). Arrastra los agujeros de gusano para ubicarlos, traza caminos entre ellos y graba rutas que se pueden seguir paso a paso. Los agujeros de gusano atenuados aún no están ubicados.',
             'editor_map_help_route_label' => 'Grabar una ruta',
             'editor_map_help_route_body' => 'Haz clic en Nueva ruta, luego en los agujeros de gusano en orden (vuelve a hacer clic en el último para deshacerlo), y después en Guardar ruta para darle nombre.',
             'editor_btn_map' => 'Mapa',
@@ -4540,6 +4544,10 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'visitor_map_routes' => 'Rutas',
             'visitor_map_prev' => 'Anterior',
             'visitor_map_next' => 'Siguiente',
+            'visitor_map_leads_to' => 'Lleva a',
+            'editor_map_line_direction' => 'Cambiar dirección',
+            'editor_map_help_direction_label' => 'Dirección',
+            'editor_map_help_direction_body' => 'Un camino nuevo va del primer agujero de gusano que haces clic al segundo. Haz clic en un camino y luego en Cambiar dirección para invertirlo o hacerlo de doble sentido. Quienes visitan siguen los caminos desde la tarjeta de cada agujero de gusano, en 2D y 3D.',
             'api_error_400_047' => 'Ambos agujeros de gusano deben pertenecer a esta galaxia.',
             'api_error_400_048' => 'Una ruta necesita un nombre y al menos dos paradas.',
             'api_error_404_015' => 'No se encontró el camino o la ruta.',
@@ -6269,7 +6277,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_map_route_name_prompt' => 'Nome da rota',
             'editor_map_route_need_two' => 'Uma rota precisa de pelo menos duas paradas.',
             'editor_map_route_rec_hint' => 'Clique nos buracos de minhoca na ordem da rota.',
-            'editor_map_help_purpose' => 'Desenhe o mapa que aparece na vista 2D. Arraste os buracos de minhoca para posicioná-los, trace caminhos entre eles e grave rotas que podem ser seguidas passo a passo. Os buracos de minhoca esmaecidos ainda não foram posicionados.',
+            'editor_map_help_purpose' => 'Desenhe o mapa que aparece na vista 2D (seus caminhos também aparecem em 3D). Arraste os buracos de minhoca para posicioná-los, trace caminhos entre eles e grave rotas que podem ser seguidas passo a passo. Os buracos de minhoca esmaecidos ainda não foram posicionados.',
             'editor_map_help_route_label' => 'Gravar uma rota',
             'editor_map_help_route_body' => 'Clique em Nova rota, depois nos buracos de minhoca em ordem (clique de novo no último para desfazer) e então em Salvar rota para dar um nome.',
             'editor_btn_map' => 'Mapa',
@@ -6277,6 +6285,10 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'visitor_map_routes' => 'Rotas',
             'visitor_map_prev' => 'Anterior',
             'visitor_map_next' => 'Próximo',
+            'visitor_map_leads_to' => 'Leva a',
+            'editor_map_line_direction' => 'Mudar direção',
+            'editor_map_help_direction_label' => 'Direção',
+            'editor_map_help_direction_body' => 'Um caminho novo vai do primeiro buraco de minhoca que você clica até o segundo. Clique em um caminho e depois em Mudar direção para invertê-lo ou torná-lo de mão dupla. Quem visita segue os caminhos a partir do cartão de cada buraco de minhoca, em 2D e 3D.',
             'api_error_400_047' => 'Os dois buracos de minhoca precisam pertencer a esta galáxia.',
             'api_error_400_048' => 'Uma rota precisa de um nome e de pelo menos duas paradas.',
             'api_error_404_015' => 'Caminho ou rota não encontrado.',
@@ -8006,7 +8018,7 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_map_route_name_prompt' => 'Nom du parcours',
             'editor_map_route_need_two' => 'Un parcours a besoin d\'au moins deux étapes.',
             'editor_map_route_rec_hint' => 'Clique sur les trous de ver dans l\'ordre du parcours.',
-            'editor_map_help_purpose' => 'Dessine la carte visible dans la vue 2D. Fais glisser les trous de ver pour les placer, trace des chemins entre eux et enregistre des parcours à suivre étape par étape. Les trous de ver estompés ne sont pas encore placés.',
+            'editor_map_help_purpose' => 'Dessine la carte visible dans la vue 2D (ses chemins apparaissent aussi en 3D). Fais glisser les trous de ver pour les placer, trace des chemins entre eux et enregistre des parcours à suivre étape par étape. Les trous de ver estompés ne sont pas encore placés.',
             'editor_map_help_route_label' => 'Enregistrer un parcours',
             'editor_map_help_route_body' => 'Clique sur Nouveau parcours, puis sur les trous de ver dans l\'ordre (clique à nouveau sur le dernier pour l\'annuler), puis sur Enregistrer le parcours pour le nommer.',
             'editor_btn_map' => 'Carte',
@@ -8014,6 +8026,10 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'visitor_map_routes' => 'Parcours',
             'visitor_map_prev' => 'Précédent',
             'visitor_map_next' => 'Suivant',
+            'visitor_map_leads_to' => 'Mène à',
+            'editor_map_line_direction' => 'Changer de sens',
+            'editor_map_help_direction_label' => 'Sens',
+            'editor_map_help_direction_body' => 'Un nouveau chemin va du premier trou de ver sur lequel tu cliques au second. Clique sur un chemin, puis sur Changer de sens pour l\'inverser ou le rendre à double sens. Les visiteurs et visiteuses suivent les chemins depuis la fiche de chaque trou de ver, en 2D et en 3D.',
             'api_error_400_047' => 'Les deux trous de ver doivent appartenir à cette galaxie.',
             'api_error_400_048' => 'Un parcours a besoin d\'un nom et d\'au moins deux étapes.',
             'api_error_404_015' => 'Chemin ou parcours introuvable.',
@@ -16849,6 +16865,8 @@ function db_ensure_galaxy_map_tables(): void {
                 FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_node_route_stops_node ON node_route_stops (node_id);
+            -- 0 = two-way, 1 = a to b, -1 = b to a (relative to the canonical a < b pair).
+            ALTER TABLE node_paths ADD COLUMN IF NOT EXISTS direction SMALLINT NOT NULL DEFAULT 0;
         ");
     } catch (PDOException $e) {
         error_log('db_ensure_galaxy_map_tables: ' . $e->getMessage());
@@ -16915,14 +16933,15 @@ function db_get_galaxy_map(int $galaxyId, bool $forEditor): array {
     }, $pos->fetchAll());
 
     $rel = $pdo->prepare("
-        SELECT r.id, r.node_a_id, r.node_b_id, r.created_by, r.created_at, r.note, r.anchor_a, r.anchor_b
+        SELECT r.id, r.node_a_id, r.node_b_id, r.created_by, r.created_at, r.note, r.anchor_a, r.anchor_b, r.direction
         FROM node_paths r INNER JOIN nodes na ON na.id = r.node_a_id
         WHERE na.constellation_id = :cid ORDER BY r.id
     ");
     $rel->execute([':cid' => $galaxyId]);
     $relations = array_map(function ($r) use ($forEditor) {
         $o = ['id' => (int)$r['id'], 'a' => (int)$r['node_a_id'], 'b' => (int)$r['node_b_id'],
-              'note' => $r['note'], 'anchor_a' => (string)$r['anchor_a'], 'anchor_b' => (string)$r['anchor_b']];
+              'note' => $r['note'], 'anchor_a' => (string)$r['anchor_a'], 'anchor_b' => (string)$r['anchor_b'],
+              'direction' => (int)$r['direction']];
         if ($forEditor) { $o['created_by'] = $r['created_by']; $o['created_at'] = $r['created_at']; }
         return $o;
     }, $rel->fetchAll());
@@ -16994,29 +17013,40 @@ function db_unplace_node(int $nodeId): void {
         ->execute([':nid' => $nodeId]);
 }
 
-/** @return int new path id. Canonicalizes the pair (a < b), swapping anchors with it. */
-function db_create_node_path(int $a, int $b, ?string $userId, ?string $note, string $anchorA = 'right', string $anchorB = 'left'): int {
+/**
+ * @return int new path id. Canonicalizes the pair (a < b), swapping anchors with it.
+ * `$directed` makes it a one-way path from $a to $b (stored as direction 1 or -1).
+ */
+function db_create_node_path(int $a, int $b, ?string $userId, ?string $note, string $anchorA = 'right', string $anchorB = 'left', bool $directed = false): int {
     db_ensure_galaxy_map_tables();
     if ($a === $b) throw new InvalidArgumentException('Self-loop paths are not allowed.');
     $sides = ['top', 'right', 'bottom', 'left'];
     if (!in_array($anchorA, $sides, true)) $anchorA = 'right';
     if (!in_array($anchorB, $sides, true)) $anchorB = 'left';
-    if ($a > $b) [$a, $b, $anchorA, $anchorB] = [$b, $a, $anchorB, $anchorA];
+    $dir = $directed ? 1 : 0;
+    if ($a > $b) [$a, $b, $anchorA, $anchorB, $dir] = [$b, $a, $anchorB, $anchorA, -$dir];
     $st = getDB()->prepare("
-        INSERT INTO node_paths (node_a_id, node_b_id, created_by, note, anchor_a, anchor_b)
-        VALUES (:a, :b, :uid, :note, :aa, :ab) RETURNING id
+        INSERT INTO node_paths (node_a_id, node_b_id, created_by, note, anchor_a, anchor_b, direction)
+        VALUES (:a, :b, :uid, :note, :aa, :ab, :dir) RETURNING id
     ");
-    $st->execute([':a' => $a, ':b' => $b, ':uid' => $userId, ':note' => $note, ':aa' => $anchorA, ':ab' => $anchorB]);
+    $st->execute([':a' => $a, ':b' => $b, ':uid' => $userId, ':note' => $note, ':aa' => $anchorA, ':ab' => $anchorB, ':dir' => $dir]);
     return (int)$st->fetchColumn();
 }
 
 /** @return array{id:int,a:int,b:int,created_by:?string}|null */
 function db_get_node_path(int $id): ?array {
     db_ensure_galaxy_map_tables();
-    $st = getDB()->prepare("SELECT id, node_a_id, node_b_id, created_by FROM node_paths WHERE id = :id");
+    $st = getDB()->prepare("SELECT id, node_a_id, node_b_id, created_by, direction FROM node_paths WHERE id = :id");
     $st->execute([':id' => $id]);
     $r = $st->fetch();
-    return $r ? ['id' => (int)$r['id'], 'a' => (int)$r['node_a_id'], 'b' => (int)$r['node_b_id'], 'created_by' => $r['created_by']] : null;
+    return $r ? ['id' => (int)$r['id'], 'a' => (int)$r['node_a_id'], 'b' => (int)$r['node_b_id'],
+                 'created_by' => $r['created_by'], 'direction' => (int)$r['direction']] : null;
+}
+
+/** @param int $direction 0 two-way, 1 a to b, -1 b to a (canonical pair). */
+function db_set_node_path_direction(int $id, int $direction): void {
+    getDB()->prepare("UPDATE node_paths SET direction = :d WHERE id = :id")
+        ->execute([':d' => max(-1, min(1, $direction)), ':id' => $id]);
 }
 
 function db_update_node_path(int $id, ?string $note): void {
