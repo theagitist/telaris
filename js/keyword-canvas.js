@@ -27,7 +27,14 @@
         let i = 0;
         return String(tpl).replace(/%[ds]/g, () => (i < args.length ? String(args[i++]) : ''));
     }
-    const API_URL = '/api/keyword-canvas.php';
+    // Map mode (?mode=map): the same canvas laid out over WORMHOLES instead of
+    // keywords. This is the editor for the authored 2D (geometric) view: no physics
+    // and no idle float (things stay exactly where placed), no keyword
+    // rename/merge, plus routes. Vault: Features/Geometric view (build plan).md
+    const MAP = KC.MODE === 'map';
+    const API_URL = MAP ? '/api/galaxy-map.php' : '/api/keyword-canvas.php';
+    const ITEM = MAP ? 'node' : 'keyword'; // POST field prefix
+    const label = (name) => MAP ? name : `#${name}`;
     const SVG_NS = 'http://www.w3.org/2000/svg';
     const CANVAS_W = 2000;
     const CANVAS_H = 2000;
@@ -83,6 +90,9 @@
         keywords: new Map(),    // id -> { id, name }
         positions: new Map(),   // keyword_id -> { x, y, moved_by, moved_at }
         relations: new Map(),   // relation_id -> { id, a, b, created_by, created_at, note }
+        routes: new Map(),      // map mode: route_id -> { id, name, created_by, stops: [node ids] }
+        routeRec: null,         // map mode: { stops: [] } while recording a new route
+        shownRouteId: null,     // map mode: route whose stops are badged on the canvas
         // Draw state machine: 'idle' | 'drawing'
         drawState: 'idle',
         drawStartKwId: null,
@@ -137,6 +147,7 @@
     }
 
     function updateIdleOffsets(timestampMs) {
+        if (MAP) return;
         const t = timestampMs / 1000;
         state.keywords.forEach((kw, id) => {
             const p1 = hashPhase(kw.name);
@@ -341,6 +352,7 @@
      * after the step. Returns the max chip velocity for settle detection.
      */
     function physicsStep(easeFactor) {
+        if (MAP) return 0; // an authored map never moves on its own
         const forces = new Map();
 
         // Pass 1: spring forces from each editorial relation (lines drawn).
@@ -471,7 +483,7 @@
     async function hydrate() {
         setStatus(KC_STR.statusLoading || 'Loading…', 'idle');
         try {
-            const res = await fetch(`${API_URL}?galaxy_id=${encodeURIComponent(KC.GALAXY_ID)}`, {
+            const res = await fetch(`${API_URL}?galaxy_id=${encodeURIComponent(KC.GALAXY_ID)}${MAP && !READONLY ? '&editor=1' : ''}`, {
                 headers: { 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
                 credentials: 'same-origin',
             });
@@ -482,6 +494,7 @@
                 x: p.canvas_x, y: p.canvas_y, moved_by: p.moved_by, moved_at: p.moved_at,
             }));
             data.relations.forEach(r => state.relations.set(r.id, r));
+            if (MAP) (data.routes || []).forEach(r => state.routes.set(r.id, r));
             if (state.keywords.size === 0) {
                 if (emptyEl) emptyEl.hidden = false;
                 setStatus(KC_STR.statusNoKeywords || 'No keywords yet');
@@ -493,6 +506,7 @@
             fitViewToData();
             updateChipScale();
             renderAll();
+            renderRoutesPanel();
             // Physics: settle the layout from saved positions; chips with
             // line attachments drift toward spring equilibrium, others get
             // mild global repulsion. Pinned chips stay put. The animation
@@ -641,10 +655,12 @@
             text.setAttribute('font-weight', '500');
             text.setAttribute('fill', pastel);
             text.setAttribute('pointer-events', 'none');
-            text.textContent = `#${kw.name}`;
+            text.textContent = label(kw.name);
             g.appendChild(text);
 
             layerNodes.appendChild(g);
+            // Map mode: wormholes nobody has placed yet read as faded.
+            if (MAP && pos.moved_by == null) g.setAttribute('opacity', '0.45');
 
             // Measure rendered text to size the background pill.
             const bbox = text.getBBox();
@@ -657,6 +673,7 @@
             rect.setAttribute('height', String(h));
             rect.setAttribute('rx', String(h / 2));
             rect.setAttribute('ry', String(h / 2));
+            if (MAP) appendRouteBadge(g, id, w, h);
 
             // Anchor dots — barely visible at rest, brightened on hover. Light
             // gray reads against both pastel pill and black background. Each
@@ -885,7 +902,7 @@
                         'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || ''),
                     },
                     credentials: 'same-origin',
-                    body: JSON.stringify({ action: 'move_keyword', keyword_id: kwId, x, y }),
+                    body: JSON.stringify({ action: MAP ? 'move_node' : 'move_keyword', [ITEM + '_id']: kwId, x, y }),
                 }).then(r => {
                     if (!r.ok) throw new Error(`move_keyword ${kwId}: HTTP ${r.status}`);
                     // Track local authorship in state for future provenance display.
@@ -893,6 +910,7 @@
                     if (pos) {
                         pos.moved_by = KC.CURRENT_USER_ID;
                         pos.moved_at = new Date().toISOString();
+                        if (MAP) layerNodes.querySelector(`[data-kc-node="${kwId}"]`)?.removeAttribute('opacity');
                     }
                 })
             ));
@@ -1100,8 +1118,9 @@
                 if (pos) queueSavePosition(kwId, pos.x, pos.y);
                 kickPhysics();
             } else {
-                // Click without drag: open the keyword inspector for this chip.
-                openKeywordModal(kwId);
+                // Click without drag: open the keyword inspector for this chip
+                // (map mode: add a stop while recording a route).
+                onChipClick(kwId);
             }
             return;
         }
@@ -1119,7 +1138,7 @@
                 state.groupDrag = null;
                 // Open the modal for the chip the editor actually clicked,
                 // not the whole selection — selection stays as-is.
-                if (initiatorKwId != null) openKeywordModal(initiatorKwId);
+                if (initiatorKwId != null) onChipClick(initiatorKwId);
             }
             return;
         }
@@ -1361,9 +1380,9 @@
                 headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
                 credentials: 'same-origin',
                 body: JSON.stringify({
-                    action: 'create_relation',
-                    keyword_a_id: sourceKwId,
-                    keyword_b_id: targetKwId,
+                    action: MAP ? 'create_path' : 'create_relation',
+                    [ITEM + '_a_id']: sourceKwId,
+                    [ITEM + '_b_id']: targetKwId,
                     anchor_a: sourceSide || 'right',
                     anchor_b: targetSide || 'left',
                     note: note || null,
@@ -1506,7 +1525,7 @@
         const bName = state.keywords.get(bId)?.name || '(?)';
         return openNoteModal({
             title: KC_STR.modalTitleNewRelation || 'New relation',
-            pair: `#${aName} ↔ #${bName}`,
+            pair: `${label(aName)} ↔ ${label(bName)}`,
             initialNote: '',
         });
     }
@@ -1729,7 +1748,7 @@
         if (!rel) { state.selectedRelId = null; return; }
         const aName = state.keywords.get(rel.a)?.name || '(?)';
         const bName = state.keywords.get(rel.b)?.name || '(?)';
-        const pairLabel = `#${aName} ↔ #${bName}`;
+        const pairLabel = `${label(aName)} ↔ ${label(bName)}`;
         // Owner check for edit/delete: only author or admin.
         const canEdit = KC.IS_ADMIN || String(rel.created_by) === String(KC.CURRENT_USER_ID);
         const metaLine = (rel.created_by
@@ -1757,7 +1776,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
                     credentials: 'same-origin',
-                    body: JSON.stringify({ action: 'update_relation', relation_id: relId, note: newNote || null }),
+                    body: JSON.stringify({ action: MAP ? 'update_path' : 'update_relation', relation_id: relId, note: newNote || null }),
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 rel.note = newNote || null;
@@ -1775,7 +1794,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
                     credentials: 'same-origin',
-                    body: JSON.stringify({ action: 'delete_relation', relation_id: relId }),
+                    body: JSON.stringify({ action: MAP ? 'delete_path' : 'delete_relation', relation_id: relId }),
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 state.relations.delete(relId);
@@ -1861,6 +1880,7 @@
         if (isTypingTarget(ev.target)) return;
         if (ev.key === 'Escape') {
             if (state.drawState === 'drawing') { cancelLineDraw(); return; }
+            if (state.routeRec) { state.routeRec = null; renderNodes(); renderRoutesPanel(); return; }
             if (state.rubberBand) { cancelRubberBand(); return; }
             if (state.selectedNodeIds.size > 0) {
                 state.selectedNodeIds.clear();
@@ -1880,6 +1900,145 @@
             svg.style.cursor = '';
         }
     });
+
+    // ---------------------------------------------------------------------
+    // Map mode: routes (ordered, named lists of stops visitors can follow).
+    // Recording: "New route" -> click wormholes in order -> name it -> Save.
+    // ---------------------------------------------------------------------
+    function onChipClick(id) {
+        if (!MAP) { openKeywordModal(id); return; }
+        if (!state.routeRec) return;
+        const stops = state.routeRec.stops;
+        // Clicking the last stop again undoes it; any other click appends.
+        if (stops[stops.length - 1] === id) stops.pop(); else stops.push(id);
+        renderNodes();
+        renderRoutesPanel();
+    }
+
+    function badgeStops() {
+        if (state.routeRec) return state.routeRec.stops;
+        const r = state.shownRouteId != null ? state.routes.get(state.shownRouteId) : null;
+        return r ? r.stops : [];
+    }
+
+    function appendRouteBadge(g, id, w, h) {
+        const stops = badgeStops();
+        const nums = [];
+        stops.forEach((sid, i) => { if (sid === id) nums.push(i + 1); });
+        if (!nums.length) return;
+        const t = document.createElementNS(SVG_NS, 'text');
+        t.setAttribute('x', String(-w / 2));
+        t.setAttribute('y', String(-h / 2 - 6));
+        t.setAttribute('font-family', 'ui-sans-serif, system-ui, sans-serif');
+        t.setAttribute('font-size', '14');
+        t.setAttribute('font-weight', '700');
+        t.setAttribute('fill', '#fbbf24');
+        t.setAttribute('pointer-events', 'none');
+        t.textContent = nums.join(', ');
+        g.appendChild(t);
+    }
+
+    async function postMap(body) {
+        const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-API-Key': KC.API_KEY, 'X-CSRF-Token': (window.TELARIS_CSRF_TOKEN || '') },
+            credentials: 'same-origin',
+            body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    }
+
+    const routesPanel = document.getElementById('kc-routes');
+
+    function renderRoutesPanel() {
+        if (!MAP || !routesPanel) return;
+        const list = routesPanel.querySelector('[data-kc-routes-list]');
+        const rec = routesPanel.querySelector('[data-kc-routes-rec]');
+        const newBtn = routesPanel.querySelector('[data-kc-route-new]');
+        list.innerHTML = '';
+        state.routes.forEach((r) => {
+            const li = document.createElement('li');
+            li.className = 'kc-route-item' + (state.shownRouteId === r.id ? ' kc-route-shown' : '');
+            const name = document.createElement('button');
+            name.type = 'button';
+            name.className = 'kc-route-name';
+            name.textContent = `${r.name} (${r.stops.length})`;
+            name.addEventListener('click', () => {
+                state.shownRouteId = state.shownRouteId === r.id ? null : r.id;
+                renderNodes();
+                renderRoutesPanel();
+            });
+            li.appendChild(name);
+            const mine = KC.IS_ADMIN || String(r.created_by) === String(KC.CURRENT_USER_ID);
+            if (!READONLY && mine) {
+                const ren = document.createElement('button');
+                ren.type = 'button';
+                ren.className = 'kc-route-act';
+                ren.textContent = KC_STR.routeRename || 'Rename';
+                ren.addEventListener('click', async () => {
+                    const nn = window.prompt(KC_STR.routeNamePrompt || 'Route name', r.name);
+                    if (!nn || !nn.trim()) return;
+                    try { await postMap({ action: 'rename_route', route_id: r.id, name: nn.trim() }); r.name = nn.trim(); renderRoutesPanel(); }
+                    catch (err) { setStatus(tFmt(KC_STR.statusUpdateFailed || 'Update failed: %s', err.message), 'error'); }
+                });
+                const del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'kc-route-act';
+                del.textContent = KC_STR.routeDelete || 'Delete';
+                del.addEventListener('click', async () => {
+                    if (!window.confirm(tFmt(KC_STR.routeDeleteConfirm || 'Delete the route "%s"?', r.name))) return;
+                    try {
+                        await postMap({ action: 'delete_route', route_id: r.id });
+                        state.routes.delete(r.id);
+                        if (state.shownRouteId === r.id) state.shownRouteId = null;
+                        renderNodes(); renderRoutesPanel();
+                    } catch (err) { setStatus(tFmt(KC_STR.statusDeleteFailed || 'Delete failed: %s', err.message), 'error'); }
+                });
+                li.append(ren, del);
+            }
+            list.appendChild(li);
+        });
+        const recording = !!state.routeRec;
+        rec.hidden = !recording;
+        if (newBtn) newBtn.hidden = recording || READONLY;
+        if (recording) {
+            const names = state.routeRec.stops.map(id => state.keywords.get(id)?.name || '?');
+            rec.querySelector('[data-kc-route-stops]').textContent = names.length
+                ? names.map((n, i) => `${i + 1}. ${n}`).join('  ')
+                : (KC_STR.routeRecHint || 'Click wormholes in the order of the route.');
+        }
+    }
+
+    if (MAP && routesPanel) {
+        routesPanel.hidden = false;
+        routesPanel.querySelector('[data-kc-route-new]')?.addEventListener('click', () => {
+            state.routeRec = { stops: [] };
+            state.shownRouteId = null;
+            renderNodes(); renderRoutesPanel();
+        });
+        routesPanel.querySelector('[data-kc-route-cancel]')?.addEventListener('click', () => {
+            state.routeRec = null;
+            renderNodes(); renderRoutesPanel();
+        });
+        routesPanel.querySelector('[data-kc-route-save]')?.addEventListener('click', async () => {
+            const stops = state.routeRec ? state.routeRec.stops.slice() : [];
+            if (stops.length < 2) { setStatus(KC_STR.routeNeedTwo || 'A route needs at least two stops.', 'error'); return; }
+            const name = window.prompt(KC_STR.routeNamePrompt || 'Route name', '');
+            if (!name || !name.trim()) return;
+            try {
+                setStatus(KC_STR.statusSaving || 'Saving…', 'saving');
+                const data = await postMap({ action: 'create_route', galaxy_id: KC.GALAXY_ID, name: name.trim(), stops });
+                state.routes.set(data.route.id, data.route);
+                state.routeRec = null;
+                state.shownRouteId = data.route.id;
+                renderNodes(); renderRoutesPanel();
+                setStatus(KC_STR.statusSaved || 'Saved', 'saved');
+            } catch (err) {
+                setStatus(tFmt(KC_STR.statusCreateFailed || 'Create failed: %s', err.message), 'error');
+            }
+        });
+    }
 
     // ---------------------------------------------------------------------
     // Init

@@ -95,6 +95,15 @@ const RZ_LINE_GRAY_2D = '#9498a0';  // rest colour for lines: a bit darker than 
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+// Authored map (the "geometric" 2D view). window.TELARIS_GALAXY_MAP is embedded by
+// inc/main-view.php for single-galaxy pages that have something drawn; editors
+// draw it in /edit/keyword-canvas.php?mode=map. Vault: Features/Geometric view (build plan).md
+const MAP_MARGIN = 80;            // world px around the authored layout
+const MAP_UNPLACED_GAP = 24;      // spacing in the faded row of not-yet-placed wormholes
+const MAP_UNPLACED_FILTER = 'grayscale(0.6) opacity(0.45)';
+const MAP_PATH_WIDTH = 2;
+const MAP_ROUTE_COLOR = '#fbbf24';
+
 // Vein theme (2D): the planar sibling of the 3D vein map. The backbone is laid
 // out as a branching tree (a leaf is literally a planar vein network), the force
 // seed/settle is skipped, and only the backbone is drawn, as tapered curved
@@ -221,7 +230,18 @@ export class WormholeGrid2D {
         this._buildAdjacency(nodes);
         this._buildCards(nodes);          // measures + stores card sizes
         this._applyRhizomeHubs();          // rhizome theme: enlarge top-degree cards
-        if (this._isVein()) {
+        this._mapActive = !!this._galaxyMap();
+        if (!this._mapActive && this.routesPanel) { this.routesPanel.remove(); this.routesPanel = null; }
+        if (this._mapActive) {
+            // Authored map: placed wormholes sit where editors put them, the rest
+            // wait in a faded row beneath. No physics, no overlap pushing.
+            this._mapLayout(nodes);
+            this._buildLines(nodes);
+            this._buildMapLines();
+            this._buildRoutesPanel();
+            this._fitToContent();
+            this._renderFrame();
+        } else if (this._isVein()) {
             // Vein: position the cards AS a branching tree and freeze (no Poisson seed,
             // no force settle), so the fork shape holds. _resolveOverlaps is skipped too
             // because it would shove branches off their fork; branch lengths keep cards apart.
@@ -495,6 +515,7 @@ export class WormholeGrid2D {
 
     /** True when the active theme is Vine (backbone laid out + drawn as a branching tree). */
     _isVein() {
+        if (this._mapActive) return false; // an authored map wins over the vine tree layout
         return !!window.TELARIS_THEME_ID && String(window.TELARIS_THEME_ID).toLowerCase() === 'vine';
     }
 
@@ -788,7 +809,7 @@ export class WormholeGrid2D {
                 const isRz = this._isRhizome();
                 const realGlow = isRz ? this._darkenHex(blended, 0.5) : blended;
                 const restStroke = isRz ? RZ_LINE_GRAY_2D : realGlow;
-                const restOpacity = isRz ? RZ_LINE_REST_OPACITY : LINE_BASE_OPACITY;
+                const restOpacity = (isRz && !this._mapActive) ? RZ_LINE_REST_OPACITY : LINE_BASE_OPACITY;
                 const wBase = isRz ? RZ_LINE_WIDTH_BASE : LINE_WIDTH_BASE;
                 const width = Math.min(
                     wBase + LINE_WIDTH_PER_SHARE * (sharedCount - 1),
@@ -848,6 +869,217 @@ export class WormholeGrid2D {
             this.linesGroup.appendChild(path);
             this.lineEls.set(key, path);
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // Authored map (geometric view)
+    // ---------------------------------------------------------------------
+
+    /** The embedded map, when it belongs to the galaxy on screen. */
+    _galaxyMap() {
+        const m = window.TELARIS_GALAXY_MAP;
+        if (!m) return null;
+        // The scene can switch galaxies in place (portals), so only use the map
+        // while the wormholes on screen are the ones it was drawn over.
+        if (!m._ids) {
+            m._ids = new Set([
+                ...(m.positions || []).map(p => Number(p.keyword_id)),
+                ...(m.relations || []).flatMap(r => [r.a, r.b]),
+                ...(m.routes || []).flatMap(r => r.stops),
+            ]);
+        }
+        return this.nodes.some(n => m._ids.has(Number(n.id))) ? m : null;
+    }
+
+    _mapLayout(nodes) {
+        const m = this._galaxyMap();
+        const placed = new Map((m.positions || []).map(p => [Number(p.keyword_id), p]));
+        this.positions.clear();
+        this._unplaced = new Set();
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const n of nodes) {
+            const p = placed.get(Number(n.id));
+            if (!p) { this._unplaced.add(n.id); continue; }
+            minX = Math.min(minX, p.canvas_x); maxX = Math.max(maxX, p.canvas_x);
+            minY = Math.min(minY, p.canvas_y); maxY = Math.max(maxY, p.canvas_y);
+        }
+        if (!isFinite(minX)) { minX = minY = 0; maxX = 600; maxY = 0; } // nothing placed yet
+        for (const n of nodes) {
+            const p = placed.get(Number(n.id));
+            if (p) this.positions.set(n.id, { x: p.canvas_x - minX + MAP_MARGIN, y: p.canvas_y - minY + MAP_MARGIN });
+        }
+        // Faded row(s) of unplaced wormholes beneath the map, wrapped to its width.
+        const rowW = Math.max(600, maxX - minX);
+        let x = MAP_MARGIN, y = (maxY - minY) + MAP_MARGIN * 2.5, rowH = 0;
+        for (const n of nodes) {
+            if (!this._unplaced.has(n.id)) continue;
+            const s = this.cardSizes.get(n.id) || { w: 80, h: 28 };
+            if (x > MAP_MARGIN && x + s.w > MAP_MARGIN + rowW) { x = MAP_MARGIN; y += rowH + MAP_UNPLACED_GAP; rowH = 0; }
+            this.positions.set(n.id, { x: x + s.w / 2, y: y + s.h / 2 });
+            x += s.w + MAP_UNPLACED_GAP;
+            rowH = Math.max(rowH, s.h);
+            const card = this.cardEls.get(n.id);
+            if (card) card.style.filter = MAP_UNPLACED_FILTER;
+        }
+        this.worldW = rowW + MAP_MARGIN * 2;
+        this.worldH = y + rowH + MAP_MARGIN;
+    }
+
+    /** Authored paths: always visible, with the path's note as a small label at its middle. */
+    _buildMapLines() {
+        const m = this._galaxyMap();
+        const dark = !this._isRhizome();
+        this.mapLines = [];
+        for (const r of (m.relations || [])) {
+            if (!this.positions.has(r.a) || !this.positions.has(r.b)) continue;
+            const line = document.createElementNS(SVG_NS, 'line');
+            line.setAttribute('stroke', dark ? '#e8eef0' : '#475569');
+            line.setAttribute('stroke-opacity', '0.75');
+            line.setAttribute('stroke-width', String(MAP_PATH_WIDTH));
+            line.setAttribute('stroke-linecap', 'round');
+            line.setAttribute('vector-effect', 'non-scaling-stroke');
+            this.linesGroup.appendChild(line);
+            let label = null;
+            if (r.note) {
+                label = document.createElementNS(SVG_NS, 'text');
+                label.setAttribute('text-anchor', 'middle');
+                label.setAttribute('font-size', '11');
+                label.setAttribute('font-family', 'ui-sans-serif, system-ui, sans-serif');
+                label.setAttribute('fill', dark ? '#cbd5e1' : '#334155');
+                label.textContent = r.note.length > 60 ? r.note.slice(0, 57) + '…' : r.note;
+                this.linesGroup.appendChild(label);
+            }
+            this.mapLines.push({ a: r.a, b: r.b, line, label });
+        }
+        this.routeLines = [];
+    }
+
+    _mapEndpoints(a, b) {
+        const pa = this.positions.get(a), pb = this.positions.get(b);
+        if (!pa || !pb) return null;
+        const oa = this.idleOffsets.get(a) || { dx: 0, dy: 0 };
+        const ob = this.idleOffsets.get(b) || { dx: 0, dy: 0 };
+        const ax = pa.x + oa.dx, ay = pa.y + oa.dy, bx = pb.x + ob.dx, by = pb.y + ob.dy;
+        const sa = this.cardSizes.get(a), sb = this.cardSizes.get(b);
+        return [sa ? this._clipToRect(ax, ay, sa.w, sa.h, bx, by) : { x: ax, y: ay },
+                sb ? this._clipToRect(bx, by, sb.w, sb.h, ax, ay) : { x: bx, y: by }];
+    }
+
+    _renderMapLines() {
+        if (!this._mapActive) return;
+        for (const seg of [...(this.mapLines || []), ...(this.routeLines || [])]) {
+            const e = this._mapEndpoints(seg.a, seg.b);
+            if (!e) continue;
+            seg.line.setAttribute('x1', String(e[0].x)); seg.line.setAttribute('y1', String(e[0].y));
+            seg.line.setAttribute('x2', String(e[1].x)); seg.line.setAttribute('y2', String(e[1].y));
+            if (seg.label) {
+                seg.label.setAttribute('x', String((e[0].x + e[1].x) / 2));
+                seg.label.setAttribute('y', String((e[0].y + e[1].y) / 2 - 5));
+            }
+        }
+    }
+
+    /** Routes panel (bottom-right): pick a route, then step through its stops. */
+    _buildRoutesPanel() {
+        const m = this._galaxyMap();
+        const S = window.TELARIS_GALAXY_MAP_STRINGS || {};
+        if (this.routesPanel) this.routesPanel.remove();
+        this.routesPanel = null;
+        this._route = null;
+        const routes = (m.routes || []).filter(r => r.stops.filter(id => this.positions.has(id)).length >= 2);
+        if (!routes.length) return;
+        const panel = document.createElement('div');
+        panel.className = 'absolute bottom-4 right-4 z-[5] text-xs text-white bg-black/60 border border-white/20 rounded-md backdrop-blur-sm p-2';
+        Object.assign(panel.style, { pointerEvents: 'auto', maxWidth: '16rem', fontFamily: 'ui-sans-serif, system-ui, sans-serif' });
+        panel.addEventListener('pointerdown', ev => ev.stopPropagation());
+        panel.addEventListener('wheel', ev => ev.stopPropagation());
+        this.routesPanel = panel;
+        const btn = (text, onClick, extra = '') => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = text;
+            b.className = 'px-2 py-1 rounded hover:bg-white/10 ' + extra;
+            b.addEventListener('click', onClick);
+            return b;
+        };
+        const render = () => {
+            panel.innerHTML = '';
+            if (!this._route) {
+                const h = document.createElement('div');
+                h.className = 'uppercase tracking-wider opacity-70 px-2 pb-1';
+                h.textContent = S.routes || 'Routes';
+                panel.appendChild(h);
+                for (const r of routes) panel.appendChild(btn(r.name, () => this._startRoute(r, render), 'block w-full text-left'));
+                return;
+            }
+            const { route, idx } = this._route;
+            const stopId = route.stops[idx];
+            const node = this.nodes.find(n => n.id === stopId);
+            const title = document.createElement('div');
+            title.className = 'px-2 pb-1 font-semibold';
+            title.style.color = MAP_ROUTE_COLOR;
+            title.textContent = `${route.name} · ${idx + 1}/${route.stops.length}`;
+            panel.appendChild(title);
+            if (node) panel.appendChild(btn(node.name || ('#' + node.id), () => this._onCardClick(node), 'block w-full text-left underline'));
+            const row = document.createElement('div');
+            row.className = 'flex gap-1 pt-1';
+            row.append(
+                btn('‹ ' + (S.prev || 'Previous'), () => this._stepRoute(-1, render), idx === 0 ? 'opacity-40 pointer-events-none' : ''),
+                btn((S.next || 'Next') + ' ›', () => this._stepRoute(1, render), idx === route.stops.length - 1 ? 'opacity-40 pointer-events-none' : ''),
+                btn('✕', () => this._endRoute(render), 'ml-auto'),
+            );
+            panel.appendChild(row);
+        };
+        render();
+        this.container.appendChild(panel);
+    }
+
+    _startRoute(r, render) {
+        const stops = r.stops.filter(id => this.positions.has(id));
+        this._route = { route: { ...r, stops }, idx: 0 };
+        // Dashed route line through the stops in order + numbered badges on the cards.
+        for (const seg of this.routeLines) seg.line.remove();
+        this.routeLines = [];
+        for (let i = 0; i + 1 < stops.length; i++) {
+            const line = document.createElementNS(SVG_NS, 'line');
+            line.setAttribute('stroke', MAP_ROUTE_COLOR);
+            line.setAttribute('stroke-width', '3');
+            line.setAttribute('stroke-dasharray', '6 5');
+            line.setAttribute('stroke-linecap', 'round');
+            line.setAttribute('vector-effect', 'non-scaling-stroke');
+            this.linesGroup.appendChild(line);
+            this.routeLines.push({ a: stops[i], b: stops[i + 1], line });
+        }
+        stops.forEach((id, i) => {
+            const card = this.cardEls.get(id);
+            if (!card) return;
+            const badge = document.createElement('span');
+            badge.className = 'map-route-badge';
+            badge.textContent = String(i + 1);
+            Object.assign(badge.style, { position: 'absolute', top: '-0.9rem', left: '-0.3rem', fontSize: '0.7rem', fontWeight: '700', color: MAP_ROUTE_COLOR });
+            card.appendChild(badge);
+        });
+        this._stepRoute(0, render);
+    }
+
+    _stepRoute(delta, render) {
+        if (!this._route) return;
+        const r = this._route;
+        r.idx = Math.max(0, Math.min(r.route.stops.length - 1, r.idx + delta));
+        const id = r.route.stops[r.idx];
+        this.cardEls.forEach((card, cid) => { card.style.outline = cid === id ? `2px solid ${MAP_ROUTE_COLOR}` : ''; });
+        this._animateView(this._computeFit(new Set([id])), 450);
+        render();
+    }
+
+    _endRoute(render) {
+        for (const seg of this.routeLines || []) seg.line.remove();
+        this.routeLines = [];
+        this.cardsLayer.querySelectorAll('.map-route-badge').forEach(b => b.remove());
+        this.cardEls.forEach(card => { card.style.outline = ''; });
+        this._route = null;
+        render();
+        this._animateView(this._computeFit(), 450);
     }
 
     // ---------------------------------------------------------------------
@@ -1132,6 +1364,7 @@ export class WormholeGrid2D {
     }
 
     _renderFrame() {
+        this._renderMapLines();
         // Move cards.
         for (const n of this.nodes) {
             const pos = this.positions.get(n.id);
@@ -1228,7 +1461,7 @@ export class WormholeGrid2D {
         const rzFocused = this._isRhizome() && this._rhizomeFocusId != null;
         // Vein backbone is drawn at rest (like rhizome), so it must return to its own
         // rest opacity on leave, not to the hover-reveal 0 the dark themes use.
-        const restOpacity = this._isRhizome() ? RZ_LINE_REST_OPACITY : (this._isVein() ? VEIN2D_REST_OPACITY : LINE_BASE_OPACITY);
+        const restOpacity = this._mapActive ? LINE_BASE_OPACITY : (this._isRhizome() ? RZ_LINE_REST_OPACITY : (this._isVein() ? VEIN2D_REST_OPACITY : LINE_BASE_OPACITY));
         const hoverOpacity = this._isRhizome() ? 0.85 : (this._isVein() ? 1 : LINE_HIGHLIGHT_OPACITY);
         // Per-card pastel-glow line highlight.
         const neighbours = this.adjacency.get(nodeId);

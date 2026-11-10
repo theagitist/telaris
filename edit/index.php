@@ -226,6 +226,9 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
                         <button type="button" id="galaxy-canvas-btn" onclick="openCurrentGalaxyKeywordCanvas()" class="btn btn-sm btn-outline join-item" title="<?= t_attr('editor_btn_keyword_canvas_title', 'Author keyword relationships') ?>" style="display:none;">
                             <?= t_attr('editor_btn_canvas', 'Canvas') ?>
                         </button>
+                        <button type="button" id="galaxy-map-btn" onclick="openCurrentGalaxyMap()" class="btn btn-sm btn-outline join-item" title="<?= t_attr('editor_btn_map_title', 'Draw the map visitors see in the 2D view') ?>" style="display:none;">
+                            <?= t_attr('editor_btn_map', 'Map') ?>
+                        </button>
                         <button type="button" onclick="copyCurrentConstellationUrl(this)" class="btn btn-sm btn-outline join-item" title="<?= t_attr('editor_btn_copy_url_title', 'Copy galaxy URL') ?>">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                         </button>
@@ -4048,6 +4051,8 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const show = (v && v !== 'all') ? '' : 'none';
             if (btn) btn.style.display = show;
             if (canvasBtn) canvasBtn.style.display = show;
+            const mapBtn = document.getElementById('galaxy-map-btn');
+            if (mapBtn) mapBtn.style.display = show;
         }
 
         function openCurrentGalaxyKeywordCanvas() {
@@ -4055,6 +4060,10 @@ $isAdmin = isAdminLoggedIn(); // Explicitly check if user is admin (type 2 only)
             const id = parseInt(sel?.value, 10);
             if (!id || isNaN(id)) return;
             window.open('keyword-canvas.php?galaxy_id=' + id, '_blank');
+        }
+        function openCurrentGalaxyMap() {
+            const id = parseInt(document.getElementById('current-constellation')?.value, 10);
+            if (id) window.open('keyword-canvas.php?mode=map&galaxy_id=' + id, '_blank');
         }
         document.addEventListener('DOMContentLoaded', () => {
             const sel = document.getElementById('current-constellation');

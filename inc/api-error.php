@@ -76,6 +76,8 @@ declare(strict_types=1);
  *   400.044 — invalid URL format (full URL expected)        (inc/bridges/mocambos/handler.php)
  *   400.045 — no galaxias specified                         (inc/bridges/mocambos/handler.php)
  *   400.046 — upstream URL refused (SSRF guard)             (inc/bridges/mocambos/handler.php)
+ *   400.047 — wormholes must belong to this galaxy          (api/galaxy-map.php)
+ *   400.048 — route needs a name and two stops              (api/galaxy-map.php)
  *
  *   401.001 — api key is missing                            (api/auth.php)
  *   401.002 — invalid api key                               (api/auth.php)
@@ -104,12 +106,14 @@ declare(strict_types=1);
  *   404.011 — bridge has no request handler                 (api/bridge.php)
  *   404.012 — unknown or expired upload                     (admin/backup/import.php)
  *   404.013 — uploaded file is missing                      (admin/backup/import.php)
+ *   404.015 — path or route not found                       (api/galaxy-map.php)
  *   404.014 — snapshot not found                            (admin/snapshots/download.php)
  *
  *   405.001 — method not allowed                            (api/*.php, admin/*.php)
  *
  *   409.001 — keyword with that name already exists         (api/keyword-canvas.php)
  *   409.002 — a relation between these keywords already exists (api/keyword-canvas.php)
+ *   409.003 — a path between these wormholes already exists (api/galaxy-map.php)
  *
  *   413.001 — storage quota reached; cannot accept the upload  (api/nodes.php)
  *

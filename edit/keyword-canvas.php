@@ -49,7 +49,10 @@ $currentUserId = $_SESSION['admin_user_id'] ?? null;
 $isAdmin = isAdminLoggedIn();
 
 $galaxyId = isset($_GET['galaxy_id']) ? (int) $_GET['galaxy_id'] : 0;
-$kcPageTitle = t_attr('editor_kc_page_title', 'Keyword canvas');
+// ?mode=map: the same canvas over wormholes, the editor for the authored 2D view
+// (api/galaxy-map.php). Vault: Features/Geometric view (build plan).md
+$isMap = (($_GET['mode'] ?? '') === 'map');
+$kcPageTitle = $isMap ? t_attr('editor_map_page_title', 'Map editor') : t_attr('editor_kc_page_title', 'Keyword canvas');
 if ($galaxyId <= 0) {
     http_response_code(400);
     echo '<!doctype html><meta charset="utf-8"><title>' . $kcPageTitle . '</title>';
@@ -84,6 +87,12 @@ if ($isAdmin) {
     $canEdit = in_array($galaxyId, array_map('intval', $seatIds), true);
 }
 $readOnly = !$canEdit;
+// The map editor is an authoring surface only (visitors see the map in the 2D view).
+if ($isMap && $readOnly) {
+    header('Location: ' . ($kcLoggedIn ? '/edit/' : '/utils/login.php'));
+    exit();
+}
+$kcTitleTemplate = $isMap ? t('editor_map_page_title_template', 'Map; %s') : t('editor_kc_page_title_template', 'Keyword canvas; %s');
 
 $galaxySlug = (string)($galaxyInfo['slug'] ?? '');
 // The back link aims at "wherever the user came from." The client-side script
@@ -119,7 +128,7 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
 <html lang="<?php echo htmlspecialchars($kcLocale); ?>" data-theme="dark">
 <head>
     <meta charset="utf-8">
-    <title><?php echo htmlspecialchars(sprintf(t('editor_kc_page_title_template', 'Keyword canvas; %s'), $galaxyInfo['name'] ?? '')); ?></title>
+    <title><?php echo htmlspecialchars(sprintf($kcTitleTemplate, $galaxyInfo['name'] ?? '')); ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="../js/tailwind.min.js"></script>
     <link href="/css/vendor/daisyui-4.12.10.full.min.css" rel="stylesheet">
@@ -136,6 +145,13 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
         .kc-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-family: ui-sans-serif, system-ui, sans-serif; }
         .kc-status { font-size: 0.75rem; color: #9ca3af; margin-left: auto; }
         .kc-mobile-block { display: none; }
+        .kc-routes { position: absolute; top: 0.75rem; right: 0.75rem; width: 15rem; max-height: calc(100% - 1.5rem); overflow: auto; background: rgba(17,17,17,0.92); border: 1px solid #2a2a2a; border-radius: 0.5rem; padding: 0.75rem; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; }
+        .kc-routes h2 { font-weight: 600; margin-bottom: 0.4rem; }
+        .kc-route-item { display: flex; gap: 0.35rem; align-items: center; padding: 0.15rem 0; }
+        .kc-route-name { flex: 1; text-align: left; color: #e8eef0; }
+        .kc-route-shown .kc-route-name { color: #fbbf24; font-weight: 600; }
+        .kc-route-act { color: #9ca3af; font-size: 0.7rem; }
+        .kc-route-act:hover, .kc-route-name:hover { color: #00ffcc; }
 
         /* Anchor pulse during a line draw. When the SVG carries .kc-drawing,
            every anchor dot that isn't on the source chip pulses slowly to
@@ -173,7 +189,7 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
         <header class="kc-header">
             <a id="kc-back-link" href="<?php echo htmlspecialchars($backUrl); ?>" class="text-sm hover:underline"><?php echo t_attr('editor_kc_back_link', '← Back'); ?></a>
             <h1 class="text-base font-semibold">
-                <?php echo htmlspecialchars(sprintf(t('editor_kc_page_title_template', 'Keyword canvas; %s'), $galaxyInfo['name'] ?? '')); ?>
+                <?php echo htmlspecialchars(sprintf($kcTitleTemplate, $galaxyInfo['name'] ?? '')); ?>
             </h1>
 <?php if (!$readOnly): ?>
             <button type="button" id="kc-help-btn"
@@ -192,8 +208,22 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
                 <!-- Canvas content rendered by /js/keyword-canvas.js -->
             </svg>
             <div id="kc-empty" class="kc-empty" hidden>
-                <p><?php echo t_attr('editor_kc_empty_state', 'No keywords in this galaxy yet. Add some wormholes with keywords first.'); ?></p>
+                <p><?php echo $isMap ? t_attr('editor_map_empty_state', 'No wormholes in this galaxy yet.') : t_attr('editor_kc_empty_state', 'No keywords in this galaxy yet. Add some wormholes with keywords first.'); ?></p>
             </div>
+<?php if ($isMap): ?>
+            <aside id="kc-routes" class="kc-routes" hidden>
+                <h2><?php echo t_attr('editor_map_routes_title', 'Routes'); ?></h2>
+                <ul data-kc-routes-list></ul>
+                <button type="button" data-kc-route-new class="btn btn-xs btn-outline btn-success mt-2"><?php echo t_attr('editor_map_route_new', 'New route'); ?></button>
+                <div data-kc-routes-rec hidden class="mt-2">
+                    <p data-kc-route-stops class="text-xs text-gray-300"></p>
+                    <div class="flex gap-2 mt-2">
+                        <button type="button" data-kc-route-save class="btn btn-xs btn-success"><?php echo t_attr('editor_map_route_save', 'Save route'); ?></button>
+                        <button type="button" data-kc-route-cancel class="btn btn-xs btn-ghost"><?php echo t_attr('editor_kc_note_modal_cancel', 'Cancel'); ?></button>
+                    </div>
+                </div>
+            </aside>
+<?php endif; ?>
         </div>
 
         <div class="kc-mobile-block">
@@ -284,10 +314,14 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
     <dialog id="kc-help-modal" class="modal">
         <div class="modal-box bg-white text-gray-800 max-w-lg">
             <h3 class="font-bold text-lg"><?php echo t_attr('editor_kc_help_title', 'Quick guide'); ?></h3>
-            <p class="text-sm text-gray-700 mt-2"><?php echo t_attr('editor_kc_help_purpose', 'Use this view to map how keywords in this galaxy relate to each other. The closer they are, the stronger their relationship. Drag chips to set their proximity, and draw lines between them to record specific semantic connections.'); ?></p>
+            <p class="text-sm text-gray-700 mt-2"><?php echo $isMap ? t_attr('editor_map_help_purpose', 'Draw the map visitors see in the 2D view. Drag wormholes to place them, draw paths between them, and record routes visitors can follow step by step. Faded wormholes are not placed yet.') : t_attr('editor_kc_help_purpose', 'Use this view to map how keywords in this galaxy relate to each other. The closer they are, the stronger their relationship. Drag chips to set their proximity, and draw lines between them to record specific semantic connections.'); ?></p>
             <p class="text-sm text-gray-600 mt-3 font-semibold"><?php echo t_attr('editor_kc_help_intro', 'How to use it:'); ?></p>
             <ul class="mt-3 space-y-2 text-sm">
+                <?php if ($isMap): ?>
+                <li><strong><?php echo t_attr('editor_map_help_route_label', 'Record a route'); ?>.</strong> <?php echo t_attr('editor_map_help_route_body', 'Click New route, click wormholes in order (click the last one again to undo it), then Save route and name it.'); ?></li>
+<?php else: ?>
                 <li><strong><?php echo t_attr('editor_kc_help_move_label', 'Move a keyword'); ?>.</strong> <?php echo t_attr('editor_kc_help_move_body', 'Drag a chip to reposition it.'); ?></li>
+<?php endif; ?>
                 <li><strong><?php echo t_attr('editor_kc_help_connect_label', 'Connect two keywords'); ?>.</strong> <?php echo t_attr('editor_kc_help_connect_body', 'Click an anchor dot on one chip, then click an anchor on another. Or drag from anchor to anchor.'); ?></li>
                 <li><strong><?php echo t_attr('editor_kc_help_edit_label', 'Edit or delete a line'); ?>.</strong> <?php echo t_attr('editor_kc_help_edit_body', 'Click an existing line to open it.'); ?></li>
                 <li><strong><?php echo t_attr('editor_kc_help_pan_label', 'Pan the view'); ?>.</strong> <?php echo t_attr('editor_kc_help_pan_body', 'Hold Space and drag, or middle-click and drag.'); ?></li>
@@ -333,6 +367,7 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
             GALAXY_NAME: <?php echo json_encode($galaxyInfo['name'] ?? ''); ?>,
             GALAXY_SLUG: <?php echo json_encode($galaxySlug); ?>,
             READ_ONLY: <?php echo $readOnly ? 'true' : 'false'; ?>,
+            MODE: <?php echo json_encode($isMap ? 'map' : 'keywords'); ?>,
             IS_ADMIN: <?php echo $isAdmin ? 'true' : 'false'; ?>,
             CURRENT_USER_ID: <?php echo json_encode($currentUserId); ?>,
             BACK_URL: <?php echo json_encode($backUrl); ?>,
@@ -365,6 +400,12 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
                 'errEmptyName' => t('editor_kc_err_empty_name', 'Pick a non-empty name.'),
                 'errNameTakenGalaxy' => t('editor_kc_err_name_taken_galaxy', 'That name is already taken in this galaxy'),
                 'errNameTakenConflict' => t('editor_kc_err_name_taken_conflict', 'That name is already taken; change it or merge.'),
+                'routeRename' => t('editor_map_route_rename', 'Rename'),
+                'routeDelete' => t('editor_kc_keyword_modal_delete', 'Delete'),
+                'routeDeleteConfirm' => t('editor_map_route_delete_confirm', 'Delete the route "%s"?'),
+                'routeNamePrompt' => t('editor_map_route_name_prompt', 'Route name'),
+                'routeNeedTwo' => t('editor_map_route_need_two', 'A route needs at least two stops.'),
+                'routeRecHint' => t('editor_map_route_rec_hint', 'Click wormholes in the order of the route.'),
                 'errMissingConfig' => t('editor_kc_err_missing_config', 'Page configuration is missing (window.TELARIS_KC)'),
             ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>,
         });

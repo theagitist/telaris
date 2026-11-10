@@ -632,6 +632,14 @@ if (isset($fractalCreditKeys[$constellationTheme ?? ''])):
         </div>
         <?php endif; ?>
 
+        <?php if ($isEditorOrAdmin && !empty($show2dView) && empty($multiGalaxyIds) && !empty($constellationId)): ?>
+        <!-- Map editor: draw the authored 2D view (positions, paths, routes) for this galaxy. -->
+        <div class="mt-4 text-xs uppercase">
+            <a href="/edit/keyword-canvas.php?galaxy_id=<?php echo (int)$constellationId; ?>&amp;mode=map&amp;back=visitor"
+               class="font-bold hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo t_attr('editor_map_page_title', 'Map editor'); ?></a>
+        </div>
+        <?php endif; ?>
+
         <div class="flex gap-6 mt-4 font-bold text-xs uppercase">
             <?php if ($isEditorOrAdmin): ?>
                 <a href="/edit/index.php" target="_blank" rel="noopener" class="hover:text-[#00ffcc] transition-colors border-b border-white/20 pb-1"><?php echo htmlspecialchars($projectEditButtonText ?? 'Edit'); ?></a>
@@ -688,6 +696,24 @@ if (isset($fractalCreditKeys[$constellationTheme ?? ''])):
         window.TELARIS_GALAXY_LIST_ENABLED = <?php echo !empty($galaxyListEnabled) ? 'true' : 'false'; ?>;
         window.TELARIS_GALAXY_LIST = <?php echo json_encode(!empty($galaxyListMembers) ? $galaxyListMembers : null); ?>;
         window.TELARIS_2D_VIEW_ENABLED = <?php echo !empty($show2dView) ? 'true' : 'false'; ?>;
+        <?php
+        // Authored map for the 2D (geometric) view: single-galaxy pages only, and
+        // only when an editor has drawn something. Drawn in /edit/keyword-canvas.php?mode=map.
+        $galaxyMap = null;
+        if (!empty($show2dView) && empty($multiGalaxyIds) && !empty($constellationId)) {
+            $gm = db_get_galaxy_map((int)$constellationId, false);
+            if (db_galaxy_map_has_content($gm)) {
+                unset($gm['keywords'], $gm['canvas_width'], $gm['canvas_height']);
+                $galaxyMap = $gm;
+            }
+        }
+        ?>
+        window.TELARIS_GALAXY_MAP = <?php echo json_encode($galaxyMap, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+        window.TELARIS_GALAXY_MAP_STRINGS = <?php echo json_encode([
+            'routes' => t('visitor_map_routes', 'Routes'),
+            'prev' => t('visitor_map_prev', 'Previous'),
+            'next' => t('visitor_map_next', 'Next'),
+        ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?>;
         window.TELARIS_GALAXIES_LABEL = <?php echo json_encode($projectGalaxiesLabelText ?? 'Galaxies'); ?>;
         window.TELARIS_PDF_LOADING_TEXT = <?php echo json_encode($projectPdfLoadingText ?? 'Loading PDF…'); ?>;
         window.TELARIS_PDF_RENDERING_TEXT = <?php echo json_encode($projectPdfRenderingText ?? 'Rendering pages…'); ?>;

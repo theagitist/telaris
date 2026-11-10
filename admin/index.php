@@ -2780,6 +2780,7 @@ foreach ($importantExtensions as $ext => $name) {
             'actionView' => t('admin_action_view', 'View'),
             'actionCopyUrl' => t('admin_action_copy_url', 'Copy URL'),
             'actionKeywordCanvas' => t('admin_action_keyword_canvas', 'Keyword canvas'),
+            'actionMapEditor' => t('editor_map_page_title', 'Map editor'),
             'actionFractalProfile' => t('admin_action_fractal_profile', 'Galaxy shape'),
             'actionClusterShape' => t('admin_action_cluster_shape', 'Cluster shape'),
             'actionDuplicate' => t('admin_action_duplicate', 'Duplicate'),
@@ -4225,6 +4226,7 @@ foreach ($importantExtensions as $ext => $name) {
                                         <li><a href="${escapeHtmlAdmin(viewRel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionView || 'View')}</a></li>
                                         <li><a onclick="event.stopPropagation(); copyConstellationUrl('${escapeHtmlAdmin(viewRel)}', this)" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionCopyUrl || 'Copy URL')}</a></li>
                                         <li><a href="../edit/keyword-canvas.php?galaxy_id=${c.id}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionKeywordCanvas || 'Keyword canvas')}</a></li>
+                                        <li><a href="../edit/keyword-canvas.php?mode=map&galaxy_id=${c.id}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionMapEditor || 'Map editor')}</a></li>
                                         <li><a onclick="event.stopPropagation(); openFractalProfileModal(${c.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionFractalProfile || 'Galaxy shape')}</a></li>
                                         <li><a onclick="event.stopPropagation(); duplicateConstellation(${cJsonAttr})" class="text-gray-700 text-xs">${escapeHtmlAdmin(ADM.actionDuplicate || 'Duplicate')}</a></li>
                                         ${c.import_source ? `<li><a onclick="event.stopPropagation(); bridgeRefreshConstellation(${c.id}, ${escapeHtmlAdmin(cNameJson)})" class="text-purple-600 text-xs">${escapeHtmlAdmin(ADM.actionRefresh || 'Refresh')}</a></li>` : ''}

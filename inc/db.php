@@ -763,6 +763,7 @@ const PROJECT_INFO_KEYS = [
     'editor_kc_help_zoom_label', 'editor_kc_help_zoom_body',
     'editor_kc_help_cancel_label', 'editor_kc_help_cancel_body',
     'editor_kc_help_close',
+    'editor_map_page_title', 'editor_map_page_title_template', 'editor_map_empty_state', 'editor_map_routes_title', 'editor_map_route_new', 'editor_map_route_save', 'editor_map_route_rename', 'editor_map_route_delete_confirm', 'editor_map_route_name_prompt', 'editor_map_route_need_two', 'editor_map_route_rec_hint', 'editor_map_help_purpose', 'editor_map_help_route_label', 'editor_map_help_route_body', 'editor_btn_map', 'editor_btn_map_title', 'visitor_map_routes', 'visitor_map_prev', 'visitor_map_next', 'api_error_400_047', 'api_error_400_048', 'api_error_404_015', 'api_error_409_003',
 
     // C7h: operator-only nginx-config warning banner in inc/main-view.php.
     'visitor_nginx_warning_heading', 'visitor_nginx_warning_intro',
@@ -2782,6 +2783,29 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_kc_help_cancel_label' => 'Cancel',
             'editor_kc_help_cancel_body' => 'Press Esc while drawing a line to cancel.',
             'editor_kc_help_close' => 'Close',
+            'editor_map_page_title' => 'Map editor',
+            'editor_map_page_title_template' => 'Map; %s',
+            'editor_map_empty_state' => 'No wormholes in this galaxy yet.',
+            'editor_map_routes_title' => 'Routes',
+            'editor_map_route_new' => 'New route',
+            'editor_map_route_save' => 'Save route',
+            'editor_map_route_rename' => 'Rename',
+            'editor_map_route_delete_confirm' => 'Delete the route "%s"?',
+            'editor_map_route_name_prompt' => 'Route name',
+            'editor_map_route_need_two' => 'A route needs at least two stops.',
+            'editor_map_route_rec_hint' => 'Click wormholes in the order of the route.',
+            'editor_map_help_purpose' => 'Draw the map visitors see in the 2D view. Drag wormholes to place them, draw paths between them, and record routes visitors can follow step by step. Faded wormholes are not placed yet.',
+            'editor_map_help_route_label' => 'Record a route',
+            'editor_map_help_route_body' => 'Click New route, click wormholes in order (click the last one again to undo it), then Save route and name it.',
+            'editor_btn_map' => 'Map',
+            'editor_btn_map_title' => 'Draw the map visitors see in the 2D view',
+            'visitor_map_routes' => 'Routes',
+            'visitor_map_prev' => 'Previous',
+            'visitor_map_next' => 'Next',
+            'api_error_400_047' => 'Both wormholes must belong to this galaxy.',
+            'api_error_400_048' => 'A route needs a name and at least two stops.',
+            'api_error_404_015' => 'Path or route not found.',
+            'api_error_409_003' => 'A path between these wormholes already exists.',
 
             // C7h: inc/main-view.php nginx-config warning banner (operator-only,
             // fires when the versioned-asset rule is missing from the vhost).
@@ -4497,6 +4521,29 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_kc_help_cancel_label' => 'Cancelar',
             'editor_kc_help_cancel_body' => 'Pulsa Esc mientras dibujas una línea para cancelarla.',
             'editor_kc_help_close' => 'Cerrar',
+            'editor_map_page_title' => 'Editor de mapa',
+            'editor_map_page_title_template' => 'Mapa; %s',
+            'editor_map_empty_state' => 'Aún no hay agujeros de gusano en esta galaxia.',
+            'editor_map_routes_title' => 'Rutas',
+            'editor_map_route_new' => 'Nueva ruta',
+            'editor_map_route_save' => 'Guardar ruta',
+            'editor_map_route_rename' => 'Renombrar',
+            'editor_map_route_delete_confirm' => '¿Eliminar la ruta «%s»?',
+            'editor_map_route_name_prompt' => 'Nombre de la ruta',
+            'editor_map_route_need_two' => 'Una ruta necesita al menos dos paradas.',
+            'editor_map_route_rec_hint' => 'Haz clic en los agujeros de gusano en el orden de la ruta.',
+            'editor_map_help_purpose' => 'Dibuja el mapa que se ve en la vista 2D. Arrastra los agujeros de gusano para ubicarlos, traza caminos entre ellos y graba rutas que se pueden seguir paso a paso. Los agujeros de gusano atenuados aún no están ubicados.',
+            'editor_map_help_route_label' => 'Grabar una ruta',
+            'editor_map_help_route_body' => 'Haz clic en Nueva ruta, luego en los agujeros de gusano en orden (vuelve a hacer clic en el último para deshacerlo), y después en Guardar ruta para darle nombre.',
+            'editor_btn_map' => 'Mapa',
+            'editor_btn_map_title' => 'Dibujar el mapa de la vista 2D',
+            'visitor_map_routes' => 'Rutas',
+            'visitor_map_prev' => 'Anterior',
+            'visitor_map_next' => 'Siguiente',
+            'api_error_400_047' => 'Ambos agujeros de gusano deben pertenecer a esta galaxia.',
+            'api_error_400_048' => 'Una ruta necesita un nombre y al menos dos paradas.',
+            'api_error_404_015' => 'No se encontró el camino o la ruta.',
+            'api_error_409_003' => 'Ya existe un camino entre estos agujeros de gusano.',
 
             // C7h: aviso de configuración de nginx en inc/main-view.php.
             'visitor_nginx_warning_heading' => 'Configuración de Telaris: regla nginx de activos versionados no instalada',
@@ -6211,6 +6258,29 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_kc_help_cancel_label' => 'Cancelar',
             'editor_kc_help_cancel_body' => 'Pressione Esc enquanto desenha uma linha para cancelá-la.',
             'editor_kc_help_close' => 'Fechar',
+            'editor_map_page_title' => 'Editor de mapa',
+            'editor_map_page_title_template' => 'Mapa; %s',
+            'editor_map_empty_state' => 'Ainda não há buracos de minhoca nesta galáxia.',
+            'editor_map_routes_title' => 'Rotas',
+            'editor_map_route_new' => 'Nova rota',
+            'editor_map_route_save' => 'Salvar rota',
+            'editor_map_route_rename' => 'Renomear',
+            'editor_map_route_delete_confirm' => 'Excluir a rota “%s”?',
+            'editor_map_route_name_prompt' => 'Nome da rota',
+            'editor_map_route_need_two' => 'Uma rota precisa de pelo menos duas paradas.',
+            'editor_map_route_rec_hint' => 'Clique nos buracos de minhoca na ordem da rota.',
+            'editor_map_help_purpose' => 'Desenhe o mapa que aparece na vista 2D. Arraste os buracos de minhoca para posicioná-los, trace caminhos entre eles e grave rotas que podem ser seguidas passo a passo. Os buracos de minhoca esmaecidos ainda não foram posicionados.',
+            'editor_map_help_route_label' => 'Gravar uma rota',
+            'editor_map_help_route_body' => 'Clique em Nova rota, depois nos buracos de minhoca em ordem (clique de novo no último para desfazer) e então em Salvar rota para dar um nome.',
+            'editor_btn_map' => 'Mapa',
+            'editor_btn_map_title' => 'Desenhar o mapa da vista 2D',
+            'visitor_map_routes' => 'Rotas',
+            'visitor_map_prev' => 'Anterior',
+            'visitor_map_next' => 'Próximo',
+            'api_error_400_047' => 'Os dois buracos de minhoca precisam pertencer a esta galáxia.',
+            'api_error_400_048' => 'Uma rota precisa de um nome e de pelo menos duas paradas.',
+            'api_error_404_015' => 'Caminho ou rota não encontrado.',
+            'api_error_409_003' => 'Já existe um caminho entre esses buracos de minhoca.',
 
             // C7h: aviso de configuração de nginx em inc/main-view.php.
             'visitor_nginx_warning_heading' => 'Configuração do Telaris: regra nginx de ativos versionados não instalada',
@@ -7925,6 +7995,29 @@ function db_default_project_info_rows(string $enName = 'Telaris', string $enDesc
             'editor_kc_help_cancel_label' => 'Annuler',
             'editor_kc_help_cancel_body' => 'Appuie sur Échap pendant que tu traces une ligne pour l\'annuler.',
             'editor_kc_help_close' => 'Fermer',
+            'editor_map_page_title' => 'Éditeur de carte',
+            'editor_map_page_title_template' => 'Carte ; %s',
+            'editor_map_empty_state' => 'Il n\'y a pas encore de trous de ver dans cette galaxie.',
+            'editor_map_routes_title' => 'Parcours',
+            'editor_map_route_new' => 'Nouveau parcours',
+            'editor_map_route_save' => 'Enregistrer le parcours',
+            'editor_map_route_rename' => 'Renommer',
+            'editor_map_route_delete_confirm' => 'Supprimer le parcours « %s » ?',
+            'editor_map_route_name_prompt' => 'Nom du parcours',
+            'editor_map_route_need_two' => 'Un parcours a besoin d\'au moins deux étapes.',
+            'editor_map_route_rec_hint' => 'Clique sur les trous de ver dans l\'ordre du parcours.',
+            'editor_map_help_purpose' => 'Dessine la carte visible dans la vue 2D. Fais glisser les trous de ver pour les placer, trace des chemins entre eux et enregistre des parcours à suivre étape par étape. Les trous de ver estompés ne sont pas encore placés.',
+            'editor_map_help_route_label' => 'Enregistrer un parcours',
+            'editor_map_help_route_body' => 'Clique sur Nouveau parcours, puis sur les trous de ver dans l\'ordre (clique à nouveau sur le dernier pour l\'annuler), puis sur Enregistrer le parcours pour le nommer.',
+            'editor_btn_map' => 'Carte',
+            'editor_btn_map_title' => 'Dessiner la carte de la vue 2D',
+            'visitor_map_routes' => 'Parcours',
+            'visitor_map_prev' => 'Précédent',
+            'visitor_map_next' => 'Suivant',
+            'api_error_400_047' => 'Les deux trous de ver doivent appartenir à cette galaxie.',
+            'api_error_400_048' => 'Un parcours a besoin d\'un nom et d\'au moins deux étapes.',
+            'api_error_404_015' => 'Chemin ou parcours introuvable.',
+            'api_error_409_003' => 'Un chemin entre ces trous de ver existe déjà.',
 
             // C7h: avertissement de configuration nginx dans inc/main-view.php.
             'visitor_nginx_warning_heading' => 'Configuration Telaris : règle nginx pour les ressources versionnées non installée',
@@ -16679,4 +16772,293 @@ function db_ensure_pluriverse_messages_retry_columns(): void {
     } catch (PDOException $e) {
         error_log('db_ensure_pluriverse_messages_retry_columns: ' . $e->getMessage());
     }
+}
+
+// ---------------------------------------------------------------------------
+// Galaxy map (the authored 2D "geometric" view). Same shape as the keyword
+// canvas tables, keyed on wormholes (nodes) instead of keywords, plus routes.
+// Vault: Projects/Telaris/Features/Geometric view (build plan).md
+// ---------------------------------------------------------------------------
+
+const GALAXY_MAP_WIDTH = 2000.0;
+const GALAXY_MAP_HEIGHT = 2000.0;
+
+function db_ensure_galaxy_map_tables(): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+    try {
+        $pdo = getDB();
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS node_positions (
+                node_id INT PRIMARY KEY,
+                canvas_x FLOAT NOT NULL,
+                canvas_y FLOAT NOT NULL,
+                moved_by VARCHAR(255) NULL,
+                moved_at TIMESTAMP NULL,
+                -- Explicit flag, not moved_by IS NOT NULL: deleting an editor's
+                -- account nulls moved_by but must not un-place their map.
+                placed BOOLEAN NOT NULL DEFAULT FALSE,
+                FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE,
+                FOREIGN KEY (moved_by) REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_node_positions_moved_by ON node_positions (moved_by);
+            CREATE TABLE IF NOT EXISTS node_position_history (
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                node_id INT NOT NULL,
+                canvas_x FLOAT NOT NULL,
+                canvas_y FLOAT NOT NULL,
+                moved_by VARCHAR(255) NULL,
+                moved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_nph_node ON node_position_history (node_id);
+            CREATE TABLE IF NOT EXISTS node_paths (
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                node_a_id INT NOT NULL,
+                node_b_id INT NOT NULL,
+                created_by VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                note TEXT NULL,
+                anchor_a VARCHAR(8) NOT NULL DEFAULT 'right',
+                anchor_b VARCHAR(8) NOT NULL DEFAULT 'left',
+                CONSTRAINT uk_node_path_pair UNIQUE (node_a_id, node_b_id),
+                CONSTRAINT chk_node_path_canonical CHECK (node_a_id < node_b_id),
+                FOREIGN KEY (node_a_id) REFERENCES nodes(id) ON DELETE CASCADE,
+                FOREIGN KEY (node_b_id) REFERENCES nodes(id) ON DELETE CASCADE,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_node_paths_b ON node_paths (node_b_id);
+            CREATE INDEX IF NOT EXISTS idx_node_paths_created_by ON node_paths (created_by);
+            CREATE TABLE IF NOT EXISTS node_routes (
+                id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                constellation_id INT NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                created_by VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (constellation_id) REFERENCES constellations(id) ON DELETE CASCADE,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_node_routes_cid ON node_routes (constellation_id);
+            CREATE TABLE IF NOT EXISTS node_route_stops (
+                route_id INT NOT NULL,
+                seq INT NOT NULL,
+                node_id INT NOT NULL,
+                PRIMARY KEY (route_id, seq),
+                FOREIGN KEY (route_id) REFERENCES node_routes(id) ON DELETE CASCADE,
+                FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_node_route_stops_node ON node_route_stops (node_id);
+        ");
+    } catch (PDOException $e) {
+        error_log('db_ensure_galaxy_map_tables: ' . $e->getMessage());
+    }
+}
+
+/** Give every wormhole in the galaxy without a position row a neutral (unplaced) one. */
+function db_seed_node_positions_for_galaxy(int $galaxyId): int {
+    db_ensure_galaxy_map_tables();
+    $pdo = getDB();
+    $missing = $pdo->prepare("
+        SELECT n.id FROM nodes n LEFT JOIN node_positions p ON p.node_id = n.id
+        WHERE n.constellation_id = :cid AND p.node_id IS NULL
+    ");
+    $missing->execute([':cid' => $galaxyId]);
+    $missingIds = $missing->fetchAll(PDO::FETCH_COLUMN);
+    if (empty($missingIds)) return 0;
+    $existing = $pdo->prepare("
+        SELECT p.canvas_x, p.canvas_y FROM node_positions p
+        INNER JOIN nodes n ON n.id = p.node_id WHERE n.constellation_id = :cid
+    ");
+    $existing->execute([':cid' => $galaxyId]);
+    $points = array_map(fn($r) => [(float)$r['canvas_x'], (float)$r['canvas_y']], $existing->fetchAll());
+    $w = GALAXY_MAP_WIDTH;
+    $h = GALAXY_MAP_HEIGHT;
+    $minDist = max(60.0, min(220.0, sqrt($w * $h / max(1, count($points) + count($missingIds))) * 0.55));
+    $insert = $pdo->prepare("
+        INSERT INTO node_positions (node_id, canvas_x, canvas_y, moved_by, moved_at)
+        VALUES (:nid, :x, :y, NULL, NULL) ON CONFLICT (node_id) DO NOTHING
+    ");
+    foreach ($missingIds as $nid) {
+        [$x, $y] = _poisson_disc_next_point($points, $w, $h, $minDist);
+        $insert->execute([':nid' => (int)$nid, ':x' => $x, ':y' => $y]);
+        $points[] = [$x, $y];
+    }
+    return count($missingIds);
+}
+
+/**
+ * Map payload for a galaxy. `$forEditor` seeds unplaced wormholes (so the editor
+ * can drag them) and keeps author fields; the public form returns only placed
+ * positions and strips authorship. Keys mirror the keyword canvas payload
+ * (`keywords` = the items) so js/keyword-canvas.js can render either.
+ */
+function db_get_galaxy_map(int $galaxyId, bool $forEditor): array {
+    db_ensure_galaxy_map_tables();
+    if ($forEditor) db_seed_node_positions_for_galaxy($galaxyId);
+    $pdo = getDB();
+
+    $items = $pdo->prepare("SELECT id, name FROM nodes WHERE constellation_id = :cid ORDER BY name");
+    $items->execute([':cid' => $galaxyId]);
+    $items = array_map(fn($r) => ['id' => (int)$r['id'], 'name' => (string)$r['name']], $items->fetchAll());
+
+    $pos = $pdo->prepare("
+        SELECT p.node_id, p.canvas_x, p.canvas_y, p.moved_by, p.moved_at, p.placed FROM node_positions p
+        INNER JOIN nodes n ON n.id = p.node_id
+        WHERE n.constellation_id = :cid" . ($forEditor ? '' : ' AND p.placed'));
+    $pos->execute([':cid' => $galaxyId]);
+    $positions = array_map(function ($r) use ($forEditor) {
+        $o = ['keyword_id' => (int)$r['node_id'], 'canvas_x' => (float)$r['canvas_x'], 'canvas_y' => (float)$r['canvas_y']];
+        // The editor script reads moved_by != null as "placed"; feed it the flag.
+        if ($forEditor) { $o['moved_by'] = $r['placed'] ? ($r['moved_by'] ?? '') : null; $o['moved_at'] = $r['moved_at']; }
+        return $o;
+    }, $pos->fetchAll());
+
+    $rel = $pdo->prepare("
+        SELECT r.id, r.node_a_id, r.node_b_id, r.created_by, r.created_at, r.note, r.anchor_a, r.anchor_b
+        FROM node_paths r INNER JOIN nodes na ON na.id = r.node_a_id
+        WHERE na.constellation_id = :cid ORDER BY r.id
+    ");
+    $rel->execute([':cid' => $galaxyId]);
+    $relations = array_map(function ($r) use ($forEditor) {
+        $o = ['id' => (int)$r['id'], 'a' => (int)$r['node_a_id'], 'b' => (int)$r['node_b_id'],
+              'note' => $r['note'], 'anchor_a' => (string)$r['anchor_a'], 'anchor_b' => (string)$r['anchor_b']];
+        if ($forEditor) { $o['created_by'] = $r['created_by']; $o['created_at'] = $r['created_at']; }
+        return $o;
+    }, $rel->fetchAll());
+
+    $routes = db_get_galaxy_routes($galaxyId);
+    if (!$forEditor) foreach ($routes as &$rt) unset($rt['created_by']);
+    unset($rt);
+
+    return [
+        'keywords' => $items,
+        'positions' => $positions,
+        'relations' => $relations,
+        'routes' => $routes,
+        'canvas_width' => GALAXY_MAP_WIDTH,
+        'canvas_height' => GALAXY_MAP_HEIGHT,
+    ];
+}
+
+/** @return list<array{id:int,name:string,created_by:?string,stops:list<int>}> */
+function db_get_galaxy_routes(int $galaxyId): array {
+    db_ensure_galaxy_map_tables();
+    $pdo = getDB();
+    $st = $pdo->prepare("
+        SELECT r.id, r.name, r.created_by, s.node_id
+        FROM node_routes r LEFT JOIN node_route_stops s ON s.route_id = r.id
+        WHERE r.constellation_id = :cid ORDER BY r.id, s.seq
+    ");
+    $st->execute([':cid' => $galaxyId]);
+    $out = [];
+    foreach ($st->fetchAll() as $r) {
+        $id = (int)$r['id'];
+        $out[$id] ??= ['id' => $id, 'name' => (string)$r['name'], 'created_by' => $r['created_by'], 'stops' => []];
+        if ($r['node_id'] !== null) $out[$id]['stops'][] = (int)$r['node_id'];
+    }
+    return array_values($out);
+}
+
+/** True when the galaxy has anything authored (a placed wormhole, a path, or a route). */
+function db_galaxy_map_has_content(array $map): bool {
+    return !empty($map['positions']) || !empty($map['relations']) || !empty($map['routes']);
+}
+
+function db_record_node_position(int $nodeId, float $x, float $y, ?string $userId): void {
+    db_ensure_galaxy_map_tables();
+    $x = max(0.0, min(GALAXY_MAP_WIDTH, $x));
+    $y = max(0.0, min(GALAXY_MAP_HEIGHT, $y));
+    $pdo = getDB();
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("
+            INSERT INTO node_positions (node_id, canvas_x, canvas_y, moved_by, moved_at, placed)
+            VALUES (:nid, :x, :y, :uid, NOW(), TRUE)
+            ON CONFLICT (node_id) DO UPDATE SET canvas_x = EXCLUDED.canvas_x, canvas_y = EXCLUDED.canvas_y,
+                moved_by = EXCLUDED.moved_by, moved_at = EXCLUDED.moved_at, placed = TRUE
+        ")->execute([':nid' => $nodeId, ':x' => $x, ':y' => $y, ':uid' => $userId]);
+        $pdo->prepare("INSERT INTO node_position_history (node_id, canvas_x, canvas_y, moved_by) VALUES (:nid, :x, :y, :uid)")
+            ->execute([':nid' => $nodeId, ':x' => $x, ':y' => $y, ':uid' => $userId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/** Mark a wormhole as not placed (it drops back to the unplaced row in the visitor view). */
+function db_unplace_node(int $nodeId): void {
+    db_ensure_galaxy_map_tables();
+    getDB()->prepare("UPDATE node_positions SET placed = FALSE WHERE node_id = :nid")
+        ->execute([':nid' => $nodeId]);
+}
+
+/** @return int new path id. Canonicalizes the pair (a < b), swapping anchors with it. */
+function db_create_node_path(int $a, int $b, ?string $userId, ?string $note, string $anchorA = 'right', string $anchorB = 'left'): int {
+    db_ensure_galaxy_map_tables();
+    if ($a === $b) throw new InvalidArgumentException('Self-loop paths are not allowed.');
+    $sides = ['top', 'right', 'bottom', 'left'];
+    if (!in_array($anchorA, $sides, true)) $anchorA = 'right';
+    if (!in_array($anchorB, $sides, true)) $anchorB = 'left';
+    if ($a > $b) [$a, $b, $anchorA, $anchorB] = [$b, $a, $anchorB, $anchorA];
+    $st = getDB()->prepare("
+        INSERT INTO node_paths (node_a_id, node_b_id, created_by, note, anchor_a, anchor_b)
+        VALUES (:a, :b, :uid, :note, :aa, :ab) RETURNING id
+    ");
+    $st->execute([':a' => $a, ':b' => $b, ':uid' => $userId, ':note' => $note, ':aa' => $anchorA, ':ab' => $anchorB]);
+    return (int)$st->fetchColumn();
+}
+
+/** @return array{id:int,a:int,b:int,created_by:?string}|null */
+function db_get_node_path(int $id): ?array {
+    db_ensure_galaxy_map_tables();
+    $st = getDB()->prepare("SELECT id, node_a_id, node_b_id, created_by FROM node_paths WHERE id = :id");
+    $st->execute([':id' => $id]);
+    $r = $st->fetch();
+    return $r ? ['id' => (int)$r['id'], 'a' => (int)$r['node_a_id'], 'b' => (int)$r['node_b_id'], 'created_by' => $r['created_by']] : null;
+}
+
+function db_update_node_path(int $id, ?string $note): void {
+    getDB()->prepare("UPDATE node_paths SET note = :note WHERE id = :id")->execute([':note' => $note, ':id' => $id]);
+}
+
+function db_delete_node_path(int $id): void {
+    getDB()->prepare("DELETE FROM node_paths WHERE id = :id")->execute([':id' => $id]);
+}
+
+/** @param list<int> $stops node ids in order (caller verifies they belong to the galaxy). */
+function db_create_node_route(int $galaxyId, string $name, array $stops, ?string $userId): int {
+    db_ensure_galaxy_map_tables();
+    $pdo = getDB();
+    $pdo->beginTransaction();
+    try {
+        $st = $pdo->prepare("INSERT INTO node_routes (constellation_id, name, created_by) VALUES (:cid, :name, :uid) RETURNING id");
+        $st->execute([':cid' => $galaxyId, ':name' => $name, ':uid' => $userId]);
+        $id = (int)$st->fetchColumn();
+        $ins = $pdo->prepare("INSERT INTO node_route_stops (route_id, seq, node_id) VALUES (:r, :s, :n)");
+        foreach (array_values($stops) as $i => $nid) $ins->execute([':r' => $id, ':s' => $i, ':n' => (int)$nid]);
+        $pdo->commit();
+        return $id;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/** @return array{id:int,constellation_id:int,name:string,created_by:?string}|null */
+function db_get_node_route(int $id): ?array {
+    db_ensure_galaxy_map_tables();
+    $st = getDB()->prepare("SELECT id, constellation_id, name, created_by FROM node_routes WHERE id = :id");
+    $st->execute([':id' => $id]);
+    $r = $st->fetch();
+    return $r ? ['id' => (int)$r['id'], 'constellation_id' => (int)$r['constellation_id'], 'name' => (string)$r['name'], 'created_by' => $r['created_by']] : null;
+}
+
+function db_rename_node_route(int $id, string $name): void {
+    getDB()->prepare("UPDATE node_routes SET name = :name WHERE id = :id")->execute([':name' => $name, ':id' => $id]);
+}
+
+function db_delete_node_route(int $id): void {
+    getDB()->prepare("DELETE FROM node_routes WHERE id = :id")->execute([':id' => $id]);
 }
