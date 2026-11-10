@@ -29,9 +29,13 @@ const RZ_HOVER_HITBOX_PX = 24;
 // Rhizome connection rest colour: gray, a bit darker than the nodes, so the web
 // reads at rest; lines take their real colour in the hovered node's cloud.
 const RZ_LINE_GRAY = [0.58, 0.595, 0.61];
-// Editor-drawn paths in 3D (labyrinth links): line thickness and arrow cone size, world units.
-const DRAWN_PATH_THICKNESS = 0.03;
-const DRAWN_ARROW_SIZE = 0.24;
+// Editor-drawn paths in 3D (labyrinth links): line thickness (world units), and on
+// one-way paths a ripple texture that flows toward the destination like a creek:
+// ripple spacing (world units) and flow speed (world units per second).
+const DRAWN_PATH_THICKNESS = 0.035;
+const DRAWN_FLOW_SPACING = 1.6;
+const DRAWN_FLOW_SPEED = 1.1;
+const REDUCED_MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 // Rhizome background-grid line width in CSS pixels. Uses fat lines (LineSegments2)
 // because WebGL clamps GridHelper's LineBasicMaterial to 1px on Chrome/ANGLE.
 const RZ_GRID_LINE_PX = 2.6;
@@ -3931,39 +3935,51 @@ class TelarisNetwork {
 
     /**
      * Editor-drawn paths (window.TELARIS_GALAXY_MAP.relations, drawn in the map
-     * editor) as always-visible lines between the wormholes' 3D positions, with
-     * a cone two thirds along one-way paths. While any exist, keyword links are
-     * hover-only. Vault: Features/Drawn links in 3D (labyrinth).md
+     * editor) as always-visible lines between the wormholes' 3D positions; one-way
+     * paths carry ripples flowing toward their destination. While any exist,
+     * keyword links are hover-only. Vault: Features/Drawn links in 3D (labyrinth).md
      */
     _addDrawnPaths(geometry, isRhizome) {
         const rels = (window.TELARIS_GALAXY_MAP && window.TELARIS_GALAXY_MAP.relations) || [];
         if (!rels.length) return;
         const byId = new Map(this.nodes.map(n => [n.userData && n.userData.id, n]));
-        const cone = this.geometryManager.getOrCreate('drawn_path_cone', () => new THREE.ConeGeometry(0.5, 1, 12));
+        const ripples = this.geometryManager.getOrCreate('drawn_flow_tex', () => {
+            // 1 x 128 alpha strip: a faint stream with a few soft ripples of uneven width.
+            const cv = document.createElement('canvas');
+            cv.width = 1; cv.height = 128;
+            const ctx = cv.getContext('2d');
+            const g = ctx.createLinearGradient(0, 0, 0, 128);
+            const stops = [[0, 0.3], [0.1, 1], [0.2, 0.3], [0.42, 0.3], [0.5, 0.85], [0.56, 0.3], [0.74, 0.3], [0.8, 0.65], [0.86, 0.3], [1, 0.3]];
+            for (const [o, a] of stops) g.addColorStop(o, `rgba(255,255,255,${a})`);
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, 1, 128);
+            return new THREE.CanvasTexture(cv);
+        });
         let added = 0;
         for (const r of rels) {
-            // node1 -> node2 is the travel direction for one-way paths.
+            // node1 -> node2 is the flow direction for one-way paths.
             const [from, to] = r.direction === -1 ? [r.b, r.a] : [r.a, r.b];
             const n1 = byId.get(from), n2 = byId.get(to);
             if (!n1 || !n2) continue; // grouped away or filtered out
+            let map = null;
+            if (r.direction) {
+                map = ripples.clone(); // own repeat/offset, shared image
+                map.wrapS = map.wrapT = THREE.RepeatWrapping;
+                map.needsUpdate = true;
+            }
             const material = new THREE.MeshBasicMaterial({
-                color: isRhizome ? 0x475569 : 0xe8eef0, transparent: true, opacity: 0,
+                color: isRhizome ? 0x2b6cb0 : 0x9fdcf5, map, transparent: true, opacity: 0,
                 side: THREE.DoubleSide, depthWrite: false, depthTest: true,
             });
             const mesh = new THREE.Mesh(geometry, material);
             mesh.visible = false;
             mesh.renderOrder = 51;
-            let arrow = null;
-            if (r.direction) {
-                arrow = new THREE.Mesh(cone, material); // shared material keeps opacity in step
-                arrow.renderOrder = 51;
-                mesh.add(arrow);
-            }
             this.connections.push({
                 mesh, node1: n1, node2: n2, sharedCount: 0, thickness: DRAWN_PATH_THICKNESS,
-                baseOpacity: 0.85, currentOpacity: 0, targetOpacity: 0,
+                // Two-way paths are still water: dim them to the flowing streams' base level.
+                baseOpacity: map ? 0.85 : 0.4, currentOpacity: 0, targetOpacity: 0,
                 isBridge: false, rzRealColor: null, _rzLineMix: 0, _vein: false,
-                drawn: true, arrow,
+                drawn: true, flowTex: map,
             });
             added++;
         }
@@ -4056,12 +4072,11 @@ class TelarisNetwork {
             // Using a higher multiplier since radius is now 0.5 (diameter 1)
             const t = c.thickness * 2.0;
             c.mesh.scale.set(t, dist, t);
-            if (c.arrow) {
-                // Child of the scaled cylinder (local Y = the path, length 1): undo the
-                // parent scale so the cone keeps a fixed size, two thirds along.
-                const s = DRAWN_ARROW_SIZE;
-                c.arrow.position.set(0, 1 / 6, 0);
-                c.arrow.scale.set(s / t, (s * 1.6) / dist, s / t);
+            if (c.flowTex) {
+                // Cylinder UV v runs node1 (0) -> node2 (1); lowering the offset moves
+                // the ripples toward node2. Fixed world spacing whatever the length.
+                c.flowTex.repeat.set(1, dist / DRAWN_FLOW_SPACING);
+                if (!REDUCED_MOTION) c.flowTex.offset.y = (c.flowTex.offset.y - (deltaTimeSec || 0.016) * DRAWN_FLOW_SPEED / DRAWN_FLOW_SPACING) % 1;
             }
         }
         this.networkManager.updateVisibility(this.connections, deltaTimeSec, this._portalFadeInMultiplier);

@@ -933,36 +933,38 @@ export class WormholeGrid2D {
         const dark = !this._isRhizome();
         this.mapLines = [];
         const ink = dark ? '#e8eef0' : '#475569';
-        // Arrowhead for one-way paths (direction 1 = a to b, -1 = b to a).
-        const svg = this.linesGroup.ownerSVGElement;
-        if (svg && !svg.querySelector('#map-arrow')) {
-            const defs = svg.querySelector('defs') || svg.insertBefore(document.createElementNS(SVG_NS, 'defs'), svg.firstChild);
-            const mk = document.createElementNS(SVG_NS, 'marker');
-            mk.setAttribute('id', 'map-arrow');
-            mk.setAttribute('viewBox', '0 0 10 10');
-            mk.setAttribute('refX', '10');
-            mk.setAttribute('refY', '5');
-            mk.setAttribute('markerUnits', 'userSpaceOnUse');
-            mk.setAttribute('markerWidth', '18');
-            mk.setAttribute('markerHeight', '18');
-            mk.setAttribute('orient', 'auto-start-reverse');
-            const tip = document.createElementNS(SVG_NS, 'path');
-            tip.setAttribute('d', 'M0,0 L10,5 L0,10 z');
-            tip.setAttribute('fill', ink);
-            mk.appendChild(tip);
-            defs.appendChild(mk);
-        }
         for (const r of (m.relations || [])) {
             if (!this.positions.has(r.a) || !this.positions.has(r.b)) continue;
             const line = document.createElementNS(SVG_NS, 'line');
-            if (r.direction === 1) line.setAttribute('marker-end', 'url(#map-arrow)');
-            if (r.direction === -1) line.setAttribute('marker-start', 'url(#map-arrow)');
             line.setAttribute('stroke', ink);
             line.setAttribute('stroke-opacity', '0.75');
             line.setAttribute('stroke-width', String(MAP_PATH_WIDTH));
             line.setAttribute('stroke-linecap', 'round');
             line.setAttribute('vector-effect', 'non-scaling-stroke');
             this.linesGroup.appendChild(line);
+            // One-way paths: droplets flowing toward the destination (direction 1 = a to
+            // b, -1 = b to a) over the faint base line, like water in a creek.
+            let flow = null;
+            if (r.direction) {
+                line.setAttribute('stroke-opacity', '0.35');
+                flow = document.createElementNS(SVG_NS, 'line');
+                flow.setAttribute('stroke', dark ? '#9fdcf5' : '#2b6cb0');
+                flow.setAttribute('stroke-width', String(MAP_PATH_WIDTH + 1));
+                flow.setAttribute('stroke-linecap', 'round');
+                flow.setAttribute('stroke-dasharray', '2 12');
+                flow.setAttribute('vector-effect', 'non-scaling-stroke');
+                if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    const an = document.createElementNS(SVG_NS, 'animate');
+                    an.setAttribute('attributeName', 'stroke-dashoffset');
+                    // Lowering the offset moves dashes toward the line's end (b).
+                    an.setAttribute('from', r.direction === 1 ? '14' : '0');
+                    an.setAttribute('to', r.direction === 1 ? '0' : '14');
+                    an.setAttribute('dur', '0.9s');
+                    an.setAttribute('repeatCount', 'indefinite');
+                    flow.appendChild(an);
+                }
+                this.linesGroup.appendChild(flow);
+            }
             let label = null;
             if (r.note) {
                 label = document.createElementNS(SVG_NS, 'text');
@@ -974,7 +976,7 @@ export class WormholeGrid2D {
                 label.textContent = r.note.length > 60 ? r.note.slice(0, 57) + '…' : r.note;
                 this.linesGroup.appendChild(label);
             }
-            this.mapLines.push({ a: r.a, b: r.b, line, label });
+            this.mapLines.push({ a: r.a, b: r.b, line, flow, label });
         }
         this.routeLines = [];
     }
@@ -1024,6 +1026,7 @@ export class WormholeGrid2D {
             if (!e) continue;
             seg.line.setAttribute('x1', String(e[0].x)); seg.line.setAttribute('y1', String(e[0].y));
             seg.line.setAttribute('x2', String(e[1].x)); seg.line.setAttribute('y2', String(e[1].y));
+            if (seg.flow) for (const k of ['x1', 'y1', 'x2', 'y2']) seg.flow.setAttribute(k, seg.line.getAttribute(k));
             if (seg.label) {
                 seg.label.setAttribute('x', String((e[0].x + e[1].x) / 2));
                 seg.label.setAttribute('y', String((e[0].y + e[1].y) / 2 - 5));

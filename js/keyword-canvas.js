@@ -557,8 +557,8 @@
             mk.setAttribute('refX', '10');
             mk.setAttribute('refY', '5');
             mk.setAttribute('markerUnits', 'userSpaceOnUse');
-            mk.setAttribute('markerWidth', '22');
-            mk.setAttribute('markerHeight', '22');
+            mk.setAttribute('markerWidth', '12');
+            mk.setAttribute('markerHeight', '12');
             mk.setAttribute('orient', 'auto-start-reverse');
             const tip = document.createElementNS(SVG_NS, 'path');
             tip.setAttribute('d', 'M0,0 L10,5 L0,10 z');
