@@ -34,7 +34,7 @@ const RZ_LINE_GRAY = [0.58, 0.595, 0.61];
 // ripple spacing (world units) and flow speed (world units per second).
 const DRAWN_PATH_THICKNESS = 0.035;
 const DRAWN_FLOW_SPACING = 1.6;
-const DRAWN_FLOW_SPEED = 1.1;
+const DRAWN_FLOW_SPEED = 0.45;
 const REDUCED_MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 // Rhizome background-grid line width in CSS pixels. Uses fat lines (LineSegments2)
 // because WebGL clamps GridHelper's LineBasicMaterial to 1px on Chrome/ANGLE.
@@ -3965,6 +3965,7 @@ class TelarisNetwork {
             if (r.direction) {
                 map = ripples.clone(); // own repeat/offset, shared image
                 map.wrapS = map.wrapT = THREE.RepeatWrapping;
+                map.offset.y = Math.random(); // out of step, so many streams don't pulse together
                 map.needsUpdate = true;
             }
             const material = new THREE.MeshBasicMaterial({

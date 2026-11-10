@@ -959,7 +959,8 @@ export class WormholeGrid2D {
                     // Lowering the offset moves dashes toward the line's end (b).
                     an.setAttribute('from', r.direction === 1 ? '14' : '0');
                     an.setAttribute('to', r.direction === 1 ? '0' : '14');
-                    an.setAttribute('dur', '0.9s');
+                    an.setAttribute('dur', '2.2s');
+                    an.setAttribute('begin', `-${(Math.random() * 2.2).toFixed(2)}s`); // out of step with its neighbours
                     an.setAttribute('repeatCount', 'indefinite');
                     flow.appendChild(an);
                 }
