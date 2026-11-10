@@ -943,6 +943,7 @@ export class WormholeGrid2D {
             line.setAttribute('fill', 'none');
             line.setAttribute('stroke', ink);
             line.setAttribute('stroke-opacity', '0.75');
+            line.dataset.restOpacity = '0.75';
             line.setAttribute('stroke-width', String(MAP_PATH_WIDTH));
             line.setAttribute('stroke-linecap', 'round');
             line.setAttribute('vector-effect', 'non-scaling-stroke');
@@ -952,6 +953,7 @@ export class WormholeGrid2D {
             let flow = null;
             if (r.direction) {
                 line.setAttribute('stroke-opacity', '0.35');
+                line.dataset.restOpacity = '0.35';
                 flow = document.createElementNS(SVG_NS, 'path');
                 flow.setAttribute('fill', 'none');
                 flow.setAttribute('stroke', dark ? '#9fdcf5' : '#2b6cb0');
@@ -1566,6 +1568,17 @@ export class WormholeGrid2D {
                     line.setAttribute('stroke-width', String(baseW));
                     line.style.filter = this._isRhizome() ? 'none' : `drop-shadow(0 0 ${LINE_GLOW_REST_PX}px ${glow})`;
                 }
+            }
+        }
+        // Drawn map: brighten and thicken the hovered wormhole's own paths.
+        if (this._mapActive) {
+            for (const seg of this.mapLines || []) {
+                if (seg.a !== nodeId && seg.b !== nodeId) continue;
+                const ink = seg.line.getAttribute('stroke');
+                seg.line.setAttribute('stroke-opacity', entering ? '1' : seg.line.dataset.restOpacity);
+                seg.line.setAttribute('stroke-width', String(MAP_PATH_WIDTH + (entering ? 1.5 : 0)));
+                seg.line.style.filter = entering ? `drop-shadow(0 0 4px ${ink})` : '';
+                if (seg.flow) seg.flow.setAttribute('stroke-width', String(MAP_PATH_WIDTH + (entering ? 2.5 : 1)));
             }
         }
         // Top-right hover panel + stepped connector line, mirroring the 3D

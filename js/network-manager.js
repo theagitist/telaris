@@ -42,6 +42,11 @@ export class NetworkManager {
         // focused node required. During a focus transition the endpoint nodes carry
         // a per-node fade factor (_rzFade 0..1); multiply it in so edges fade in step
         // with their nodes instead of snapping off.
+        // Hovering a wormhole lights its drawn paths fully and fades the other drawn
+        // paths, so its exits stand out in 3D.
+        if (connection.drawn && this._focusedNode) {
+            return (this._focusedNode === connection.node1 || this._focusedNode === connection.node2) ? 1 : base * 0.3;
+        }
         if (connection.drawn || this.showAllConnections) {
             const f1 = connection.node1.userData ? (connection.node1.userData._rzFade ?? 1) : 1;
             const f2 = connection.node2.userData ? (connection.node2.userData._rzFade ?? 1) : 1;

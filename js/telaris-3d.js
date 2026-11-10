@@ -3968,8 +3968,9 @@ class TelarisNetwork {
                 map.offset.x = Math.random(); // out of step, so many streams don't pulse together
                 map.needsUpdate = true;
             }
+            const baseColor = isRhizome ? 0x2b6cb0 : 0x9fdcf5;
             const material = new THREE.MeshBasicMaterial({
-                color: isRhizome ? 0x2b6cb0 : 0x9fdcf5, map, transparent: true, opacity: 0,
+                color: baseColor, map, transparent: true, opacity: 0,
                 side: THREE.DoubleSide, depthWrite: false, depthTest: true,
             });
             // Per-path tube built lazily by _updateVeinTube (the vine meander), so drawn
@@ -3982,7 +3983,7 @@ class TelarisNetwork {
                 // Two-way paths are still water: dim them to the flowing streams' base level.
                 baseOpacity: map ? 0.85 : 0.3, currentOpacity: 0, targetOpacity: 0,
                 isBridge: false, rzRealColor: null, _rzLineMix: 0, _vein: true,
-                _veinRadius: DRAWN_PATH_THICKNESS, drawn: true, flowTex: map,
+                _veinRadius: DRAWN_PATH_THICKNESS, drawn: true, flowTex: map, baseColor,
             });
             added++;
         }
@@ -4084,6 +4085,13 @@ class TelarisNetwork {
 
         }
         this.networkManager.updateVisibility(this.connections, deltaTimeSec, this._portalFadeInMultiplier);
+        // Drawn paths of the hovered wormhole turn white (opacity is raised in NetworkManager).
+        const hov = this.networkManager.getFocusedNode();
+        for (const c of this.connections) {
+            if (!c.drawn) continue;
+            const lit = !!hov && (c.node1 === hov || c.node2 === hov);
+            if (c._lit !== lit) { c._lit = lit; c.mesh.material.color.setHex(lit ? 0xffffff : c.baseColor); }
+        }
     }
 
     /**
