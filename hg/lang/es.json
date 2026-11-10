@@ -35,6 +35,7 @@
     "errors.create_dir": "Error al crear el directorio %s",
     "errors.prefix": "El fabricante de la pistola de pegamento dice: ",
     "iframe.change_webpage_url": "cambiar la url de la página web",
+    "iframe.deeper": "Ir más adentro",
     "iframe.embed_another_webpage": "incrustar otra página web",
     "iframe.enter_url_to_show": "Introduce la URL que se mostrará",
     "iframe.toggle_scrollbars": "activar o desactivar las barras de desplazamiento",

@@ -35,6 +35,7 @@
     "errors.create_dir": "Erro ao criar a diretoria %s",
     "errors.prefix": "O fabricante da pistola de cola diz: ",
     "iframe.change_webpage_url": "alterar o url da página web",
+    "iframe.deeper": "Ir mais fundo",
     "iframe.embed_another_webpage": "incorporar outra página web",
     "iframe.enter_url_to_show": "Introduza o URL a mostrar",
     "iframe.toggle_scrollbars": "ativar ou desativar as barras de deslocamento",

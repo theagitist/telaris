@@ -86,7 +86,14 @@ function iframe_alter_render_early($args)
 	elem_css($i, 'position', 'absolute');
 	elem_css($i, 'width', '100%');
 	// url
-	if (!empty($obj['iframe-url'])) {
+	if (!empty($obj['iframe-url']) && !$args['edit']) {
+		// Visitors: the src waits in data-hg-src and iframe-depth.js loads it only a
+		// few frames deep, so pages that embed each other (an intentional infinite
+		// garden) stop at a "go deeper" button instead of nesting without end.
+		elem_attr($i, 'data-hg-src', strstr($obj['iframe-url'], '//'));
+		elem_attr($i, 'data-hg-deeper', iframe_t('iframe.deeper', 'Go deeper'));
+		elem_attr($i, 'loading', 'lazy');
+	} elseif (!empty($obj['iframe-url'])) {
     // use protocol relative url
 		//elem_attr($i, 'src', $obj['iframe-url']);
 		elem_attr($i, 'src', strstr($obj['iframe-url'], '//'));
@@ -143,8 +150,29 @@ function iframe_render_object($args)
 }
 
 
+/**
+ *	a string from the active i18n catalog (module_i18n), falling back to the
+ *	English catalog's value passed in when the module is absent
+ */
+function iframe_t($key, $en)
+{
+	if (function_exists('i18n_catalog') && function_exists('i18n_locale')) {
+		$cat = i18n_catalog(i18n_locale());
+		if (isset($cat[$key])) {
+			return $cat[$key];
+		}
+	}
+	return $en;
+}
+
+
 function iframe_render_page_early($args)
 {
+	if (!$args['edit']) {
+		$v = @filemtime(dirname(__FILE__).'/modules/iframe/iframe-depth.js');
+		html_add_js(base_url().'modules/iframe/iframe-depth.js'.($v ? '?v='.$v : ''));
+		return true;
+	}
 	if ($args['edit']) {
 		if (USE_MIN_FILES) {
 			html_add_js(base_url().'modules/iframe/iframe-edit.min.js');

@@ -35,6 +35,7 @@
     "errors.create_dir": "Erreur lors de la création du répertoire %s",
     "errors.prefix": "Le fabricant du pistolet à colle dit : ",
     "iframe.change_webpage_url": "changer l'url de la page web",
+    "iframe.deeper": "Aller plus loin",
     "iframe.embed_another_webpage": "intégrer une autre page web",
     "iframe.enter_url_to_show": "Saisissez l'URL à afficher",
     "iframe.toggle_scrollbars": "activer ou désactiver les barres de défilement",

@@ -35,6 +35,7 @@
     "errors.create_dir": "Error creating directory %s",
     "errors.prefix": "The glue gun manufacturer says: ",
     "iframe.change_webpage_url": "change webpage url",
+    "iframe.deeper": "Go deeper",
     "iframe.embed_another_webpage": "embed another webpage",
     "iframe.enter_url_to_show": "Enter the URL to show",
     "iframe.toggle_scrollbars": "toggle scrollbars on and off",
