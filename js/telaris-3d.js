@@ -29,10 +29,10 @@ const RZ_HOVER_HITBOX_PX = 24;
 // Rhizome connection rest colour: gray, a bit darker than the nodes, so the web
 // reads at rest; lines take their real colour in the hovered node's cloud.
 const RZ_LINE_GRAY = [0.58, 0.595, 0.61];
-// Editor-drawn paths in 3D (labyrinth links): line thickness (world units), and on
+// Editor-drawn paths in 3D (labyrinth links): tube radius (world units), and on
 // one-way paths a ripple texture that flows toward the destination like a creek:
 // ripple spacing (world units) and flow speed (world units per second).
-const DRAWN_PATH_THICKNESS = 0.035;
+const DRAWN_PATH_THICKNESS = 0.02; // tube radius; meanders like the vine links (VEIN_WANDER)
 const DRAWN_FLOW_SPACING = 1.6;
 const DRAWN_FLOW_SPEED = 0.45;
 const REDUCED_MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -3930,7 +3930,7 @@ class TelarisNetwork {
         }
 
         // Added after the keyword analytics above so drawn paths don't skew them.
-        this._addDrawnPaths(geometry, isRhizome);
+        this._addDrawnPaths(isRhizome);
     }
 
     /**
@@ -3939,20 +3939,20 @@ class TelarisNetwork {
      * paths carry ripples flowing toward their destination. While any exist,
      * keyword links are hover-only. Vault: Features/Drawn links in 3D (labyrinth).md
      */
-    _addDrawnPaths(geometry, isRhizome) {
+    _addDrawnPaths(isRhizome) {
         const rels = (window.TELARIS_GALAXY_MAP && window.TELARIS_GALAXY_MAP.relations) || [];
         if (!rels.length) return;
         const byId = new Map(this.nodes.map(n => [n.userData && n.userData.id, n]));
         const ripples = this.geometryManager.getOrCreate('drawn_flow_tex', () => {
-            // 1 x 128 alpha strip: a faint stream with a few soft ripples of uneven width.
+            // 128 x 1 alpha strip (tube UV x runs along the path): a faint stream with a few soft ripples.
             const cv = document.createElement('canvas');
-            cv.width = 1; cv.height = 128;
+            cv.width = 128; cv.height = 1;
             const ctx = cv.getContext('2d');
-            const g = ctx.createLinearGradient(0, 0, 0, 128);
+            const g = ctx.createLinearGradient(0, 0, 128, 0);
             const stops = [[0, 0.3], [0.1, 1], [0.2, 0.3], [0.42, 0.3], [0.5, 0.85], [0.56, 0.3], [0.74, 0.3], [0.8, 0.65], [0.86, 0.3], [1, 0.3]];
             for (const [o, a] of stops) g.addColorStop(o, `rgba(255,255,255,${a})`);
             ctx.fillStyle = g;
-            ctx.fillRect(0, 0, 1, 128);
+            ctx.fillRect(0, 0, 128, 1);
             return new THREE.CanvasTexture(cv);
         });
         let added = 0;
@@ -3965,26 +3965,28 @@ class TelarisNetwork {
             if (r.direction) {
                 map = ripples.clone(); // own repeat/offset, shared image
                 map.wrapS = map.wrapT = THREE.RepeatWrapping;
-                map.offset.y = Math.random(); // out of step, so many streams don't pulse together
+                map.offset.x = Math.random(); // out of step, so many streams don't pulse together
                 map.needsUpdate = true;
             }
             const material = new THREE.MeshBasicMaterial({
                 color: isRhizome ? 0x2b6cb0 : 0x9fdcf5, map, transparent: true, opacity: 0,
                 side: THREE.DoubleSide, depthWrite: false, depthTest: true,
             });
-            const mesh = new THREE.Mesh(geometry, material);
+            // Per-path tube built lazily by _updateVeinTube (the vine meander), so drawn
+            // paths curve like the vine links in every theme.
+            const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
             mesh.visible = false;
             mesh.renderOrder = 51;
             this.connections.push({
                 mesh, node1: n1, node2: n2, sharedCount: 0, thickness: DRAWN_PATH_THICKNESS,
                 // Two-way paths are still water: dim them to the flowing streams' base level.
-                baseOpacity: map ? 0.85 : 0.4, currentOpacity: 0, targetOpacity: 0,
-                isBridge: false, rzRealColor: null, _rzLineMix: 0, _vein: false,
-                drawn: true, flowTex: map,
+                baseOpacity: map ? 0.85 : 0.3, currentOpacity: 0, targetOpacity: 0,
+                isBridge: false, rzRealColor: null, _rzLineMix: 0, _vein: true,
+                _veinRadius: DRAWN_PATH_THICKNESS, drawn: true, flowTex: map,
             });
             added++;
         }
-        if (added) for (const c of this.connections) if (!c.drawn) c.hoverOnly = true;
+        if (added) for (const c of this.connections) if (!c.drawn) c.hidden = true;
     }
 
     updateConnections(deltaTimeSec) {
@@ -4053,6 +4055,12 @@ class TelarisNetwork {
                 // re-uploaded per frame. Anchored at rest they build once and stay put.
                 this._updateVeinTube(c, this._restWorldPos(c.node1, c._veinRest1 || (c._veinRest1 = new THREE.Vector3())),
                     this._restWorldPos(c.node2, c._veinRest2 || (c._veinRest2 = new THREE.Vector3())));
+                if (c.flowTex) {
+                    // Tube UV x runs node1 (0) -> node2 (1); lowering the offset moves the
+                    // ripples toward node2. Fixed world spacing whatever the length.
+                    c.flowTex.repeat.set(c._veinRest1.distanceTo(c._veinRest2) * 1.1 / DRAWN_FLOW_SPACING, 1);
+                    if (!REDUCED_MOTION) c.flowTex.offset.x = (c.flowTex.offset.x - (deltaTimeSec || 0.016) * DRAWN_FLOW_SPEED / DRAWN_FLOW_SPACING) % 1;
+                }
                 continue;
             }
 
@@ -4073,12 +4081,7 @@ class TelarisNetwork {
             // Using a higher multiplier since radius is now 0.5 (diameter 1)
             const t = c.thickness * 2.0;
             c.mesh.scale.set(t, dist, t);
-            if (c.flowTex) {
-                // Cylinder UV v runs node1 (0) -> node2 (1); lowering the offset moves
-                // the ripples toward node2. Fixed world spacing whatever the length.
-                c.flowTex.repeat.set(1, dist / DRAWN_FLOW_SPACING);
-                if (!REDUCED_MOTION) c.flowTex.offset.y = (c.flowTex.offset.y - (deltaTimeSec || 0.016) * DRAWN_FLOW_SPEED / DRAWN_FLOW_SPACING) % 1;
-            }
+
         }
         this.networkManager.updateVisibility(this.connections, deltaTimeSec, this._portalFadeInMultiplier);
     }
@@ -4114,9 +4117,12 @@ class TelarisNetwork {
         // Branch tubes derive their shape from the parent/GP nodes, which are equally frozen,
         // so an unchanged p1/p2 means an unchanged curve. Vein tubes only exist in vine, so
         // a moving-sim theme can never hit this path — no regression there.
+        // Drawn paths also use these tubes in themes whose nodes still settle; a looser
+        // tolerance keeps them from rebuilding every frame for sub-pixel moves.
+        const tol = c.drawn ? 4e-4 : 1e-6;
         if (c._veinLastP1 &&
-            c._veinLastP1.distanceToSquared(p1) < 1e-6 &&
-            c._veinLastP2.distanceToSquared(p2) < 1e-6) {
+            c._veinLastP1.distanceToSquared(p1) < tol &&
+            c._veinLastP2.distanceToSquared(p2) < tol) {
             return;
         }
         if (!c._veinLastP1) { c._veinLastP1 = new THREE.Vector3(); c._veinLastP2 = new THREE.Vector3(); }
@@ -4464,7 +4470,7 @@ class TelarisNetwork {
      */
     _computeVeinBundling() {
         if (!VEIN_BUNDLE || !this.currentTheme || this.currentTheme.id !== 'vine') return;
-        const links = this.connections.filter(c => c._vein);
+        const links = this.connections.filter(c => c._vein && !c.drawn);
         if (links.length < VEIN_BUNDLE_MIN_EDGES || links.length > VEIN_BUNDLE_MAX_EDGES) return; // fall back to per-link meander
         const anchor = (nd) => (nd.userData && nd.userData.originalPosition) ? nd.userData.originalPosition : nd.position;
         const E = links.map(c => {

@@ -102,6 +102,7 @@ const MAP_MARGIN = 80;            // world px around the authored layout
 const MAP_UNPLACED_GAP = 24;      // spacing in the faded row of not-yet-placed wormholes
 const MAP_UNPLACED_FILTER = 'grayscale(0.6) opacity(0.45)';
 const MAP_PATH_WIDTH = 2;
+const MAP_PATH_WANDER = 0.18; // drawn-path meander: control-point offset as a share of the path length
 const MAP_ROUTE_COLOR = '#fbbf24';
 const MAP_MIN_START_ZOOM = 0.85;  // a drawn map opens no smaller than this, so names stay readable
 
@@ -238,6 +239,9 @@ export class WormholeGrid2D {
             // wait in a faded row beneath. No physics, no overlap pushing.
             this._mapLayout(nodes);
             this._buildLines(nodes);
+            // Drawn paths replace the keyword links entirely (not even on hover).
+            this.linesGroup.replaceChildren();
+            this.lineEls.clear();
             this._buildMapLines();
             this._buildRoutesPanel();
             this._fitMapStart();
@@ -935,7 +939,8 @@ export class WormholeGrid2D {
         const ink = dark ? '#e8eef0' : '#475569';
         for (const r of (m.relations || [])) {
             if (!this.positions.has(r.a) || !this.positions.has(r.b)) continue;
-            const line = document.createElementNS(SVG_NS, 'line');
+            const line = document.createElementNS(SVG_NS, 'path');
+            line.setAttribute('fill', 'none');
             line.setAttribute('stroke', ink);
             line.setAttribute('stroke-opacity', '0.75');
             line.setAttribute('stroke-width', String(MAP_PATH_WIDTH));
@@ -947,7 +952,8 @@ export class WormholeGrid2D {
             let flow = null;
             if (r.direction) {
                 line.setAttribute('stroke-opacity', '0.35');
-                flow = document.createElementNS(SVG_NS, 'line');
+                flow = document.createElementNS(SVG_NS, 'path');
+                flow.setAttribute('fill', 'none');
                 flow.setAttribute('stroke', dark ? '#9fdcf5' : '#2b6cb0');
                 flow.setAttribute('stroke-width', String(MAP_PATH_WIDTH + 1));
                 flow.setAttribute('stroke-linecap', 'round');
@@ -977,7 +983,10 @@ export class WormholeGrid2D {
                 label.textContent = r.note.length > 60 ? r.note.slice(0, 57) + '…' : r.note;
                 this.linesGroup.appendChild(label);
             }
-            this.mapLines.push({ a: r.a, b: r.b, line, flow, label });
+            // Meander like the vine links: two control points pushed to opposite sides
+            // of the path by a random share of its length (an S-curve), fixed per path.
+            const wave = [MAP_PATH_WANDER * (0.35 + Math.random() * 0.65), -MAP_PATH_WANDER * (0.35 + Math.random() * 0.65)];
+            this.mapLines.push({ a: r.a, b: r.b, line, flow, label, wave });
         }
         this.routeLines = [];
     }
@@ -1025,13 +1034,22 @@ export class WormholeGrid2D {
         for (const seg of [...(this.mapLines || []), ...(this.routeLines || [])]) {
             const e = this._mapEndpoints(seg.a, seg.b);
             if (!e) continue;
+            if (seg.wave) {
+                // Drawn path: cubic S-curve; the flow overlay shares the same d.
+                const [a, b] = e, dx = b.x - a.x, dy = b.y - a.y;
+                const c1 = { x: a.x + dx / 3 - dy * seg.wave[0], y: a.y + dy / 3 + dx * seg.wave[0] };
+                const c2 = { x: a.x + dx * 2 / 3 - dy * seg.wave[1], y: a.y + dy * 2 / 3 + dx * seg.wave[1] };
+                const d = `M${a.x},${a.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${b.x},${b.y}`;
+                seg.line.setAttribute('d', d);
+                if (seg.flow) seg.flow.setAttribute('d', d);
+                if (seg.label) {
+                    seg.label.setAttribute('x', String((a.x + 3 * c1.x + 3 * c2.x + b.x) / 8));
+                    seg.label.setAttribute('y', String((a.y + 3 * c1.y + 3 * c2.y + b.y) / 8 - 5));
+                }
+                continue;
+            }
             seg.line.setAttribute('x1', String(e[0].x)); seg.line.setAttribute('y1', String(e[0].y));
             seg.line.setAttribute('x2', String(e[1].x)); seg.line.setAttribute('y2', String(e[1].y));
-            if (seg.flow) for (const k of ['x1', 'y1', 'x2', 'y2']) seg.flow.setAttribute(k, seg.line.getAttribute(k));
-            if (seg.label) {
-                seg.label.setAttribute('x', String((e[0].x + e[1].x) / 2));
-                seg.label.setAttribute('y', String((e[0].y + e[1].y) / 2 - 5));
-            }
         }
     }
 
