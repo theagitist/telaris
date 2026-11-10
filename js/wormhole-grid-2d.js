@@ -103,6 +103,7 @@ const MAP_UNPLACED_GAP = 24;      // spacing in the faded row of not-yet-placed 
 const MAP_UNPLACED_FILTER = 'grayscale(0.6) opacity(0.45)';
 const MAP_PATH_WIDTH = 2;
 const MAP_ROUTE_COLOR = '#fbbf24';
+const MAP_MIN_START_ZOOM = 0.85;  // a drawn map opens no smaller than this, so names stay readable
 
 // Vein theme (2D): the planar sibling of the 3D vein map. The backbone is laid
 // out as a branching tree (a leaf is literally a planar vein network), the force
@@ -228,9 +229,9 @@ export class WormholeGrid2D {
         // Force the keyword/galaxy dim to re-apply to the freshly built cards.
         this._lastActiveKeywordsSnapshot = null;
         this._buildAdjacency(nodes);
+        this._mapActive = !!this._galaxyMap(); // before _buildCards: a drawn map changes card ink
         this._buildCards(nodes);          // measures + stores card sizes
         this._applyRhizomeHubs();          // rhizome theme: enlarge top-degree cards
-        this._mapActive = !!this._galaxyMap();
         if (!this._mapActive && this.routesPanel) { this.routesPanel.remove(); this.routesPanel = null; }
         if (this._mapActive) {
             // Authored map: placed wormholes sit where editors put them, the rest
@@ -239,7 +240,7 @@ export class WormholeGrid2D {
             this._buildLines(nodes);
             this._buildMapLines();
             this._buildRoutesPanel();
-            this._fitToContent();
+            this._fitMapStart();
             this._renderFrame();
         } else if (this._isVein()) {
             // Vein: position the cards AS a branching tree and freeze (no Poisson seed,
@@ -353,7 +354,8 @@ export class WormholeGrid2D {
         // themes keep the light-pastel-on-dark chip.
         const isRz = this._isRhizome();
         const realInk = isRz ? this._darkenHex(pastel, 0.72) : pastel;
-        const restInk = isRz ? RZ_CARD_GRAY : pastel;
+        // A drawn map must read at a glance, so its cards rest at their real ink.
+        const restInk = isRz ? (this._mapActive ? realInk : RZ_CARD_GRAY) : pastel;
         const inkColor = restInk;
         const card = document.createElement('button');
         card.type = 'button';
@@ -943,15 +945,43 @@ export class WormholeGrid2D {
             if (r.note) {
                 label = document.createElementNS(SVG_NS, 'text');
                 label.setAttribute('text-anchor', 'middle');
-                label.setAttribute('font-size', '11');
+                label.setAttribute('font-size', '13');
+                label.setAttribute('font-weight', '600');
                 label.setAttribute('font-family', 'ui-sans-serif, system-ui, sans-serif');
-                label.setAttribute('fill', dark ? '#cbd5e1' : '#334155');
+                label.setAttribute('fill', dark ? '#e2e8f0' : '#1e293b');
                 label.textContent = r.note.length > 60 ? r.note.slice(0, 57) + '…' : r.note;
                 this.linesGroup.appendChild(label);
             }
             this.mapLines.push({ a: r.a, b: r.b, line, label });
         }
         this.routeLines = [];
+    }
+
+    /**
+     * Open a drawn map at a readable zoom: fit everything when that is legible,
+     * otherwise start at the first route's first stop (or the top-left of the map)
+     * at MAP_MIN_START_ZOOM. The Fit button still shows the whole map.
+     */
+    _fitMapStart() {
+        const fit = this._computeFit();
+        if (fit.zoom >= MAP_MIN_START_ZOOM) { this._fitToContent(); return; }
+        const m = this._galaxyMap();
+        const route = (m.routes || []).find(r => r.stops.some(id => this.positions.has(id) && !this._unplaced.has(id)));
+        let start = route ? route.stops.find(id => this.positions.has(id) && !this._unplaced.has(id)) : null;
+        if (start == null) {
+            let best = Infinity;
+            for (const [id, p] of this.positions) {
+                if (this._unplaced.has(id)) continue;
+                if (p.x + p.y < best) { best = p.x + p.y; start = id; }
+            }
+        }
+        const p = this.positions.get(start);
+        const rect = this.container.getBoundingClientRect();
+        this.zoom = MAP_MIN_START_ZOOM;
+        // Put the start a third of the way in from the top-left so the map unfolds toward the centre.
+        this.panX = rect.width / 3 - p.x * this.zoom;
+        this.panY = rect.height / 3 - p.y * this.zoom;
+        this._applyTransform();
     }
 
     _mapEndpoints(a, b) {

@@ -229,7 +229,8 @@ if (isset($fractalCreditKeys[$constellationTheme ?? ''])):
             <svg id="wormhole-grid-2d-lines" class="absolute inset-0 pointer-events-none" style="width: 100%; height: 100%;"></svg>
             <div id="wormhole-grid-2d-cards" class="absolute inset-0"></div>
             <!-- Zoom controls. Scroll to zoom, drag to pan; Fit frames all wormholes. -->
-            <div class="absolute bottom-4 left-4 z-[5] flex flex-col gap-1" style="pointer-events: auto;">
+            <!-- bottom-16: clears the Density map button that sits at bottom-left. -->
+            <div class="absolute bottom-16 left-4 z-[5] flex flex-col gap-1" style="pointer-events: auto;">
                 <button type="button" id="wormhole-grid-2d-zoom-in" aria-label="Zoom in"
                         class="w-9 h-9 flex items-center justify-center text-lg leading-none text-white bg-black/50 border border-white/20 rounded-md backdrop-blur-sm hover:bg-white/10 transition-colors">+</button>
                 <button type="button" id="wormhole-grid-2d-zoom-out" aria-label="Zoom out"
