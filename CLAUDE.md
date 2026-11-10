@@ -393,6 +393,8 @@ Visitor-side alternative to the 3D scene: every wormhole renders as a pastel chi
 
 Implementation details, layout pipeline math, and the "always check for overlapping nodes" guarantee in `~/apps/obsidian/Academia/Projects/Telaris/Features/2D wormhole view — implementation.md`.
 
+**Authored map ("geometric view", v6.13.6+).** When an editor has drawn something, the 2D view uses it: placed wormholes at their authored positions, unplaced ones in a faded row beneath, authored paths always visible (with note labels), keyword links hover-only, a Routes panel with Previous/Next stepping, and a readable 85% opening zoom on big maps (Fit shows all). Single-galaxy pages only (`window.TELARIS_GALAXY_MAP`, embedded by `inc/main-view.php`); overrides the vine tree layout and rhizome's pale rest ink. Editor = the keyword canvas in map mode, `/edit/keyword-canvas.php?mode=map&galaxy_id=N` (`TELARIS_KC.MODE='map'`: no physics/idle drift, routes panel). API `api/galaxy-map.php`; tables `node_positions` (explicit `placed` flag), `node_position_history`, `node_paths`, `node_routes`, `node_route_stops` via `db_ensure_galaxy_map_tables()`. Test `tests/php/Integration/GalaxyMapTest.php`. Vault: `Features/Geometric view (build plan).md`.
+
 ### PDF wormhole media
 
 A wormhole can carry a PDF as its primary visual. Schema: `nodes.pdf_url` auto-migrated by `db_ensure_nodes_pdf_url_column()`. Validation: MIME type `application/pdf` + magic-byte sniff (`fileHasPdfMagic` checks for `%PDF-`). Size cap default 25 MB; admin can change via the **PDF max size (MB)** input on the Global Settings tab (stored in `project_info.pdf_max_bytes`; read at upload time via `effectivePdfMaxBytes()` so the cap is hot-reloaded without a redeploy).
