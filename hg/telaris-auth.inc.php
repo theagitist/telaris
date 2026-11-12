@@ -314,8 +314,19 @@ function telaris_hg_enforce_node_access(int $nodeId, callable $deny): void
 function telaris_hg_authorize_get(string $page): void
 {
 	if (!isEditorOrAdminLoggedIn()) {
-		// bounce to the Telaris editor login (site-absolute; /hg/ is same-origin)
-		header('Location: /utils/login.php?redirect=edit');
+		// bounce to the Telaris editor login. The editor usually opens hotglue in
+		// an iframe, and the login page refuses framing (X-Frame-Options DENY),
+		// so a plain redirect showed the browser's "can't open this page" error
+		// once the session had expired. Navigate the top window instead, with a
+		// target=_top link as the fallback when scripts can't.
+		$login = '/utils/login.php?redirect=edit';
+		http_response_code(401);
+		header('Content-Type: text/html; charset=UTF-8');
+		header('Cache-Control: no-store');
+		echo '<!doctype html><meta charset="utf-8"><script>top.location.href = '
+			. json_encode($login) . ';</script><p style="font-family:sans-serif;text-align:center;margin-top:3em">'
+			. '<a href="' . htmlspecialchars($login) . '" target="_top">'
+			. htmlspecialchars(t('auth_login_submit')) . '</a></p>';
 		exit;
 	}
 	telaris_hg_authorize_token(telaris_hg_first_token($page), 'telaris_hg_deny_get');
