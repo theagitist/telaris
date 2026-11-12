@@ -63,7 +63,8 @@ All DB tables, API endpoints, PHP/JS variable names, and URL parameters keep the
 # Create a new admin/editor user
 php admin/cli/create_user.php
 
-# Full hard reset (drops all tables, deletes config.php)
+# DESTRUCTIVE: full hard reset (drops all tables, deletes config.php).
+# Never run without asking the user first and getting an explicit yes.
 php admin/cli/hard_reset.php [--force]
 
 # Initial setup is browser-only — navigate to /admin/setup.php
@@ -421,7 +422,7 @@ A wormhole can swap its classic media block (image/audio/PDF/embed) for an embed
 
 ### SMTP / mail
 
-`MAIL_*` config constants in `config.php` (placeholders in `config_default.php`). Outgoing mail through Mailgun via PHPMailer 7 (vendored via composer; needs `composer install` on each instance). Helper at `inc/mail.php` exposes `mail_send($to, $subject, $html, $textFallback?, $toName?)` and `mail_is_configured()`; failures are logged but never thrown.
+Outgoing mail goes through ZeptoMail via PHPMailer 7. SMTP settings come from `system_meta` (admin Global Settings, `mail_settings_get/save`), which override the `MAIL_*` constants in `config.php` (placeholders in `config_default.php`; a dormant fallback). PHPMailer 7 is vendored via composer (needs `composer install` on each instance). Helper at `inc/mail.php` exposes `mail_send($to, $subject, $html, $textFallback?, $toName?)` and `mail_is_configured()`; failures are logged but never thrown.
 
 ### Transactional email format (canonical: `inc/email-template.php`)
 
