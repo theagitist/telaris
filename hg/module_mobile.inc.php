@@ -105,6 +105,7 @@ function mobile_scaler_js($floor, $desk)
 	// touch screens may shrink further than mouse screens
 	var FLOOR = (window.matchMedia && matchMedia('(pointer: coarse)').matches) ? {$floor} : {$desk};
 	var clip, scale, designW, designH;
+	var html = document.documentElement, bgW = 0, bgH = 0, bgPos = '';
 
 	function measure() {
 		// design size = furthest right/bottom edge of the absolutely-positioned
@@ -127,6 +128,14 @@ function mobile_scaler_js($floor, $desk)
 		scale.style.height = designH + 'px';
 	}
 
+	// scale the page background image with the objects, so a layer drawn to
+	// line up with it still lines up once the page shrinks (Telaris, 2026-11-14)
+	function scaleBg(s) {
+		if (!bgW) return;
+		html.style.backgroundSize = s === 1 ? '' : (bgW * s) + 'px ' + (bgH * s) + 'px';
+		html.style.backgroundPosition = s === 1 ? '' : bgPos.replace(/(-?[\d.]+)px/g, function (m, n) { return (n * s) + 'px'; });
+	}
+
 	function apply() {
 		if (!designW) return;
 		var vpW = document.documentElement.clientWidth;
@@ -135,10 +144,12 @@ function mobile_scaler_js($floor, $desk)
 			scale.style.transform = 'none';
 			clip.style.width = '';
 			clip.style.height = '';
+			scaleBg(1);
 			return;
 		}
 		if (s < FLOOR) s = FLOOR;      // floor: stop shrinking, allow h-scroll
 		scale.style.transform = 'scale(' + s + ')';
+		scaleBg(s);
 		clip.style.width = (designW * s) + 'px';
 		clip.style.height = (designH * s) + 'px';
 	}
@@ -165,6 +176,13 @@ function mobile_scaler_js($floor, $desk)
 		document.body.appendChild(clip);
 		measure();
 		apply();
+		var cs = getComputedStyle(html), m = /url\("?(.*?)"?\)/.exec(cs.backgroundImage);
+		if (m) {
+			bgPos = cs.backgroundPosition;
+			var im = new Image();
+			im.onload = function () { bgW = im.naturalWidth; bgH = im.naturalHeight; apply(); };
+			im.src = m[1];
+		}
 		window.addEventListener('resize', apply);
 		window.addEventListener('orientationchange', apply);
 		// re-measure once images have loaded (heights can shift)
