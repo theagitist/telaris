@@ -109,7 +109,9 @@ function mobile_scaler_js($floor, $desk)
 	function measure() {
 		// design size = furthest right/bottom edge of the absolutely-positioned
 		// objects. offsetParent is #hg-scale (position:relative, at 0,0).
-		var w = 0, h = 0, k = scale.children, i, el, r, b;
+		// Measure the objects themselves, not direct children: a linked object
+		// sits inside a zero-size inline <a>, which would collapse the clip.
+		var w = 0, h = 0, k = scale.querySelectorAll('.object'), i, el, r, b;
 		for (i = 0; i < k.length; i++) {
 			el = k[i];
 			r = el.offsetLeft + el.offsetWidth;
