@@ -2528,6 +2528,7 @@ class TelarisNetwork {
                 this.warmupPhysics();
                 this.syncNodePositionsFromPhysics();
                 this._computeVeinTree();  // derive the branching backbone AFTER the layout settles
+                this._applyMapLayout();   // a drawn map overrides that layout (same arrangement as the 2D map)
                 this.fitCameraToNodes();
                 this.nodes.forEach(n => this.scene.add(n));
                 if (this.connections.length > 0) {
@@ -2989,6 +2990,7 @@ class TelarisNetwork {
             this.warmupPhysics();
             this.syncNodePositionsFromPhysics();
             this._computeVeinTree();  // derive the branching backbone AFTER the layout settles
+            this._applyMapLayout();   // a drawn map overrides that layout (same arrangement as the 2D map)
 
             if (!skipFit) {
                 this.fitCameraToNodes();
@@ -4575,6 +4577,52 @@ class TelarisNetwork {
             out.push(new THREE.Vector3().lerpVectors(poly[idx], poly[idx + 1], f));
         }
         return out;
+    }
+
+    /**
+     * When editors drew a map (window.TELARIS_GALAXY_MAP), place the wormholes where
+     * they put them, so the 3D view matches the 2D map and visitors can orient
+     * themselves (Manuel, 2026-11-16). The map lies on the XY plane facing the default
+     * camera, with a little depth so it still reads as space; unplaced wormholes sit
+     * on a ring around it. The sim is frozen, so the positions hold.
+     */
+    _applyMapLayout() {
+        const pos = (window.TELARIS_GALAXY_MAP && window.TELARIS_GALAXY_MAP.positions) || [];
+        if (!pos.length || !this.nodes.length) return;
+        const byId = new Map(pos.map(p => [p.keyword_id, p]));
+        const placed = [], loose = [];
+        for (const n of this.nodes) {
+            const id = n.userData && Number(n.userData.id);
+            (byId.has(id) ? placed : loose).push(n);
+        }
+        if (!placed.length) return; // another galaxy is on screen
+        let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+        for (const p of pos) {
+            x0 = Math.min(x0, p.canvas_x); x1 = Math.max(x1, p.canvas_x);
+            y0 = Math.min(y0, p.canvas_y); y1 = Math.max(y1, p.canvas_y);
+        }
+        // Same density as the tree layout: about one branch length between neighbours.
+        const span = Math.max(16, VEIN_LAYOUT_LEN0 * Math.sqrt(placed.length));
+        const k = span / Math.max(x1 - x0, y1 - y0, 1);
+        const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+        // Depth from the id, not Math.random, so the arrangement is the same on every visit.
+        const depth = (id) => ((id * 2654435761) % 1000 / 1000 - 0.5) * 3;
+        const put = (n, x, y) => {
+            const d = n.userData;
+            const v = new THREE.Vector3(x, y, depth(Number(d.id) || 0));
+            if (d.originalPosition) d.originalPosition.copy(v); else d.originalPosition = v.clone();
+            n.position.copy(v);
+            if (d.velocity) d.velocity.set(0, 0, 0);
+        };
+        for (const n of placed) {
+            const p = byId.get(Number(n.userData.id));
+            put(n, (p.canvas_x - cx) * k, -(p.canvas_y - cy) * k); // canvas y grows downward
+        }
+        const r = Math.max(x1 - x0, y1 - y0) * k * 0.5 * 1.25 + 4;
+        loose.forEach((n, i) => {
+            const a = (i / loose.length) * Math.PI * 2;
+            put(n, Math.cos(a) * r, Math.sin(a) * r);
+        });
     }
 
     /** Sync node.position from userData.originalPosition so camera fit uses post-physics positions. */

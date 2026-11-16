@@ -1389,8 +1389,9 @@
                 return;
             }
         }
-        // Prompt for an optional note before save.
-        const note = await promptForNote(sourceKwId, targetKwId);
+        // Prompt for an optional note before save. The Map editor saves the
+        // path straight away; a note can be added later via Edit note.
+        const note = MAP ? '' : await promptForNote(sourceKwId, targetKwId);
         if (note === null) return; // cancelled
         setStatus(KC_STR.statusSaving || 'Saving…', 'saving');
         try {
