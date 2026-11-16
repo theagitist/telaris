@@ -1416,6 +1416,7 @@
                 anchor_a: data.anchor_a,
                 anchor_b: data.anchor_b,
                 created_by: data.created_by,
+                created_by_name: KC.CURRENT_USER_NAME || null,
                 created_at: new Date().toISOString(),
                 note: data.note,
             });
@@ -1779,9 +1780,9 @@
         // Owner check for edit/delete: only author or admin.
         const canEdit = KC.IS_ADMIN || String(rel.created_by) === String(KC.CURRENT_USER_ID);
         const metaLine = (rel.created_by
-            ? tFmt(KC_STR.labelAuthoredBy || 'Authored by %s', rel.created_by)
+            ? tFmt(KC_STR.labelAuthoredBy || 'Authored by %s', rel.created_by_name || rel.created_by)
             : (KC_STR.labelNoAuthorRecorded || 'No author recorded'))
-            + (rel.created_at ? ` · ${rel.created_at}` : '');
+            + (rel.created_at ? ` · ${String(rel.created_at).slice(0, 10)}` : '');
 
         const action = await openLineModal({
             pairLabel, metaLine, note: rel.note || '', canEdit,

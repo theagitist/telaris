@@ -92,7 +92,7 @@ if ($isMap && $readOnly) {
     header('Location: ' . ($kcLoggedIn ? '/edit/' : '/utils/login.php'));
     exit();
 }
-$kcTitleTemplate = $isMap ? t('editor_map_page_title_template', 'Map; %s') : t('editor_kc_page_title_template', 'Keyword canvas; %s');
+$kcTitleTemplate = $isMap ? t('editor_map_page_title_template', 'Map: %s') : t('editor_kc_page_title_template', 'Keyword canvas: %s');
 
 $galaxySlug = (string)($galaxyInfo['slug'] ?? '');
 // The back link aims at "wherever the user came from." The client-side script
@@ -234,9 +234,9 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
     <!-- Note input modal: used for both create-new-relation and edit-existing-note flows. -->
     <dialog id="kc-note-modal" class="modal">
         <div class="modal-box bg-white text-gray-800 max-w-md">
-            <h3 id="kc-note-modal-title" class="font-bold text-lg"><?php echo t_attr('editor_kc_note_modal_title', 'Relation note'); ?></h3>
+            <h3 id="kc-note-modal-title" class="font-bold text-lg"><?php echo $isMap ? t_attr('editor_map_note_modal_title', 'Path note') : t_attr('editor_kc_note_modal_title', 'Relation note'); ?></h3>
             <p id="kc-note-modal-pair" class="text-sm text-gray-500 mt-1 font-mono"></p>
-            <p class="text-xs text-gray-500 mt-3"><?php echo t_attr('editor_kc_note_modal_intro', "Optional editorial framing; what does this relation carry that a shared keyword can't say alone?"); ?></p>
+            <p class="text-xs text-gray-500 mt-3"><?php echo $isMap ? t_attr('editor_map_note_modal_intro', 'Optional. A few words visitors see when they hover this path.') : t_attr('editor_kc_note_modal_intro', "Optional editorial framing; what does this relation carry that a shared keyword can't say alone?"); ?></p>
             <textarea id="kc-note-modal-input" class="textarea textarea-bordered w-full mt-2 bg-white" rows="3" maxlength="500" placeholder=""></textarea>
             <div class="modal-action">
                 <button type="button" id="kc-note-modal-cancel" class="btn btn-ghost"><?php echo t_attr('editor_kc_note_modal_cancel', 'Cancel'); ?></button>
@@ -294,14 +294,14 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
          (when the user can edit) Edit / Delete actions. -->
     <dialog id="kc-line-modal" class="modal">
         <div class="modal-box bg-white text-gray-800 max-w-md">
-            <h3 class="font-bold text-lg"><?php echo t_attr('editor_kc_line_modal_title', 'Relation'); ?></h3>
+            <h3 class="font-bold text-lg"><?php echo $isMap ? t_attr('editor_map_line_modal_title', 'Path') : t_attr('editor_kc_line_modal_title', 'Relation'); ?></h3>
             <p id="kc-line-modal-pair" class="text-base font-semibold mt-1 font-mono"></p>
             <p id="kc-line-modal-meta" class="text-xs text-gray-500 mt-1"></p>
             <div id="kc-line-modal-note-wrap" class="mt-3 p-3 bg-gray-50 border border-gray-200 rounded text-sm" hidden>
                 <span id="kc-line-modal-note" class="italic"></span>
             </div>
-            <p id="kc-line-modal-noauth" class="text-xs text-gray-500 mt-3" hidden><?php echo t_attr('editor_kc_line_modal_noauth', 'Only the original author or an admin can edit or delete this relation.'); ?></p>
-            <div class="modal-action">
+            <p id="kc-line-modal-noauth" class="text-xs text-gray-500 mt-3" hidden><?php echo $isMap ? t_attr('editor_map_line_modal_noauth', 'Only the person who drew this path, or an admin, can change it.') : t_attr('editor_kc_line_modal_noauth', 'Only the original author or an admin can edit or delete this relation.'); ?></p>
+            <div class="modal-action flex-wrap gap-y-2">
                 <button type="button" id="kc-line-modal-close" class="btn"><?php echo t_attr('editor_kc_line_modal_close', 'Close'); ?></button>
                 <?php if ($isMap): ?><button type="button" id="kc-line-modal-dir" class="btn btn-outline" hidden><?php echo t_attr('editor_map_line_direction', 'Change direction'); ?></button><?php endif; ?>
                 <button type="button" id="kc-line-modal-edit" class="btn btn-outline" hidden><?php echo t_attr('editor_kc_line_modal_edit', 'Edit note'); ?></button>
@@ -315,7 +315,7 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
     <dialog id="kc-help-modal" class="modal">
         <div class="modal-box bg-white text-gray-800 max-w-lg">
             <h3 class="font-bold text-lg"><?php echo t_attr('editor_kc_help_title', 'Quick guide'); ?></h3>
-            <p class="text-sm text-gray-700 mt-2"><?php echo $isMap ? t_attr('editor_map_help_purpose', 'Draw the map visitors see in the 2D view. Drag wormholes to place them, draw paths between them, and record routes visitors can follow step by step. Faded wormholes are not placed yet.') : t_attr('editor_kc_help_purpose', 'Use this view to map how keywords in this galaxy relate to each other. The closer they are, the stronger their relationship. Drag chips to set their proximity, and draw lines between them to record specific semantic connections.'); ?></p>
+            <p class="text-sm text-gray-700 mt-2"><?php echo $isMap ? t_attr('editor_map_help_purpose', 'Draw the map visitors see in 2D and 3D: wormholes keep the places you give them, in both views. Drag wormholes to place them, draw paths between them, and record routes visitors can follow step by step. Faded wormholes are not placed yet.') : t_attr('editor_kc_help_purpose', 'Use this view to map how keywords in this galaxy relate to each other. The closer they are, the stronger their relationship. Drag chips to set their proximity, and draw lines between them to record specific semantic connections.'); ?></p>
             <p class="text-sm text-gray-600 mt-3 font-semibold"><?php echo t_attr('editor_kc_help_intro', 'How to use it:'); ?></p>
             <ul class="mt-3 space-y-2 text-sm">
                 <?php if ($isMap): ?>
@@ -324,8 +324,8 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
 <?php else: ?>
                 <li><strong><?php echo t_attr('editor_kc_help_move_label', 'Move a keyword'); ?>.</strong> <?php echo t_attr('editor_kc_help_move_body', 'Drag a chip to reposition it.'); ?></li>
 <?php endif; ?>
-                <li><strong><?php echo t_attr('editor_kc_help_connect_label', 'Connect two keywords'); ?>.</strong> <?php echo t_attr('editor_kc_help_connect_body', 'Click an anchor dot on one chip, then click an anchor on another. Or drag from anchor to anchor.'); ?></li>
-                <li><strong><?php echo t_attr('editor_kc_help_edit_label', 'Edit or delete a line'); ?>.</strong> <?php echo t_attr('editor_kc_help_edit_body', 'Click an existing line to open it.'); ?></li>
+                <li><strong><?php echo $isMap ? t_attr('editor_map_help_connect_label', 'Draw a path') : t_attr('editor_kc_help_connect_label', 'Connect two keywords'); ?>.</strong> <?php echo $isMap ? t_attr('editor_map_help_connect_body', 'Click an anchor dot on one wormhole, then click an anchor dot on another. Or drag from anchor to anchor.') : t_attr('editor_kc_help_connect_body', 'Click an anchor dot on one chip, then click an anchor on another. Or drag from anchor to anchor.'); ?></li>
+                <li><strong><?php echo $isMap ? t_attr('editor_map_help_edit_label', 'Edit or delete a path') : t_attr('editor_kc_help_edit_label', 'Edit or delete a line'); ?>.</strong> <?php echo $isMap ? t_attr('editor_map_help_edit_body', 'Click a path to open it.') : t_attr('editor_kc_help_edit_body', 'Click an existing line to open it.'); ?></li>
                 <li><strong><?php echo t_attr('editor_kc_help_pan_label', 'Pan the view'); ?>.</strong> <?php echo t_attr('editor_kc_help_pan_body', 'Hold Space and drag, or middle-click and drag.'); ?></li>
                 <li><strong><?php echo t_attr('editor_kc_help_zoom_label', 'Zoom'); ?>.</strong> <?php echo t_attr('editor_kc_help_zoom_body', 'Use the mouse wheel. Zooms toward the cursor.'); ?></li>
                 <li><strong><?php echo t_attr('editor_kc_help_cancel_label', 'Cancel'); ?>.</strong> <?php echo t_attr('editor_kc_help_cancel_body', 'Press Esc while drawing a line to cancel.'); ?></li>
@@ -372,6 +372,7 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
             MODE: <?php echo json_encode($isMap ? 'map' : 'keywords'); ?>,
             IS_ADMIN: <?php echo $isAdmin ? 'true' : 'false'; ?>,
             CURRENT_USER_ID: <?php echo json_encode($currentUserId); ?>,
+            CURRENT_USER_NAME: <?php echo json_encode((string)($_SESSION['admin_user_name'] ?? '')); ?>,
             BACK_URL: <?php echo json_encode($backUrl); ?>,
             APP_VERSION: <?php echo json_encode($appVersion); ?>,
             STRINGS: <?= json_encode([
@@ -385,7 +386,7 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
                 'statusMerging' => t('editor_kc_status_merging', 'Merging…'),
                 'statusMerged' => t('editor_kc_status_merged', 'Merged'),
                 'statusRenamed' => t('editor_kc_status_renamed', 'Renamed'),
-                'statusAlreadyRelated' => t('editor_kc_status_already_related', 'Already related'),
+                'statusAlreadyRelated' => $isMap ? t('editor_map_status_already_linked', 'These wormholes already have a path') : t('editor_kc_status_already_related', 'Already related'),
                 'statusDragOrClick' => t('editor_kc_status_drag_or_click', 'Drag to another anchor, or click one (Esc to cancel)'),
                 'statusLoadFailed' => t('editor_kc_status_load_failed', 'Load failed: %s'),
                 'statusSaveFailed' => t('editor_kc_status_save_failed', 'Save failed: %s'),
@@ -395,8 +396,8 @@ $kcLocale = locale_resolve_from_request($_GET['lang'] ?? null, $_SERVER['HTTP_AC
                 'statusMergeFailed' => t('editor_kc_status_merge_failed', 'Merge failed: %s'),
                 'statusUpdateFailed' => t('editor_kc_status_update_failed', 'Update failed: %s'),
                 'modalTitleNewRelation' => t('editor_kc_modal_title_new_relation', 'New relation'),
-                'modalTitleEditRelation' => t('editor_kc_modal_title_edit_relation', 'Edit relation note'),
-                'labelAuthoredBy' => t('editor_kc_label_authored_by', 'Authored by %s'),
+                'modalTitleEditRelation' => $isMap ? t('editor_map_edit_note_title', 'Edit path note') : t('editor_kc_modal_title_edit_relation', 'Edit relation note'),
+                'labelAuthoredBy' => $isMap ? t('editor_map_label_drawn_by', 'Drawn by %s') : t('editor_kc_label_authored_by', 'Authored by %s'),
                 'labelNoAuthorRecorded' => t('editor_kc_label_no_author_recorded', 'No author recorded'),
                 'labelNoAuthorShort' => t('editor_kc_label_no_author_short', '(no author)'),
                 'errEmptyName' => t('editor_kc_err_empty_name', 'Pick a non-empty name.'),
